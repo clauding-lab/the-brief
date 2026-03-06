@@ -1,10 +1,1323 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>THE BRIEF</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THE BRIEF — Bangladesh Business Intelligence</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --bg:        #0a0c0f;
+      --surface:   #111418;
+      --border:    #1e2329;
+      --border2:   #2a3040;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --accent:    #3b82f6;
+      --accent2:   #1d4ed8;
+      --bull:      #22c55e;
+      --bear:      #ef4444;
+      --warn:      #f59e0b;
+      --neutral:   #94a3b8;
+      --tag-bg:    #1e2329;
+      --pill-bear: rgba(239,68,68,0.12);
+      --pill-bull: rgba(34,197,94,0.12);
+      --pill-warn: rgba(245,158,11,0.12);
+      --pill-neu:  rgba(148,163,184,0.1);
+      --brand-color: #ffffff;
+    }
+
+    :root.light {
+      --bg:        #f1f5f9;
+      --surface:   #ffffff;
+      --border:    #e2e8f0;
+      --border2:   #cbd5e1;
+      --text:      #1e293b;
+      --muted:     #64748b;
+      --accent:    #2563eb;
+      --accent2:   #1d4ed8;
+      --bull:      #16a34a;
+      --bear:      #dc2626;
+      --warn:      #d97706;
+      --neutral:   #475569;
+      --tag-bg:    #f1f5f9;
+      --pill-bear: rgba(220,38,38,0.08);
+      --pill-bull: rgba(22,163,74,0.08);
+      --pill-warn: rgba(217,119,6,0.08);
+      --pill-neu:  rgba(71,85,105,0.08);
+      --brand-color: #0f172a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px 16px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {}
+    .brand {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: var(--brand-color);
+      text-transform: uppercase;
+    }
+    .brand span { color: var(--accent); }
+
+    .tagline {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    .header-right {
+      text-align: right;
+    }
+    .date-stamp {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.3);
+      color: var(--bull);
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      padding: 2px 8px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      margin-top: 5px;
+    }
+    .live-dot {
+      width: 5px; height: 5px;
+      background: var(--bull);
+      border-radius: 50%;
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+    }
+
+    /* ── Nav Bar ── */
+    .nav {
+      display: flex;
+      gap: 2px;
+      padding: 0 32px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .nav::-webkit-scrollbar { display: none; }
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 10px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s;
+    }
+    .nav-btn:hover { color: var(--text); }
+    .nav-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Main layout ── */
+    .main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 32px;
+    }
+
+    /* ── Section ── */
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-num {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      background: var(--tag-bg);
+      padding: 2px 7px;
+      border-radius: 2px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+    .section-icon {
+      font-size: 14px;
+      margin-left: auto;
+    }
+
+    /* ── Cards grid ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .cards-grid-3 {
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 16px;
+      position: relative;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: var(--border2); }
+
+    .card-accent-bull { border-left: 3px solid var(--bull); }
+    .card-accent-bear { border-left: 3px solid var(--bear); }
+    .card-accent-warn { border-left: 3px solid var(--warn); }
+    .card-accent-neu  { border-left: 3px solid var(--neutral); }
+    .card-accent-blue { border-left: 3px solid var(--accent); }
+
+    .card-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .card-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--brand-color);
+      line-height: 1.2;
+    }
+
+    /* ── Theme toggle ── */
+    .theme-toggle {
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      padding: 3px 10px;
+      border-radius: 2px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color .15s, background .15s, border-color .15s;
+    }
+    .theme-toggle:hover { color: var(--text); border-color: var(--border2); }
+    .card-value-sm { font-size: 18px; }
+
+    .card-change {
+      font-size: 11px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .bull { color: var(--bull); }
+    .bear { color: var(--bear); }
+    .warn { color: var(--warn); }
+    .neu  { color: var(--neutral); }
+
+    .card-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    /* ── Pill tags ── */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+    .pill-bull { background: var(--pill-bull); color: var(--bull); border: 1px solid rgba(34,197,94,0.25); }
+    .pill-bear { background: var(--pill-bear); color: var(--bear); border: 1px solid rgba(239,68,68,0.25); }
+    .pill-warn { background: var(--pill-warn); color: var(--warn); border: 1px solid rgba(245,158,11,0.25); }
+    .pill-neu  { background: var(--pill-neu);  color: var(--neutral); border: 1px solid rgba(148,163,184,0.2); }
+    .pill-blue { background: rgba(59,130,246,0.1); color: var(--accent); border: 1px solid rgba(59,130,246,0.25); }
+
+    /* ── News items ── */
+    .news-list { display: flex; flex-direction: column; gap: 8px; }
+    .news-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .news-item:hover { border-color: var(--border2); }
+    .news-bullet {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+    .news-content {}
+    .news-headline {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .news-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 5px;
+      flex-wrap: wrap;
+    }
+    .news-source {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .news-source a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .news-source a:hover { text-decoration: underline; }
+    .news-time {
+      font-size: 9px;
+      color: var(--muted);
+    }
+
+    /* ── Ticker strip ── */
+    .ticker-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .ticker-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ticker-name {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .ticker-val {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .ticker-chg { font-size: 10px; }
+
+    /* ── Table ── */
+    .brief-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .brief-table th {
+      text-align: left;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 12px;
+      background: var(--surface);
+    }
+    .brief-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .brief-table tr:last-child td { border-bottom: none; }
+    .brief-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── Two-col layout ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .two-col { grid-template-columns: 1fr; }
+      .cards-grid { grid-template-columns: 1fr; }
+      .main { padding: 20px 16px; }
+      .header { padding: 16px; }
+      .nav { padding: 0 16px; }
+    }
+
+    /* ── Context box ── */
+    .context-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 14px 16px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .context-box strong { color: var(--text); }
+
+    /* ── Footer ── */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+    .footer a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .footer a:hover { color: var(--accent); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* ── Signal bar ── */
+    .signal-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .signal-label { font-size: 10px; color: var(--muted); min-width: 80px; }
+    .signal-bar-track {
+      flex: 1;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .signal-bar-fill { height: 100%; border-radius: 2px; }
+    .signal-val { font-size: 10px; font-weight: 700; min-width: 50px; text-align: right; }
+
+    /* ── Impact notice ── */
+    .impact-banner {
+      background: rgba(245,158,11,0.07);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 4px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .impact-icon { font-size: 14px; margin-top: 1px; flex-shrink: 0; }
+    .impact-text { font-size: 11px; color: var(--warn); line-height: 1.6; }
+    .impact-text strong { color: #fff; }
+
+    /* ── Section scroll target ── */
+    .scroll-target { scroll-margin-top: 100px; }
+
+    /* ── Time stamp ── */
+    .ts {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+  </style>
 </head>
 <body>
-  <h1>THE BRIEF</h1>
-  <p>Coming soon.</p>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── Data ────────────────────────────────────────────────────────────────────
+
+const BRIEF_DATE = "FRIDAY 06 MARCH 2026 · 0700 BDT";
+const BRIEF_EDITION = "VOL. 1 · ISSUE 64";
+
+const SECTIONS = [
+  { id: "bb",     label: "BB & Finance",   short: "BB" },
+  { id: "macro",  label: "Macro",          short: "Macro" },
+  { id: "dse",    label: "DSE",            short: "DSE" },
+  { id: "tbond",  label: "T-Bills/Bonds",  short: "T-Bills" },
+  { id: "comm",   label: "Commodities",    short: "Commod" },
+  { id: "fx",     label: "FX / Reserves",  short: "FX" },
+  { id: "tariff", label: "US Tariffs",     short: "Tariff" },
+  { id: "trade",  label: "Int'l Trade",    short: "Trade" },
+];
+
+// ── Components ───────────────────────────────────────────────────────────────
+
+function Pill({ type, children }) {
+  return <span className={`pill pill-${type}`}>{children}</span>;
+}
+
+function SentDot({ type }) {
+  const colors = { bull: "var(--bull)", bear: "var(--bear)", warn: "var(--warn)", neu: "var(--neutral)" };
+  return (
+    <span style={{
+      display: "inline-block",
+      width: 8, height: 8,
+      borderRadius: "50%",
+      background: colors[type] || colors.neu,
+      flexShrink: 0
+    }} />
+  );
+}
+
+function MetricCard({ label, value, valueSm, change, changeType, sub, accent, pill, pillType }) {
+  return (
+    <div className={`card card-accent-${accent || "neu"}`}>
+      <div className="card-label">{label}</div>
+      <div className={`card-value ${valueSm ? "card-value-sm" : ""}`}>{value}</div>
+      {change && (
+        <div className={`card-change ${changeType || ""}`}>
+          {change}
+        </div>
+      )}
+      {pill && <div style={{ marginTop: 6 }}><Pill type={pillType || "neu"}>{pill}</Pill></div>}
+      {sub && <div className="card-sub">{sub}</div>}
+    </div>
+  );
+}
+
+function NewsItem({ headline, source, sourceUrl, time, sentiment, detail }) {
+  return (
+    <div className="news-item">
+      <div className="news-bullet" style={{
+        background: sentiment === "bull" ? "var(--bull)"
+          : sentiment === "bear" ? "var(--bear)"
+          : sentiment === "warn" ? "var(--warn)"
+          : "var(--neutral)"
+      }} />
+      <div className="news-content">
+        <div className="news-headline">{headline}</div>
+        {detail && <div className="card-sub" style={{ marginTop: 4 }}>{detail}</div>}
+        <div className="news-meta">
+          <span className="news-source">
+            {sourceUrl
+              ? <a href={sourceUrl} target="_blank" rel="noreferrer">{source}</a>
+              : source}
+          </span>
+          {time && <span className="news-time">{time}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ num, title, icon }) {
+  return (
+    <div className="section-header">
+      <span className="section-num">{num}</span>
+      <span className="section-title">{title}</span>
+      {icon && <span className="section-icon">{icon}</span>}
+    </div>
+  );
+}
+
+function TickerStrip({ items }) {
+  return (
+    <div className="ticker-row">
+      {items.map((t, i) => (
+        <div key={i} className="ticker-chip">
+          <span className="ticker-name">{t.name}</span>
+          <span className="ticker-val">{t.value}</span>
+          {t.change && (
+            <span className={`ticker-chg ${t.chgType || "neu"}`}>{t.change}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Sections ─────────────────────────────────────────────────────────────────
+
+function SectionBB() {
+  return (
+    <div className="section scroll-target" id="bb">
+      <SectionHeader num="01" title="Bangladesh Bank & Financial Sector" icon="🏦" />
+
+      <TickerStrip items={[
+        { name: "Policy Rate", value: "10.00%", change: "HOLD", chgType: "warn" },
+        { name: "Repo", value: "10.00%", change: "Unchanged", chgType: "neu" },
+        { name: "SDF Rate", value: "7.50%", change: "▼ −50bps", chgType: "bull" },
+        { name: "Inflation (Jan)", value: "8.58%", change: "▲ +0.09pp", chgType: "bear" },
+        { name: "Pvt Credit Growth", value: "6.1%", change: "vs 8% target", chgType: "bear" },
+      ]} />
+
+      <div className="impact-banner">
+        <span className="impact-icon">⚑</span>
+        <div className="impact-text">
+          <strong>Monetary Policy Stance (H2 FY26):</strong> Bangladesh Bank holds the policy rate at <strong>10%</strong> for the second half of FY2025-26, announced 9 February 2026. The SDF rate was cut 50bps to 7.5% to discourage excess liquidity parking at BB and push credit into the private sector.
+        </div>
+      </div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="warn"
+          headline="BB holds policy rate at 10% for H2 FY26 — inflation still 'elevated and uneven' above 7% target"
+          detail="Governor Ahsan H. Mansur cited crowding-out pressure: government borrowing running at 29% growth vs 18.1% target, leaving private credit at just 6.1% vs 8% target. Any premature rate cut risks renewed taka depreciation pressure."
+          source="The Daily Star"
+          sourceUrl="https://www.thedailystar.net/business/economy/news/bb-holds-policy-rate-10-tough-trade-inflation-vs-growth-4102396"
+          time="Feb 9, 2026"
+        />
+        <NewsItem
+          sentiment="bull"
+          headline="SDF rate cut 50bps to 7.5% — BB recalibrates to channel excess bank liquidity into private lending"
+          detail="Commercial banks currently park excess funds at BB rather than lend to private sector. The SDF cut narrows the spread, incentivising deployment toward CMSMEs and agriculture, where loan provisioning rules have also been relaxed."
+          source="TBS News"
+          sourceUrl="https://www.tbsnews.net/economy/bb-unveils-monetay-policy-second-half-fy26-keeping-policy-rate-unchanged-10-1355671"
+          time="Feb 9, 2026"
+        />
+        <NewsItem
+          sentiment="neu"
+          headline="Sammilito Islami Bank launched — merger of 5 troubled Shariah banks creates largest Islamic lender with Tk33,000cr capital"
+          detail="Under the Bank Resolution Ordinance 2025, BB has merged five distressed Islamic banks. Nine NBFIs have been sent for liquidation. The Bangladesh Bank Order remains stuck at Ministry of Finance despite October submission."
+          source="The Daily Star"
+          sourceUrl="https://www.thedailystar.net/business/news/bangladesh-bank-holds-key-rate-10-cuts-deposit-rate-spur-lending-4101786"
+          time="Feb 2026"
+        />
+        <NewsItem
+          sentiment="bull"
+          headline="BSEC invites public comment on new Whistleblower Protection Rules 2026 — dual mechanism for market integrity"
+          detail="Rules drafted under Section 33(1) of Securities and Exchange Ordinance 1969 and Section 24(1) of BSEC Act 1993. BSEC also signed MoU with UNDP on January 28, 2026."
+          source="BSS / BSEC Official"
+          sourceUrl="https://www.sec.gov.bd/"
+          time="Mar 1, 2026"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SectionMacro() {
+  return (
+    <div className="section scroll-target" id="macro">
+      <SectionHeader num="02" title="Key Macroeconomic Indicators" icon="📊" />
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="CPI Inflation (Jan 2026)"
+          value="8.58%"
+          change="▲ +0.09pp from Dec 8.49%"
+          changeType="bear"
+          sub="3rd consecutive monthly rise. Food 8.29%, Housing 8.48%, Clothing 11.00%. BB target: <7%"
+          accent="bear"
+          pill="ABOVE TARGET"
+          pillType="bear"
+        />
+        <MetricCard
+          label="Remittances — February 2026"
+          value="$3.02B"
+          change="▲ +19.4% YoY"
+          changeType="bull"
+          sub="Eid/Ramadan-driven surge. FY26 cumulative (Jul–Feb): $22.45B (+21.4%). January set record $3.17B."
+          accent="bull"
+          pill="RECORD FEB"
+          pillType="bull"
+        />
+        <MetricCard
+          label="GDP Growth (FY2024-25)"
+          value="3.49%"
+          change="▼ Slowest in recent history"
+          changeType="bear"
+          sub="Goods exports declined YoY for 6th consecutive month in January. Nominal GDP USD 451B."
+          accent="bear"
+          pill="SOFT"
+          pillType="warn"
+        />
+        <MetricCard
+          label="Private Credit Growth"
+          value="6.1%"
+          change="▼ vs 8% target"
+          changeType="bear"
+          sub="Banks crowding into T-bills/bonds amid elevated govt borrowing (29% vs 18.1% target). Crowding-out risk elevated."
+          accent="bear"
+          pill="BELOW TARGET"
+          pillType="bear"
+        />
+        <MetricCard
+          label="Gross Forex Reserves"
+          value="$35.11B"
+          change="▲ vs $26.26B a year ago"
+          changeType="bull"
+          sub="As of Feb 26, 2026. IMF BPM6: $30.36B vs $21.08B prior year. BB purchased $5.38B from market in FY26."
+          accent="bull"
+          pill="RISING"
+          pillType="bull"
+        />
+        <MetricCard
+          label="12-month Inflation Avg"
+          value="8.66%"
+          change="Well above 7% BB target"
+          changeType="bear"
+          sub="Taka has lost ~43% value vs USD since 2021. Despite tightening, price pressure remains uneven."
+          accent="bear"
+          pill="PERSISTENT"
+          pillType="warn"
+        />
+      </div>
+
+      <div className="context-box">
+        <strong>Macro Outlook:</strong> Bangladesh faces a challenging balancing act — inflation remains stubbornly above target while growth has slowed to a multi-year low of 3.49%. Rising remittances ($3.02B in Feb) and recovering forex reserves ($35.11B gross) provide balance-of-payments relief, but goods export weakness (6th consecutive monthly decline) and subdued private credit signal fragile domestic demand. Middle East tension adds a remittance risk tail.
+      </div>
+    </div>
+  );
+}
+
+function SectionDSE() {
+  return (
+    <div className="section scroll-target" id="dse">
+      <SectionHeader num="03" title="Dhaka Stock Exchange" icon="📈" />
+
+      <TickerStrip items={[
+        { name: "DSEX", value: "5,323", change: "▼ −2pts (−0.03%)", chgType: "bear" },
+        { name: "DS30", value: "2,045", change: "▼ −4pts (−0.23%)", chgType: "bear" },
+        { name: "Turnover", value: "Tk 582cr", change: "▼ −34% DoD", chgType: "bear" },
+        { name: "CSCX", value: "9,175", change: "▼ −52pts", chgType: "bear" },
+        { name: "52-Wk Range", value: "4,588–5,675", change: "DSEX", chgType: "neu" },
+      ]} />
+
+      <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
+        <span className="impact-icon">⚡</span>
+        <div className="impact-text" style={{ color: "var(--bear)" }}>
+          <strong>FLASH:</strong> On March 3, 2026, DSEX crashed <strong>209 points (−3.77%)</strong> to 5,325 — the worst single-day fall in six years (last worse: March 9, 2020, −279pts). Trigger: Middle East geopolitical escalation. Bangladesh sources <strong>&gt;50% of LNG</strong> from Qatar/UAE (~3.6MT in 2025). Market partially stabilised on March 4 (−2pts) but turnover collapsed 34% to Tk582cr.
+        </div>
+      </div>
+
+      <div className="two-col">
+        <div>
+          <div className="card-label" style={{ marginBottom: 8 }}>TOP GAINERS (Mar 4)</div>
+          <table className="brief-table">
+            <thead>
+              <tr><th>Stock</th><th>Change</th><th>Sentiment</th></tr>
+            </thead>
+            <tbody>
+              {[
+                ["Fareast Finance", "+10.00%", "bull"],
+                ["FAS Finance", "+10.00%", "bull"],
+                ["Peoples Leasing", "+10.00%", "bull"],
+                ["Pacific Denims", "+10.00%", "bull"],
+                ["Saif Powertec", "+9.67%", "bull"],
+              ].map(([s, c, t], i) => (
+                <tr key={i}>
+                  <td>{s}</td>
+                  <td className={t}>{c}</td>
+                  <td><Pill type="bull">Circuit+</Pill></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div className="card-label" style={{ marginBottom: 8 }}>TOP LOSERS (Mar 4)</div>
+          <table className="brief-table">
+            <thead>
+              <tr><th>Stock</th><th>Change</th><th>Sentiment</th></tr>
+            </thead>
+            <tbody>
+              {[
+                ["GSP Finance", "−9.67%", "bear"],
+                ["Union Capital", "−8.82%", "bear"],
+                ["Sonargaon Textile", "−8.05%", "bear"],
+                ["Grameenphone", "Notable loss", "bear"],
+                ["BIFC", "Notable loss", "bear"],
+              ].map(([s, c, t], i) => (
+                <tr key={i}>
+                  <td>{s}</td>
+                  <td className={t}>{c}</td>
+                  <td><Pill type="bear">Selling</Pill></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <div className="news-list">
+          <NewsItem
+            sentiment="bear"
+            headline="DSEX posts worst single-day fall in six years — down 209 points on March 3 amid Middle East energy fears"
+            detail="Market breadth Mar 4: 227 stocks rose vs 112 declined, 54 unchanged. Blue-chips Grameenphone, BAT Bangladesh, Square Pharma, LafargeHolcim and National Bank dragged index despite broader recovery. CSE turnover plunged 62% to Tk8.86cr."
+            source="The Daily Star"
+            sourceUrl="https://www.thedailystar.net/business/economy/news/dse-posts-worst-single-day-fall-six-years-4120126"
+            time="Mar 4, 2026"
+          />
+          <NewsItem
+            sentiment="neu"
+            headline="DSEX technical signal: Strong Buy — index above both 100 and 200 SMA despite recent volatility"
+            detail="52-week range: 4,588–5,675. Index still up +6.49% over 12 months. Recovery hinges on Middle East de-escalation and energy price stability."
+            source="Investing.com / Trading Economics"
+            sourceUrl="https://tradingeconomics.com/bangladesh/stock-market"
+            time="Mar 5, 2026"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionTBond() {
+  return (
+    <div className="section scroll-target" id="tbond">
+      <SectionHeader num="04" title="Treasury Bills & Bond Market" icon="📋" />
+
+      <TickerStrip items={[
+        { name: "10Y Bond", value: "10.82%", change: "▲ Dec 2025", chgType: "bear" },
+        { name: "5Y Bond", value: "10.76%", change: "▲ Dec 2025", chgType: "bear" },
+        { name: "Policy Rate", value: "10.00%", change: "Anchor", chgType: "neu" },
+        { name: "SDF (floor)", value: "7.50%", change: "▼ −50bps", chgType: "bull" },
+        { name: "Govt Borrowing", value: "+29%", change: "vs 18.1% target", chgType: "bear" },
+      ]} />
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="10-Year BGTB Yield"
+          value="10.82%"
+          change="▲ from 10.28% in Nov 2025"
+          changeType="bear"
+          sub="ATH: 12.59% (Jun 2024). All-time low: 5.25% (Jul 2021). Yield curve steepening reflects fiscal pressure."
+          accent="bear"
+          pill="RISING"
+          pillType="bear"
+        />
+        <MetricCard
+          label="5-Year BGTB Yield"
+          value="10.76%"
+          change="▲ from 10.64% in Nov 2025"
+          changeType="bear"
+          sub="ATH: 12.43% (Jun 2024). Near-parallel shift with 10Y. Spread compression signals demand uncertainty at long end."
+          accent="bear"
+          pill="ELEVATED"
+          pillType="warn"
+        />
+        <MetricCard
+          label="Last BB Auction"
+          value="Feb 25, 2026"
+          valueSm
+          change="91d / 182d / 364d T-Bills + 2/5/10/15/20Y BGTBs"
+          changeType="neu"
+          sub="Bangladesh Bank conducts primary auctions. Full cut-off yields available at bb.org.bd/monetaryactivity/treasury"
+          accent="blue"
+          pill="REGULAR SCHEDULE"
+          pillType="blue"
+        />
+      </div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="warn"
+          headline="Banks increasingly crowd into T-bills/bonds over private lending — government borrowing at 29% growth vs 18.1% target"
+          detail="Elevated government borrowing to finance the budget deficit is creating a classic crowding-out effect. Commercial banks find risk-free government securities attractive vs private credit at policy-rate pricing. Private sector credit growth: 6.1% (target 8%)."
+          source="Bangladesh Bank / The Daily Star"
+          sourceUrl="https://www.thedailystar.net/business/economy/news/bb-holds-policy-rate-10-tough-trade-inflation-vs-growth-4102396"
+          time="Feb 2026"
+        />
+        <NewsItem
+          sentiment="neu"
+          headline="10Y–5Y yield spread narrows to 6bps (10.82% vs 10.76%) — near-flat curve signals market uncertainty on rate trajectory"
+          detail="The yield curve has historically steepened ahead of rate cuts. Current near-flat 2–20Y curve suggests the market is pricing a prolonged hold at 10%, with limited expectation of policy relief before H1 FY27. Watch: IMF review and inflation trajectory."
+          source="CEIC / Bangladesh Bank"
+          sourceUrl="https://www.ceicdata.com/en/bangladesh/government-treasury-bills/bangladesh-government-treasury-bond-rate-10-years"
+          time="Dec 2025 data"
+        />
+        <NewsItem
+          sentiment="bull"
+          headline="IMF to release $1.3B to Bangladesh after reform breakthrough — provides fiscal headroom and reserve support"
+          detail="The disbursement follows the US-Bangladesh trade deal and BB's reform agenda. Reduces pressure on domestic T-bill issuance for budget financing. Gross reserves now at $35.11B."
+          source="TBS News / Exchange-Rates.org"
+          sourceUrl="https://www.tbsnews.net/economy/bangladeshs-forex-reserves-rise-2986b-1364416"
+          time="Mar 2026"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SectionComm() {
+  return (
+    <div className="section scroll-target" id="comm">
+      <SectionHeader num="05" title="Commodity Pricing" icon="🪙" />
+
+      <TickerStrip items={[
+        { name: "Gold (22K/bhori)", value: "Tk 2,68,214", change: "▼ −Tk9,214", chgType: "bear" },
+        { name: "Brent Crude", value: "$84.17/bbl", change: "▼ −1.43%", chgType: "bear" },
+        { name: "WTI Crude", value: "$79.52/bbl", change: "▼ −1.81%", chgType: "bear" },
+        { name: "Nat Gas", value: "$2.98/MMBtu", change: "▼ −0.71%", chgType: "bear" },
+      ]} />
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="BAJUS 22-Carat Gold (Effective Mar 4)"
+          value="Tk 2,68,214"
+          change="▼ −Tk 9,214 from prior day"
+          changeType="bear"
+          sub="After spike to Tk2,77,428 on Mar 3. 21-carat: Tk2,56,025. 18-carat: Tk2,19,458. Sonaton: Tk1,79,159. +5–6% VAT applicable."
+          accent="warn"
+          pill="VOLATILE"
+          pillType="warn"
+        />
+        <MetricCard
+          label="Brent Crude (Mar 6)"
+          value="$84.17/bbl"
+          change="▼ −1.43% today | 52W range: $58.40–$85.85"
+          changeType="bear"
+          sub="Technical correction after rapid rally. 100 SMA above 200 SMA (bullish cross). Geopolitical risk from Strait of Hormuz concerns remains elevated."
+          accent="warn"
+          pill="TECHNICAL PULLBACK"
+          pillType="warn"
+        />
+        <MetricCard
+          label="WTI Crude (Mar 6)"
+          value="$79.52/bbl"
+          change="▼ −1.81% | Near key $80.11 resistance"
+          changeType="bear"
+          sub="Bullish break above 55.81 range lows. OPEC+ supply dynamics and Middle East tension driving direction. Bangladesh LNG import cost sensitivity: 50%+ sourced from Qatar/UAE."
+          accent="warn"
+          pill="WATCH"
+          pillType="warn"
+        />
+      </div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="warn"
+          headline="Gold price swings sharply — BAJUS cut rates by Tk9,214/bhori on Mar 4 after Tk3,324 increase on Mar 3"
+          detail="Volatility reflects global gold market turbulence and currency moves. Bangladesh gold prices track international spot gold (USD/troy oz) converted at prevailing BDT/USD rate. Global gold near all-time highs driven by safe-haven demand."
+          source="Probashir Diganta / BAJUS"
+          sourceUrl="https://www.probashirdiganta.com/en/news/gold-price-live-chart-69a734972f972"
+          time="Mar 4–5, 2026"
+        />
+        <NewsItem
+          sentiment="bear"
+          headline="Oil prices pull back 1.4–1.8% on March 6 — but Middle East risk premium remains embedded in pricing"
+          detail="Bangladesh sourced >50% of LNG (~3.6MT) from Qatar and UAE in 2025. Any sustained oil price rise or Strait of Hormuz disruption would spike energy import costs, widen current account deficit and pressure the taka."
+          source="FX Daily Report / Trading Economics"
+          sourceUrl="https://tradingeconomics.com/commodity/brent-crude-oil"
+          time="Mar 6, 2026"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SectionFX() {
+  return (
+    <div className="section scroll-target" id="fx">
+      <SectionHeader num="06" title="BDT/USD FX & Forex Reserves" icon="💱" />
+
+      <TickerStrip items={[
+        { name: "USD/BDT", value: "122.19", change: "▼ −1.09% YoY", chgType: "bear" },
+        { name: "Gross Reserves", value: "$35.11B", change: "▲ from $26.26B", chgType: "bull" },
+        { name: "IMF BPM6 Reserves", value: "$30.36B", change: "▲ from $21.08B", chgType: "bull" },
+        { name: "BB FX Purchases (FY26)", value: "$5.38B", change: "Cumulative", chgType: "neu" },
+      ]} />
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="USD/BDT Spot (Mar 5, 2026)"
+          value="122.19"
+          change="▼ BDT down 1.09% over 12 months"
+          changeType="bear"
+          sub="2026 YTD avg: 122.29. All-time high: 122.82 (Jul 30, 2025). BB uses transaction-based weighted avg spot ref rate. 10-year depreciation: −35.10%."
+          accent="warn"
+          pill="STABLE BUT WEAK"
+          pillType="warn"
+        />
+        <MetricCard
+          label="Gross Reserves (Feb 26)"
+          value="$35.11B"
+          change="▲ +$8.85B YoY (+33.7%)"
+          changeType="bull"
+          sub="Strong remittance inflow ($22.45B Jul–Feb) and IMF disbursements rebuilding buffer. Quarterly trajectory positive."
+          accent="bull"
+          pill="RECOVERING"
+          pillType="bull"
+        />
+        <MetricCard
+          label="IMF BPM6 Reserves (Feb 26)"
+          value="$30.36B"
+          change="▲ from $21.08B year prior"
+          changeType="bull"
+          sub="BPM6 strips out illiquid or pledged assets for cleaner comparability. IMF programme benchmarks keyed to this metric."
+          accent="bull"
+          pill="IMF METRIC"
+          pillType="blue"
+        />
+      </div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="bull"
+          headline="Forex reserves surge to $35.11B gross / $30.36B (BPM6) as remittances and trade deal boost inflows"
+          detail="Rising inflows easing balance-of-payments pressure and stabilising FX market. BB purchased $5.38B from market in FY26 to manage liquidity and build reserves. USD/BDT largely stable in the 122–122.33 range YTD."
+          source="TBS News / The Daily Star"
+          sourceUrl="https://www.tbsnews.net/economy/bangladeshs-forex-reserves-rise-2986b-1364416"
+          time="Feb–Mar 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="Middle East conflict raises remittance risk — experts warn prolonged regional instability could cut inflows from Gulf states"
+          detail="Bangladesh receives majority of remittances from Middle Eastern countries. Factory closures, salary cuts or worker deportations from Gulf states would directly impact both remittance flows and forex reserve trajectory."
+          source="The Daily Star"
+          sourceUrl="https://www.thedailystar.net/business/news/february-remittance-crosses-3b-4118271"
+          time="Mar 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="Taka down 1.09% over 12 months — high policy rate and rising reserves provide stability buffer but structural pressures remain"
+          detail="The BB Governor confirmed exchange-rate stability is a key pillar of anti-inflation strategy. Taka has lost ~43% vs USD since 2021 but recent trajectory is stabilising. Dutch-Bangla Bank TT rate: BDT 122.70 per USD."
+          source="Exchange-Rates.org / Dutch-Bangla Bank"
+          sourceUrl="https://www.dutchbanglabank.com/fc/Exchange-Rate.pdf"
+          time="Mar 6, 2026"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SectionTariff() {
+  return (
+    <div className="section scroll-target" id="tariff">
+      <SectionHeader num="07" title="US Tariff Impact on Bangladesh RMG & Exports" icon="🇺🇸" />
+
+      <div className="impact-banner" style={{ borderColor: "rgba(59,130,246,0.3)", background: "rgba(59,130,246,0.06)" }}>
+        <span className="impact-icon">📑</span>
+        <div className="impact-text" style={{ color: "#93c5fd" }}>
+          <strong>DEAL SIGNED:</strong> US-Bangladesh Agreement on Reciprocal Trade (ART) finalised <strong>February 9, 2026</strong>. Tariff reduced from 37% → <strong>19%</strong> on most goods. Zero-duty channel opened for garments made with US cotton/man-made fibre. <strong>85–86%</strong> of Bangladesh exports projected to qualify for zero tariff.
+        </div>
+      </div>
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="New Reciprocal Tariff Rate"
+          value="19%"
+          change="▼ from 37% (Apr 2025)"
+          changeType="bull"
+          sub="Down from 37% under EO 14,257 (Apr 2025), then 20% (Aug 2025). Zero-duty channel for US-input garments."
+          accent="bull"
+          pill="DEAL ACTIVE"
+          pillType="bull"
+        />
+        <MetricCard
+          label="US RMG Export Target"
+          value="$15B"
+          change="▲ from $10B current"
+          changeType="bull"
+          sub="Industry target over 2–3 years post-ART. Bangladesh apparel sector aims for additional $5B from US market via zero-duty channel."
+          accent="bull"
+          pill="GROWTH POTENTIAL"
+          pillType="bull"
+        />
+        <MetricCard
+          label="Zero-Duty Qualifying Share"
+          value="85–86%"
+          change="of Bangladesh's US-bound exports"
+          changeType="bull"
+          sub="Contingent on using US-sourced cotton or man-made fibre. Compliance and input-origin documentation required."
+          accent="bull"
+          pill="CONDITIONAL"
+          pillType="warn"
+        />
+      </div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="bull"
+          headline="US-Bangladesh Reciprocal Trade Agreement signed Feb 9 — tariff cut from 37% to 19%, zero-duty channel for US-cotton garments"
+          detail="Commerce Adviser Sk Bashir Uddin: ~85–86% of Bangladesh US exports qualify for zero duty. Committed side-deals include US wheat, energy purchases. Bangladesh to accept FDA pharma certs and US vehicle safety standards."
+          source="Al Jazeera / White House"
+          sourceUrl="https://www.aljazeera.com/economy/2026/2/9/us-and-bangladesh-set-trade-deal-with-tariffs-at-19-percent"
+          time="Feb 9, 2026"
+        />
+        <NewsItem
+          sentiment="bull"
+          headline="Bangladesh apparel sector targets additional $5B in US exports — industry sees competitive edge over India via zero-duty US-cotton channel"
+          detail="Mohiuddin Rubel (Denim Expert): zero-duty upside larger than the tariff cut itself. Kutubuddin Ahmed (Envoy Textiles): US cotton slightly more expensive but trade benefits compensate. Former BGMEA President Faruque Hassan: 'Modest but significant.'"
+          source="Apparel Resources / MKMA"
+          sourceUrl="https://apparelresources.com/business-news/trade-business-news/bangladesh-apparel-sector-aims-additional-us-5-billion-us-exports-following-us-deal/"
+          time="Feb 25, 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="Compliance risk: Zero-duty benefit requires US-origin input documentation — adds cost and supply chain complexity for smaller manufacturers"
+          detail="RMG sector accounts for 85%+ of total exports and employs ~4M workers. Bangladesh has fewer diversified export markets than China or Vietnam. Supply chain adjustment needed for US cotton sourcing to capture full ART benefit."
+          source="TBS News"
+          sourceUrl="https://www.tbsnews.net/economy/new-us-tariff-poses-major-threat-bangladeshs-rmg-sector-ex-bgmea-vp-1106986"
+          time="Mar 2026"
+        />
+      </div>
+    </div>
+  );
+}
+
+function SectionTrade() {
+  return (
+    <div className="section scroll-target" id="trade">
+      <SectionHeader num="08" title="International Trade & LDC Graduation" icon="🌐" />
+
+      <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
+        <span className="impact-icon">⚠</span>
+        <div className="impact-text" style={{ color: "var(--bear)" }}>
+          <strong>STRUCTURAL RISK:</strong> EU–India FTA concluded <strong>January 27, 2026</strong> — Indian apparel tariffs drop from 9–12% to zero once in force (2027), eroding Bangladesh's LDC tariff edge in EU market. Bangladesh LDC graduation: <strong>November 24, 2026</strong>. EU duty-free access expires <strong>2029</strong>. GSP+ and bilateral FTA negotiations are the critical mitigants.
+        </div>
+      </div>
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="LDC Graduation Date"
+          value="Nov 24, 2026"
+          change="▼ EU duty-free expires 2029"
+          changeType="bear"
+          sub="Post-graduation, Bangladesh faces 12% EU tariff unless GSP+ secured or bilateral FTA concluded by 2029."
+          accent="bear"
+          pill="COUNTDOWN LIVE"
+          pillType="bear"
+        />
+        <MetricCard
+          label="EU Share of Bangladesh Exports"
+          value="~44%"
+          change="94% of which is textiles/apparel"
+          changeType="warn"
+          sub="EU is largest single market. Post-LDC MFN tariff scenario: export decline estimated at 36.5% vs competitors with zero-duty access."
+          accent="warn"
+          pill="HIGH CONCENTRATION"
+          pillType="warn"
+        />
+        <MetricCard
+          label="Estimated Export Loss (EU)"
+          value="$5.7B+"
+          change="Scenario: India FTA + LDC graduation"
+          changeType="bear"
+          sub="Estimate when LDC preference erosion combined with India gaining zero-duty EU access (2027 FTA in force). Critical policy window is 2026–2029."
+          accent="bear"
+          pill="AT RISK"
+          pillType="bear"
+        />
+      </div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="bear"
+          headline="EU–India FTA concluded Jan 27, 2026 — 'Mother of all deals' gives Indian apparel zero EU tariffs, directly threatening Bangladesh's competitive position"
+          detail="EU liberalises 99.3% of trade with India. Indian textiles/apparel (currently 9–12% tariff) and footwear (up to 17%) gain zero-duty access. Bangladesh holds zero-duty LDC access only until 2029. India has vertically integrated cotton-to-garment chains."
+          source="The Diplomat / The Daily Star"
+          sourceUrl="https://thediplomat.com/2026/01/why-eu-india-trade-deal-could-be-bad-news-for-bangladesh/"
+          time="Jan 27, 2026"
+        />
+        <NewsItem
+          sentiment="neu"
+          headline="Bangladesh–EU 5th round of PCA negotiations concluded Jan 8, 2026 — weeks before EU–India FTA announcement"
+          detail="Comprehensive Partnership and Cooperation Agreement (PCA) talks continuing. Bangladesh also applying for EU GSP+ status post-LDC graduation. GSP+ requires compliance with 27 international conventions on labour, environment, and governance."
+          source="The Daily Star"
+          sourceUrl="https://www.thedailystar.net/business/news/the-eu-india-trade-deal-what-implications-bangladesh-4093266"
+          time="Jan 8, 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="UN: 'Substantial gaps' in LDC graduation readiness — six key risks including trade preference erosion, fiscal fragility, banking weakness"
+          detail="Independent UN assessment flags: trade preference erosion, fiscal fragility, debt sustainability, banking sector weakness, structural competitiveness gaps, and limited climate finance access. Government pressing ahead with Nov 2026 schedule despite industry calls for 6-year delay."
+          source="The Daily Star"
+          sourceUrl="https://www.thedailystar.net/business/economy/news/substantial-gaps-found-ldc-readiness-4110391"
+          time="2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="Bangladesh has signed only ONE preferential trade agreement (Bhutan, 2020) — India, Japan, S. Korea, China FTA talks ongoing but no deal concluded"
+          detail="Bangladesh's limited FTA network is a critical vulnerability entering post-LDC era. Industry also calls for diversification beyond garments into leather/footwear, pharma, IT services, agro-processing, and the blue economy."
+          source="Stein & Partners / The Diplomat"
+          sourceUrl="https://www.steinandpartners.com/investment-finance/bangladeshs-ldc-graduation-key-risks-recommended-actions/"
+          time="2026"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+
+function App() {
+  const [activeSection, setActiveSection] = useState("bb");
+  const [dark, setDark] = useState(true);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("light", !dark);
+  }, [dark]);
+
+  function scrollTo(id) {
+    setActiveSection(id);
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  }
+
+  // Track scroll position to update active nav
+  useEffect(() => {
+    function onScroll() {
+      const ids = SECTIONS.map(s => s.id);
+      for (let i = ids.length - 1; i >= 0; i--) {
+        const el = document.getElementById(ids[i]);
+        if (el && el.getBoundingClientRect().top <= 140) {
+          setActiveSection(ids[i]);
+          return;
+        }
+      }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <div>
+      {/* Header */}
+      <header className="header">
+        <div className="header-left">
+          <div className="brand">THE <span>BRIEF</span></div>
+          <div className="tagline">Bangladesh Business Intelligence</div>
+        </div>
+        <div className="header-right">
+          <div className="date-stamp">{BRIEF_DATE}</div>
+          <div className="date-stamp" style={{ marginTop: 3 }}>{BRIEF_EDITION}</div>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <button className="theme-toggle" onClick={() => setDark(d => !d)}>
+              {dark ? "☀ Light" : "☾ Dark"}
+            </button>
+            <span className="live-badge">
+              <span className="live-dot" />
+              LIVE
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* Nav */}
+      <nav className="nav">
+        {SECTIONS.map(s => (
+          <button
+            key={s.id}
+            className={`nav-btn ${activeSection === s.id ? "active" : ""}`}
+            onClick={() => scrollTo(s.id)}
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Body */}
+      <main className="main">
+        <SectionBB />
+        <hr className="divider" />
+        <SectionMacro />
+        <hr className="divider" />
+        <SectionDSE />
+        <hr className="divider" />
+        <SectionTBond />
+        <hr className="divider" />
+        <SectionComm />
+        <hr className="divider" />
+        <SectionFX />
+        <hr className="divider" />
+        <SectionTariff />
+        <hr className="divider" />
+        <SectionTrade />
+      </main>
+
+      {/* Footer */}
+      <footer className="footer">
+        <div>
+          <span>Sources: </span>
+          {[
+            ["The Daily Star", "https://www.thedailystar.net"],
+            ["TBS News", "https://www.tbsnews.net"],
+            ["Financial Express BD", "https://today.thefinancialexpress.com.bd"],
+            ["Bangladesh Bank", "https://www.bb.org.bd"],
+            ["Trading Economics", "https://tradingeconomics.com/bangladesh"],
+            ["Al Jazeera", "https://www.aljazeera.com"],
+            ["The Diplomat", "https://thediplomat.com"],
+          ].map(([name, url], i) => (
+            <span key={i}>
+              {i > 0 && " · "}
+              <a href={url} target="_blank" rel="noreferrer">{name}</a>
+            </span>
+          ))}
+        </div>
+        <div>THE BRIEF · Bangladesh · {new Date().getFullYear()}</div>
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
 </body>
 </html>
