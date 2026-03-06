@@ -482,6 +482,18 @@
     .impact-text strong { color: #fff; }
     :root.light .impact-text strong { color: var(--text); }
 
+    /* ── Sub-section heading ── */
+    .sub-head {
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      padding: 14px 0 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
     /* ── Section scroll target ── */
     .scroll-target { scroll-margin-top: 100px; }
 
@@ -513,6 +525,7 @@ const SECTIONS = [
   { id: "fx",     label: "FX / Reserves",  short: "FX" },
   { id: "tariff", label: "US Tariffs",     short: "Tariff" },
   { id: "trade",  label: "Int'l Trade",    short: "Trade" },
+  { id: "iranwar",label: "US-Iran War",    short: "Iran War" },
 ];
 
 // ── Components ───────────────────────────────────────────────────────────────
@@ -1206,6 +1219,298 @@ function SectionTrade() {
   );
 }
 
+// ── Oil Chart ────────────────────────────────────────────────────────────────
+
+function OilChart() {
+  const data = [
+    { label: "Oct '24",    value: 82 },
+    { label: "Dec '24",    value: 73.9 },
+    { label: "Jan '25",    value: 76.2 },
+    { label: "Apr '25",    value: 68 },
+    { label: "Oct '25",    value: 63.2 },
+    { label: "Jan 2 '26",  value: 62 },
+    { label: "Jan 30",     value: 72 },
+    { label: "Mid-Feb",    value: 77 },
+    { label: "Feb 28",     value: 69,   event: true },
+    { label: "Mar 2",      value: 82 },
+    { label: "Mar 4",      value: 82.8 },
+    { label: "Mar 6",      value: 84,   today: true },
+  ];
+
+  const W = 720, H = 270;
+  const pad = { top: 46, right: 30, bottom: 68, left: 54 };
+  const iW = W - pad.left - pad.right;
+  const iH = H - pad.top - pad.bottom;
+  const minV = 55, maxV = 92;
+
+  const cx = i => pad.left + (i / (data.length - 1)) * iW;
+  const cy = v => pad.top + ((maxV - v) / (maxV - minV)) * iH;
+
+  const linePoints = data.map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
+  const areaPoints = `${cx(0).toFixed(1)},${(H - pad.bottom).toFixed(1)} ${linePoints} ${cx(data.length - 1).toFixed(1)},${(H - pad.bottom).toFixed(1)}`;
+
+  const gridVals = [60, 65, 70, 75, 80, 85, 90];
+  const eventIdx = 8;
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div className="sub-head">📈 Brent Crude Oil Price — USD/bbl (Oct 2024 to Present)</div>
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+
+          {/* Y-axis title */}
+          <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
+            transform={`translate(13,${(pad.top + (H - pad.bottom)) / 2}) rotate(-90)`}>
+            USD / bbl
+          </text>
+
+          {/* Grid lines + Y labels */}
+          {gridVals.map(v => (
+            <g key={v}>
+              <line x1={pad.left} y1={cy(v)} x2={W - pad.right} y2={cy(v)}
+                stroke="var(--border)" strokeWidth="1" strokeDasharray={v === 80 ? "4,0" : "3,3"} />
+              <text x={pad.left - 6} y={cy(v) + 4} fill="var(--muted)" fontSize="10" textAnchor="end">${v}</text>
+            </g>
+          ))}
+
+          {/* Area fill */}
+          <polygon points={areaPoints} fill="rgba(239,68,68,0.07)" />
+
+          {/* Pre-event line (neutral) */}
+          <polyline
+            points={data.slice(0, eventIdx + 1).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            fill="none" stroke="var(--neutral)" strokeWidth="2" strokeLinejoin="round" />
+
+          {/* Post-event line (bear/red) */}
+          <polyline
+            points={data.slice(eventIdx).map((d, i) => `${cx(eventIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            fill="none" stroke="var(--bear)" strokeWidth="2.5" strokeLinejoin="round" />
+
+          {/* Vertical annotation: Op. Epic Fury */}
+          <line x1={cx(eventIdx)} y1={pad.top + 22} x2={cx(eventIdx)} y2={cy(data[eventIdx].value) - 6}
+            stroke="var(--warn)" strokeWidth="1" strokeDasharray="4,2" />
+          <rect x={cx(eventIdx) - 64} y={pad.top - 2} width={128} height={20} rx={3}
+            fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1" />
+          <text x={cx(eventIdx)} y={pad.top + 13} fill="var(--warn)" fontSize="9.5" textAnchor="middle" fontWeight="700">
+            ⚑ OP. EPIC FURY — FEB 28
+          </text>
+
+          {/* Data dots */}
+          {data.map((d, i) => {
+            if (i === data.length - 1) return null;
+            if (i === eventIdx) return (
+              <circle key={i} cx={cx(i)} cy={cy(d.value)} r={5} fill="var(--warn)" stroke="var(--surface)" strokeWidth="1.5" />
+            );
+            return (
+              <circle key={i} cx={cx(i)} cy={cy(d.value)} r={3} fill="var(--neutral)" stroke="var(--surface)" strokeWidth="1.5" />
+            );
+          })}
+
+          {/* TODAY dot + label */}
+          <circle cx={cx(data.length - 1)} cy={cy(data[data.length - 1].value)} r={5.5} fill="var(--bear)" stroke="var(--surface)" strokeWidth="1.5" />
+          <text x={cx(data.length - 1) + 7} y={cy(data[data.length - 1].value) - 8} fill="var(--bear)" fontSize="11" textAnchor="start" fontWeight="700">$84</text>
+          <text x={cx(data.length - 1) + 7} y={cy(data[data.length - 1].value) + 4} fill="var(--bear)" fontSize="9" textAnchor="start">TODAY</text>
+
+          {/* X-axis labels (angled) */}
+          {data.map((d, i) => (
+            <text key={i} x={0} y={0}
+              fill={d.event || d.today ? "var(--warn)" : "var(--muted)"}
+              fontSize="9.5" textAnchor="end"
+              fontWeight={d.event || d.today ? "700" : "400"}
+              transform={`translate(${cx(i).toFixed(1)},${(H - pad.bottom + 14).toFixed(1)}) rotate(-38)`}>
+              {d.label}
+            </text>
+          ))}
+
+          {/* Axes */}
+          <line x1={pad.left} y1={pad.top} x2={pad.left} y2={H - pad.bottom} stroke="var(--border2)" strokeWidth="1" />
+          <line x1={pad.left} y1={H - pad.bottom} x2={W - pad.right} y2={H - pad.bottom} stroke="var(--border2)" strokeWidth="1" />
+        </svg>
+
+        {/* Legend row */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ display: "inline-block", width: 20, height: 2, background: "var(--neutral)", borderRadius: 1 }} />
+            Pre-conflict trend
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ display: "inline-block", width: 20, height: 2, background: "var(--bear)", borderRadius: 1 }} />
+            Post Op. Epic Fury (Feb 28)
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--warn)" }} />
+            Op. Epic Fury trigger point
+          </span>
+          <span style={{ marginLeft: "auto" }}>Source: TradingEconomics · EIA · Bloomberg · Reuters</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Section: US-Iran War ──────────────────────────────────────────────────────
+
+function SectionIranWar() {
+  return (
+    <div className="section scroll-target" id="iranwar">
+      <SectionHeader num="09" title="Impact of US-Iran War on Bangladesh" icon="🔥" />
+
+      <TickerStrip items={[
+        { name: "Brent Crude",      value: "$84.00",       change: "▲ +$17 since Feb 28", chgType: "bear" },
+        { name: "LNG Spot (JKM)",   value: "$15+/MMBtu",   change: "▲ +50%",               chgType: "bear" },
+        { name: "Hormuz Status",    value: "DISRUPTED",    change: "~0% tanker traffic",    chgType: "bear" },
+        { name: "Remittance Exp.",  value: "12M workers",  change: "~$27B in FY24",         chgType: "warn" },
+        { name: "BD Forex Res.",    value: "~$25B",        change: "~4 months import cover", chgType: "warn" },
+      ]} />
+
+      <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
+        <span className="impact-icon">🔴</span>
+        <div className="impact-text" style={{ color: "var(--bear)" }}>
+          <strong>CRISIS — Mar 6, 2026:</strong> Joint US-Israeli Operation Epic Fury (Feb 28) killed Supreme Leader Khamenei and struck Iran's nuclear and missile infrastructure. Iran's retaliatory drone strikes on Qatar's Ras Laffan LNG hub and the near-closure of the Strait of Hormuz have placed <strong>55%+ of Bangladesh's LNG supply chain</strong> at acute risk. Brent crude surged $67 → $84/bbl in six days. 12M Bangladeshi workers across Saudi Arabia, UAE, Qatar, Kuwait, and Oman face remittance disruption as the war widens.
+        </div>
+      </div>
+
+      {/* ── Sub-section 1: Economic Impact ───────────────────────────────── */}
+      <div className="sub-head">Impact on Bangladesh Economy</div>
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="LNG Supply at Risk"
+          value="55%+"
+          change="Qatar + UAE disrupted"
+          changeType="bear"
+          sub="Qatar supplies ~67% of Bangladesh's LNG. QatarEnergy suspended production after Iranian drone strikes on Ras Laffan Industrial City and Mesaieed IC. LNG tanker freight rates jumped 40%+."
+          accent="bear"
+          pill="ACUTE"
+          pillType="bear"
+        />
+        <MetricCard
+          label="Brent Crude Surge"
+          value="+$17/bbl"
+          change="$67 → $84 since Feb 28"
+          changeType="bear"
+          sub="$90 now in sight; analyst worst case $130/bbl if Hormuz closure extends. Each $10/bbl rise adds ~0.2pp to CPI; pass-through is larger in BD given import dependence."
+          accent="bear"
+          pill="ESCALATING"
+          pillType="bear"
+        />
+        <MetricCard
+          label="Remittance at Risk"
+          value="~$27B"
+          change="FY2024 · 12M workers exposed"
+          changeType="warn"
+          sub="~6% of GDP. Saudi Arabia, UAE, Qatar, Kuwait, Oman account for most of it. Flow already slowing in early March as exchange houses shut amid conflict conditions."
+          accent="warn"
+          pill="HIGH RISK"
+          pillType="warn"
+        />
+        <MetricCard
+          label="Projected Power Deficit"
+          value="1,400–1,800 MW"
+          change="if LNG shortfall hits 200–250 mmcfd"
+          changeType="bear"
+          sub="BD produces ~1,714 mmcfd domestically; imports 850–1,000 mmcfd via LNG. A partial Hormuz closure could trigger rolling industrial power cuts, suppressing factory output."
+          accent="bear"
+          pill="RISK SCENARIO"
+          pillType="warn"
+        />
+      </div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="bear"
+          headline="QatarEnergy suspends LNG production after Iranian drone strikes hit Ras Laffan & Mesaieed — Bangladesh faces 200–250 mmcfd gas supply shortfall"
+          detail="Bangladesh's 15-year LNG deal (via Excelerate Energy) covers ~40 QatarEnergy cargoes/year. LNG spot (JKM) surged past $15/MMBtu from ~$10. Hormuz tanker traffic collapsed to near-zero as war-risk insurance premiums became commercially prohibitive; European gas futures surged ~30%."
+          source="Dhaka Tribune / TBS News"
+          sourceUrl="https://www.dhakatribune.com/bangladesh/404563/qatar-lng-halt-fuels-bangladesh-supply-fears"
+          time="Mar 2–4, 2026"
+        />
+        <NewsItem
+          sentiment="bear"
+          headline="Gulf remittance flow slows as exchange houses disrupt; Bangladesh Bank pauses dollar purchases to curb exchange rate volatility"
+          detail="BD earned ~$27B in remittances in FY2024 (~6% of GDP), mostly from Saudi Arabia, UAE, Qatar, Kuwait, and Oman. Forex reserves already down from $45B (2021 peak) to ~$25B (~4 months import cover). Sustained remittance shock would accelerate reserve drawdown and pressure the taka."
+          source="TBS News / Bangladesh Bank"
+          sourceUrl="https://www.tbsnews.net/economy/banking/bb-pauses-dollar-purchase-avoid-exchange-volatility-iran-war-fallout-looms-1377576"
+          time="Mar 3–4, 2026"
+        />
+        <NewsItem
+          sentiment="bear"
+          headline="Hormuz near-closure adds 10–14 days and 40% fuel cost to rerouted LNG tankers via Cape of Good Hope — global LNG supply shock of ~15%"
+          detail="Oxford Institute for Energy Studies: a full Hormuz closure removes ~86 billion m³/year (~15% of global LNG supply). Ships rerouting via Cape face dramatically higher voyage costs and longer lead times, keeping global spot LNG prices elevated regardless of origin."
+          source="Daily Star / Al Jazeera"
+          sourceUrl="https://www.thedailystar.net/business/news/restive-hormuz-puts-bangladeshs-lng-lifeline-peril-4119546"
+          time="Mar 2–6, 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="BGMEA warns double squeeze: fuel cost inflation compounds US ART input-sourcing burden — RMG margins at risk as energy import bills surge"
+          detail="Bangladesh earns >85% of export revenue from garments (4M workers). Higher energy costs inflate electricity tariffs, transport, and factory operations simultaneously. BGMEA flagged the combination of fuel cost inflation, US-cotton sourcing requirements for ART zero-duty channel, and EU FTA preference erosion as compounding pressures."
+          source="Pressenza / BGMEA"
+          sourceUrl="https://www.pressenza.com/2026/03/middle-east-war-could-disrupt-bangladeshs-energy-exports-and-worker-incomes/"
+          time="Mar 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="BB faces 'policy dilemma' — cannot ease rates with oil-driven inflation rising while GDP growth stalls at 3.49%; current account deficit widening risk"
+          detail="Economists warn oil price pass-through in BD is larger than the ~0.2pp/10bbl advanced-economy estimate, given 65–70% energy import dependence. Higher fuel import bills will widen the current account deficit, deplete reserves faster, and complicate BB's rate-cut timeline."
+          source="LightCastle Partners / CNBC"
+          sourceUrl="https://lightcastlepartners.com/insights/2025/07/impact-of-iran-israel-conflict/"
+          time="Mar 2026"
+        />
+      </div>
+
+      {/* ── Sub-section 2: Government Response ───────────────────────────── */}
+      <div className="sub-head">Measures Taken by the Government</div>
+
+      <div className="news-list">
+        <NewsItem
+          sentiment="warn"
+          headline="Power Ministry holds emergency meeting — fuel conservation directives issued; coal-fired generation to be ramped up to offset LNG supply disruption"
+          detail="Energy Minister Iqbal Hasan Mahmood convened emergency session with state minister Aninda Islam Amit. Coal generation will be expanded to compensate for reduced gas-to-power output. Current stocks: 201,610T diesel (~14 days), 21,705T petrol (~17 days), 34,133T octane (~31 days)."
+          source="TBS News / Prothom Alo"
+          sourceUrl="https://www.tbsnews.net/bangladesh/energy/bangladesh-ramp-coal-power-lng-imports-face-uncertainty-over-mideast-crisis"
+          time="Mar 3, 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="BPC secures alternative crude supply from Malaysia, China, Singapore, Indonesia — all BD fuel imports until June 2026 now bypass the Strait of Hormuz"
+          detail="BPC Chairman Rezanur Rahman confirmed all remaining import contracts have been rerouted via non-Hormuz suppliers. Long-term LNG contracts with Qatar and Oman remain under active review; government is considering increased spot LNG purchases (35–40% more expensive than contracted rates)."
+          source="Daily Star / bdnews24"
+          sourceUrl="https://www.thedailystar.net/business/news/fuel-stocks-adequate-short-term-4119261"
+          time="Mar 4, 2026"
+        />
+        <NewsItem
+          sentiment="warn"
+          headline="March 2026 fuel prices held under automatic formula — but April automatic hike expected unless formula suspended to shield transport and agriculture"
+          detail="Diesel was already cut Tk 2/litre (to Tk 100/litre) in February 2026. Under the automatic pricing mechanism, March's oil price surge triggers an April hike. Government is evaluating whether to suspend the formula — suspension would require budget subsidy allocation and risk fiscal slippage."
+          source="The Daily Star"
+          sourceUrl="https://www.thedailystar.net/business/economy/news/fuel-price-formula-revised-4102398"
+          time="Mar 2026"
+        />
+        <NewsItem
+          sentiment="bull"
+          headline="Foreign Ministry activates emergency consular coordination for 12M Bangladeshi workers in Saudi Arabia, UAE, Qatar, Kuwait, and Oman"
+          detail="Foreign Minister Khalilur Rahman and Foreign Secretary Asad Alam Siam held an emergency session. Bangladesh missions in Tehran and Gulf capitals are on high alert. Dhaka has publicly called for restraint, respect for sovereignty, and diplomatic resolution under international law."
+          source="bdnews24 / Daily Sun"
+          sourceUrl="https://bdnews24.com/business/c016c3fd2c88"
+          time="Mar 1–3, 2026"
+        />
+        <NewsItem
+          sentiment="neu"
+          headline="Expert recommendations under consideration: fuel hedging contracts, remittance stabilisation fund, accelerated renewable energy transition"
+          detail="Policy analysts urge Bangladesh to establish formal fuel hedging arrangements or long-term non-Hormuz supply contracts; a dedicated remittance stabilisation fund to smooth Gulf disruption; and accelerated solar and wind investment to reduce the current 65–70% fossil fuel import dependency over the medium term."
+          source="LightCastle Partners / Daily Star"
+          sourceUrl="https://lightcastlepartners.com/insights/2025/07/impact-of-iran-israel-conflict/"
+          time="Mar 2026"
+        />
+      </div>
+
+      {/* ── Sub-section 3: Crude Oil Chart ───────────────────────────────── */}
+      <OilChart />
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 
 function App() {
@@ -1291,6 +1596,8 @@ function App() {
         <SectionTariff />
         <hr className="divider" />
         <SectionTrade />
+        <hr className="divider" />
+        <SectionIranWar />
       </main>
 
       {/* Footer */}
