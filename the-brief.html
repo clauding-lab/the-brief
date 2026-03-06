@@ -1515,7 +1515,7 @@ function SectionIranWar() {
 
 function App() {
   const [activeSection, setActiveSection] = useState("bb");
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle("light", !dark);
@@ -1553,15 +1553,10 @@ function App() {
         </div>
         <div className="header-right">
           <div className="date-stamp">{BRIEF_DATE}</div>
-          <div className="date-stamp" style={{ marginTop: 3 }}>{BRIEF_EDITION}</div>
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 4 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 6 }}>
             <button className="theme-toggle" onClick={() => setDark(d => !d)}>
               {dark ? "☀ Light" : "☾ Dark"}
             </button>
-            <span className="live-badge">
-              <span className="live-dot" />
-              LIVE
-            </span>
           </div>
         </div>
       </header>
