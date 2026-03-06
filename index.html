@@ -837,13 +837,13 @@ function DSEXChart() {
         <text x={cx(bnpIdx)} y={pad.top - 24} fill="var(--bull)" fontSize="9" textAnchor="middle" fontWeight="700">BNP Wins Election</text>
         <text x={cx(bnpIdx)} y={pad.top - 12} fill="var(--bull)" fontSize="9" textAnchor="middle">+200pts · Feb 15</text>
 
-        {/* Crash – Mar 3 */}
-        <line x1={cx(crashIdx)} y1={cy(data[crashIdx].value) + 5} x2={cx(crashIdx)} y2={H - pad.bottom - 4}
+        {/* Crash – Mar 3 (box sits inside chart below the dot, above x-axis) */}
+        <line x1={cx(crashIdx)} y1={cy(data[crashIdx].value) + 5} x2={cx(crashIdx)} y2={cy(data[crashIdx].value) + 17}
           stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
-        <rect x={cx(crashIdx) - 62} y={H - pad.bottom + 6} width={124} height={36} rx={3}
+        <rect x={cx(crashIdx) - 62} y={cy(data[crashIdx].value) + 19} width={124} height={36} rx={3}
           fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
-        <text x={cx(crashIdx)} y={H - pad.bottom + 20} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Worst fall in 6 years</text>
-        <text x={cx(crashIdx)} y={H - pad.bottom + 32} fill="var(--bear)" fontSize="9" textAnchor="middle">−209pts · Mar 3</text>
+        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 33} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Worst fall in 6 years</text>
+        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−209pts · Mar 3</text>
 
         {/* Today label */}
         <text x={cx(todayIdx) - 6} y={cy(data[todayIdx].value) - 14} fill="var(--bear)" fontSize="10" textAnchor="end" fontWeight="700">5,323</text>
