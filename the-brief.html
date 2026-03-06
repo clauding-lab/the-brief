@@ -26,6 +26,28 @@
       --pill-bull: rgba(34,197,94,0.12);
       --pill-warn: rgba(245,158,11,0.12);
       --pill-neu:  rgba(148,163,184,0.1);
+      --brand-color: #ffffff;
+    }
+
+    :root.light {
+      --bg:        #f1f5f9;
+      --surface:   #ffffff;
+      --border:    #e2e8f0;
+      --border2:   #cbd5e1;
+      --text:      #1e293b;
+      --muted:     #64748b;
+      --accent:    #2563eb;
+      --accent2:   #1d4ed8;
+      --bull:      #16a34a;
+      --bear:      #dc2626;
+      --warn:      #d97706;
+      --neutral:   #475569;
+      --tag-bg:    #f1f5f9;
+      --pill-bear: rgba(220,38,38,0.08);
+      --pill-bull: rgba(22,163,74,0.08);
+      --pill-warn: rgba(217,119,6,0.08);
+      --pill-neu:  rgba(71,85,105,0.08);
+      --brand-color: #0f172a;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -57,7 +79,7 @@
       font-size: 22px;
       font-weight: 700;
       letter-spacing: 0.25em;
-      color: #fff;
+      color: var(--brand-color);
       text-transform: uppercase;
     }
     .brand span { color: var(--accent); }
@@ -211,9 +233,27 @@
     .card-value {
       font-size: 24px;
       font-weight: 700;
-      color: #fff;
+      color: var(--brand-color);
       line-height: 1.2;
     }
+
+    /* ── Theme toggle ── */
+    .theme-toggle {
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      padding: 3px 10px;
+      border-radius: 2px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color .15s, background .15s, border-color .15s;
+    }
+    .theme-toggle:hover { color: var(--text); border-color: var(--border2); }
     .card-value-sm { font-size: 18px; }
 
     .card-change {
@@ -1169,6 +1209,11 @@ function SectionTrade() {
 
 function App() {
   const [activeSection, setActiveSection] = useState("bb");
+  const [dark, setDark] = useState(true);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("light", !dark);
+  }, [dark]);
 
   function scrollTo(id) {
     setActiveSection(id);
@@ -1203,7 +1248,10 @@ function App() {
         <div className="header-right">
           <div className="date-stamp">{BRIEF_DATE}</div>
           <div className="date-stamp" style={{ marginTop: 3 }}>{BRIEF_EDITION}</div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <button className="theme-toggle" onClick={() => setDark(d => !d)}>
+              {dark ? "☀ Light" : "☾ Dark"}
+            </button>
             <span className="live-badge">
               <span className="live-dot" />
               LIVE
