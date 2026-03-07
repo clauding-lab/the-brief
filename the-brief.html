@@ -70,8 +70,6 @@
       align-items: flex-start;
       justify-content: space-between;
       background: var(--surface);
-      position: sticky;
-      top: 0;
       z-index: 100;
     }
 
@@ -134,9 +132,7 @@
       border-bottom: 1px solid var(--border);
       overflow-x: auto;
       scrollbar-width: none;
-      position: sticky;
-      top: var(--header-h, 0px);
-      z-index: 99;
+
     }
     .nav::-webkit-scrollbar { display: none; }
     .nav-btn {
@@ -1732,8 +1728,9 @@ function SectionTrade() {
 // ── Oil Chart ────────────────────────────────────────────────────────────────
 
 function OilChart() {
-  const { useState } = React;
+  const { useState, useEffect } = React;
 
+  const AV_KEY = "T294W0RCT1U6OOPE";
 
   const STATIC_DATA = [
     { label: "Oct '25",   value: 63.2 },
@@ -1748,35 +1745,56 @@ function OilChart() {
   ];
 
   
+  const [data, setData]     = useState(STATIC_DATA);
+  const [isLive, setIsLive] = useState(false);
 
+  useEffect(() => {
+    fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`)
+      .then(r => r.json())
+      .then(json => {
+        if (!json.data || json.data.length === 0) return;
+        // Take only the most recent valid price — update the last data point live
+        // Chart structure stays locked to STATIC_DATA; only the current price refreshes
+        const latest = json.data.find(d => parseFloat(d.value) > 0);
+        if (!latest) return;
+        const liveVal = parseFloat(latest.value);
+        setData(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...updated[updated.length - 1], value: liveVal };
+          return updated;
+        });
+        setIsLive(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const W = 720, H = 270;
   const pad = { top: 46, right: 58, bottom: 68, left: 54 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
 
-  const vals   = STATIC_DATA.map(d => d.value);
+  const vals   = data.map(d => d.value);
   const minV   = Math.floor((Math.min(...vals) - 5) / 5) * 5;
   const maxV   = Math.ceil ((Math.max(...vals) + 5) / 5) * 5;
 
-  const cx = i => pad.left + (i / (STATIC_DATA.length - 1)) * iW;
+  const cx = i => pad.left + (i / (data.length - 1)) * iW;
   const cy = v => pad.top  + ((maxV - v) / (maxV - minV)) * iH;
 
-  const linePoints = STATIC_DATA.map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
-  const areaPoints = `${cx(0).toFixed(1)},${(H-pad.bottom).toFixed(1)} ${linePoints} ${cx(STATIC_DATA.length-1).toFixed(1)},${(H-pad.bottom).toFixed(1)}`;
+  const linePoints = data.map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
+  const areaPoints = `${cx(0).toFixed(1)},${(H-pad.bottom).toFixed(1)} ${linePoints} ${cx(data.length-1).toFixed(1)},${(H-pad.bottom).toFixed(1)}`;
 
   const gridVals = [];
   for (let v = minV + 5; v < maxV; v += 5) gridVals.push(v);
 
-  const eIdx    = Math.max(0, STATIC_DATA.findIndex(d => d.event) === -1 ? Math.floor(STATIC_DATA.length * 0.7) : STATIC_DATA.findIndex(d => d.event));
-  const lastIdx = STATIC_DATA.length - 1;
-  const lastVal = STATIC_DATA[lastIdx].value;
+  const eIdx    = Math.max(0, data.findIndex(d => d.event) === -1 ? Math.floor(data.length * 0.7) : data.findIndex(d => d.event));
+  const lastIdx = data.length - 1;
+  const lastVal = data[lastIdx].value;
 
   return (
     <div style={{ marginTop: 20 }}>
       <div className="sub-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>📈 Brent Crude Oil Price — USD/bbl (Last 6 Months)</span>
-        
+        {isLive && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--bull)", background: "rgba(34,197,94,0.12)", border: "1px solid var(--bull)", borderRadius: 3, padding: "1px 6px", letterSpacing: "0.08em" }}>● LIVE</span>}
       </div>
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
@@ -1797,11 +1815,11 @@ function OilChart() {
           <polygon points={areaPoints} fill="rgba(239,68,68,0.07)" />
 
           <polyline
-            points={STATIC_DATA.slice(0, eIdx + 1).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            points={data.slice(0, eIdx + 1).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
             fill="none" stroke="var(--neutral)" strokeWidth="2" strokeLinejoin="round" />
 
           <polyline
-            points={STATIC_DATA.slice(eIdx).map((d, i) => `${cx(eIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            points={data.slice(eIdx).map((d, i) => `${cx(eIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
             fill="none" stroke="var(--bear)" strokeWidth="2.5" strokeLinejoin="round" />
 
           {(() => {
@@ -1812,7 +1830,7 @@ function OilChart() {
             const textX = annX + annW / 2;
             return (
               <g>
-                <line x1={cx(eIdx)} y1={pad.top + 22} x2={cx(eIdx)} y2={cy(STATIC_DATA[eIdx].value) - 6}
+                <line x1={cx(eIdx)} y1={pad.top + 22} x2={cx(eIdx)} y2={cy(data[eIdx].value) - 6}
                   stroke="var(--warn)" strokeWidth="1" strokeDasharray="4,2" />
                 <rect x={annX} y={pad.top - 2} width={annW} height={annH} rx={3}
                   fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1" />
@@ -1823,7 +1841,7 @@ function OilChart() {
             );
           })()}
 
-          {STATIC_DATA.map((d, i) => {
+          {data.map((d, i) => {
             if (i === lastIdx) return null;
             if (i === eIdx) return <circle key={i} cx={cx(i)} cy={cy(d.value)} r={5}   fill="var(--warn)"    stroke="var(--surface)" strokeWidth="1.5" />;
             return             <circle key={i} cx={cx(i)} cy={cy(d.value)} r={3}   fill="var(--neutral)" stroke="var(--surface)" strokeWidth="1.5" />;
@@ -1831,9 +1849,9 @@ function OilChart() {
 
           <circle cx={cx(lastIdx)} cy={cy(lastVal)} r={5.5} fill="var(--bear)" stroke="var(--surface)" strokeWidth="1.5" />
           <text x={cx(lastIdx) + 7} y={cy(lastVal) - 8} fill="var(--bear)" fontSize="11" textAnchor="start" fontWeight="700">${Math.round(lastVal)}</text>
-          <text x={cx(lastIdx) + 7} y={cy(lastVal) + 4} fill="var(--bear)" fontSize="9"  textAnchor="start">"TODAY"</text>
+          <text x={cx(lastIdx) + 7} y={cy(lastVal) + 4} fill="var(--bear)" fontSize="9"  textAnchor="start">{isLive ? "LIVE" : "TODAY"}</text>
 
-          {STATIC_DATA.map((d, i) => (
+          {data.map((d, i) => (
             <text key={i} x={0} y={0}
               fill={d.event || d.today ? "var(--warn)" : "var(--muted)"}
               fontSize="9.5" textAnchor="end"
@@ -1860,7 +1878,7 @@ function OilChart() {
             <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--warn)" }} />
             Op. Epic Fury trigger point
           </span>
-          <span style={{ marginLeft: "auto" }}>Source: "TradingEconomics · EIA · Bloomberg · Reuters"</span>
+          <span style={{ marginLeft: "auto" }}>Source: {isLive ? "Alpha Vantage · live data" : "TradingEconomics · EIA · Bloomberg · Reuters"}</span>
         </div>
       </div>
     </div>
@@ -2091,17 +2109,6 @@ function App() {
     if (el) el.scrollIntoView({ behavior: "smooth" });
   }
 
-  // Set --header-h CSS var so nav sticks just below the header
-  useEffect(() => {
-    function updateHeaderHeight() {
-      const hdr = document.querySelector("header");
-      if (hdr) document.documentElement.style.setProperty("--header-h", hdr.offsetHeight + "px");
-    }
-    updateHeaderHeight();
-    window.addEventListener("resize", updateHeaderHeight);
-    return () => window.removeEventListener("resize", updateHeaderHeight);
-  }, []);
-
   // Track scroll position to update active nav
   useEffect(() => {
     function onScroll() {
@@ -2120,7 +2127,8 @@ function App() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Sticky top bar: header + nav */}
+      <div style={{ position: "sticky", top: 0, zIndex: 100 }}>
       <header className="header">
         <div className="header-left">
           <div className="brand">THE <span>BRIEF</span></div>
@@ -2138,6 +2146,8 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Nav */}
       <nav className="nav">
         {SECTIONS.map(s => (
           <button
@@ -2149,6 +2159,7 @@ function App() {
           </button>
         ))}
       </nav>
+      </div>
 
       {/* Body */}
       <main className="main">
