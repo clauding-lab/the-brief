@@ -38,23 +38,140 @@ else:
     _css_block   = None
     print("Warning: no <style> block found — sending full HTML.")
 
+# ── Strip JS render sections to stay under the 30k input-token rate limit ──────
+# Component helpers (Pill, MetricCard, etc.), chart return() JSX, and the App
+# function are rendering-only — Claude never needs to update them.
+# We strip each section, save it, and restore it into Claude's output afterwards.
+# Claude is told to pass the placeholder comments through unchanged.
+
+def _brace_end(text, start):
+    """Return index of the } that closes the { at position `start`."""
+    depth   = 0
+    in_str  = None
+    i       = start
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if ch == '\\':
+                i += 2
+                continue
+            if ch == in_str:
+                in_str = None
+        else:
+            if ch in ('"', "'", '`'):
+                in_str = ch
+            elif ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return i
+        i += 1
+    return len(text) - 1
+
+def strip_js_render(html):
+    """Strip render-only JS; return (stripped_html, chars_saved, saved_parts)."""
+    sm = re.search(r'(<script type="text/babel">)(.*?)(</script>)', html, re.DOTALL)
+    if not sm:
+        print("Warning: no <script type=\"text/babel\"> block found — JS not stripped.")
+        return html, 0, {}
+    before = html[:sm.start(2)]
+    sc     = sm.group(2)
+    after  = html[sm.end(2):]
+    orig   = len(sc)
+    saved  = {}
+
+    def _strip_return(sc, fname, key):
+        """Replace the `return (...);` of `fname` with a placeholder."""
+        sig  = f'function {fname}()'
+        fpos = sc.find(sig)
+        if fpos == -1:
+            return sc
+        try:
+            brace = sc.index('{', fpos)
+        except ValueError:
+            return sc
+        fend = _brace_end(sc, brace)
+        body = sc[brace+1:fend]
+        ret  = body.rfind('\n  return (')
+        if ret == -1:
+            ret = body.rfind('  return (')
+        if ret == -1:
+            return sc
+        saved[key] = body[ret+1:].rstrip()
+        nb = body[:ret] + f'\n  // [{key} — restored automatically]\n'
+        return sc[:brace+1] + nb + '}' + sc[fend+1:]
+
+    # 1. Component helpers (Pill → TickerStrip)
+    c0 = sc.find('// ── Components')
+    s0 = sc.find('// ── Sections')
+    if c0 != -1 and s0 != -1 and s0 > c0:
+        eol = sc.index('\n', c0) + 1
+        saved['COMPONENTS_PLACEHOLDER'] = sc[eol:s0].rstrip()
+        sc  = (sc[:eol]
+               + '// [COMPONENTS_PLACEHOLDER — restored automatically]\n\n'
+               + sc[s0:])
+
+    # 2-3. Chart return() statements
+    for fname, key in (('DSEXChart',  'DSEXCHART_RENDER_PLACEHOLDER'),
+                       ('TBillChart', 'TBILLCHART_RENDER_PLACEHOLDER')):
+        sc = _strip_return(sc, fname, key)
+
+    # 4. OilChart — keep STATIC_DATA array, strip everything else
+    op = sc.find('function OilChart()')
+    if op != -1:
+        try:
+            ob = sc.index('{', op)
+        except ValueError:
+            ob = -1
+        if ob != -1:
+            oe   = _brace_end(sc, ob)
+            body = sc[ob+1:oe]
+            s_s  = body.find('const STATIC_DATA')
+            s_e  = body.find('];\n', s_s) + len('];\n') if s_s != -1 else -1
+            if s_e > 0:
+                key = 'OILCHART_RENDER_PLACEHOLDER'
+                saved[key]  = body[s_e:].rstrip()
+                nb = body[:s_e] + f'\n  // [{key} — restored automatically]\n'
+                sc = sc[:ob+1] + nb + '}' + sc[oe+1:]
+
+    # 5. App function + ReactDOM mount (everything after "// ── Main App")
+    am = sc.find('// ── Main App')
+    if am != -1:
+        aeol = sc.index('\n', am) + 1
+        saved['APP_PLACEHOLDER'] = sc[aeol:].rstrip()
+        sc = sc[:aeol] + '// [APP_PLACEHOLDER — restored automatically]\n'
+
+    chars_saved = orig - len(sc)
+    print(f"JS render stripped: {chars_saved:,} chars saved "
+          f"(~{chars_saved//3:,} tokens). Sections: {list(saved.keys())}")
+    return before + sc + after, chars_saved, saved
+
+prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
+
 # ── Update prompt ──────────────────────────────────────────────────────────────
 PROMPT = f"""You are updating THE BRIEF, a Bangladesh business intelligence single-page app.
 Today's date is {today}.
 
-NOTE: The <style> block in the file below has been replaced with a placeholder comment.
-Your output MUST include exactly this placeholder unchanged:
+NOTE: To stay within API token limits, rendering-only sections have been stripped
+and replaced with placeholder comments. Your output MUST include ALL of these
+placeholders EXACTLY as shown (they are restored automatically after generation):
   <style>/* CSS_PLACEHOLDER — restored automatically */</style>
-Do NOT write any CSS — it will be restored from the original file automatically.
+  // [COMPONENTS_PLACEHOLDER — restored automatically]
+  // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
+  // [TBILLCHART_RENDER_PLACEHOLDER — restored automatically]
+  // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
+  // [APP_PLACEHOLDER — restored automatically]
+Do NOT write any CSS or any React rendering/component code — only update data values.
 
-Here is the current HTML file (CSS stripped to save tokens):
+Here is the current HTML file (rendering sections stripped to save tokens):
 
 <current_file>
 {prompt_html}
 </current_file>
 
 Perform ALL of the following update steps using web search to find the latest data.
-Return ONLY the complete updated HTML file — no explanation, no markdown fences, just the raw HTML.
+Return ONLY the complete updated HTML — placeholders intact, no explanation, no markdown fences.
 
 ────────────────────────────────────────────────────────────────
 
@@ -211,12 +328,42 @@ if not updated_html:
         print(f"  [{i}] type={btype} {btext!r}")
     sys.exit(1)
 
-# ── Restore the CSS block that was stripped before sending to Claude ───────────
+# ── Restore CSS block ──────────────────────────────────────────────────────────
 if _css_block and "CSS_PLACEHOLDER" in updated_html:
     updated_html = updated_html.replace(_placeholder, _css_block, 1)
-    print("CSS block restored into updated HTML.")
+    print("CSS block restored.")
 elif _css_block:
     print("Warning: CSS placeholder not found in Claude's output — CSS may be missing.")
+
+# ── Restore JS render sections ──────────────────────────────────────────────────
+for _js_key, _js_content in _js_parts.items():
+    _js_ph = f'// [{_js_key} — restored automatically]'
+    if _js_ph in updated_html:
+        updated_html = updated_html.replace(_js_ph, _js_content, 1)
+        print(f"  {_js_key} restored.")
+    else:
+        print(f"Warning: {_js_key} placeholder missing from Claude's output — "
+              f"restoring from original HTML as fallback.")
+        # Fallback: inject the original rendering back at the known anchor point
+        anchor_map = {
+            'COMPONENTS_PLACEHOLDER':       ('// ── Components',   '// ── Sections'),
+            'DSEXCHART_RENDER_PLACEHOLDER':  ('function DSEXChart()',  'function SectionDSE()'),
+            'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
+            'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
+            'APP_PLACEHOLDER':               ('// ── Main App',        '</script>'),
+        }
+        # Simple fallback: copy the corresponding block from the original HTML
+        if _js_key in anchor_map:
+            a_start, a_end = anchor_map[_js_key]
+            orig_s = current_html.find(a_start)
+            orig_e = current_html.find(a_end, orig_s + len(a_start)) if orig_s != -1 else -1
+            if orig_s != -1 and orig_e != -1:
+                orig_block = current_html[orig_s:orig_e]
+                upd_s = updated_html.find(a_start)
+                upd_e = updated_html.find(a_end, upd_s + len(a_start)) if upd_s != -1 else -1
+                if upd_s != -1 and upd_e != -1:
+                    updated_html = updated_html[:upd_s] + orig_block + updated_html[upd_e:]
+                    print(f"  {_js_key} fallback-restored from original HTML.")
 
 # ── Write updated files ────────────────────────────────────────────────────────
 with open("the-brief.html", "w", encoding="utf-8") as f:
