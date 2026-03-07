@@ -1426,8 +1426,7 @@ function SectionTrade() {
 function OilChart() {
   const { useState, useEffect } = React;
 
-  // ── Replace "YOUR_ALPHA_VANTAGE_KEY" with your free key from alphavantage.co ──
-  const AV_KEY = "YOUR_ALPHA_VANTAGE_KEY";
+  const AV_KEY = "T294W0RCT1U6OOPE";
 
   const STATIC_DATA = [
     { label: "Oct '24",   value: 82 },
@@ -1448,27 +1447,49 @@ function OilChart() {
   const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
-    if (AV_KEY === "YOUR_ALPHA_VANTAGE_KEY") return;
-    fetch(`https://www.alphavantage.co/query?function=BRENT&interval=monthly&apikey=${AV_KEY}`)
+    fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`)
       .then(r => r.json())
       .then(json => {
         if (!json.data || json.data.length === 0) return;
-        const raw = [...json.data]
+        // Chronological, from Oct 2024 only
+        const all = [...json.data]
           .filter(d => d.date >= "2024-10-01" && parseFloat(d.value) > 0)
           .reverse();
-        if (raw.length < 3) return;
-        const formatted = raw.map((d, i) => {
+        if (all.length < 3) return;
+
+        // Smart sampling: 1 per month for older data, every ~2 days from Feb 25 onwards
+        const selected = [];
+        let lastMonth = "";
+        for (const d of all) {
+          if (d.date >= "2026-02-25") {
+            const prev = selected[selected.length - 1];
+            if (!prev || (new Date(d.date) - new Date(prev.date)) >= 2 * 86400000)
+              selected.push(d);
+          } else {
+            const month = d.date.slice(0, 7);
+            if (month !== lastMonth) { selected.push(d); lastMonth = month; }
+          }
+        }
+        const pts = selected.slice(-18);
+
+        const formatted = pts.map((d, i) => {
           const dt  = new Date(d.date + "T12:00:00Z");
           const mo  = dt.toLocaleString("en-US", { month: "short" });
           const yr  = String(dt.getFullYear()).slice(2);
           const val = parseFloat(d.value);
-          return {
-            label: `${mo} '${yr}`,
-            value: val,
-            ...(d.date.startsWith("2026-02") && { event: true }),
-            ...(i === raw.length - 1       && { today: true }),
+          const label = d.date >= "2026-02-01"
+            ? `${mo} ${dt.getDate()}`
+            : `${mo} '${yr}`;
+          return { label, value: val, date: d.date,
+            ...(d.date >= "2026-02-27" && d.date <= "2026-03-01" && { event: true }),
+            ...(i === pts.length - 1 && { today: true }),
           };
         });
+        // Guarantee exactly one event marker at the Feb 28 cluster
+        if (!formatted.find(d => d.event)) {
+          const fallback = formatted.find(d => d.date >= "2026-02-25" && d.date <= "2026-03-02");
+          if (fallback) fallback.event = true;
+        }
         setData(formatted);
         setIsLive(true);
       })
@@ -1529,13 +1550,24 @@ function OilChart() {
             points={data.slice(eIdx).map((d, i) => `${cx(eIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
             fill="none" stroke="var(--bear)" strokeWidth="2.5" strokeLinejoin="round" />
 
-          <line x1={cx(eIdx)} y1={pad.top + 22} x2={cx(eIdx)} y2={cy(data[eIdx].value) - 6}
-            stroke="var(--warn)" strokeWidth="1" strokeDasharray="4,2" />
-          <rect x={cx(eIdx) - 64} y={pad.top - 2} width={128} height={20} rx={3}
-            fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1" />
-          <text x={cx(eIdx)} y={pad.top + 13} fill="var(--warn)" fontSize="9.5" textAnchor="middle" fontWeight="700">
-            OP. EPIC FURY — FEB 28
-          </text>
+          {(() => {
+            const annW = 128, annH = 20;
+            // Clamp box so it never overflows left or right of the chart area
+            const rawX  = cx(eIdx) - annW / 2;
+            const annX  = Math.max(pad.left, Math.min(rawX, W - pad.right - annW));
+            const textX = annX + annW / 2;
+            return (
+              <g>
+                <line x1={cx(eIdx)} y1={pad.top + 22} x2={cx(eIdx)} y2={cy(data[eIdx].value) - 6}
+                  stroke="var(--warn)" strokeWidth="1" strokeDasharray="4,2" />
+                <rect x={annX} y={pad.top - 2} width={annW} height={annH} rx={3}
+                  fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1" />
+                <text x={textX} y={pad.top + 13} fill="var(--warn)" fontSize="9.5" textAnchor="middle" fontWeight="700">
+                  OP. EPIC FURY — FEB 28
+                </text>
+              </g>
+            );
+          })()}
 
           {data.map((d, i) => {
             if (i === lastIdx) return null;
