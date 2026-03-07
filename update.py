@@ -149,179 +149,219 @@ def strip_js_render(html):
 
 prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
 
-# ── Update prompt ──────────────────────────────────────────────────────────────
-PROMPT = f"""You are updating THE BRIEF, a Bangladesh business intelligence single-page app.
-Today's date is {today}.
+# ── Two-phase approach: gather data first, then generate HTML ───────────────────
+# Phase 1 prompt: tiny (no HTML in prompt), Claude searches and returns JSON data.
+# Phase 2 prompt: gathered JSON + stripped HTML (~22k tokens), Claude writes HTML.
+# This guarantees Phase 2 has no tool use — Claude's first output IS the HTML.
 
-NOTE: To stay within API token limits, rendering-only sections have been stripped
-and replaced with placeholder comments. Your output MUST include ALL of these
-placeholders EXACTLY as shown (they are restored automatically after generation):
+GATHER_PROMPT = f"""Today is {today}.
+
+Search for the latest Bangladesh economic and financial data, then return it as JSON.
+Run searches for all categories below. Return ONLY a JSON object — no markdown, no explanation.
+
+WHAT TO SEARCH:
+1. Bangladesh CPI headline % YoY (BBS latest month), food inflation % YoY (BBS)
+2. Bangladesh Bank (BB) policy rate %, SDF rate %, SLF rate %
+3. Any recent BB MPC meeting decision or statement
+4. Bangladesh GDP growth rate (BBS/World Bank latest), private sector credit growth % YoY (BB)
+5. DSEX closing value, DS30, CSCX, daily turnover crore BDT, change pts/%, 52-week high/low
+6. Latest DSE news (2-3 headlines)
+7. BB T-bill primary auction cut-off yields: 91-day %, 182-day %, 364-day % (most recent auction)
+8. 10-year and 5-year government bond yields (secondary market)
+9. Any T-bill/bond market news
+10. BAJUS gold price 22K BDT per bhori (bajus.org or news)
+11. Brent crude spot USD/bbl, WTI crude USD/bbl, Henry Hub natural gas USD/MMBtu
+12. Any commodity news
+13. USD/BDT BB reference rate, EUR/BDT, GBP/BDT
+14. Bangladesh gross forex reserves USD billion (BPM6 basis, BB)
+15. Monthly exports USD million (EPB, latest month) — total and RMG portion; imports; trade deficit
+16. Any forex/trade news
+17. Monthly remittance inflow USD million (BB, latest month), which month, YoY % change
+18. Any remittance news
+19. NPL ratio % (BB), capital adequacy ratio %; any major banking news
+20. Brent crude current spot and latest US-Iran war developments affecting oil markets
+
+Return ONLY this JSON (use null for any value not found):
+{{
+  "cpi_headline_pct": "9.94",     "cpi_headline_month": "Jan 2026",
+  "cpi_food_pct": "11.35",        "cpi_food_month": "Jan 2026",
+  "bb_policy_rate_pct": "10.00",  "sdf_rate_pct": "9.00",  "slf_rate_pct": "11.00",
+  "mpc_note": null,
+  "gdp_growth_pct": "5.17",  "gdp_year": "FY2024",
+  "credit_growth_pct": "7.3",
+  "dsex": 5323,  "ds30": 1890,  "cscx": 1100,
+  "dse_turnover_cr": 445,
+  "dse_change_pts": -2,  "dse_change_pct": "-0.03",
+  "dse_52wk_high": 5684,  "dse_52wk_low": 4726,
+  "news_dse": ["headline 1", "headline 2"],
+  "tbill_91d_pct": "9.90",  "tbill_182d_pct": "9.98",  "tbill_364d_pct": "9.93",
+  "tbill_auction_label": "Mar '26",  "tbill_auction_date": "05 Mar 2026",
+  "tbill_new_auction": false,
+  "bond_10y_pct": "12.50",  "bond_5y_pct": "11.90",
+  "news_tbill": ["headline 1"],
+  "gold_22k_bdt": 144956,
+  "brent_usd": 84.0,  "wti_usd": 80.5,  "natgas_usd": 4.20,
+  "news_commodity": ["headline 1", "headline 2"],
+  "usd_bdt": 121.50,  "eur_bdt": 132.00,  "gbp_bdt": 154.00,
+  "forex_reserves_bn": 20.5,
+  "exports_mn": 4200,  "rmg_exports_mn": 3600,  "exports_month": "Jan 2026",
+  "imports_mn": 5500,  "trade_deficit_mn": 1300,  "trade_deficit_yoy_pct": "-5.2",
+  "news_forex": ["headline 1", "headline 2"],
+  "remittance_mn": 2100,  "remittance_month": "February 2026",
+  "remittance_yoy_pct": "+15.2",
+  "news_remittance": ["headline 1", "headline 2"],
+  "npl_ratio_pct": "9.93",  "car_pct": "12.5",
+  "news_banking": ["headline 1", "headline 2", "headline 3"],
+  "brent_spot": 84.0,
+  "news_iranwar": ["headline 1", "headline 2", "headline 3"]
+}}"""
+
+# ── API client (used by both phases) ───────────────────────────────────────────
+client = anthropic.Anthropic(
+    api_key=os.environ["ANTHROPIC_API_KEY"],
+    timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
+)
+
+WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}]
+MAX_RETRIES = 3
+
+def _stream_call(messages, tools, max_tokens, label):
+    """Stream a Claude call with retry on rate limit. Returns final Message."""
+    t0 = time.time()
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with client.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=max_tokens,
+                tools=tools,
+                messages=messages,
+            ) as stream:
+                resp = stream.get_final_message()
+            print(f"{label} done in {time.time()-t0:.0f}s. Stop reason: {resp.stop_reason}")
+            return resp
+        except anthropic.RateLimitError as e:
+            wait = 65 * attempt
+            print(f"Rate limit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s... ({e})")
+            if attempt == MAX_RETRIES:
+                print("ERROR: Max retries exceeded.")
+                sys.exit(1)
+            time.sleep(wait)
+        except Exception as e:
+            print(f"ERROR: {label} failed after {time.time()-t0:.0f}s — {type(e).__name__}: {e}")
+            sys.exit(1)
+
+# ── PHASE 1: Web search → gathered JSON (tiny prompt, no HTML) ─────────────────
+print("Phase 1: Gathering latest Bangladesh data via web search...")
+gather_resp = _stream_call(
+    messages=[{"role": "user", "content": GATHER_PROMPT}],
+    tools=WEB_SEARCH_TOOL,
+    max_tokens=4000,
+    label="Phase 1 (data gather)",
+)
+
+gathered_json = "{}"
+for block in gather_resp.content:
+    if block.type == "text":
+        text = block.text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
+        gathered_json = text.strip()
+        break
+print(f"Gathered data: {len(gathered_json):,} chars")
+
+# ── PHASE 2: Generate updated HTML (no web search, HTML is direct output) ───────
+UPDATE_PROMPT = f"""You are updating THE BRIEF, a Bangladesh business intelligence single-page app.
+Today's date is {today}. Current UTC time → add 6 hours for BDT.
+
+LATEST DATA gathered from web searches (use this to update all values):
+<data>
+{gathered_json}
+</data>
+
+CURRENT HTML — rendering sections replaced by placeholders you MUST pass through unchanged:
+<current_file>
+{prompt_html}
+</current_file>
+
+REQUIRED PLACEHOLDERS — include these EXACTLY, do not alter them:
   <style>/* CSS_PLACEHOLDER — restored automatically */</style>
   // [COMPONENTS_PLACEHOLDER — restored automatically]
   // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
   // [TBILLCHART_RENDER_PLACEHOLDER — restored automatically]
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
-Do NOT write any CSS or any React rendering/component code — only update data values.
 
-Here is the current HTML file (rendering sections stripped to save tokens):
+UPDATE INSTRUCTIONS:
 
-<current_file>
-{prompt_html}
-</current_file>
+1. HEADER: Set BRIEF_DATE = "{today} · HHMM BDT" using the current time.
 
-Perform ALL of the following update steps using web search to find the latest data.
-Return ONLY the complete updated HTML — placeholders intact, no explanation, no markdown fences.
+2. SectionBB: Update with bb_policy_rate_pct, sdf_rate_pct, slf_rate_pct, gdp_growth_pct,
+   credit_growth_pct, forex_reserves_bn, cpi_headline_pct, remittance_mn, news_banking.
 
-────────────────────────────────────────────────────────────────
+3. SectionMacro: Update with cpi_headline_pct, cpi_headline_month, cpi_food_pct,
+   cpi_food_month, bb_policy_rate_pct, sdf_rate_pct, slf_rate_pct, mpc_note.
 
-STEP 1 — HEADER
-Update the day/date string (e.g. "FRIDAY 06 MARCH 2026") to today's date.
-Update the publish time to the current UTC time converted to BDT (UTC+6).
+4. DSEXChart data array (20 points): Drop index 0. Add new last entry:
+   {{ label: "Mar 7", value: <dsex>, showLabel: true, today: true }}
+   Remove today:true from the previous last entry.
+   SectionDSE: Update ticker with dsex, ds30, cscx, dse_turnover_cr, dse_change_pts,
+   dse_change_pct, dse_52wk_high, dse_52wk_low; update news_dse headlines.
 
-STEP 2 — §01 MACRO OVERVIEW
-Search for latest: Bangladesh GDP growth (BBS/World Bank), CPI headline & food inflation (BBS),
-private sector credit growth (BB), remittance (latest monthly, BB),
-gross forex reserves (BB BPM6 basis), trade deficit.
-Update TickerStrip, MetricCard values/change/sub text, and NewsItem headlines + details.
+5. TBillChart: If tbill_new_auction is true, drop labels[0]/d91[0]/d182[0]/d364[0] and
+   append new values; update pkI/pkV if a new peak. Otherwise update last element if changed.
+   SectionTBond: Update with tbill_91d_pct, tbill_182d_pct, tbill_364d_pct,
+   bond_10y_pct, bond_5y_pct, tbill_auction_date; update news_tbill.
 
-STEP 3 — §02 INFLATION & MONETARY POLICY
-Search for: latest CPI headline and food inflation (BBS), BB policy rate (any change?),
-SDF/SLF corridor rates, any MPC meeting outcome or statement.
-Update ticker, metric cards, and news items.
+6. SectionComm: Update with gold_22k_bdt, brent_usd, wti_usd, natgas_usd, news_commodity.
 
-STEP 4 — §03 DHAKA STOCK EXCHANGE — DSEX Chart
-The DSEXChart has 20 daily data points. Update as follows:
-- Drop the oldest data point (index 0)
-- Add today's DSEX closing value as the new last entry with {{ today: true }}
-- Remove the {{ today: true }} flag from the previous last point
-- Add/update event annotations for any new significant event (crash, rally, election)
+7. SectionFX: Update with usd_bdt, eur_bdt, gbp_bdt, forex_reserves_bn, exports_mn,
+   rmg_exports_mn, exports_month, imports_mn, trade_deficit_mn,
+   trade_deficit_yoy_pct, news_forex.
 
-ANNOTATION RULES (CRITICAL):
-- BULL annotations (rallies/highs): box at y = pad.top - 40, dashed line goes DOWN to dot
-- BEAR annotations (crashes/lows): box at y = cy(data[idx].value) + 19, INSIDE chart, NEVER below x-axis
+8. SectionRemittance (§07): Update with remittance_mn, remittance_month,
+   remittance_yoy_pct, news_remittance.
 
-Also update: FLASH banner (if major event), ticker strip values (DSEX pts, DS30, CSCX, TURNOVER, 52-WK RANGE).
+9. SectionBanking (§08): Update with npl_ratio_pct, car_pct, news_banking.
 
-STEP 5 — §04 TREASURY BILLS & BOND MARKET — T-Bill Chart
-The TBillChart shows 5 auction data points for 3 tenors (91d, 182d, 364d).
-Check bb.org.bd/monetaryactivity/treasury for the latest primary auction cut-off yields.
-If a new auction has been held, drop the oldest point and add the new one to all three arrays and the labels array.
-Update the PEAK annotation (pkI index, value, label) if a new peak has been set.
-Update the BELOW POLICY RATE annotation text if the situation has changed.
-Update TickerStrip and MetricCard values (10Y/5Y bond yields, last auction date).
-Update NewsItems if there is new bond market news.
+10. OilChart STATIC_DATA: Remove today:true from current last entry. Append:
+    {{ label: "Mar 7", value: <brent_spot>, today: true }}
+    Keep event:true on the Feb 28 entry. Drop oldest if array > 12 points.
+    SectionIranWar: Update with brent_spot, news_iranwar.
 
-STEP 6 — §05 COMMODITY PRICING
-Search for latest: BAJUS gold price 22K/bhori (bajus.org or local news),
-Brent crude spot, WTI crude spot, natural gas (Henry Hub).
-Update ticker, metric cards (value, change, sub), and news items.
+OUTPUT: Start your response IMMEDIATELY with <!DOCTYPE html> — the very first character
+must be '<'. Do not write any introduction, summary, explanation, or reasoning before the HTML.
+End with </html>. The complete file, nothing else."""
 
-STEP 7 — §06 TRADE & FOREX
-Search for latest: USD/BDT BB reference rate, EUR/BDT, GBP/BDT,
-monthly export figures (EPB) — RMG vs total, import figures / trade deficit.
-Update ticker strip, metric cards, and news items.
-
-STEP 8 — §07 REMITTANCE
-Search for: latest monthly remittance inflow (BB), YoY % change,
-top source countries / channels (banking vs hundi narrative).
-Update MetricCards and NewsItems.
-
-STEP 9 — §08 BANKING SECTOR
-Search for: NPL ratio (BB), capital adequacy ratio,
-any bank-specific news (scam, restructuring, merger), BB regulatory actions.
-Update MetricCards and NewsItems.
-
-STEP 10 — §09 US-IRAN WAR IMPACT — Oil Chart
-The OilChart shows Brent crude for the last 6 months.
-If significant price movement has occurred:
-- Update the STATIC_DATA array: add a new daily data point with today's date,
-  drop the oldest point if needed to keep the chart at ~8-12 data points
-- Keep the {{ event: true }} flag on the Feb 28 Op. Epic Fury trigger point
-- Keep {{ today: true }} only on the last point
-Also update: ticker strip (Brent spot), MetricCard values, NewsItems with latest developments.
-
-STEP 11 — FINAL CHECKS
-- Ensure no change= text references a stale date
-- Confirm pill= labels are still accurate (e.g. "RISING" vs "FALLING")
-- Do not change any CSS, component structure, or layout — only data values and text content
-
-════════════════════════════════════════════════════════════════
-CRITICAL OUTPUT RULE — THIS OVERRIDES EVERYTHING ELSE:
-
-After your final web search, your VERY NEXT output MUST be the
-complete updated HTML file. Do NOT write:
-  • "Now I have all the data I need..."
-  • "Let me compile the updated HTML..."
-  • "Key findings:" or ANY bullet-point summary of what you found
-  • ANY words, sentences, or characters before <!DOCTYPE html>
-
-Your response after the last search tool call must begin EXACTLY:
-<!DOCTYPE html>
-...and end with </html>. Nothing before it. Nothing after it.
-The HTML IS your answer — there is no need to explain it first.
-════════════════════════════════════════════════════════════════
-"""
-
-# ── Call Claude API ────────────────────────────────────────────────────────────
-# Timeout: 30 min read/pool to cover 20 web searches + large token generation
-client = anthropic.Anthropic(
-    api_key=os.environ["ANTHROPIC_API_KEY"],
-    timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
+print("Phase 2: Generating updated HTML (no web search)...")
+response = _stream_call(
+    messages=[{"role": "user", "content": UPDATE_PROMPT}],
+    tools=[],
+    max_tokens=64000,
+    label="Phase 2 (HTML generation)",
 )
 
-print("Calling Claude API with web search...")
-t0 = time.time()
+# ── Extract the HTML from Phase 2 response ─────────────────────────────────────
+# Phase 2 has no tool use — Claude's output should begin with <!DOCTYPE html>.
+def _extract_html(resp):
+    for block in resp.content:
+        if block.type == "text":
+            text = block.text
+            stripped = text.strip()
+            if stripped.startswith("```"):
+                lines = stripped.split("\n")
+                stripped = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
+                text = stripped
+            for marker in ("<!DOCTYPE", "<!doctype", "<html", "<HTML"):
+                idx = text.find(marker)
+                if idx != -1:
+                    return text[idx:]
+    return None
 
-MAX_RETRIES = 3
-for attempt in range(1, MAX_RETRIES + 1):
-    try:
-        # Use streaming to avoid SDK's 10-minute non-streaming limit with large max_tokens
-        with client.messages.stream(
-            model="claude-sonnet-4-6",
-            max_tokens=64000,           # Raised from 32k: search results + full HTML easily exceed 32k
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
-            messages=[{"role": "user", "content": PROMPT}],
-        ) as stream:
-            response = stream.get_final_message()
-        break   # success — exit retry loop
-    except anthropic.RateLimitError as e:
-        wait = 65 * attempt      # 65s, 130s, 195s
-        print(f"Rate limit hit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s... ({e})")
-        if attempt == MAX_RETRIES:
-            print("ERROR: Max retries exceeded.")
-            sys.exit(1)
-        time.sleep(wait)
-    except Exception as e:
-        print(f"ERROR: Claude API call failed after {time.time()-t0:.0f}s — {type(e).__name__}: {e}")
-        sys.exit(1)
-
-print(f"Claude API call completed in {time.time()-t0:.0f}s. Stop reason: {response.stop_reason}")
-
-# ── Extract the HTML from the response ────────────────────────────────────────
-# Claude sometimes prefixes the HTML with a short reasoning sentence.
-# Search for <!DOCTYPE or <html anywhere inside each text block (not just at start).
-updated_html = None
-for block in response.content:
-    if block.type == "text":
-        text = block.text
-        # Strip markdown fences if Claude wrapped it anyway
-        stripped = text.strip()
-        if stripped.startswith("```"):
-            lines = stripped.split("\n")
-            stripped = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
-            text = stripped
-        # Find the HTML start marker anywhere in the block
-        for marker in ("<!DOCTYPE", "<!doctype", "<html", "<HTML"):
-            idx = text.find(marker)
-            if idx != -1:
-                updated_html = text[idx:]
-                break
-        if updated_html:
-            break
+updated_html = _extract_html(response)
 
 if not updated_html:
-    print("ERROR: Claude did not return valid HTML. Response blocks:")
+    print("ERROR: Phase 2 did not return valid HTML. Response blocks:")
     for i, block in enumerate(response.content):
         btype = getattr(block, "type", "?")
         btext = getattr(block, "text", "")[:300] if btype == "text" else ""
