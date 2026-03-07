@@ -114,12 +114,14 @@ client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 print("Calling Claude API with web search...")
 
-response = client.messages.create(
+# Use streaming to avoid SDK's 10-minute non-streaming limit with large max_tokens
+with client.messages.stream(
     model="claude-sonnet-4-6",
     max_tokens=32000,
     tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
     messages=[{"role": "user", "content": PROMPT}],
-)
+) as stream:
+    response = stream.get_final_message()
 
 # ── Extract the HTML from the response ────────────────────────────────────────
 updated_html = None
