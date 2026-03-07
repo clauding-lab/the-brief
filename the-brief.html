@@ -928,7 +928,10 @@
         z-index: 200;
         background: var(--surface);
         border-top: 1px solid var(--border);
-        padding: 4px 0 env(safe-area-inset-bottom, 4px);
+        padding: 4px
+          max(16px, env(safe-area-inset-right, 16px))
+          env(safe-area-inset-bottom, 4px)
+          max(16px, env(safe-area-inset-left, 16px));
         justify-content: space-around;
       }
       .bottom-nav-btn {
