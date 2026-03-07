@@ -946,6 +946,103 @@ function SectionDSE() {
   );
 }
 
+function TBillChart() {
+  const W = 680, H = 230;
+  const pad = { top: 50, right: 44, bottom: 44, left: 52 };
+  const iW = W - pad.left - pad.right;
+  const iH = H - pad.top - pad.bottom;
+
+  const yMin = 9.65, yMax = 10.85;
+  const labels = ["Nov '25", "Dec '25", "Jan '26", "Feb '26", "Mar '26"];
+  const d91  = [10.08, 10.47, 10.42, 10.02, 9.90];
+  const d182 = [10.30, 10.60, 10.54, 10.11, 9.98];
+  const d364 = [10.04, 10.61, 10.66, 10.07, 9.93];
+  const n = labels.length;
+
+  const cx = i => pad.left + (i / (n - 1)) * iW;
+  const cy = v => pad.top + ((yMax - v) / (yMax - yMin)) * iH;
+  const pts = arr => arr.map((v, i) => `${cx(i).toFixed(1)},${cy(v).toFixed(1)}`).join(" ");
+
+  const policyY = cy(10.00);
+  const yTicks  = [9.75, 10.00, 10.25, 10.50, 10.75];
+
+  const pkI = 2, pkV = d364[2];
+  const pkX = cx(pkI), pkY = cy(pkV);
+  const pkBw = 72, pkBh = 22, pkBx = pkX - pkBw / 2, pkBy = pad.top - 44;
+
+  const bpX = cx(4), bpY = cy(d182[4]);
+  const bpBw = 86, bpBh = 22;
+  const bpBx = bpX - bpBw - 8, bpBy = bpY - bpBh - 16;
+
+  return (
+    <div style={{ margin: "18px 0 8px" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
+        {yTicks.map(t => (
+          <g key={t}>
+            <line x1={pad.left} y1={cy(t)} x2={W - pad.right} y2={cy(t)}
+              stroke="var(--border)" strokeWidth={t === 10.00 ? 1.5 : 1}
+              strokeDasharray={t === 10.00 ? "5,3" : "3,3"} />
+            <text x={pad.left - 5} y={cy(t) + 4} textAnchor="end"
+              fontSize="9" fill={t === 10.00 ? "var(--fg)" : "var(--muted)"}
+              fontWeight={t === 10.00 ? "600" : "400"}>{t.toFixed(2)}%</text>
+          </g>
+        ))}
+        <text x={W - pad.right + 4} y={policyY - 1} fontSize="8" fill="var(--muted)">Policy</text>
+        <text x={W - pad.right + 4} y={policyY + 9} fontSize="8" fill="var(--muted)">10.00</text>
+
+        <polyline points={pts(d91)}  fill="none" stroke="var(--accent)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pts(d182)} fill="none" stroke="var(--warn)"   strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pts(d364)} fill="none" stroke="var(--bull)"   strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+
+        {d91.map((v,i)  => <circle key={i} cx={cx(i)} cy={cy(v)} r="3.5" fill="var(--accent)" />)}
+        {d182.map((v,i) => <circle key={i} cx={cx(i)} cy={cy(v)} r="3.5" fill="var(--warn)"   />)}
+        {d364.map((v,i) => <circle key={i} cx={cx(i)} cy={cy(v)} r="3.5" fill="var(--bull)"   />)}
+
+        <line x1={pad.left} y1={H - pad.bottom} x2={W - pad.right} y2={H - pad.bottom}
+          stroke="var(--border)" strokeWidth="1" />
+        {labels.map((l, i) => (
+          <text key={i} x={cx(i)} y={H - pad.bottom + 15}
+            textAnchor="middle" fontSize="9.5" fill="var(--muted)">{l}</text>
+        ))}
+
+        <g transform={`translate(${pad.left}, 16)`}>
+          <line x1="0" y1="6" x2="18" y2="6" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="9" cy="6" r="3" fill="var(--accent)" />
+          <text x="22" y="10" fontSize="9.5" fill="var(--fg)">91-Day</text>
+          <line x1="76" y1="6" x2="94" y2="6" stroke="var(--warn)" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="85" cy="6" r="3" fill="var(--warn)" />
+          <text x="98" y="10" fontSize="9.5" fill="var(--fg)">182-Day</text>
+          <line x1="165" y1="6" x2="183" y2="6" stroke="var(--bull)" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="174" cy="6" r="3" fill="var(--bull)" />
+          <text x="187" y="10" fontSize="9.5" fill="var(--fg)">364-Day</text>
+          <text x="255" y="10" fontSize="8.5" fill="var(--muted)">Cut-off yields · Primary auction</text>
+        </g>
+
+        <line x1={pkX} y1={pkBy + pkBh} x2={pkX} y2={pkY - 4}
+          stroke="var(--bull)" strokeWidth="1" strokeDasharray="3,2" />
+        <rect x={pkBx} y={pkBy} width={pkBw} height={pkBh} rx="3"
+          fill="var(--bull)" opacity="0.12" />
+        <rect x={pkBx} y={pkBy} width={pkBw} height={pkBh} rx="3"
+          fill="none" stroke="var(--bull)" strokeWidth="0.8" />
+        <text x={pkX} y={pkBy + 9} textAnchor="middle" fontSize="7.5" fill="var(--bull)" fontWeight="700">PEAK JAN '26</text>
+        <text x={pkX} y={pkBy + 18} textAnchor="middle" fontSize="7.5" fill="var(--bull)">364d: 10.66%</text>
+
+        <line x1={bpBx + bpBw} y1={bpBy + bpBh / 2} x2={bpX} y2={bpY}
+          stroke="var(--accent)" strokeWidth="1" strokeDasharray="3,2" />
+        <rect x={bpBx} y={bpBy} width={bpBw} height={bpBh} rx="3"
+          fill="var(--accent)" opacity="0.1" />
+        <rect x={bpBx} y={bpBy} width={bpBw} height={bpBh} rx="3"
+          fill="none" stroke="var(--accent)" strokeWidth="0.8" />
+        <text x={bpBx + bpBw/2} y={bpBy + 9} textAnchor="middle" fontSize="7.5" fill="var(--accent)" fontWeight="700">BELOW POLICY RATE</text>
+        <text x={bpBx + bpBw/2} y={bpBy + 18} textAnchor="middle" fontSize="7.5" fill="var(--accent)">All tenors &lt;10% · Mar 1</text>
+      </svg>
+      <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 4, textAlign: "right" }}>
+        Source: Bangladesh Bank primary auction results · Policy rate: 10.00% (since Jan 2025)
+      </div>
+    </div>
+  );
+}
+
 function SectionTBond() {
   return (
     <div className="section scroll-target" id="tbond">
@@ -1019,6 +1116,7 @@ function SectionTBond() {
           time="Mar 2026"
         />
       </div>
+      <TBillChart />
     </div>
   );
 }
