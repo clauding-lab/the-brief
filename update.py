@@ -1,7 +1,18 @@
 import anthropic
+import json
 import os
 import sys
+import urllib.request
+import urllib.error
 from datetime import datetime
+
+# ── Email config ───────────────────────────────────────────────────────────────
+BREVO_KEY        = os.environ.get("BREVO_API_KEY", "")
+SUPABASE_URL     = "https://ssbliukchgibjcjohibi.supabase.co"
+SUPABASE_SVC_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+BRIEF_URL        = "https://clauding-lab.github.io/the-brief/"
+FROM_EMAIL       = "adnan.rshd@gmail.com"
+FROM_NAME        = "THE BRIEF"
 
 # ── Read current file ──────────────────────────────────────────────────────────
 with open("the-brief.html", "r", encoding="utf-8") as f:
@@ -82,11 +93,12 @@ any bank-specific news (scam, restructuring, merger), BB regulatory actions.
 Update MetricCards and NewsItems.
 
 STEP 10 — §09 US-IRAN WAR IMPACT — Oil Chart
-The OilChart shows Brent crude from Oct 2024 to present.
+The OilChart shows Brent crude for the last 6 months.
 If significant price movement has occurred:
-- Add a new data point (drop oldest if needed to keep chart readable)
-- Update the red post-conflict segment start index if the conflict phase has evolved
-- Update the annotation label/value if a new high/low has been set
+- Update the STATIC_DATA array: add a new daily data point with today's date,
+  drop the oldest point if needed to keep the chart at ~8-12 data points
+- Keep the {{ event: true }} flag on the Feb 28 Op. Epic Fury trigger point
+- Keep {{ today: true }} only on the last point
 Also update: ticker strip (Brent spot), MetricCard values, NewsItems with latest developments.
 
 STEP 11 — FINAL CHECKS
@@ -126,7 +138,7 @@ if not updated_html:
     print("ERROR: Claude did not return valid HTML.")
     sys.exit(1)
 
-# ── Write updated file ─────────────────────────────────────────────────────────
+# ── Write updated files ────────────────────────────────────────────────────────
 with open("the-brief.html", "w", encoding="utf-8") as f:
     f.write(updated_html)
 
@@ -134,3 +146,131 @@ with open("index.html", "w", encoding="utf-8") as f:
     f.write(updated_html)
 
 print(f"Done. Updated the-brief.html and index.html for {today}.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SUBSCRIBER EMAIL
+# ══════════════════════════════════════════════════════════════════════════════
+
+def fetch_subscribers():
+    """Return list of {name, email} dicts from Supabase using the service key."""
+    if not SUPABASE_SVC_KEY:
+        print("SUPABASE_SERVICE_KEY not set — skipping email send.")
+        return []
+    req = urllib.request.Request(
+        f"{SUPABASE_URL}/rest/v1/subscribers?select=name,email&order=created_at.asc",
+        headers={
+            "apikey":        SUPABASE_SVC_KEY,
+            "Authorization": f"Bearer {SUPABASE_SVC_KEY}",
+        }
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            subs = json.loads(r.read())
+            print(f"Fetched {len(subs)} subscriber(s) from Supabase.")
+            return subs
+    except Exception as e:
+        print(f"Failed to fetch subscribers: {e}")
+        return []
+
+
+def build_email_html(name, date_str):
+    """Return a personalised HTML email string for one subscriber."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THE BRIEF \u2014 {date_str}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0a0c0f;font-family:'Courier New',Courier,monospace;">
+  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0a0c0f">
+    <tr><td align="center" style="padding:40px 20px;">
+      <table width="540" cellpadding="0" cellspacing="0" style="max-width:540px;width:100%;">
+
+        <!-- Header -->
+        <tr><td bgcolor="#111418" style="background-color:#111418;border:1px solid #1e2329;border-radius:4px 4px 0 0;padding:24px 28px 18px;">
+          <p style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.25em;color:#ffffff;text-transform:uppercase;">
+            THE <span style="color:#3b82f6;">BRIEF</span>
+          </p>
+          <p style="margin:4px 0 0;font-size:9px;letter-spacing:0.2em;color:#64748b;text-transform:uppercase;">
+            Bangladesh Business Intelligence
+          </p>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td bgcolor="#111418" style="background-color:#111418;border:1px solid #1e2329;border-top:none;padding:22px 28px 28px;">
+          <p style="margin:0 0 16px;font-size:10px;letter-spacing:0.12em;color:#64748b;text-transform:uppercase;">
+            {date_str}
+          </p>
+          <p style="margin:0 0 22px;font-size:13px;color:#e2e8f0;line-height:1.75;">
+            Hi {name},<br><br>
+            Today&#39;s edition of THE BRIEF is ready &mdash; your daily snapshot of
+            Bangladesh&#39;s macro economy, capital markets, monetary policy, and trade flows.
+          </p>
+          <table cellpadding="0" cellspacing="0">
+            <tr><td bgcolor="#3b82f6" style="background-color:#3b82f6;border-radius:2px;">
+              <a href="{BRIEF_URL}"
+                 style="display:inline-block;padding:10px 24px;color:#ffffff;text-decoration:none;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">
+                Read Today&#39;s Brief &rarr;
+              </a>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td bgcolor="#0f1419" style="background-color:#0f1419;border:1px solid #1e2329;border-top:none;border-radius:0 0 4px 4px;padding:14px 28px;">
+          <p style="margin:0;font-size:9px;color:#475569;letter-spacing:0.08em;text-transform:uppercase;text-align:center;">
+            THE BRIEF &middot; Bangladesh &middot;
+            <a href="mailto:{FROM_EMAIL}?subject=UNSUBSCRIBE"
+               style="color:#475569;text-decoration:underline;">Unsubscribe</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def send_emails(subscribers, date_str):
+    """Send THE BRIEF to all subscribers via Brevo transactional email API."""
+    if not BREVO_KEY:
+        print("BREVO_API_KEY not set — skipping email send.")
+        return
+
+    sent, failed = 0, 0
+    for sub in subscribers:
+        payload = json.dumps({
+            "sender":      {"name": FROM_NAME, "email": FROM_EMAIL},
+            "to":          [{"email": sub["email"], "name": sub["name"]}],
+            "subject":     f"THE BRIEF \u2014 {date_str}",
+            "htmlContent": build_email_html(sub["name"], date_str),
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={
+                "api-key":      BREVO_KEY,
+                "Content-Type": "application/json",
+                "Accept":       "application/json",
+            }
+        )
+        try:
+            with urllib.request.urlopen(req) as r:
+                sent += 1
+        except urllib.error.HTTPError as e:
+            print(f"  \u2717 {sub['email']}: {e.code} \u2014 {e.read().decode()}")
+            failed += 1
+
+    print(f"Emails: {sent} sent, {failed} failed out of {len(subscribers)} subscriber(s).")
+
+
+# ── Run email step ─────────────────────────────────────────────────────────────
+print("Fetching subscribers...")
+subscribers = fetch_subscribers()
+if subscribers:
+    print(f"Sending to {len(subscribers)} subscriber(s)...")
+    send_emails(subscribers, today)
+else:
+    print("No subscribers found — email step skipped.")

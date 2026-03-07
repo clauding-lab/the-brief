@@ -25,7 +25,9 @@ jobs:
 
       - name: Run update script
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          BREVO_API_KEY:        ${{ secrets.BREVO_API_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python update.py
 
       - name: Commit and push
