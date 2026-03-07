@@ -8,6 +8,7 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 45        # Kill the job if it hangs (web search + 32k tokens ≈ 20 min)
     permissions:
       contents: write          # Needed to commit and push
 
@@ -21,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Anthropic SDK
-        run: pip install anthropic
+        run: pip install "anthropic>=0.84"
 
       - name: Run update script
         env:

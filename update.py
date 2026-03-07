@@ -2,6 +2,7 @@ import anthropic
 import json
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 from datetime import datetime
@@ -110,18 +111,29 @@ Return the complete updated HTML file now.
 """
 
 # ── Call Claude API ────────────────────────────────────────────────────────────
-client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+# Timeout: 30 min read/pool to cover 20 web searches + large token generation
+client = anthropic.Anthropic(
+    api_key=os.environ["ANTHROPIC_API_KEY"],
+    timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
+)
 
 print("Calling Claude API with web search...")
+t0 = time.time()
 
-# Use streaming to avoid SDK's 10-minute non-streaming limit with large max_tokens
-with client.messages.stream(
-    model="claude-sonnet-4-6",
-    max_tokens=32000,
-    tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
-    messages=[{"role": "user", "content": PROMPT}],
-) as stream:
-    response = stream.get_final_message()
+try:
+    # Use streaming to avoid SDK's 10-minute non-streaming limit with large max_tokens
+    with client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=32000,
+        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
+        messages=[{"role": "user", "content": PROMPT}],
+    ) as stream:
+        response = stream.get_final_message()
+except Exception as e:
+    print(f"ERROR: Claude API call failed after {time.time()-t0:.0f}s — {type(e).__name__}: {e}")
+    sys.exit(1)
+
+print(f"Claude API call completed in {time.time()-t0:.0f}s. Stop reason: {response.stop_reason}")
 
 # ── Extract the HTML from the response ────────────────────────────────────────
 updated_html = None
@@ -137,7 +149,11 @@ for block in response.content:
             break
 
 if not updated_html:
-    print("ERROR: Claude did not return valid HTML.")
+    print("ERROR: Claude did not return valid HTML. Response blocks:")
+    for i, block in enumerate(response.content):
+        btype = getattr(block, "type", "?")
+        btext = getattr(block, "text", "")[:200] if btype == "text" else ""
+        print(f"  [{i}] type={btype} {btext!r}")
     sys.exit(1)
 
 # ── Write updated files ────────────────────────────────────────────────────────
