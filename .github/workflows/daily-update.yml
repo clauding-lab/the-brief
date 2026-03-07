@@ -2,7 +2,7 @@ name: Daily Brief Update
 
 on:
   schedule:
-    - cron: '0 10 * * 1-5'   # 4:00 PM BDT (UTC+6) — Mon to Fri
+    - cron: '0 1 * * *'       # 7:00 AM BDT (UTC+6) — every day
   workflow_dispatch:           # Also allows manual trigger from GitHub UI
 
 jobs:
