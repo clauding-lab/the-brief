@@ -103,7 +103,7 @@ client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 print("Calling Claude API with web search...")
 
 response = client.messages.create(
-    model="claude-sonnet-4-5",
+    model="claude-sonnet-4-6",
     max_tokens=32000,
     tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
     messages=[{"role": "user", "content": PROMPT}],
