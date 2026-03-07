@@ -134,6 +134,9 @@
       border-bottom: 1px solid var(--border);
       overflow-x: auto;
       scrollbar-width: none;
+      position: sticky;
+      top: var(--header-h, 0px);
+      z-index: 99;
     }
     .nav::-webkit-scrollbar { display: none; }
     .nav-btn {
@@ -2088,6 +2091,17 @@ function App() {
     if (el) el.scrollIntoView({ behavior: "smooth" });
   }
 
+  // Set --header-h CSS var so nav sticks just below the header
+  useEffect(() => {
+    function updateHeaderHeight() {
+      const hdr = document.querySelector("header");
+      if (hdr) document.documentElement.style.setProperty("--header-h", hdr.offsetHeight + "px");
+    }
+    updateHeaderHeight();
+    window.addEventListener("resize", updateHeaderHeight);
+    return () => window.removeEventListener("resize", updateHeaderHeight);
+  }, []);
+
   // Track scroll position to update active nav
   useEffect(() => {
     function onScroll() {
@@ -2124,8 +2138,6 @@ function App() {
           </div>
         </div>
       </header>
-
-      {/* Nav */}
       <nav className="nav">
         {SECTIONS.map(s => (
           <button
