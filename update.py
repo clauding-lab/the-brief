@@ -292,6 +292,9 @@ REQUIRED PLACEHOLDERS — include these EXACTLY, do not alter them:
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
 
+PRESERVE EXACTLY — do not change this value under any circumstances:
+  const AV_KEY = "NU1U827GYXSF8BFK";  // Alpha Vantage API key — must remain unchanged
+
 UPDATE INSTRUCTIONS:
 
 1. HEADER: Set BRIEF_DATE = "{today} · HHMM BDT" using the current time.
