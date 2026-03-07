@@ -254,6 +254,115 @@
       transition: color .15s, background .15s, border-color .15s;
     }
     .theme-toggle:hover { color: var(--text); border-color: var(--border2); }
+
+    /* ── Subscribe button ── */
+    .subscribe-btn {
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.3);
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      padding: 3px 10px;
+      border-radius: 2px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      text-transform: uppercase;
+      transition: background .15s, border-color .15s;
+    }
+    .subscribe-btn:hover { background: rgba(59,130,246,0.2); border-color: var(--accent); }
+
+    /* ── Subscribe modal ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      width: 340px;
+      padding: 24px 24px 20px;
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: none; border: none;
+      color: var(--muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 2px 6px;
+      line-height: 1;
+      border-radius: 2px;
+      transition: color .15s;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .modal-sub {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-bottom: 18px;
+    }
+    .form-group { margin-bottom: 13px; }
+    .form-label {
+      display: block;
+      font-size: 9.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .form-label .req { color: var(--accent); margin-left: 2px; }
+    .form-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      padding: 7px 10px;
+      border-radius: 2px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .form-input:focus { border-color: var(--accent); }
+    .form-input::placeholder { color: var(--muted); opacity: 0.55; }
+    .submit-btn {
+      width: 100%;
+      margin-top: 6px;
+      padding: 8px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 2px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+    }
+    .submit-btn:disabled { background: var(--border2); color: var(--muted); cursor: not-allowed; opacity: 0.55; }
+    .submit-btn:not(:disabled):hover { background: var(--accent2); }
+
     .card-value-sm { font-size: 18px; }
 
     .card-change {
@@ -1748,6 +1857,28 @@ function App() {
   const [activeSection, setActiveSection] = useState("bb");
   const [dark, setDark] = useState(false);
 
+  // ── Subscribe modal state ─────────────────────────────────────────────────
+  const [showSubscribe, setShowSubscribe] = useState(false);
+  const [subName,       setSubName]       = useState("");
+  const [subOrg,        setSubOrg]        = useState("");
+  const [subEmail,      setSubEmail]      = useState("");
+  const [subSubmitted,  setSubSubmitted]  = useState(false);
+  const canSubmit = subName.trim().length > 0 && subEmail.trim().length > 0;
+
+  function handleSubscribe(e) {
+    e.preventDefault();
+    // Phase 1 — store submission (backend / Supabase integration TBD)
+    console.log("New subscriber:", { name: subName, org: subOrg, email: subEmail });
+    setSubSubmitted(true);
+  }
+
+  function closeModal() {
+    setShowSubscribe(false);
+    if (subSubmitted) {
+      setSubName(""); setSubOrg(""); setSubEmail(""); setSubSubmitted(false);
+    }
+  }
+
   useEffect(() => {
     document.documentElement.classList.toggle("light", !dark);
   }, [dark]);
@@ -1784,7 +1915,10 @@ function App() {
         </div>
         <div className="header-right">
           <div className="date-stamp">{BRIEF_DATE}</div>
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, marginTop: 6 }}>
+            <button className="subscribe-btn" onClick={() => setShowSubscribe(true)}>
+              ✉ Subscribe
+            </button>
             <button className="theme-toggle" onClick={() => setDark(d => !d)}>
               {dark ? "☀ Light" : "☾ Dark"}
             </button>
@@ -1847,6 +1981,50 @@ function App() {
         </div>
         <div>THE BRIEF · Bangladesh · {new Date().getFullYear()}</div>
       </footer>
+
+      {/* Subscribe modal */}
+      {showSubscribe && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+          <div className="modal-card">
+            <button className="modal-close" onClick={closeModal}>×</button>
+
+            {subSubmitted ? (
+              <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+                <div style={{ fontSize: 32, color: "var(--bull)", marginBottom: 10 }}>✓</div>
+                <div className="modal-title">You're on the list</div>
+                <div className="modal-sub" style={{ marginTop: 6, marginBottom: 0 }}>
+                  We'll send THE BRIEF to {subEmail} every morning.
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="modal-title">Subscribe to THE BRIEF</div>
+                <div className="modal-sub">Daily Bangladesh business intelligence, delivered to your inbox.</div>
+                <form onSubmit={handleSubscribe}>
+                  <div className="form-group">
+                    <label className="form-label">Name <span className="req">*</span></label>
+                    <input className="form-input" type="text" placeholder="Your name"
+                      value={subName} onChange={e => setSubName(e.target.value)} autoFocus />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Organisation</label>
+                    <input className="form-input" type="text" placeholder="Company / institution (optional)"
+                      value={subOrg} onChange={e => setSubOrg(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Email Address <span className="req">*</span></label>
+                    <input className="form-input" type="email" placeholder="you@example.com"
+                      value={subEmail} onChange={e => setSubEmail(e.target.value)} />
+                  </div>
+                  <button className="submit-btn" type="submit" disabled={!canSubmit}>
+                    Subscribe →
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
