@@ -1,6 +1,7 @@
 import anthropic
 import json
 import os
+import re
 import sys
 import time
 import urllib.request
@@ -21,14 +22,35 @@ with open("the-brief.html", "r", encoding="utf-8") as f:
 
 today = datetime.utcnow().strftime("%A %d %B %Y").upper()
 
+# ── Strip CSS to stay under rate-limit (Claude is told not to touch CSS anyway) ─
+# Extract and stash the <style>...</style> block; replace with a tiny placeholder.
+# We'll re-inject it into whatever HTML Claude returns.
+_css_match = re.search(r'(<style>)(.*?)(</style>)', current_html, re.DOTALL)
+if _css_match:
+    _css_block   = _css_match.group(0)          # full <style>...</style>
+    _css_content = _css_match.group(2)           # just the CSS text
+    _placeholder = "<style>/* CSS_PLACEHOLDER — restored automatically */</style>"
+    prompt_html  = current_html.replace(_css_block, _placeholder, 1)
+    print(f"CSS stripped: {len(_css_content):,} chars saved from prompt "
+          f"(~{len(_css_content)//3:,} tokens).")
+else:
+    prompt_html  = current_html
+    _css_block   = None
+    print("Warning: no <style> block found — sending full HTML.")
+
 # ── Update prompt ──────────────────────────────────────────────────────────────
 PROMPT = f"""You are updating THE BRIEF, a Bangladesh business intelligence single-page app.
 Today's date is {today}.
 
-Here is the complete current HTML file:
+NOTE: The <style> block in the file below has been replaced with a placeholder comment.
+Your output MUST include exactly this placeholder unchanged:
+  <style>/* CSS_PLACEHOLDER — restored automatically */</style>
+Do NOT write any CSS — it will be restored from the original file automatically.
+
+Here is the current HTML file (CSS stripped to save tokens):
 
 <current_file>
-{current_html}
+{prompt_html}
 </current_file>
 
 Perform ALL of the following update steps using web search to find the latest data.
@@ -121,18 +143,28 @@ client = anthropic.Anthropic(
 print("Calling Claude API with web search...")
 t0 = time.time()
 
-try:
-    # Use streaming to avoid SDK's 10-minute non-streaming limit with large max_tokens
-    with client.messages.stream(
-        model="claude-sonnet-4-6",
-        max_tokens=64000,           # Raised from 32k: search results + full HTML easily exceed 32k
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
-        messages=[{"role": "user", "content": PROMPT}],
-    ) as stream:
-        response = stream.get_final_message()
-except Exception as e:
-    print(f"ERROR: Claude API call failed after {time.time()-t0:.0f}s — {type(e).__name__}: {e}")
-    sys.exit(1)
+MAX_RETRIES = 3
+for attempt in range(1, MAX_RETRIES + 1):
+    try:
+        # Use streaming to avoid SDK's 10-minute non-streaming limit with large max_tokens
+        with client.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=64000,           # Raised from 32k: search results + full HTML easily exceed 32k
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
+            messages=[{"role": "user", "content": PROMPT}],
+        ) as stream:
+            response = stream.get_final_message()
+        break   # success — exit retry loop
+    except anthropic.RateLimitError as e:
+        wait = 65 * attempt      # 65s, 130s, 195s
+        print(f"Rate limit hit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s... ({e})")
+        if attempt == MAX_RETRIES:
+            print("ERROR: Max retries exceeded.")
+            sys.exit(1)
+        time.sleep(wait)
+    except Exception as e:
+        print(f"ERROR: Claude API call failed after {time.time()-t0:.0f}s — {type(e).__name__}: {e}")
+        sys.exit(1)
 
 print(f"Claude API call completed in {time.time()-t0:.0f}s. Stop reason: {response.stop_reason}")
 
@@ -165,6 +197,13 @@ if not updated_html:
         btext = getattr(block, "text", "")[:300] if btype == "text" else ""
         print(f"  [{i}] type={btype} {btext!r}")
     sys.exit(1)
+
+# ── Restore the CSS block that was stripped before sending to Claude ───────────
+if _css_block and "CSS_PLACEHOLDER" in updated_html:
+    updated_html = updated_html.replace(_placeholder, _css_block, 1)
+    print("CSS block restored into updated HTML.")
+elif _css_block:
+    print("Warning: CSS placeholder not found in Claude's output — CSS may be missing.")
 
 # ── Write updated files ────────────────────────────────────────────────────────
 with open("the-brief.html", "w", encoding="utf-8") as f:
