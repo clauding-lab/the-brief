@@ -1456,13 +1456,11 @@ function OilChart() {
           .reverse();
         if (all.length < 3) return;
 
-        // Bi-weekly sampling for older data, every ~2 days from Feb 25 onwards
+        // Bi-weekly sampling for older data, every 1 day from Feb 25 onwards
         const selected = [];
         for (const d of all) {
           if (d.date >= "2026-02-25") {
-            const prev = selected[selected.length - 1];
-            if (!prev || (new Date(d.date) - new Date(prev.date)) >= 2 * 86400000)
-              selected.push(d);
+            selected.push(d);  // daily granularity — capture every trading day
           } else {
             const prev = selected[selected.length - 1];
             if (!prev || (new Date(d.date) - new Date(prev.date)) >= 14 * 86400000)
