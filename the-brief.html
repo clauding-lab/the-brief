@@ -1429,10 +1429,6 @@ function OilChart() {
   const AV_KEY = "T294W0RCT1U6OOPE";
 
   const STATIC_DATA = [
-    { label: "Oct '24",   value: 82 },
-    { label: "Dec '24",   value: 73.9 },
-    { label: "Jan '25",   value: 76.2 },
-    { label: "Apr '25",   value: 68 },
     { label: "Oct '25",   value: 63.2 },
     { label: "Jan '26",   value: 62 },
     { label: "Jan 30",    value: 72 },
@@ -1451,23 +1447,26 @@ function OilChart() {
       .then(r => r.json())
       .then(json => {
         if (!json.data || json.data.length === 0) return;
-        // Chronological, from Oct 2024 only
+        // Dynamic cutoff: last 6 months only
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const cutoff = sixMonthsAgo.toISOString().slice(0, 10);
         const all = [...json.data]
-          .filter(d => d.date >= "2024-10-01" && parseFloat(d.value) > 0)
+          .filter(d => d.date >= cutoff && parseFloat(d.value) > 0)
           .reverse();
         if (all.length < 3) return;
 
-        // Smart sampling: 1 per month for older data, every ~2 days from Feb 25 onwards
+        // Bi-weekly sampling for older data, every ~2 days from Feb 25 onwards
         const selected = [];
-        let lastMonth = "";
         for (const d of all) {
           if (d.date >= "2026-02-25") {
             const prev = selected[selected.length - 1];
             if (!prev || (new Date(d.date) - new Date(prev.date)) >= 2 * 86400000)
               selected.push(d);
           } else {
-            const month = d.date.slice(0, 7);
-            if (month !== lastMonth) { selected.push(d); lastMonth = month; }
+            const prev = selected[selected.length - 1];
+            if (!prev || (new Date(d.date) - new Date(prev.date)) >= 14 * 86400000)
+              selected.push(d);
           }
         }
         const pts = selected.slice(-18);
@@ -1521,7 +1520,7 @@ function OilChart() {
   return (
     <div style={{ marginTop: 20 }}>
       <div className="sub-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span>📈 Brent Crude Oil Price — USD/bbl (Oct 2024 to Present)</span>
+        <span>📈 Brent Crude Oil Price — USD/bbl (Last 6 Months)</span>
         {isLive && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--bull)", background: "rgba(34,197,94,0.12)", border: "1px solid var(--bull)", borderRadius: 3, padding: "1px 6px", letterSpacing: "0.08em" }}>● LIVE</span>}
       </div>
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
