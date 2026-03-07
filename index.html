@@ -1424,49 +1424,93 @@ function SectionTrade() {
 // ── Oil Chart ────────────────────────────────────────────────────────────────
 
 function OilChart() {
-  const data = [
-    { label: "Oct '24",    value: 82 },
-    { label: "Dec '24",    value: 73.9 },
-    { label: "Jan '25",    value: 76.2 },
-    { label: "Apr '25",    value: 68 },
-    { label: "Oct '25",    value: 63.2 },
-    { label: "Jan 2 '26",  value: 62 },
-    { label: "Jan 30",     value: 72 },
-    { label: "Mid-Feb",    value: 77 },
-    { label: "Feb 28",     value: 69,   event: true },
-    { label: "Mar 2",      value: 82 },
-    { label: "Mar 4",      value: 82.8 },
-    { label: "Mar 6",      value: 84,   today: true },
+  const { useState, useEffect } = React;
+
+  // ── Replace "YOUR_ALPHA_VANTAGE_KEY" with your free key from alphavantage.co ──
+  const AV_KEY = "YOUR_ALPHA_VANTAGE_KEY";
+
+  const STATIC_DATA = [
+    { label: "Oct '24",   value: 82 },
+    { label: "Dec '24",   value: 73.9 },
+    { label: "Jan '25",   value: 76.2 },
+    { label: "Apr '25",   value: 68 },
+    { label: "Oct '25",   value: 63.2 },
+    { label: "Jan '26",   value: 62 },
+    { label: "Jan 30",    value: 72 },
+    { label: "Mid-Feb",   value: 77 },
+    { label: "Feb 28",    value: 69,  event: true },
+    { label: "Mar 2",     value: 82 },
+    { label: "Mar 4",     value: 82.8 },
+    { label: "Mar 6",     value: 84,  today: true },
   ];
+
+  const [data, setData]     = useState(STATIC_DATA);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    if (AV_KEY === "YOUR_ALPHA_VANTAGE_KEY") return;
+    fetch(`https://www.alphavantage.co/query?function=BRENT&interval=monthly&apikey=${AV_KEY}`)
+      .then(r => r.json())
+      .then(json => {
+        if (!json.data || json.data.length === 0) return;
+        const raw = [...json.data]
+          .filter(d => d.date >= "2024-10-01" && parseFloat(d.value) > 0)
+          .reverse();
+        if (raw.length < 3) return;
+        const formatted = raw.map((d, i) => {
+          const dt  = new Date(d.date + "T12:00:00Z");
+          const mo  = dt.toLocaleString("en-US", { month: "short" });
+          const yr  = String(dt.getFullYear()).slice(2);
+          const val = parseFloat(d.value);
+          return {
+            label: `${mo} '${yr}`,
+            value: val,
+            ...(d.date.startsWith("2026-02") && { event: true }),
+            ...(i === raw.length - 1       && { today: true }),
+          };
+        });
+        setData(formatted);
+        setIsLive(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const W = 720, H = 270;
   const pad = { top: 46, right: 58, bottom: 68, left: 54 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
-  const minV = 55, maxV = 92;
+
+  const vals   = data.map(d => d.value);
+  const minV   = Math.floor((Math.min(...vals) - 5) / 5) * 5;
+  const maxV   = Math.ceil ((Math.max(...vals) + 5) / 5) * 5;
 
   const cx = i => pad.left + (i / (data.length - 1)) * iW;
-  const cy = v => pad.top + ((maxV - v) / (maxV - minV)) * iH;
+  const cy = v => pad.top  + ((maxV - v) / (maxV - minV)) * iH;
 
   const linePoints = data.map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
-  const areaPoints = `${cx(0).toFixed(1)},${(H - pad.bottom).toFixed(1)} ${linePoints} ${cx(data.length - 1).toFixed(1)},${(H - pad.bottom).toFixed(1)}`;
+  const areaPoints = `${cx(0).toFixed(1)},${(H-pad.bottom).toFixed(1)} ${linePoints} ${cx(data.length-1).toFixed(1)},${(H-pad.bottom).toFixed(1)}`;
 
-  const gridVals = [60, 65, 70, 75, 80, 85, 90];
-  const eventIdx = 8;
+  const gridVals = [];
+  for (let v = minV + 5; v < maxV; v += 5) gridVals.push(v);
+
+  const eIdx    = Math.max(0, data.findIndex(d => d.event) === -1 ? Math.floor(data.length * 0.7) : data.findIndex(d => d.event));
+  const lastIdx = data.length - 1;
+  const lastVal = data[lastIdx].value;
 
   return (
     <div style={{ marginTop: 20 }}>
-      <div className="sub-head">📈 Brent Crude Oil Price — USD/bbl (Oct 2024 to Present)</div>
+      <div className="sub-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>📈 Brent Crude Oil Price — USD/bbl (Oct 2024 to Present)</span>
+        {isLive && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--bull)", background: "rgba(34,197,94,0.12)", border: "1px solid var(--bull)", borderRadius: 3, padding: "1px 6px", letterSpacing: "0.08em" }}>● LIVE</span>}
+      </div>
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
 
-          {/* Y-axis title */}
           <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
             transform={`translate(13,${(pad.top + (H - pad.bottom)) / 2}) rotate(-90)`}>
             USD / bbl
           </text>
 
-          {/* Grid lines + Y labels */}
           {gridVals.map(v => (
             <g key={v}>
               <line x1={pad.left} y1={cy(v)} x2={W - pad.right} y2={cy(v)}
@@ -1475,45 +1519,34 @@ function OilChart() {
             </g>
           ))}
 
-          {/* Area fill */}
           <polygon points={areaPoints} fill="rgba(239,68,68,0.07)" />
 
-          {/* Pre-event line (neutral) */}
           <polyline
-            points={data.slice(0, eventIdx + 1).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            points={data.slice(0, eIdx + 1).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
             fill="none" stroke="var(--neutral)" strokeWidth="2" strokeLinejoin="round" />
 
-          {/* Post-event line (bear/red) */}
           <polyline
-            points={data.slice(eventIdx).map((d, i) => `${cx(eventIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            points={data.slice(eIdx).map((d, i) => `${cx(eIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
             fill="none" stroke="var(--bear)" strokeWidth="2.5" strokeLinejoin="round" />
 
-          {/* Vertical annotation: Op. Epic Fury */}
-          <line x1={cx(eventIdx)} y1={pad.top + 22} x2={cx(eventIdx)} y2={cy(data[eventIdx].value) - 6}
+          <line x1={cx(eIdx)} y1={pad.top + 22} x2={cx(eIdx)} y2={cy(data[eIdx].value) - 6}
             stroke="var(--warn)" strokeWidth="1" strokeDasharray="4,2" />
-          <rect x={cx(eventIdx) - 64} y={pad.top - 2} width={128} height={20} rx={3}
+          <rect x={cx(eIdx) - 64} y={pad.top - 2} width={128} height={20} rx={3}
             fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1" />
-          <text x={cx(eventIdx)} y={pad.top + 13} fill="var(--warn)" fontSize="9.5" textAnchor="middle" fontWeight="700">
+          <text x={cx(eIdx)} y={pad.top + 13} fill="var(--warn)" fontSize="9.5" textAnchor="middle" fontWeight="700">
             OP. EPIC FURY — FEB 28
           </text>
 
-          {/* Data dots */}
           {data.map((d, i) => {
-            if (i === data.length - 1) return null;
-            if (i === eventIdx) return (
-              <circle key={i} cx={cx(i)} cy={cy(d.value)} r={5} fill="var(--warn)" stroke="var(--surface)" strokeWidth="1.5" />
-            );
-            return (
-              <circle key={i} cx={cx(i)} cy={cy(d.value)} r={3} fill="var(--neutral)" stroke="var(--surface)" strokeWidth="1.5" />
-            );
+            if (i === lastIdx) return null;
+            if (i === eIdx) return <circle key={i} cx={cx(i)} cy={cy(d.value)} r={5}   fill="var(--warn)"    stroke="var(--surface)" strokeWidth="1.5" />;
+            return             <circle key={i} cx={cx(i)} cy={cy(d.value)} r={3}   fill="var(--neutral)" stroke="var(--surface)" strokeWidth="1.5" />;
           })}
 
-          {/* TODAY dot + label */}
-          <circle cx={cx(data.length - 1)} cy={cy(data[data.length - 1].value)} r={5.5} fill="var(--bear)" stroke="var(--surface)" strokeWidth="1.5" />
-          <text x={cx(data.length - 1) + 7} y={cy(data[data.length - 1].value) - 8} fill="var(--bear)" fontSize="11" textAnchor="start" fontWeight="700">$84</text>
-          <text x={cx(data.length - 1) + 7} y={cy(data[data.length - 1].value) + 4} fill="var(--bear)" fontSize="9" textAnchor="start">TODAY</text>
+          <circle cx={cx(lastIdx)} cy={cy(lastVal)} r={5.5} fill="var(--bear)" stroke="var(--surface)" strokeWidth="1.5" />
+          <text x={cx(lastIdx) + 7} y={cy(lastVal) - 8} fill="var(--bear)" fontSize="11" textAnchor="start" fontWeight="700">${Math.round(lastVal)}</text>
+          <text x={cx(lastIdx) + 7} y={cy(lastVal) + 4} fill="var(--bear)" fontSize="9"  textAnchor="start">{isLive ? "LIVE" : "TODAY"}</text>
 
-          {/* X-axis labels (angled) */}
           {data.map((d, i) => (
             <text key={i} x={0} y={0}
               fill={d.event || d.today ? "var(--warn)" : "var(--muted)"}
@@ -1524,12 +1557,10 @@ function OilChart() {
             </text>
           ))}
 
-          {/* Axes */}
-          <line x1={pad.left} y1={pad.top} x2={pad.left} y2={H - pad.bottom} stroke="var(--border2)" strokeWidth="1" />
+          <line x1={pad.left} y1={pad.top}       x2={pad.left}       y2={H - pad.bottom} stroke="var(--border2)" strokeWidth="1" />
           <line x1={pad.left} y1={H - pad.bottom} x2={W - pad.right} y2={H - pad.bottom} stroke="var(--border2)" strokeWidth="1" />
         </svg>
 
-        {/* Legend row */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ display: "inline-block", width: 20, height: 2, background: "var(--neutral)", borderRadius: 1 }} />
@@ -1543,7 +1574,7 @@ function OilChart() {
             <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--warn)" }} />
             Op. Epic Fury trigger point
           </span>
-          <span style={{ marginLeft: "auto" }}>Source: TradingEconomics · EIA · Bloomberg · Reuters</span>
+          <span style={{ marginLeft: "auto" }}>Source: {isLive ? "Alpha Vantage · live data" : "TradingEconomics · EIA · Bloomberg · Reuters"}</span>
         </div>
       </div>
     </div>
