@@ -1797,11 +1797,11 @@ function OilChart() {
           <polygon points={areaPoints} fill="rgba(239,68,68,0.07)" />
 
           <polyline
-            points={data.slice(0, eIdx + 1).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            points={STATIC_DATA.slice(0, eIdx + 1).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
             fill="none" stroke="var(--neutral)" strokeWidth="2" strokeLinejoin="round" />
 
           <polyline
-            points={data.slice(eIdx).map((d, i) => `${cx(eIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
+            points={STATIC_DATA.slice(eIdx).map((d, i) => `${cx(eIdx + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ")}
             fill="none" stroke="var(--bear)" strokeWidth="2.5" strokeLinejoin="round" />
 
           {(() => {
@@ -1812,7 +1812,7 @@ function OilChart() {
             const textX = annX + annW / 2;
             return (
               <g>
-                <line x1={cx(eIdx)} y1={pad.top + 22} x2={cx(eIdx)} y2={cy(data[eIdx].value) - 6}
+                <line x1={cx(eIdx)} y1={pad.top + 22} x2={cx(eIdx)} y2={cy(STATIC_DATA[eIdx].value) - 6}
                   stroke="var(--warn)" strokeWidth="1" strokeDasharray="4,2" />
                 <rect x={annX} y={pad.top - 2} width={annW} height={annH} rx={3}
                   fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1" />
