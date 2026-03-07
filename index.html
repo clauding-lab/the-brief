@@ -2110,6 +2110,23 @@ function App() {
     document.documentElement.classList.toggle("light", !dark);
   }, [dark]);
 
+  // Dynamically position fixed nav below the actual header height
+  useEffect(() => {
+    function positionNav() {
+      const hdr = document.querySelector('.header');
+      const nav = document.querySelector('.nav');
+      const main = document.querySelector('.main');
+      if (!hdr || !nav || !main) return;
+      const hh = hdr.offsetHeight;
+      const nh = nav.offsetHeight;
+      nav.style.top = hh + 'px';
+      main.style.paddingTop = (hh + nh + 4) + 'px';
+    }
+    positionNav();
+    window.addEventListener('resize', positionNav);
+    return () => window.removeEventListener('resize', positionNav);
+  }, []);
+
   function scrollTo(id) {
     setActiveSection(id);
     const el = document.getElementById(id);
