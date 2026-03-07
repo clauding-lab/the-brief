@@ -70,6 +70,8 @@
       align-items: flex-start;
       justify-content: space-between;
       background: var(--surface);
+      position: sticky;
+      top: 0;
       z-index: 100;
     }
 
@@ -132,7 +134,6 @@
       border-bottom: 1px solid var(--border);
       overflow-x: auto;
       scrollbar-width: none;
-
     }
     .nav::-webkit-scrollbar { display: none; }
     .nav-btn {
@@ -2127,8 +2128,7 @@ function App() {
 
   return (
     <div>
-      {/* Sticky top bar: header + nav */}
-      <div style={{ position: "sticky", top: 0, zIndex: 100 }}>
+      {/* Header */}
       <header className="header">
         <div className="header-left">
           <div className="brand">THE <span>BRIEF</span></div>
@@ -2159,7 +2159,6 @@ function App() {
           </button>
         ))}
       </nav>
-      </div>
 
       {/* Body */}
       <main className="main">
@@ -2174,10 +2173,6 @@ function App() {
         <SectionComm />
         <hr className="divider" />
         <SectionFX />
-        <hr className="divider" />
-        <SectionRemit />
-        <hr className="divider" />
-        <SectionBanking />
         <hr className="divider" />
         <SectionTariff />
         <hr className="divider" />
