@@ -292,8 +292,6 @@ REQUIRED PLACEHOLDERS — include these EXACTLY, do not alter them:
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
 
-PRESERVE EXACTLY — do not change this value under any circumstances:
-  const EIA_KEY = "1qDYk6e1NZihJcNpzuiJU152gp1X0O805p4OL5Fl";  // EIA API key — must remain unchanged
 
 UPDATE INSTRUCTIONS:
 
