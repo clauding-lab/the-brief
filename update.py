@@ -129,8 +129,21 @@ STEP 11 — FINAL CHECKS
 - Confirm pill= labels are still accurate (e.g. "RISING" vs "FALLING")
 - Do not change any CSS, component structure, or layout — only data values and text content
 
-IMPORTANT: Output ONLY the raw HTML — start your response with <!DOCTYPE html> and nothing else before it.
-Do NOT write any explanation, summary, or preamble before the HTML.
+════════════════════════════════════════════════════════════════
+CRITICAL OUTPUT RULE — THIS OVERRIDES EVERYTHING ELSE:
+
+After your final web search, your VERY NEXT output MUST be the
+complete updated HTML file. Do NOT write:
+  • "Now I have all the data I need..."
+  • "Let me compile the updated HTML..."
+  • "Key findings:" or ANY bullet-point summary of what you found
+  • ANY words, sentences, or characters before <!DOCTYPE html>
+
+Your response after the last search tool call must begin EXACTLY:
+<!DOCTYPE html>
+...and end with </html>. Nothing before it. Nothing after it.
+The HTML IS your answer — there is no need to explain it first.
+════════════════════════════════════════════════════════════════
 """
 
 # ── Call Claude API ────────────────────────────────────────────────────────────
