@@ -1731,7 +1731,7 @@ function SectionTrade() {
 function OilChart() {
   const { useState, useEffect } = React;
 
-  const AV_KEY = "NU1U827GYXSF8BFK";
+  const EIA_KEY = "1qDYk6e1NZihJcNpzuiJU152gp1X0O805p4OL5Fl";
 
   const STATIC_DATA = [
     { label: "Oct '25",   value: 63.2 },
@@ -1750,14 +1750,14 @@ function OilChart() {
   const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
-    fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`)
+    fetch(`https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${EIA_KEY}&frequency=daily&data[0]=value&facets[product][]=EPCBRENT&sort[0][column]=period&sort[0][direction]=desc&length=1`)
       .then(r => r.json())
       .then(json => {
-        if (!json.data || json.data.length === 0) return;
-        // Take only the most recent valid price — update the last data point live
-        // Chart structure stays locked to STATIC_DATA; only the current price refreshes
-        const latest = json.data.find(d => parseFloat(d.value) > 0);
-        if (!latest) return;
+        if (!json.response || !json.response.data || json.response.data.length === 0) return;
+        
+        
+        const latest = json.response.data[0];
+        if (!latest || !latest.value) return;
         const liveVal = parseFloat(latest.value);
         setData(prev => {
           const updated = [...prev];
@@ -1879,7 +1879,7 @@ function OilChart() {
             <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--warn)" }} />
             Op. Epic Fury trigger point
           </span>
-          <span style={{ marginLeft: "auto" }}>Source: {isLive ? "Alpha Vantage · live data" : "TradingEconomics · EIA · Bloomberg · Reuters"}</span>
+          <span style={{ marginLeft: "auto" }}>Source: {isLive ? "EIA · live data" : "TradingEconomics · EIA · Bloomberg · Reuters"}</span>
         </div>
       </div>
     </div>
