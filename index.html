@@ -134,6 +134,9 @@
       border-bottom: 1px solid var(--border);
       overflow-x: auto;
       scrollbar-width: none;
+      position: sticky;
+      top: 80px;
+      z-index: 99;
     }
     .nav::-webkit-scrollbar { display: none; }
     .nav-btn {
@@ -2173,6 +2176,10 @@ function App() {
         <SectionComm />
         <hr className="divider" />
         <SectionFX />
+        <hr className="divider" />
+        <SectionRemit />
+        <hr className="divider" />
+        <SectionBanking />
         <hr className="divider" />
         <SectionTariff />
         <hr className="divider" />
