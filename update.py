@@ -107,7 +107,8 @@ STEP 11 — FINAL CHECKS
 - Confirm pill= labels are still accurate (e.g. "RISING" vs "FALLING")
 - Do not change any CSS, component structure, or layout — only data values and text content
 
-Return the complete updated HTML file now.
+IMPORTANT: Output ONLY the raw HTML — start your response with <!DOCTYPE html> and nothing else before it.
+Do NOT write any explanation, summary, or preamble before the HTML.
 """
 
 # ── Call Claude API ────────────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ try:
     # Use streaming to avoid SDK's 10-minute non-streaming limit with large max_tokens
     with client.messages.stream(
         model="claude-sonnet-4-6",
-        max_tokens=32000,
+        max_tokens=64000,           # Raised from 32k: search results + full HTML easily exceed 32k
         tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}],
         messages=[{"role": "user", "content": PROMPT}],
     ) as stream:
@@ -136,23 +137,32 @@ except Exception as e:
 print(f"Claude API call completed in {time.time()-t0:.0f}s. Stop reason: {response.stop_reason}")
 
 # ── Extract the HTML from the response ────────────────────────────────────────
+# Claude sometimes prefixes the HTML with a short reasoning sentence.
+# Search for <!DOCTYPE or <html anywhere inside each text block (not just at start).
 updated_html = None
 for block in response.content:
     if block.type == "text":
-        text = block.text.strip()
+        text = block.text
         # Strip markdown fences if Claude wrapped it anyway
-        if text.startswith("```"):
-            lines = text.split("\n")
-            text = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
-        if text.startswith("<!DOCTYPE") or text.startswith("<html"):
-            updated_html = text
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            lines = stripped.split("\n")
+            stripped = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
+            text = stripped
+        # Find the HTML start marker anywhere in the block
+        for marker in ("<!DOCTYPE", "<!doctype", "<html", "<HTML"):
+            idx = text.find(marker)
+            if idx != -1:
+                updated_html = text[idx:]
+                break
+        if updated_html:
             break
 
 if not updated_html:
     print("ERROR: Claude did not return valid HTML. Response blocks:")
     for i, block in enumerate(response.content):
         btype = getattr(block, "type", "?")
-        btext = getattr(block, "text", "")[:200] if btype == "text" else ""
+        btext = getattr(block, "text", "")[:300] if btype == "text" else ""
         print(f"  [{i}] type={btype} {btext!r}")
     sys.exit(1)
 
