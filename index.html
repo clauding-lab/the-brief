@@ -549,14 +549,23 @@
       justify-content: space-between;
       align-items: center;
       font-size: 10px;
-      color: var(--muted);
+      color: var(--text);
+      opacity: 0.6;
       letter-spacing: 0.08em;
     }
     .footer a {
-      color: var(--muted);
+      color: var(--text);
       text-decoration: none;
     }
-    .footer a:hover { color: var(--accent); }
+    .footer a:hover { color: var(--accent); opacity: 1; }
+    @media (max-width: 768px) {
+      .footer {
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+        padding: 16px 20px calc(80px + env(safe-area-inset-bottom, 0px));
+      }
+    }
 
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
