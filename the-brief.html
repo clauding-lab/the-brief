@@ -1440,7 +1440,7 @@ function OilChart() {
   ];
 
   const W = 720, H = 270;
-  const pad = { top: 46, right: 30, bottom: 68, left: 54 };
+  const pad = { top: 46, right: 58, bottom: 68, left: 54 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
   const minV = 55, maxV = 92;
@@ -1494,7 +1494,7 @@ function OilChart() {
           <rect x={cx(eventIdx) - 64} y={pad.top - 2} width={128} height={20} rx={3}
             fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" strokeWidth="1" />
           <text x={cx(eventIdx)} y={pad.top + 13} fill="var(--warn)" fontSize="9.5" textAnchor="middle" fontWeight="700">
-            ⚑ OP. EPIC FURY — FEB 28
+            OP. EPIC FURY — FEB 28
           </text>
 
           {/* Data dots */}
