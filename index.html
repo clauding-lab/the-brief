@@ -7,6 +7,7 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg:        #0a0c0f;
@@ -619,6 +620,12 @@
 
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
+
+// ── Supabase client ──────────────────────────────────────────────────────────
+const _sb = window.supabase.createClient(
+  "https://ssbliukchgibjcjohibi.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzYmxpdWtjaGdpYmpjam9oaWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NTIxNDUsImV4cCI6MjA4ODQyODE0NX0.qxWsfU-Pz-USnOBgIb-JvyV3pIS0fN9igwzSEvQcdmM"
+);
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
@@ -1863,12 +1870,26 @@ function App() {
   const [subOrg,        setSubOrg]        = useState("");
   const [subEmail,      setSubEmail]      = useState("");
   const [subSubmitted,  setSubSubmitted]  = useState(false);
-  const canSubmit = subName.trim().length > 0 && subEmail.trim().length > 0;
+  const [subLoading,    setSubLoading]    = useState(false);
+  const [subError,      setSubError]      = useState("");
+  const canSubmit = subName.trim().length > 0 && subEmail.trim().length > 0 && !subLoading;
 
-  function handleSubscribe(e) {
+  async function handleSubscribe(e) {
     e.preventDefault();
-    // Phase 1 — store submission (backend / Supabase integration TBD)
-    console.log("New subscriber:", { name: subName, org: subOrg, email: subEmail });
+    setSubLoading(true);
+    setSubError("");
+    const { error } = await _sb.from("subscribers").insert({
+      name:         subName.trim(),
+      organisation: subOrg.trim() || null,
+      email:        subEmail.trim().toLowerCase(),
+    });
+    setSubLoading(false);
+    if (error) {
+      // 23505 = unique_violation (duplicate email) — show success anyway
+      if (error.code === "23505") { setSubSubmitted(true); return; }
+      setSubError("Something went wrong. Please try again.");
+      return;
+    }
     setSubSubmitted(true);
   }
 
@@ -1877,6 +1898,7 @@ function App() {
     if (subSubmitted) {
       setSubName(""); setSubOrg(""); setSubEmail(""); setSubSubmitted(false);
     }
+    setSubError("");
   }
 
   useEffect(() => {
@@ -2017,8 +2039,13 @@ function App() {
                       value={subEmail} onChange={e => setSubEmail(e.target.value)} />
                   </div>
                   <button className="submit-btn" type="submit" disabled={!canSubmit}>
-                    Subscribe →
+                    {subLoading ? "Sending…" : "Subscribe →"}
                   </button>
+                  {subError && (
+                    <div style={{ color: "var(--bear)", fontSize: 10, letterSpacing: "0.05em", marginTop: 8, textAlign: "center" }}>
+                      {subError}
+                    </div>
+                  )}
                 </form>
               </>
             )}
