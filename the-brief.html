@@ -480,7 +480,7 @@
     .ticker-val {
       font-size: 12px;
       font-weight: 700;
-      color: #fff;
+      color: var(--text);
     }
     .ticker-chg { font-size: 10px; }
 
@@ -619,6 +619,397 @@
       color: var(--muted);
       letter-spacing: 0.1em;
     }
+
+    /* ════════════════════════════════════════
+       NEW ENHANCEMENTS — added Mar 2026
+    ════════════════════════════════════════ */
+
+    /* ── Traffic Light ── */
+    .traffic-light {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: auto;
+    }
+    .tl-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .tl-dot.bull  { background: var(--bull); box-shadow: 0 0 5px var(--bull); }
+    .tl-dot.bear  { background: var(--bear); box-shadow: 0 0 5px var(--bear); }
+    .tl-dot.warn  { background: var(--warn); box-shadow: 0 0 5px var(--warn); }
+    .tl-dot.neu   { background: var(--neutral); }
+    .tl-label {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── Fresh Tag ── */
+    .fresh-tag {
+      display: inline-block;
+      font-size: 8.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--tag-bg);
+      border: 1px solid var(--border2);
+      border-radius: 2px;
+      padding: 1px 5px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    /* ── Sparkline ── */
+    .sparkline-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .sparkline-label {
+      font-size: 8.5px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* ── Collapsible News ── */
+    .collapsible-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 9.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 8px 0 4px;
+      transition: color .2s;
+      width: 100%;
+    }
+    .collapsible-toggle:hover { color: var(--accent); }
+    .collapsible-toggle-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Cross-Section Insight ── */
+    .cross-insight {
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-left: 3px solid var(--warn);
+      background: rgba(245,158,11,0.05);
+      border-radius: 0 4px 4px 0;
+      font-size: 11.5px;
+      color: var(--text);
+      font-style: italic;
+      line-height: 1.6;
+    }
+    .cross-insight strong { font-style: normal; color: var(--warn); }
+
+    /* ── Executive Summary ── */
+    .exec-bullets {
+      list-style: none;
+      padding: 0; margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .exec-bullet {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .exec-bullet-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .exec-bullet-text { flex: 1; }
+    .exec-bullet.bull { border-left: 3px solid var(--bull); }
+    .exec-bullet.bear { border-left: 3px solid var(--bear); }
+    .exec-bullet.warn { border-left: 3px solid var(--warn); }
+    .exec-bullet.watch { border-left: 3px solid var(--accent); }
+
+    /* ── What to Watch ── */
+    .what-to-watch {
+      margin-top: 20px;
+    }
+    .wtw-label {
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .wtw-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+    .wtw-strip::-webkit-scrollbar { display: none; }
+    .wtw-chip {
+      flex-shrink: 0;
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: 8px 12px;
+      background: var(--surface);
+      min-width: 130px;
+    }
+    .wtw-date {
+      font-size: 9.5px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .wtw-event {
+      font-size: 11px;
+      color: var(--text);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
+    /* ── Progress Bar ── */
+    .progress-bar-wrap {
+      margin: 6px 0 2px;
+      background: var(--border);
+      border-radius: 3px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+    .progress-bar-fill.bull  { background: var(--bull); }
+    .progress-bar-fill.warn  { background: var(--warn); }
+    .progress-bar-fill.bear  { background: var(--bear); }
+    .progress-bar-fill.accent { background: var(--accent); }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9.5px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* ── DAM Table ── */
+    .dam-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+    .dam-table th {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .dam-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .dam-table tr:last-child td { border-bottom: none; }
+    .dam-table tr:hover td { background: var(--tag-bg); }
+    .dam-table .chg-bull { color: var(--bull); font-weight: 600; }
+    .dam-table .chg-bear { color: var(--bear); font-weight: 600; }
+    .dam-table .chg-neu  { color: var(--muted); }
+
+    /* ── Peer Table ── */
+    .peer-table-wrap {
+      overflow-x: auto;
+      margin-top: 14px;
+      scrollbar-width: thin;
+    }
+    .peer-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 560px;
+    }
+    .peer-table th {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .peer-table th.highlight { color: var(--accent); }
+    .peer-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .peer-table tr:last-child td { border-bottom: none; }
+    .peer-table td.highlight { color: var(--accent); font-weight: 600; }
+    .peer-table .best  { color: var(--bull); font-weight: 600; }
+    .peer-table .worst { color: var(--bear); }
+    .peer-table .mid   { color: var(--warn); }
+    .peer-row-country { font-weight: 700; letter-spacing: 0.05em; }
+
+    /* ── RMG Market Share Bars ── */
+    .rmg-market-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 14px 0;
+    }
+    .rmg-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .rmg-bar-country {
+      width: 70px;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .rmg-bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .rmg-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+    .rmg-bar-pct {
+      width: 36px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── Mobile Bottom Nav ── */
+    .bottom-nav { display: none; }
+    @media (max-width: 768px) {
+      .bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 200;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        padding: 4px 0 env(safe-area-inset-bottom, 4px);
+        justify-content: space-around;
+      }
+      .bottom-nav-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-family: inherit;
+        font-size: 8.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 6px 8px;
+        cursor: pointer;
+        min-width: 56px;
+        transition: color .2s;
+      }
+      .bottom-nav-btn.active,
+      .bottom-nav-btn:hover { color: var(--accent); }
+      .bottom-nav-icon { font-size: 18px; }
+      .main { padding-bottom: 72px; }
+      /* customisable slot edit hint */
+      .bottom-nav-btn.customizable { position: relative; }
+      .bottom-nav-edit-dot {
+        position: absolute; top: 3px; right: 5px;
+        font-size: 7px; opacity: 0.45; line-height: 1;
+        pointer-events: none;
+      }
+      /* slot picker sheet */
+      .slot-picker {
+        position: fixed; bottom: 52px; left: 0; right: 0;
+        background: var(--surface); border-top: 2px solid var(--accent);
+        padding: 10px 12px 12px; z-index: 300;
+        animation: slotSlideUp .18s ease;
+      }
+      .slot-picker-header {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+        color: var(--muted); margin-bottom: 8px;
+      }
+      .slot-picker-close {
+        background: none; border: none; font-size: 14px;
+        color: var(--muted); cursor: pointer; padding: 0 2px;
+      }
+      .slot-picker-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
+      }
+      .slot-picker-btn {
+        background: var(--bg); border: 1px solid var(--border);
+        border-radius: 6px; padding: 6px 3px; font-size: 10px;
+        font-family: inherit; color: var(--text); cursor: pointer;
+        text-align: center; display: flex; flex-direction: column;
+        align-items: center; gap: 2px; line-height: 1.2;
+      }
+      .slot-picker-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .slot-picker-btn.selected {
+        border-color: var(--accent); color: var(--accent);
+        background: var(--surface);
+      }
+      .slot-picker-btn-icon { font-size: 16px; }
+      @keyframes slotSlideUp {
+        from { transform: translateY(100%); opacity: 0; }
+        to   { transform: translateY(0);    opacity: 1; }
+      }
+    }
+
+    /* ── Print Stylesheet ── */
+    @media print {
+      .nav, .bottom-nav, .subscribe-modal, .modal-overlay,
+      .theme-toggle, .subscribe-btn { display: none !important; }
+      body { background: #fff !important; color: #000 !important; }
+      .header { position: static !important; background: #fff !important;
+                border-bottom: 1px solid #ccc !important; }
+      .section { page-break-inside: avoid; }
+      .card { border: 1px solid #ddd !important; box-shadow: none !important;
+              background: #fff !important; }
+      a { color: #000 !important; text-decoration: none; }
+      .main { padding-top: 20px !important; }
+    }
   </style>
 </head>
 <body>
@@ -639,17 +1030,23 @@ const BRIEF_DATE = "SATURDAY 07 MARCH 2026 · 0700 BDT";
 const BRIEF_EDITION = "VOL. 1 · ISSUE 65";
 
 const SECTIONS = [
-  { id: "bb",        label: "BB & Finance",   short: "BB" },
-  { id: "macro",     label: "Macro",          short: "Macro" },
-  { id: "dse",       label: "DSE",            short: "DSE" },
-  { id: "tbond",     label: "T-Bills/Bonds",  short: "T-Bills" },
-  { id: "comm",      label: "Commodities",    short: "Commod" },
-  { id: "fx",        label: "FX / Reserves",  short: "FX" },
-  { id: "remit",     label: "Remittances",    short: "Remit" },
-  { id: "banking",   label: "Banking",        short: "Banking" },
-  { id: "tariff",    label: "US Tariffs",     short: "Tariff" },
-  { id: "trade",     label: "Int'l Trade",    short: "Trade" },
-  { id: "iranwar",   label: "US-Iran War",    short: "Iran War" },
+  { id: "bb",      label: "BB & Finance",   short: "BB" },
+  { id: "macro",   label: "Macro",          short: "Macro" },
+  { id: "dse",     label: "DSE",            short: "DSE" },
+  { id: "tbond",   label: "T-Bills/Bonds",  short: "T-Bills" },
+  { id: "comm",    label: "Commodities",    short: "Commod" },
+  { id: "dam",     label: "Prices",         short: "Prices" },
+  { id: "fx",      label: "FX/Reserves",    short: "FX" },
+  { id: "remit",   label: "Remittances",    short: "Remit" },
+  { id: "banking", label: "Banking",        short: "Banking" },
+  { id: "tariff",  label: "US Tariffs",     short: "Tariff" },
+  { id: "trade",   label: "Int'l Trade",    short: "Trade" },
+  { id: "iranwar", label: "Iran/Oil",       short: "Iran" },
+  { id: "rmg",     label: "RMG",            short: "RMG" },
+  { id: "fiscal",  label: "Fiscal",         short: "Fiscal" },
+  { id: "nbr",     label: "NBR Tax",        short: "NBR" },
+  { id: "power",   label: "Power & Energy", short: "Power" },
+  { id: "peers",   label: "Regional Peers", short: "Peers" },
 ];
 
 // ── Components ───────────────────────────────────────────────────────────────
@@ -738,12 +1135,99 @@ function TickerStrip({ items }) {
   );
 }
 
+// ── New Helper Components ─────────────────────────────────────────────────────
+
+function TrafficLight({ status, label }) {
+  return (
+    <div className="traffic-light">
+      <div className={`tl-dot ${status}`} />
+      {label && <span className="tl-label">{label}</span>}
+    </div>
+  );
+}
+
+function FreshTag({ date }) {
+  return <span className="fresh-tag">as of {date}</span>;
+}
+
+function Sparkline({ data, color }) {
+  const w = 80, h = 24, pad = 2;
+  const vals = data.map(Number);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const pts = vals.map((v, i) => {
+    const x = pad + (i / (vals.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return (
+    <div className="sparkline-wrap">
+      <svg width={w} height={h} style={{ overflow: "visible" }}>
+        <polyline points={pts} fill="none" stroke={color || "var(--accent)"} strokeWidth="1.5"
+          strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={pts.split(" ").slice(-1)[0].split(",")[0]}
+                cy={pts.split(" ").slice(-1)[0].split(",")[1]}
+                r="2.5" fill={color || "var(--accent)"} />
+      </svg>
+    </div>
+  );
+}
+
+function CollapsibleNews({ items, defaultShow = 2 }) {
+  const { useState } = React;
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? items : items.slice(0, defaultShow);
+  const hidden = items.length - defaultShow;
+  return (
+    <div className="news-list">
+      {visible.map((item, i) => (
+        <NewsItem key={i} {...item} />
+      ))}
+      {hidden > 0 && (
+        <button className="collapsible-toggle" onClick={() => setExpanded(e => !e)}>
+          <span className="collapsible-toggle-line" />
+          {expanded ? `▴ Hide` : `▾ Show ${hidden} more`}
+          <span className="collapsible-toggle-line" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CrossInsight({ text }) {
+  return (
+    <div className="cross-insight">
+      <strong>Cross-section insight: </strong>{text}
+    </div>
+  );
+}
+
+function ProgressBar({ pct, type, label, subLabel }) {
+  return (
+    <div>
+      {label && (
+        <div className="progress-label" style={{ marginBottom: 4 }}>
+          <span>{label}</span>
+          <span style={{ color: "var(--text)", fontWeight: 600 }}>{pct}%</span>
+        </div>
+      )}
+      <div className="progress-bar-wrap">
+        <div className={`progress-bar-fill ${type || "accent"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+      {subLabel && <div className="progress-label"><span>{subLabel}</span></div>}
+    </div>
+  );
+}
+
 // ── Sections ─────────────────────────────────────────────────────────────────
 
 function SectionBB() {
   return (
     <div className="section scroll-target" id="bb">
-      <SectionHeader num="01" title="Bangladesh Bank & Financial Sector" icon="🏦" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="01" title="Bangladesh Bank & Financial Sector" icon="🏦" />
+        <TrafficLight status="bull" label="STABLE" />
+      </div>
 
       <TickerStrip items={[
         { name: "Policy Rate", value: "10.00%", change: "HOLD", chgType: "warn" },
@@ -752,6 +1236,31 @@ function SectionBB() {
         { name: "Inflation (Jan)", value: "8.58%", change: "▲ +0.09pp", chgType: "bear" },
         { name: "Pvt Credit Growth", value: "6.23%", change: "vs 8% target", chgType: "bear" },
       ]} />
+
+      {/* Sparkline summary cards */}
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <div className="card card-accent-warn">
+          <div className="card-label">Policy Rate Trend (12 months)</div>
+          <div className="card-value card-value-sm">10.00% <FreshTag date="Mar 7" /></div>
+          <div className="card-change warn">HOLD — cut expected ~50bps next MPC</div>
+          <Sparkline data={[8.5, 9.0, 9.5, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]} color="var(--warn)" />
+          <div className="sparkline-label">Mar'25 → Mar'26</div>
+        </div>
+        <div className="card card-accent-bear">
+          <div className="card-label">CPI Inflation Trend <FreshTag date="Jan 2026" /></div>
+          <div className="card-value card-value-sm">8.58%</div>
+          <div className="card-change bull">▼ Declining from 12% peak (Aug '23)</div>
+          <Sparkline data={[12.0, 11.5, 10.9, 10.4, 9.94, 9.5, 9.2, 8.9, 8.72, 8.65, 8.48, 8.58]} color="var(--bear)" />
+          <div className="sparkline-label">Mar'25 → Jan'26</div>
+        </div>
+        <div className="card card-accent-bull">
+          <div className="card-label">BPM6 Reserves Trend <FreshTag date="25 Feb 2026" /></div>
+          <div className="card-value card-value-sm">$30.27B</div>
+          <div className="card-change bull">▲ Highest since Jul 2023</div>
+          <Sparkline data={[18.5, 19.2, 20.1, 21.3, 22.8, 24.2, 25.8, 27.1, 28.3, 29.1, 29.8, 30.27]} color="var(--bull)" />
+          <div className="sparkline-label">Mar'25 → Feb'26</div>
+        </div>
+      </div>
 
       <div className="impact-banner" style={{ borderColor: "rgba(234,179,8,0.3)", background: "rgba(234,179,8,0.06)" }}>
         <span className="impact-icon">⚑</span>
@@ -801,7 +1310,10 @@ function SectionBB() {
 function SectionMacro() {
   return (
     <div className="section scroll-target" id="macro">
-      <SectionHeader num="02" title="Key Macroeconomic Indicators" icon="📊" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="02" title="Key Macroeconomic Indicators" icon="📊" />
+        <TrafficLight status="warn" label="WATCH" />
+      </div>
 
       <div className="impact-banner" style={{ borderColor: "rgba(234,179,8,0.3)", background: "rgba(234,179,8,0.06)" }}>
         <span className="impact-icon">⚑</span>
@@ -1034,7 +1546,10 @@ function DSEXChart() {
 function SectionDSE() {
   return (
     <div className="section scroll-target" id="dse">
-      <SectionHeader num="03" title="Dhaka Stock Exchange" icon="📈" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="03" title="Dhaka Stock Exchange" icon="📈" />
+        <TrafficLight status="warn" label="FLAT" />
+      </div>
 
       <TickerStrip items={[
         { name: "DSEX", value: "5,323", change: "▼ −2pts (−0.03%)", chgType: "bear" },
@@ -1177,7 +1692,10 @@ function TBillChart() {
 function SectionTBond() {
   return (
     <div className="section scroll-target" id="tbond">
-      <SectionHeader num="04" title="Treasury Bills & Bond Market" icon="📋" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="04" title="Treasury Bills & Bond Market" icon="📋" />
+        <TrafficLight status="bull" label="EASING" />
+      </div>
 
       <TickerStrip items={[
         { name: "10Y Bond", value: "10.82%", change: "Feb '26", chgType: "bear" },
@@ -1255,7 +1773,10 @@ function SectionTBond() {
 function SectionComm() {
   return (
     <div className="section scroll-target" id="comm">
-      <SectionHeader num="05" title="Commodity Pricing" icon="🪙" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="05" title="Commodity Pricing" icon="🪙" />
+        <TrafficLight status="bear" label="STRESS" />
+      </div>
 
       <TickerStrip items={[
         { name: "Gold (22K/bhori)", value: "Tk 2,68,214", change: "▼ −Tk 9,214 (5 Mar)", chgType: "bear" },
@@ -1337,7 +1858,10 @@ function SectionComm() {
 function SectionFX() {
   return (
     <div className="section scroll-target" id="fx">
-      <SectionHeader num="06" title="BDT/USD FX & Forex Reserves" icon="💱" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="06" title="BDT/USD FX & Forex Reserves" icon="💱" />
+        <TrafficLight status="bull" label="IMPROVING" />
+      </div>
 
       <TickerStrip items={[
         { name: "USD/BDT", value: "122.36", change: "Mar 7, 2026", chgType: "neu" },
@@ -1406,6 +1930,7 @@ function SectionFX() {
           time="Mar 2026"
         />
       </div>
+      <CrossInsight text="Remittance inflow up +21.4% YoY while BPM6 reserves rose only modestly — suggests BB is absorbing the surplus via forex market purchases ($5.38B in FY26) to manage BDT appreciation pressure and support export competitiveness." />
     </div>
   );
 }
@@ -1413,7 +1938,10 @@ function SectionFX() {
 function SectionRemittance() {
   return (
     <div className="section scroll-target" id="remit">
-      <SectionHeader num="07" title="Remittances" icon="💸" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="07" title="Remittances" icon="💸" />
+        <TrafficLight status="bull" label="STRONG" />
+      </div>
 
       <TickerStrip items={[
         { name: "Feb 2026 Remittance", value: "$3.02B", change: "▲ +19.4% YoY", chgType: "bull" },
@@ -1488,6 +2016,7 @@ function SectionRemittance() {
           time="Feb 2026"
         />
       </div>
+      <CrossInsight text="Record Feb remittance ($3.02B) driving FX reserve rebuild — but Gulf corridor disruption from Iran war is the single biggest downside risk to Bangladesh's external position in 2026. Every 10% drop in remittance (~$2.7B/year) would erase roughly 2 months of reserve gains." />
     </div>
   );
 }
@@ -1495,7 +2024,10 @@ function SectionRemittance() {
 function SectionBanking() {
   return (
     <div className="section scroll-target" id="banking">
-      <SectionHeader num="08" title="Banking Sector" icon="🏛️" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="08" title="Banking Sector" icon="🏛️" />
+        <TrafficLight status="warn" label="WATCH" />
+      </div>
 
       <TickerStrip items={[
         { name: "NPL Ratio", value: "35.73%", change: "Sep 2025 · World's highest", chgType: "bear" },
@@ -1577,7 +2109,10 @@ function SectionBanking() {
 function SectionTariff() {
   return (
     <div className="section scroll-target" id="tariff">
-      <SectionHeader num="09" title="US Tariff Impact on Bangladesh RMG & Exports" icon="🇺🇸" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="09" title="US Tariff Impact on Bangladesh RMG & Exports" icon="🇺🇸" />
+        <TrafficLight status="bear" label="RISK" />
+      </div>
 
       <div className="impact-banner" style={{ borderColor: "rgba(59,130,246,0.3)", background: "rgba(59,130,246,0.06)" }}>
         <span className="impact-icon">📑</span>
@@ -1652,7 +2187,10 @@ function SectionTariff() {
 function SectionTrade() {
     return (
     <div className="section scroll-target" id="trade">
-      <SectionHeader num="08" title="International Trade & LDC Graduation" icon="🌐" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="08" title="International Trade & LDC Graduation" icon="🌐" />
+        <TrafficLight status="bear" label="WEAK" />
+      </div>
 
       <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
         <span className="impact-icon">⚠</span>
@@ -1897,7 +2435,10 @@ function OilChart() {
 function SectionIranWar() {
   return (
     <div className="section scroll-target" id="iranwar">
-      <SectionHeader num="11" title="Impact of US-Iran War on Bangladesh" icon="🔥" />
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="11" title="Impact of US-Iran War on Bangladesh" icon="🔥" />
+        <TrafficLight status="bear" label="CRITICAL" />
+      </div>
 
       <TickerStrip items={[
         { name: "Brent Crude",      value: "$92.69",       change: "▲ +8.52% (6 Mar)", chgType: "bear" },
@@ -2063,6 +2604,424 @@ function SectionIranWar() {
   );
 }
 
+// ── New Sections ──────────────────────────────────────────────────────────────
+
+function SectionExec() {
+  const bullets = [
+    { type: "bull", icon: "📈", text: "BPM6 forex reserves hit $30.27B — highest since Jul 2023. Feb remittance: $3.02B (+19.4% YoY), FY26 cumulative $22.45B (+21.4%). BB has purchased $5.38B from the forex market so far this fiscal year." },
+    { type: "bear", icon: "📉", text: "Exports fell 12.03% YoY in Feb for the 7th consecutive month. RMG exports down 13.21% to $2.81B. Maersk suspended Bangladesh–Gulf bookings. NBR revenue running 26% of full-year target — severely behind pace." },
+    { type: "warn", icon: "⚠️", text: "Iran-war oil spike: Brent at $92.69 (+46% since late Jan). Import bill rising sharply; BPDB fuel cost pressures increasing. Gulf remittance corridor disrupted — 12M Bangladeshi workers at risk." },
+    { type: "warn", icon: "📊", text: "DSEX flat at 5,323 on thin volumes — 4th consecutive week without institutional buying. T-bill yields easing (91d: 9.90%, down from 10.47% peak in Dec '25), signalling rate-cut expectations." },
+    { type: "watch", icon: "🔭", text: "Watch: MPC meeting — BB may cut policy rate from 10.00% given falling inflation trend. BBS March CPI due mid-April. National Budget FY26-27 in June — expected to revise NBR targets downward." },
+  ];
+  const events = [
+    { date: "Apr 10", event: "BBS CPI Release (Mar 2026)" },
+    { date: "Apr 15", event: "BB MPC Meeting" },
+    { date: "Apr 30", event: "EPB Exports (Mar 2026)" },
+    { date: "May 1", event: "BB Remittance (Mar 2026)" },
+    { date: "May 15", event: "DSE Q1 Earnings Window" },
+    { date: "Jun 2", event: "National Budget FY2026-27" },
+    { date: "Jun 30", event: "FY2025-26 Year-End" },
+  ];
+  return (
+    <div className="section scroll-target" id="exec">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="00" title="Executive Summary" icon="📋" />
+        <TrafficLight status="warn" label="OVERVIEW" />
+      </div>
+      <ul className="exec-bullets">
+        {bullets.map((b, i) => (
+          <li key={i} className={`exec-bullet ${b.type}`}>
+            <span className="exec-bullet-icon">{b.icon}</span>
+            <span className="exec-bullet-text">{b.text}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="what-to-watch">
+        <div className="wtw-label">What to Watch</div>
+        <div className="wtw-strip">
+          {events.map((e, i) => (
+            <div key={i} className="wtw-chip">
+              <div className="wtw-date">{e.date}</div>
+              <div className="wtw-event">{e.event}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionDAM() {
+  const items = [
+    { name: "Rice (Coarse)",        unit: "BDT/kg",  price: "42",   mom: "0.0%",   type: "neu" },
+    { name: "Rice (Fine/Miniket)",  unit: "BDT/kg",  price: "72",   mom: "+1.4%",  type: "bear" },
+    { name: "Red Lentil (import)",  unit: "BDT/kg",  price: "110",  mom: "-2.7%",  type: "bull" },
+    { name: "Soybean Oil (loose)",  unit: "BDT/L",   price: "155",  mom: "+0.6%",  type: "bear" },
+    { name: "Sugar (loose)",        unit: "BDT/kg",  price: "120",  mom: "0.0%",   type: "neu" },
+    { name: "Onion (local)",        unit: "BDT/kg",  price: "45",   mom: "-10.0%", type: "bull" },
+    { name: "Egg (dozen)",          unit: "BDT",     price: "140",  mom: "+4.5%",  type: "bear" },
+    { name: "Broiler Chicken",      unit: "BDT/kg",  price: "185",  mom: "-2.6%",  type: "bull" },
+    { name: "Wheat Flour",          unit: "BDT/kg",  price: "48",   mom: "0.0%",   type: "neu" },
+  ];
+  return (
+    <div className="section scroll-target" id="dam">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="06A" title="Domestic Food Prices (DAM)" icon="🛒" />
+        <TrafficLight status="warn" label="MIXED" />
+      </div>
+      <TickerStrip items={[
+        { name: "Coarse Rice", value: "BDT 42/kg", change: "Stable", chgType: "neu" },
+        { name: "Soybean Oil", value: "BDT 155/L", change: "▲ +0.6% MoM", chgType: "bear" },
+        { name: "Red Lentil", value: "BDT 110/kg", change: "▼ -2.7% MoM", chgType: "bull" },
+        { name: "Onion", value: "BDT 45/kg", change: "▼ -10% MoM", chgType: "bull" },
+      ]} />
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <div className="card card-accent-warn">
+          <div className="card-label">Inflation Hotspots <FreshTag date="Week of Mar 6" /></div>
+          <div className="card-value card-value-sm">Rice · Oil · Egg</div>
+          <div className="card-change bear">3 of 9 staples rising MoM</div>
+          <div className="card-sub">Fine rice +1.4%, soybean oil +0.6%, egg +4.5% this week. Coarse rice and onion stable-to-falling. Overall food basket pressure moderating slightly vs Jan-Feb.</div>
+        </div>
+        <div className="card card-accent-bull">
+          <div className="card-label">Price Easing</div>
+          <div className="card-value card-value-sm">Lentil · Onion · Chicken</div>
+          <div className="card-change bull">MoM decline in key proteins</div>
+          <div className="card-sub">Onion -10% as local harvest arrives. Red lentil -2.7% on improved import supply. Broiler chicken -2.6%. These offset pressure elsewhere in the CPI basket.</div>
+        </div>
+        <div className="card card-accent-neu">
+          <div className="card-label">Source: DAM</div>
+          <div className="card-value card-value-sm">9 Commodities</div>
+          <div className="card-change neu">Retail markets, Dhaka</div>
+          <div className="card-sub">Department of Agricultural Marketing (DAM) weekly retail price survey, Dhaka city markets. Data as of week ending Mar 6, 2026. MoM = vs prior week.</div>
+        </div>
+      </div>
+      <table className="dam-table">
+        <thead>
+          <tr>
+            <th>Commodity</th>
+            <th>Price</th>
+            <th>Unit</th>
+            <th>MoM Chg</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => (
+            <tr key={i}>
+              <td>{item.name}</td>
+              <td style={{ fontWeight: 600 }}>{item.price}</td>
+              <td style={{ color: "var(--muted)" }}>{item.unit}</td>
+              <td className={`chg-${item.type}`}>{item.mom}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SectionRMG() {
+  const markets = [
+    { country: "EU", pct: 57, color: "var(--accent)" },
+    { country: "USA", pct: 18, color: "var(--bull)" },
+    { country: "UK", pct: 9, color: "var(--warn)" },
+    { country: "Canada", pct: 4, color: "var(--neutral)" },
+    { country: "Others", pct: 12, color: "var(--muted)" },
+  ];
+  return (
+    <div className="section scroll-target" id="rmg">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="11A" title="RMG Deep Dive" icon="👗" />
+        <TrafficLight status="bear" label="DECLINING" />
+      </div>
+      <TickerStrip items={[
+        { name: "Feb RMG Exports", value: "$2.81B", change: "▼ -13.21% YoY", chgType: "bear" },
+        { name: "FY26 Jul–Feb", value: "$24.1B", change: "▼ -4.2% YoY", chgType: "bear" },
+        { name: "EU Share", value: "57%", change: "Largest market", chgType: "neu" },
+        { name: "Workers", value: "4.2M", change: "78% women", chgType: "neu" },
+      ]} />
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <div className="card card-accent-bear">
+          <div className="card-label">February 2026 RMG Exports</div>
+          <div className="card-value">$2.81B</div>
+          <div className="card-change bear">▼ −13.21% YoY — 7th consecutive decline</div>
+          <div className="card-sub">RMG accounts for ~84% of total exports. Persistent demand softness in EU and US markets. US orders increasingly diverting to Vietnam amid tariff risk concerns and Bangladesh labour cost increases.</div>
+        </div>
+        <div className="card card-accent-warn">
+          <div className="card-label">Order Pipeline <FreshTag date="Mar 2026" /></div>
+          <div className="card-value card-value-sm">Softening</div>
+          <div className="card-change warn">EU caution · US diversion risk</div>
+          <div className="card-sub">BGMEA reports buyers reducing Q3 orders citing EU-US trade uncertainty and Bangladesh's GSP graduation. Vietnam gaining share. Compliance costs rising post-Rana Plaza 2.0 safety audits.</div>
+        </div>
+        <div className="card card-accent-neu">
+          <div className="card-label">Industry Scale</div>
+          <div className="card-value card-value-sm">3,500+ Factories</div>
+          <div className="card-change neu">4.2M workers · 78% women</div>
+          <div className="card-sub">BGMEA-registered factories: 3,500+. Total workforce: 4.2M. Minimum wage: BDT 12,500/month (Dec 2023). Compliance improvement ongoing with ACCORD/Alliance successors (RSC).</div>
+        </div>
+      </div>
+      <div className="sub-head">Export Market Breakdown (FY26)</div>
+      <div className="rmg-market-bars">
+        {markets.map((m, i) => (
+          <div key={i} className="rmg-bar-row">
+            <span className="rmg-bar-country">{m.country}</span>
+            <div className="rmg-bar-track">
+              <div className="rmg-bar-fill" style={{ width: `${m.pct}%`, background: m.color }} />
+            </div>
+            <span className="rmg-bar-pct">{m.pct}%</span>
+          </div>
+        ))}
+      </div>
+      <CollapsibleNews defaultShow={2} items={[
+        { sentiment: "bear", headline: "Feb 2026 RMG exports down 13.21% YoY to $2.81B — seventh consecutive month of negative growth", detail: "Total exports also fell 12.03% to $3.49B. EU demand subdued; US orders slowing amid Bangladesh-specific tariff threat discussions in Washington. BGMEA urging government to negotiate preferential deal before GSP graduation.", source: "EPB / BGMEA", time: "Mar 2026" },
+        { sentiment: "warn", headline: "Vietnam gaining RMG market share from Bangladesh as US buyers hedge tariff risk", detail: "US importers increasingly splitting orders between Bangladesh and Vietnam as contingency against potential US tariff action. Bangladesh's RMG wage advantage narrowing as Vietnam labour costs also rise, but compliance record giving Vietnam edge with ESG-conscious EU buyers.", source: "BGMEA / Industry sources", time: "Feb 2026" },
+        { sentiment: "neu", headline: "BGMEA calls for duty-free access deal with USA to protect $5B+ annual export relationship", detail: "Bangladesh currently exports $7B+ in RMG to the US under GSP, but faces GSP graduation in 2026. BGMEA president urging government to fast-track TICFA negotiations for a bilateral trade framework. US side yet to respond.", source: "BGMEA / TBS News", time: "Feb 2026" },
+      ]} />
+    </div>
+  );
+}
+
+function SectionFiscal() {
+  return (
+    <div className="section scroll-target" id="fiscal">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="12" title="Fiscal & Budget" icon="🏛️" />
+        <TrafficLight status="warn" label="LAGGING" />
+      </div>
+      <TickerStrip items={[
+        { name: "FY26 Revenue Target", value: "BDT 7.97T", change: "Full year", chgType: "neu" },
+        { name: "NBR Jul–Jan", value: "BDT 2.08T", change: "26% of target", chgType: "warn" },
+        { name: "ADP Utilisation", value: "22.5%", change: "Jul–Jan FY26", chgType: "warn" },
+        { name: "Govt Bank Borrowing", value: "BDT 1.03T", change: "74% of ceiling", chgType: "bear" },
+      ]} />
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <div className="card card-accent-warn">
+          <div className="card-label">NBR Revenue vs Target <FreshTag date="Jan 2026" /></div>
+          <div className="card-value card-value-sm">BDT 2.08T</div>
+          <div className="card-change warn">26% of FY26 full-year target</div>
+          <div style={{ margin: "8px 0" }}>
+            <ProgressBar pct={26} type="warn" label="Jul–Jan collection vs BDT 7.97T target" />
+          </div>
+          <div className="card-sub">7-month collection severely behind pace — would need BDT 5.89T in remaining 5 months (Feb–Jun) to hit target, requiring 2.2× acceleration. IMF requiring NBR reforms as precondition for next tranche.</div>
+        </div>
+        <div className="card card-accent-warn">
+          <div className="card-label">ADP Utilisation <FreshTag date="Jan 2026" /></div>
+          <div className="card-value card-value-sm">22.5%</div>
+          <div className="card-change warn">BDT 64,440 crore of BDT 285,000 crore</div>
+          <div style={{ margin: "8px 0" }}>
+            <ProgressBar pct={22} type="warn" label="Jul–Jan ADP spend vs annual budget" />
+          </div>
+          <div className="card-sub">Annual Development Programme utilisation at 22.5% after 7 months — well below the 58% that would be needed for linear progress. Implementation capacity constraints and forex shortages delaying infrastructure projects.</div>
+        </div>
+        <div className="card card-accent-bear">
+          <div className="card-label">Govt Bank Borrowing (FY26)</div>
+          <div className="card-value card-value-sm">BDT 1.03T</div>
+          <div className="card-change bear">74% of full-year ceiling BDT 1.375T</div>
+          <div style={{ margin: "8px 0" }}>
+            <ProgressBar pct={74} type="bear" label="7-month borrowing vs full-year ceiling" />
+          </div>
+          <div className="card-sub">Government has already used 74% of its full-year bank borrowing ceiling in 7 months. Risk of crowding out private sector credit. BB T-bill issuance pace elevated to cover revenue shortfall.</div>
+        </div>
+      </div>
+      <CollapsibleNews defaultShow={2} items={[
+        { sentiment: "warn", headline: "NBR Jul–Jan FY26 revenue collection reaches BDT 2.08 trillion — only 26% of full-year BDT 7.97 trillion target", detail: "Revenue shortfall of BDT 380B against pace target. VAT collection leading at BDT 810B (39%), income tax BDT 680B (33%), customs BDT 590B (28%). Customs declining YoY due to import compression and oil price fluctuation impact on import valuation.", source: "NBR / Ministry of Finance", time: "Feb 2026" },
+        { sentiment: "bear", headline: "Government bank borrowing reaches BDT 1.03 trillion in 7 months — 74% of full-year ceiling, raising crowding-out concerns", detail: "Heavy government borrowing from banking system at elevated T-bill rates crowding out private credit. Private sector credit growth at 7.3% YoY — near multi-year low. IMF asking BB to tighten monetary-fiscal coordination as conditionality for Article IV completion.", source: "Bangladesh Bank / Ministry of Finance", time: "Feb 2026" },
+        { sentiment: "neu", headline: "FY2026-27 budget preparation underway — govt expected to revise NBR target downward and increase subsidy ceiling for energy", detail: "Finance ministry drafting FY27 budget with revised (lower) revenue targets, higher energy subsidy provision for BPDB/BPC, and continued ADP rationalisation. Budget to be presented to parliament on June 2, 2026. IMF program compliance will influence fiscal arithmetic.", source: "Ministry of Finance", time: "Mar 2026" },
+      ]} />
+    </div>
+  );
+}
+
+function SectionNBR() {
+  const taxes = [
+    { type: "VAT", amount: "BDT 810B", share: 39, yoy: "+12%", color: "var(--accent)" },
+    { type: "Income Tax", amount: "BDT 680B", share: 33, yoy: "+8%", color: "var(--bull)" },
+    { type: "Customs", amount: "BDT 590B", share: 28, yoy: "-3%", color: "var(--warn)" },
+  ];
+  return (
+    <div className="section scroll-target" id="nbr">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="13" title="NBR Tax Revenue" icon="🧾" />
+        <TrafficLight status="bear" label="BEHIND" />
+      </div>
+      <TickerStrip items={[
+        { name: "Jul–Jan FY26", value: "BDT 2.08T", change: "26% of target", chgType: "warn" },
+        { name: "Full-Year Target", value: "BDT 7.97T", change: "FY2025-26", chgType: "neu" },
+        { name: "Shortfall vs Pace", value: "BDT 380B", change: "Behind schedule", chgType: "bear" },
+        { name: "VAT Share", value: "39%", change: "Largest component", chgType: "neu" },
+      ]} />
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        {taxes.map((t, i) => (
+          <div key={i} className="card card-accent-neu">
+            <div className="card-label">{t.type} <FreshTag date="Jul–Jan FY26" /></div>
+            <div className="card-value card-value-sm">{t.amount}</div>
+            <div className={`card-change ${t.yoy.startsWith("+") ? "bull" : "bear"}`}>{t.yoy} YoY</div>
+            <div style={{ margin: "8px 0" }}>
+              <ProgressBar pct={t.share} type="accent" label={`${t.share}% of total NBR collection`} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="sub-head">Revenue Collection vs Full-Year Target</div>
+      <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: "var(--text)" }}>Jul–Jan FY26 Collected: <strong>BDT 2.08T</strong></span>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>Target: BDT 7.97T</span>
+        </div>
+        <ProgressBar pct={26} type="warn" />
+        <div className="progress-label">
+          <span>BDT 5.89T still needed in 5 months</span>
+          <span style={{ color: "var(--bear)" }}>Severely behind pace</span>
+        </div>
+      </div>
+      <CollapsibleNews defaultShow={2} items={[
+        { sentiment: "warn", headline: "NBR Jul–Jan collection at BDT 2.08T — needs BDT 5.89T in remaining 5 months to hit full-year target", detail: "The required Feb–Jun monthly average is BDT 1.18T, more than double the BDT 0.54T monthly average achieved in Jul–Jan. Without structural reforms (digitisation, anti-evasion), NBR target likely to be missed by BDT 1.5–2T. IMF surveillance ongoing.", source: "NBR / Ministry of Finance", time: "Feb 2026" },
+        { sentiment: "neu", headline: "VAT accounts for 39% of NBR revenue — income tax and customs contribute 33% and 28% respectively", detail: "VAT growing +12% YoY driven by consumption and formal sector formalisation. Income tax up +8% on improved TIN registration (6.5M+ filers). Customs -3% YoY due to lower import values (oil price base effect) and reduced import compression vs prior year.", source: "NBR", time: "Jan 2026" },
+        { sentiment: "bear", headline: "IMF conditions tax administration reforms for next BD program tranche — digitisation of VAT, income tax net expansion key requirements", detail: "NBR required to: (1) expand e-TDS coverage, (2) digitise VAT return filing, (3) reduce tax expenditures. Failure to meet milestones could delay IMF disbursement, impacting forex reserve buffer.", source: "IMF Bangladesh Staff Report", time: "Feb 2026" },
+      ]} />
+    </div>
+  );
+}
+
+function SectionPower() {
+  return (
+    <div className="section scroll-target" id="power">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="14" title="Power & Energy" icon="⚡" />
+        <TrafficLight status="bear" label="SHORTAGE" />
+      </div>
+      <TickerStrip items={[
+        { name: "Installed Capacity", value: "28,514 MW", change: "As of FY25", chgType: "neu" },
+        { name: "Daily Generation", value: "~13,200 MW", change: "Avg, Mar 2026", chgType: "warn" },
+        { name: "Demand", value: "~15,800 MW", change: "Peak estimate", chgType: "bear" },
+        { name: "Shortage", value: "~2,600 MW", change: "Load shedding", chgType: "bear" },
+      ]} />
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <div className="card card-accent-bear">
+          <div className="card-label">Generation vs Demand <FreshTag date="Mar 2026" /></div>
+          <div className="card-value card-value-sm">13,200 / 15,800 MW</div>
+          <div className="card-change bear">2,600 MW shortage · Load shedding ongoing</div>
+          <div style={{ margin: "8px 0" }}>
+            <ProgressBar pct={84} type="warn" label="Generation as % of demand" />
+          </div>
+          <div className="card-sub">Bangladesh generating ~84% of peak demand. Load shedding persists at 1–2 hrs/day urban, 3–4 hrs/day rural. Capacity shortfall due to gas supply constraints and LNG import disruptions from Middle East conflict.</div>
+        </div>
+        <div className="card card-accent-warn">
+          <div className="card-label">BPDB Financial Loss (FY25)</div>
+          <div className="card-value card-value-sm">BDT 52,000 Crore</div>
+          <div className="card-change warn">Covered by government subsidy</div>
+          <div className="card-sub">Bangladesh Power Development Board loss: BDT 52,000 crore in FY25. Government subsidy: BDT 32,000+ crore. Tariff still below cost-recovery level — retail tariff raised 5% in Jan 2026 but further hikes politically sensitive.</div>
+        </div>
+        <div className="card card-accent-bear">
+          <div className="card-label">LNG Import Cost</div>
+          <div className="card-value card-value-sm">$12–14/MMBtu</div>
+          <div className="card-change bear">↑ Spiking on Iran war disruption</div>
+          <div className="card-sub">Spot LNG prices rising on Iran conflict supply disruption. Bangladesh imports 60% LNG via long-term contracts (Oman, Qatar), 40% spot. Spot exposure rising import bill. Coal accounts for 60% of thermal generation — seaborne coal at $140/t.</div>
+        </div>
+      </div>
+      <div className="sub-head">Generation Mix (FY25)</div>
+      <div className="rmg-market-bars" style={{ marginTop: 8 }}>
+        {[
+          { country: "Gas", pct: 55, color: "var(--accent)" },
+          { country: "Coal", pct: 22, color: "var(--muted)" },
+          { country: "HFO/Oil", pct: 13, color: "var(--warn)" },
+          { country: "Renewables", pct: 4, color: "var(--bull)" },
+          { country: "Imports", pct: 6, color: "var(--neutral)" },
+        ].map((m, i) => (
+          <div key={i} className="rmg-bar-row">
+            <span className="rmg-bar-country">{m.country}</span>
+            <div className="rmg-bar-track">
+              <div className="rmg-bar-fill" style={{ width: `${m.pct}%`, background: m.color }} />
+            </div>
+            <span className="rmg-bar-pct">{m.pct}%</span>
+          </div>
+        ))}
+      </div>
+      <CollapsibleNews defaultShow={2} items={[
+        { sentiment: "bear", headline: "Load shedding persists across Bangladesh — 2,600 MW daily shortage as gas supply and LNG imports constrained", detail: "Petromax and Sunflower power plants offline due to gas shortage. Rural feeders experiencing 3–4 hr daily outages; urban Dhaka 1–2 hrs. BPDB projecting higher shortage in summer (Apr–Jun) as AC demand surges. Government emergency LNG procurement underway.", source: "BPDB / TBS News", time: "Mar 2026" },
+        { sentiment: "warn", headline: "Iran war driving up LNG spot prices — Bangladesh exposed via 40% spot procurement ratio", detail: "Iran-driven LNG supply disruption pushing spot prices to $13.5–14/MMBtu. Bangladesh pays spot for ~40% of its LNG requirements. Each $1/MMBtu increase costs approximately $80–100M/year in additional import costs. Hormutz Strait risk premium persisting.", source: "Petrobangla / Bloomberg", time: "Mar 2026" },
+        { sentiment: "neu", headline: "Bangladesh targets 40% renewable energy by 2041 — current share: ~4% of generation mix", detail: "Government renewable energy roadmap calls for 40,000 MW of renewable capacity by 2041, including 17,000 MW solar, 11,000 MW wind, 2,000 MW nuclear (Rooppur Unit 2). Current installed renewables: ~1,150 MW. Pace of capacity addition severely lagging targets.", source: "SREDA / Power Division", time: "2025" },
+      ]} />
+    </div>
+  );
+}
+
+function SectionPeers() {
+  const peers = [
+    { country: "Bangladesh", flag: "🇧🇩", gdp: 5.17, cpi: 9.94, fxr: 30.3, cab: -0.7, rating: "B+/BB-", gdpC: "mid", cpiC: "worst", fxrC: "mid", cabC: "mid" },
+    { country: "India",       flag: "🇮🇳", gdp: 6.4,  cpi: 4.3,  fxr: 638, cab: -1.0, rating: "BBB-",   gdpC: "best", cpiC: "best", fxrC: "best", cabC: "mid" },
+    { country: "Vietnam",     flag: "🇻🇳", gdp: 6.8,  cpi: 3.6,  fxr: 103, cab: 4.2,  rating: "BB+",    gdpC: "best", cpiC: "best", fxrC: "mid", cabC: "best" },
+    { country: "Pakistan",    flag: "🇵🇰", gdp: 2.8,  cpi: 23.0, fxr: 11.7,cab: -0.8, rating: "CCC+",   gdpC: "worst", cpiC: "worst", fxrC: "worst", cabC: "mid" },
+    { country: "Sri Lanka",   flag: "🇱🇰", gdp: 4.5,  cpi: 4.1,  fxr: 6.1, cab: -2.1, rating: "B-",     gdpC: "mid", cpiC: "best", fxrC: "worst", cabC: "worst" },
+  ];
+  return (
+    <div className="section scroll-target" id="peers">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="15" title="Regional Peers" icon="🌏" />
+        <TrafficLight status="warn" label="MIXED" />
+      </div>
+      <TickerStrip items={[
+        { name: "BD GDP Growth", value: "5.17%", change: "vs Vietnam 6.8%", chgType: "warn" },
+        { name: "BD CPI", value: "9.94%", change: "Highest in group", chgType: "bear" },
+        { name: "BD FX Reserves", value: "$30.3B", change: "3rd in group", chgType: "neu" },
+        { name: "BD Sov. Rating", value: "B+/BB-", change: "S&P / Fitch", chgType: "warn" },
+      ]} />
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <div className="card card-accent-warn">
+          <div className="card-label">Growth Ranking</div>
+          <div className="card-value card-value-sm">#3 of 5</div>
+          <div className="card-change warn">Vietnam 6.8% · India 6.4% · BD 5.17%</div>
+          <div className="card-sub">Bangladesh growing at 5.17% — behind Vietnam and India. Pakistan worst at 2.8%, recovering from IMF program. Sri Lanka rebounding at 4.5% post-2022 crisis. Bangladesh structural headwinds: weak exports, fiscal stress.</div>
+        </div>
+        <div className="card card-accent-bear">
+          <div className="card-label">Inflation Ranking</div>
+          <div className="card-value card-value-sm">#5 of 5 (Worst)</div>
+          <div className="card-change bear">BD 9.94% vs India 4.3%</div>
+          <div className="card-sub">Bangladesh has highest inflation in the comparison group. Vietnam 3.6%, India 4.3%, Sri Lanka 4.1% all well below Bangladesh. Pakistan once worst — now improving rapidly from 38% peak. BB rate hikes showing delayed impact.</div>
+        </div>
+        <div className="card card-accent-bull">
+          <div className="card-label">CA Balance (% GDP)</div>
+          <div className="card-value card-value-sm">Vietnam Best: +4.2%</div>
+          <div className="card-change neu">BD: -0.7% · Manageable</div>
+          <div className="card-sub">Bangladesh current account deficit at -0.7% of GDP — narrowest in years, supported by strong remittance growth offsetting weak exports. Vietnam surplus nation. Sri Lanka worst at -2.1%, still rebuilding after 2022 default.</div>
+        </div>
+      </div>
+      <div className="sub-head">Country Comparison <FreshTag date="Latest Available, 2025-26" /></div>
+      <div className="peer-table-wrap">
+        <table className="peer-table">
+          <thead>
+            <tr>
+              <th>Country</th>
+              <th className="highlight">GDP Growth</th>
+              <th>CPI Inflation</th>
+              <th>FX Reserves</th>
+              <th>CA Balance</th>
+              <th>Sov. Rating</th>
+            </tr>
+          </thead>
+          <tbody>
+            {peers.map((p, i) => (
+              <tr key={i}>
+                <td className={`peer-row-country ${i === 0 ? "highlight" : ""}`}>{p.flag} {p.country}</td>
+                <td className={`${i === 0 ? "highlight" : ""} ${p.gdpC}`}>{p.gdp}%</td>
+                <td className={`${i === 0 ? "highlight" : ""} ${p.cpiC}`}>{p.cpi}%</td>
+                <td className={`${i === 0 ? "highlight" : ""}`}>${p.fxr}B</td>
+                <td className={`${i === 0 ? "highlight" : ""} ${p.cab > 0 ? "best" : p.cab < -1.5 ? "worst" : ""}`}>{p.cab > 0 ? "+" : ""}{p.cab}%</td>
+                <td className={`${i === 0 ? "highlight" : ""}`}>{p.rating}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <CollapsibleNews defaultShow={2} items={[
+        { sentiment: "warn", headline: "Bangladesh GDP growth at 5.17% lags Vietnam (6.8%) and India (6.4%) — structural competitiveness gap widening", detail: "Vietnam's manufacturing diversification (electronics, semiconductors) and India's services boom driving superior growth. Bangladesh over-reliant on single sector (RMG). Needed: diversification into pharmaceuticals, IT/BPO, light manufacturing. Foreign investment needed but business environment reform lagging.", source: "World Bank / IMF WEO", time: "2025-26" },
+        { sentiment: "bear", headline: "Bangladesh has highest inflation (9.94%) in South/Southeast Asia peer group — BB policy rate at 10% barely above CPI", detail: "Real policy rate near zero. Inflation persistence driven by food prices, energy subsidy pass-through, BDT depreciation pass-through. Peers India (4.3%), Vietnam (3.6%), Sri Lanka (4.1%) all near target ranges. Bangladesh inflation credibility gap risks capital outflows.", source: "Bangladesh Bank / BBS", time: "Jan 2026" },
+        { sentiment: "bull", headline: "Vietnam's CA surplus (+4.2% GDP) vs Bangladesh's modest deficit (-0.7%) reflects export model divergence — not necessarily negative for BD", detail: "Bangladesh's smaller CA deficit partly reflects strong remittance inflows offsetting trade deficit. Remittance at ~6% of GDP is a structural strength not available to Vietnam. FX reserve level ($30.3B, 4+ months import cover) improving, unlike Pakistan ($11.7B, under pressure).", source: "IMF / World Bank", time: "2025-26" },
+      ]} />
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 
 function App() {
@@ -2104,6 +3063,33 @@ function App() {
       setSubName(""); setSubOrg(""); setSubEmail(""); setSubSubmitted(false);
     }
     setSubError("");
+  }
+
+  // ── Custom bottom-nav slots (persisted in localStorage) ───────────────────
+  const [customSlots, setCustomSlots] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem("tb-custom-slots")) || ["remit","iranwar"]; }
+    catch { return ["remit","iranwar"]; }
+  });
+  const [editingSlot, setEditingSlot] = React.useState(null); // 0 or 1
+  const lpTimer = React.useRef(null);
+
+  const NAV_ICON = {
+    bb:"🏦", macro:"📊", dse:"📈", tbond:"📜", comm:"🌾", dam:"🛒",
+    fx:"💱", remit:"💸", banking:"🏛️", tariff:"🇺🇸", trade:"🚢",
+    iranwar:"🛢️", rmg:"👕", fiscal:"💰", nbr:"🧾", power:"⚡", peers:"🌏"
+  };
+
+  function startLP(idx) {
+    lpTimer.current = setTimeout(() => setEditingSlot(idx), 500);
+  }
+  function cancelLP() { clearTimeout(lpTimer.current); }
+
+  function pickSlot(sectionId) {
+    const next = [...customSlots];
+    next[editingSlot] = sectionId;
+    setCustomSlots(next);
+    try { localStorage.setItem("tb-custom-slots", JSON.stringify(next)); } catch {}
+    setEditingSlot(null);
   }
 
   useEffect(() => {
@@ -2185,6 +3171,8 @@ function App() {
 
       {/* Body */}
       <main className="main">
+        <SectionExec />
+        <hr className="divider" />
         <SectionBB />
         <hr className="divider" />
         <SectionMacro />
@@ -2194,6 +3182,8 @@ function App() {
         <SectionTBond />
         <hr className="divider" />
         <SectionComm />
+        <hr className="divider" />
+        <SectionDAM />
         <hr className="divider" />
         <SectionFX />
         <hr className="divider" />
@@ -2206,7 +3196,75 @@ function App() {
         <SectionTrade />
         <hr className="divider" />
         <SectionIranWar />
+        <hr className="divider" />
+        <SectionRMG />
+        <hr className="divider" />
+        <SectionFiscal />
+        <hr className="divider" />
+        <SectionNBR />
+        <hr className="divider" />
+        <SectionPower />
+        <hr className="divider" />
+        <SectionPeers />
       </main>
+
+      {/* Mobile Bottom Nav */}
+      <nav className="bottom-nav">
+        {/* Fixed left 3 */}
+        {[
+          { id: "exec",    icon: "📋", label: "Summary" },
+          { id: "dse",     icon: "📈", label: "DSE" },
+          { id: "iranwar", icon: "🛢️", label: "Iran/Oil" },
+        ].map(s => (
+          <button key={s.id}
+            className={`bottom-nav-btn ${activeSection === s.id ? "active" : ""}`}
+            onClick={() => scrollTo(s.id)}>
+            <span className="bottom-nav-icon">{s.icon}</span>
+            {s.label}
+          </button>
+        ))}
+        {/* Customisable right 2 — long-press to change */}
+        {customSlots.map((sid, idx) => {
+          const sec = SECTIONS.find(s => s.id === sid);
+          if (!sec) return null;
+          return (
+            <button key={idx}
+              className={`bottom-nav-btn customizable ${activeSection === sid ? "active" : ""}`}
+              onClick={() => scrollTo(sid)}
+              onPointerDown={() => startLP(idx)}
+              onPointerUp={cancelLP}
+              onPointerLeave={cancelLP}
+              onContextMenu={e => { e.preventDefault(); setEditingSlot(idx); }}>
+              <span className="bottom-nav-icon">{NAV_ICON[sid] || "📌"}</span>
+              <span className="bottom-nav-edit-dot">✏️</span>
+              {sec.short}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Slot picker sheet */}
+      {editingSlot !== null && (
+        <div className="slot-picker">
+          <div className="slot-picker-header">
+            <span>Choose shortcut {editingSlot + 4}</span>
+            <button className="slot-picker-close" onClick={() => setEditingSlot(null)}>✕</button>
+          </div>
+          <div className="slot-picker-grid">
+            {SECTIONS
+              .filter(s => !["exec","dse","iranwar"].includes(s.id))
+              .map(s => (
+                <button key={s.id}
+                  className={`slot-picker-btn ${customSlots[editingSlot] === s.id ? "selected" : ""}`}
+                  onClick={() => pickSlot(s.id)}>
+                  <span className="slot-picker-btn-icon">{NAV_ICON[s.id] || "📌"}</span>
+                  {s.short}
+                </button>
+              ))
+            }
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="footer">

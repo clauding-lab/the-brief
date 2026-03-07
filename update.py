@@ -117,6 +117,18 @@ def strip_js_render(html):
                        ('TBillChart', 'TBILLCHART_RENDER_PLACEHOLDER')):
         sc = _strip_return(sc, fname, key)
 
+    # 2b. New static sections — strip so Claude never overwrites placeholder data
+    for fname, key in (
+        ('SectionExec',   'SECTIONEXEC_PLACEHOLDER'),
+        ('SectionDAM',    'SECTIONDAM_PLACEHOLDER'),
+        ('SectionRMG',    'SECTIONRMG_PLACEHOLDER'),
+        ('SectionFiscal', 'SECTIONFISCAL_PLACEHOLDER'),
+        ('SectionNBR',    'SECTIONNBR_PLACEHOLDER'),
+        ('SectionPower',  'SECTIONPOWER_PLACEHOLDER'),
+        ('SectionPeers',  'SECTIONPEERS_PLACEHOLDER'),
+    ):
+        sc = _strip_return(sc, fname, key)
+
     # 4. OilChart — keep STATIC_DATA array, strip everything else
     op = sc.find('function OilChart()')
     if op != -1:
@@ -290,6 +302,13 @@ REQUIRED PLACEHOLDERS — include these EXACTLY, do not alter them:
   // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
   // [TBILLCHART_RENDER_PLACEHOLDER — restored automatically]
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
+  // [SECTIONEXEC_PLACEHOLDER — restored automatically]
+  // [SECTIONDAM_PLACEHOLDER — restored automatically]
+  // [SECTIONRMG_PLACEHOLDER — restored automatically]
+  // [SECTIONFISCAL_PLACEHOLDER — restored automatically]
+  // [SECTIONNBR_PLACEHOLDER — restored automatically]
+  // [SECTIONPOWER_PLACEHOLDER — restored automatically]
+  // [SECTIONPEERS_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
 
 
@@ -387,11 +406,18 @@ for _js_key, _js_content in _js_parts.items():
               f"restoring from original HTML as fallback.")
         # Fallback: inject the original rendering back at the known anchor point
         anchor_map = {
-            'COMPONENTS_PLACEHOLDER':       ('// ── Components',   '// ── Sections'),
+            'COMPONENTS_PLACEHOLDER':       ('// ── Components',      '// ── Sections'),
             'DSEXCHART_RENDER_PLACEHOLDER':  ('function DSEXChart()',  'function SectionDSE()'),
             'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
             'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
-            'APP_PLACEHOLDER':               ('// ── Main App',        '</script>'),
+            'SECTIONEXEC_PLACEHOLDER':       ('function SectionExec()',  'function SectionBB()'),
+            'SECTIONDAM_PLACEHOLDER':        ('function SectionDAM()',   'function SectionFX()'),
+            'SECTIONRMG_PLACEHOLDER':        ('function SectionRMG()',   'function SectionFiscal()'),
+            'SECTIONFISCAL_PLACEHOLDER':     ('function SectionFiscal()','function SectionNBR()'),
+            'SECTIONNBR_PLACEHOLDER':        ('function SectionNBR()',   'function SectionPower()'),
+            'SECTIONPOWER_PLACEHOLDER':      ('function SectionPower()', 'function SectionPeers()'),
+            'SECTIONPEERS_PLACEHOLDER':      ('function SectionPeers()', '// ── Main App'),
+            'APP_PLACEHOLDER':               ('// ── Main App',          '</script>'),
         }
         # Simple fallback: copy the corresponding block from the original HTML
         if _js_key in anchor_map:
