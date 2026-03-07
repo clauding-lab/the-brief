@@ -1456,18 +1456,18 @@ function OilChart() {
           .reverse();
         if (all.length < 3) return;
 
-        // Bi-weekly sampling for older data, every 1 day from Feb 25 onwards
+        // 1 point per calendar month for historical, daily from Feb 25 onwards
         const selected = [];
+        let lastMonth = "";
         for (const d of all) {
           if (d.date >= "2026-02-25") {
-            selected.push(d);  // daily granularity — capture every trading day
+            selected.push(d);  // daily granularity — every trading day
           } else {
-            const prev = selected[selected.length - 1];
-            if (!prev || (new Date(d.date) - new Date(prev.date)) >= 14 * 86400000)
-              selected.push(d);
+            const month = d.date.slice(0, 7);
+            if (month !== lastMonth) { selected.push(d); lastMonth = month; }
           }
         }
-        const pts = selected.slice(-18);
+        const pts = selected.slice(-24);
 
         const formatted = pts.map((d, i) => {
           const dt  = new Date(d.date + "T12:00:00Z");
