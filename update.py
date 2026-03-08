@@ -117,6 +117,10 @@ def strip_js_render(html):
                        ('TBillChart', 'TBILLCHART_RENDER_PLACEHOLDER')):
         sc = _strip_return(sc, fname, key)
 
+    # 2d. SectionTariff — static US tariff explainer, never updated daily;
+    #     stripping its return() saves ~10k chars from the Phase 2 prompt.
+    sc = _strip_return(sc, 'SectionTariff', 'TARIFF_RENDER_PLACEHOLDER')
+
     # 2b. (All 7 new sections are now live — no longer stripped/protected.
     #      Claude updates them directly with fresh data each day.)
 
@@ -151,6 +155,18 @@ def strip_js_render(html):
     return before + sc + after, chars_saved, saved
 
 prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
+
+# ── Strip long data prop values to stay under 30k input-token rate limit ─────────
+# BankerRead text=   — Claude writes fresh analytical text from gathered JSON each day.
+# NewsItem detail=   — Claude writes fresh headlines; old detail values not needed.
+# MetricCard sub=    — Claude updates sub-labels from gathered data in UPDATE instructions.
+# Stripping old values saves tokens; Claude regenerates them from gathered_json + instructions.
+_before_prop = len(prompt_html)
+prompt_html = re.sub(r'(<BankerRead\s+text=)"[^"]{30,}"', r'\1""', prompt_html)
+prompt_html = re.sub(r'\bdetail="[^"]{50,}"', 'detail=""', prompt_html)
+prompt_html = re.sub(r'\bsub="[^"]{60,}"', 'sub=""', prompt_html)
+_prop_saved = _before_prop - len(prompt_html)
+print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} tokens).")
 
 # ── Two-phase approach: gather data first, then generate HTML ───────────────────
 # Phase 1 prompt: tiny (no HTML in prompt), Claude searches and returns JSON data.
@@ -305,14 +321,16 @@ gather_resp = _stream_call(
 )
 
 gathered_json = "{}"
+last_text = None
 for block in gather_resp.content:
-    if block.type == "text":
-        text = block.text.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            text = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
-        gathered_json = text.strip()
-        break
+    if block.type == "text" and block.text.strip():
+        last_text = block.text          # keep overwriting — we want the LAST text block
+if last_text:
+    text = last_text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+    gathered_json = text.strip()
 print(f"Gathered data: {len(gathered_json):,} chars")
 
 # ── PHASE 2: Generate updated HTML (no web search, HTML is direct output) ───────
@@ -335,6 +353,7 @@ REQUIRED PLACEHOLDERS — include these EXACTLY, do not alter them:
   // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
   // [TBILLCHART_RENDER_PLACEHOLDER — restored automatically]
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
+  // [TARIFF_RENDER_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
 
 
@@ -486,6 +505,7 @@ for _js_key, _js_content in _js_parts.items():
             'DSEXCHART_RENDER_PLACEHOLDER':  ('function DSEXChart()',  'function SectionDSE()'),
             'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
             'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
+            'TARIFF_RENDER_PLACEHOLDER':     ('function SectionTariff()', 'function SectionTrade()'),
             'APP_PLACEHOLDER':               ('// ── Main App',          '</script>'),
         }
         # Simple fallback: copy the corresponding block from the original HTML
