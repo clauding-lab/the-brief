@@ -432,6 +432,45 @@ for _js_key, _js_content in _js_parts.items():
                     updated_html = updated_html[:upd_s] + orig_block + updated_html[upd_e:]
                     print(f"  {_js_key} fallback-restored from original HTML.")
 
+# ── Post-restoration sanity check ──────────────────────────────────────────────
+# Verify the output is a complete, renderable file before writing.
+# If critical pieces are missing or orphaned placeholders remain, fall back to
+# the original for those blocks so the page never goes blank.
+
+_sanity_ok = True
+
+# 1. ReactDOM call must be present (App function wasn't truncated)
+if 'ReactDOM' not in updated_html:
+    print("⚠️  Sanity: ReactDOM missing — App function truncated. Restoring from original.")
+    orig_s = current_html.find('// ── Main App')
+    upd_s  = updated_html.find('// ── Main App')
+    script_end = '</script>'
+    orig_e = current_html.find(script_end, orig_s)
+    upd_e  = updated_html.find(script_end, upd_s) if upd_s != -1 else -1
+    if orig_s != -1 and orig_e != -1 and upd_s != -1 and upd_e != -1:
+        updated_html = updated_html[:upd_s] + current_html[orig_s:orig_e] + updated_html[upd_e:]
+        print("  App block restored from original.")
+    _sanity_ok = False
+
+# 2. No orphaned placeholder comments should remain after restoration
+_orphaned = [k for k in _js_parts if f'// [{k} — restored automatically]' in updated_html]
+for _k in _orphaned:
+    print(f"⚠️  Sanity: orphaned placeholder {_k} still in output — removing stale comment.")
+    updated_html = updated_html.replace(f'  // [{_k} — restored automatically]', '', 1)
+    updated_html = updated_html.replace(f'// [{_k} — restored automatically]', '', 1)
+    _sanity_ok = False
+
+# 3. File must end with </html>
+if not updated_html.rstrip().endswith('</html>'):
+    print("⚠️  Sanity: file does not end with </html> — aborting write, keeping original.")
+    updated_html = current_html   # full rollback
+    _sanity_ok = False
+
+if _sanity_ok:
+    print("Sanity check passed ✅")
+else:
+    print("Sanity check applied fixes — review warnings above.")
+
 # ── Write updated files ────────────────────────────────────────────────────────
 with open("the-brief.html", "w", encoding="utf-8") as f:
     f.write(updated_html)
