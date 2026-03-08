@@ -117,17 +117,8 @@ def strip_js_render(html):
                        ('TBillChart', 'TBILLCHART_RENDER_PLACEHOLDER')):
         sc = _strip_return(sc, fname, key)
 
-    # 2b. New static sections — strip so Claude never overwrites placeholder data
-    for fname, key in (
-        ('SectionExec',   'SECTIONEXEC_PLACEHOLDER'),
-        ('SectionDAM',    'SECTIONDAM_PLACEHOLDER'),
-        ('SectionRMG',    'SECTIONRMG_PLACEHOLDER'),
-        ('SectionFiscal', 'SECTIONFISCAL_PLACEHOLDER'),
-        ('SectionNBR',    'SECTIONNBR_PLACEHOLDER'),
-        ('SectionPower',  'SECTIONPOWER_PLACEHOLDER'),
-        ('SectionPeers',  'SECTIONPEERS_PLACEHOLDER'),
-    ):
-        sc = _strip_return(sc, fname, key)
+    # 2b. (All 7 new sections are now live — no longer stripped/protected.
+    #      Claude updates them directly with fresh data each day.)
 
     # 4. OilChart — keep STATIC_DATA array, strip everything else
     op = sc.find('function OilChart()')
@@ -192,6 +183,11 @@ WHAT TO SEARCH:
 18. Any remittance news
 19. NPL ratio % (BB), capital adequacy ratio %; any major banking news
 20. Brent crude current spot and latest US-Iran war developments affecting oil markets
+21. Bangladesh domestic food prices (DAM weekly survey, latest week): retail prices in Dhaka markets for rice coarse BDT/kg, rice fine/miniket BDT/kg, red lentil BDT/kg, soybean oil BDT/L, sugar BDT/kg, onion BDT/kg, egg BDT/dozen, broiler chicken BDT/kg, wheat flour BDT/kg; and the week-ending date of the survey. Search "DAM Bangladesh food prices" or "daily star DAM price" or "TBS Bangladesh market price".
+22. Bangladesh RMG/garment export details (EPB, BGMEA latest release): most recent month's RMG exports USD million and YoY%; fiscal-year-to-date cumulative RMG exports USD billion and YoY%; buyer market shares (EU%, USA%, UK%, Canada%, Others%); BGMEA order pipeline assessment; 2-3 key RMG news headlines.
+23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
+24. Bangladesh power/electricity sector (BPDB, PGCB): current average daily generation MW, peak demand MW, daily shortage/loadshedding MW; rural and urban loadshedding hours per day; LNG spot import cost USD/MMBtu; 1-2 power sector news headlines.
+25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
 
 Return ONLY this JSON (use null for any value not found):
 {{
@@ -225,7 +221,44 @@ Return ONLY this JSON (use null for any value not found):
   "npl_ratio_pct": "9.93",  "car_pct": "12.5",
   "news_banking": ["headline 1", "headline 2", "headline 3"],
   "brent_spot": 84.0,
-  "news_iranwar": ["headline 1", "headline 2", "headline 3"]
+  "news_iranwar": ["headline 1", "headline 2", "headline 3"],
+
+  "dam_week_ending": "Mar 6, 2026",
+  "dam_rice_coarse": "42",  "dam_rice_fine": "72",
+  "dam_lentil": "110",      "dam_oil": "155",
+  "dam_sugar": "120",       "dam_onion": "45",
+  "dam_egg": "140",         "dam_chicken": "185",  "dam_flour": "48",
+
+  "rmg_exports_latest_mn": 2810,  "rmg_exports_latest_yoy_pct": "-13.21",
+  "rmg_exports_latest_month": "February 2026",
+  "rmg_ytd_bn": "24.1",  "rmg_ytd_yoy_pct": "-4.2",
+  "rmg_eu_pct": 57,  "rmg_us_pct": 18,  "rmg_uk_pct": 9,
+  "rmg_canada_pct": 4,  "rmg_others_pct": 12,
+  "rmg_pipeline": "Softening",
+  "news_rmg": ["headline 1", "headline 2"],
+
+  "fiscal_period": "Jul–Jan FY26",
+  "nbr_collected_trillion": "2.08",  "nbr_target_trillion": "7.97",
+  "nbr_progress_pct": 26,
+  "adp_pct": "22.5",  "adp_spent_crore": "64440",  "adp_target_crore": "285000",
+  "govt_borrow_trillion": "1.03",  "govt_borrow_pct": 74,
+  "govt_borrow_ceiling_trillion": "1.375",
+  "news_fiscal": ["headline 1", "headline 2"],
+
+  "nbr_vat_bn": "810",      "nbr_vat_share_pct": 39,   "nbr_vat_yoy_pct": "+12",
+  "nbr_it_bn": "680",       "nbr_it_share_pct": 33,    "nbr_it_yoy_pct": "+8",
+  "nbr_customs_bn": "590",  "nbr_customs_share_pct": 28, "nbr_customs_yoy_pct": "-3",
+  "nbr_shortfall_bn": "380", "nbr_needed_5mo_trillion": "5.89",
+
+  "power_gen_mw": 13200,  "power_demand_mw": 15800,  "power_shortage_mw": 2600,
+  "power_shedding_rural": "3-4 hrs",  "power_shedding_urban": "1-2 hrs",
+  "power_lng_mmbtu": "$12-14",
+  "news_power": ["headline 1"],
+
+  "peers_in_gdp": "6.4",   "peers_in_cpi": "4.3",   "peers_in_fxr": "638",  "peers_in_cab": "-1.0",  "peers_in_rating": "BBB-",
+  "peers_vn_gdp": "6.8",   "peers_vn_cpi": "3.6",   "peers_vn_fxr": "103",  "peers_vn_cab": "+4.2",  "peers_vn_rating": "BB+",
+  "peers_pk_gdp": "2.8",   "peers_pk_cpi": "23.0",  "peers_pk_fxr": "11.7", "peers_pk_cab": "-0.8",  "peers_pk_rating": "CCC+",
+  "peers_lk_gdp": "4.5",   "peers_lk_cpi": "4.1",   "peers_lk_fxr": "6.1",  "peers_lk_cab": "-2.1",  "peers_lk_rating": "B-"
 }}"""
 
 # ── API client (used by both phases) ───────────────────────────────────────────
@@ -234,7 +267,7 @@ client = anthropic.Anthropic(
     timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
 )
 
-WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 20}]
+WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 30}]
 MAX_RETRIES = 3
 
 def _stream_call(messages, tools, max_tokens, label):
@@ -302,13 +335,6 @@ REQUIRED PLACEHOLDERS — include these EXACTLY, do not alter them:
   // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
   // [TBILLCHART_RENDER_PLACEHOLDER — restored automatically]
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
-  // [SECTIONEXEC_PLACEHOLDER — restored automatically]
-  // [SECTIONDAM_PLACEHOLDER — restored automatically]
-  // [SECTIONRMG_PLACEHOLDER — restored automatically]
-  // [SECTIONFISCAL_PLACEHOLDER — restored automatically]
-  // [SECTIONNBR_PLACEHOLDER — restored automatically]
-  // [SECTIONPOWER_PLACEHOLDER — restored automatically]
-  // [SECTIONPEERS_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
 
 
@@ -348,6 +374,56 @@ UPDATE INSTRUCTIONS:
     {{ label: "Mar 7", value: <brent_spot>, today: true }}
     Keep event:true on the Feb 28 entry. Drop oldest if array > 12 points.
     SectionIranWar: Update with brent_spot, news_iranwar.
+
+11. SectionExec (Executive Summary — you WRITE this, do not copy old content):
+    Synthesise 5 bullets from ALL gathered data. Use types: "bull" (positive), "bear" (negative),
+    "warn" (risk/watch). Each bullet needs icon (📈 bull / 📉 bear / ⚠️ warn / 🔭 watch) and text.
+    Cover: forex reserves + remittance, exports trend, oil/geopolitics risk, market/rates, forward look.
+    Update the events array with accurate upcoming Bangladesh economic calendar dates.
+    Set trafficStatus to "bull"/"bear"/"warn"/"neu" based on overall macro sentiment today.
+
+12. SectionDAM (Domestic Food Prices):
+    Update items array with all 9 commodity prices from dam_* fields.
+    Derive MoM change type: price up → "bear", down → "bull", flat → "neu".
+    Update ticker array to show 4 headline staples with current prices and MoM direction.
+    Update hotspotLabel (names of rising items joined by " · "), hotspotStat ("N of 9 staples rising MoM"),
+    hotspotDetail (specific % changes for rising items), easingLabel/easingStat/easingDetail (falling items).
+    Set freshDate and sourceDate from dam_week_ending. Update news with fresh food-price headlines.
+    Set trafficStatus: "warn" if 4+ rising, "neu" if mixed, "bull" if majority falling.
+
+13. SectionRMG (RMG Deep Dive):
+    Update markets array with rmg_eu_pct, rmg_us_pct, rmg_uk_pct, rmg_canada_pct, rmg_others_pct.
+    Update all card and ticker values: rmg_exports_latest_mn, rmg_exports_latest_yoy_pct,
+    rmg_ytd_bn, rmg_ytd_yoy_pct, rmg_pipeline. Update news with news_rmg headlines.
+    Set trafficStatus: "bear" if YoY negative, "warn" if pipeline softening, "bull" if improving.
+
+14. SectionFiscal (Fiscal & Budget):
+    Update ticker and card values from fiscal_period, nbr_collected_trillion, nbr_target_trillion,
+    nbr_progress_pct, adp_pct, adp_spent_crore, adp_target_crore,
+    govt_borrow_trillion, govt_borrow_pct, govt_borrow_ceiling_trillion.
+    Update all ProgressBar pct values to match the new percentages.
+    Update news with news_fiscal headlines. Set trafficStatus based on fiscal health.
+
+15. SectionNBR (NBR Tax Revenue):
+    Update taxes array: VAT (nbr_vat_bn, nbr_vat_share_pct, nbr_vat_yoy_pct),
+    Income Tax (nbr_it_bn, nbr_it_share_pct, nbr_it_yoy_pct),
+    Customs (nbr_customs_bn, nbr_customs_share_pct, nbr_customs_yoy_pct).
+    Update overall collection card: nbr_collected_trillion, nbr_target_trillion, nbr_progress_pct,
+    nbr_shortfall_bn, nbr_needed_5mo_trillion. Update ticker. Set trafficStatus.
+
+16. SectionPower (Power & Energy):
+    Update ticker and cards from power_gen_mw, power_demand_mw, power_shortage_mw.
+    Compute generation % of demand = round(power_gen_mw / power_demand_mw * 100).
+    Update ProgressBar pct to this value. Update loadshedding hours from power_shedding_rural/urban.
+    Update LNG cost from power_lng_mmbtu. Update news with news_power headlines.
+    Set trafficStatus: "bear" if shortage > 2000 MW, "warn" if 1000-2000, "bull" if < 1000.
+
+17. SectionPeers (Regional Peers):
+    Update Bangladesh row: gdp = gdp_growth_pct, cpi = cpi_headline_pct, fxr = forex_reserves_bn,
+    cab from trade/remittance data, rating unchanged unless new info.
+    Update peers array for India, Vietnam, Pakistan, Sri Lanka from peers_* fields.
+    Recalculate gdpC/cpiC/fxrC/cabC: "best" = top performer, "worst" = bottom, "mid" = others.
+    Update ticker with current BD metrics. Set trafficStatus.
 
 OUTPUT: Start your response IMMEDIATELY with <!DOCTYPE html> — the very first character
 must be '<'. Do not write any introduction, summary, explanation, or reasoning before the HTML.
@@ -410,13 +486,6 @@ for _js_key, _js_content in _js_parts.items():
             'DSEXCHART_RENDER_PLACEHOLDER':  ('function DSEXChart()',  'function SectionDSE()'),
             'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
             'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
-            'SECTIONEXEC_PLACEHOLDER':       ('function SectionExec()',  'function SectionBB()'),
-            'SECTIONDAM_PLACEHOLDER':        ('function SectionDAM()',   'function SectionFX()'),
-            'SECTIONRMG_PLACEHOLDER':        ('function SectionRMG()',   'function SectionFiscal()'),
-            'SECTIONFISCAL_PLACEHOLDER':     ('function SectionFiscal()','function SectionNBR()'),
-            'SECTIONNBR_PLACEHOLDER':        ('function SectionNBR()',   'function SectionPower()'),
-            'SECTIONPOWER_PLACEHOLDER':      ('function SectionPower()', 'function SectionPeers()'),
-            'SECTIONPEERS_PLACEHOLDER':      ('function SectionPeers()', '// ── Main App'),
             'APP_PLACEHOLDER':               ('// ── Main App',          '</script>'),
         }
         # Simple fallback: copy the corresponding block from the original HTML
