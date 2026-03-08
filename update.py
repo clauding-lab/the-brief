@@ -121,6 +121,10 @@ def strip_js_render(html):
     #     stripping its return() saves ~10k chars from the Phase 2 prompt.
     sc = _strip_return(sc, 'SectionTariff', 'TARIFF_RENDER_PLACEHOLDER')
 
+    # 2e. SectionTrade — static trade deep-dive, not in daily update instructions;
+    #     stripping its return() saves ~5k chars from the Phase 2 prompt.
+    sc = _strip_return(sc, 'SectionTrade', 'TRADE_RENDER_PLACEHOLDER')
+
     # 2b. (All 7 new sections are now live — no longer stripped/protected.
     #      Claude updates them directly with fresh data each day.)
 
@@ -164,7 +168,7 @@ prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
 _before_prop = len(prompt_html)
 prompt_html = re.sub(r'(<BankerRead\s+text=)"[^"]{30,}"', r'\1""', prompt_html)
 prompt_html = re.sub(r'\bdetail="[^"]{50,}"', 'detail=""', prompt_html)
-prompt_html = re.sub(r'\bsub="[^"]{60,}"', 'sub=""', prompt_html)
+prompt_html = re.sub(r'\bsub="[^"]{35,}"', 'sub=""', prompt_html)
 _prop_saved = _before_prop - len(prompt_html)
 print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} tokens).")
 
@@ -334,119 +338,48 @@ if last_text:
 print(f"Gathered data: {len(gathered_json):,} chars")
 
 # ── PHASE 2: Generate updated HTML (no web search, HTML is direct output) ───────
-UPDATE_PROMPT = f"""You are updating THE BRIEF, a Bangladesh business intelligence single-page app.
-Today's date is {today}. Current UTC time → add 6 hours for BDT.
+UPDATE_PROMPT = f"""THE BRIEF update. Today: {today} (UTC; +6 hrs = BDT).
 
-LATEST DATA gathered from web searches (use this to update all values):
+GATHERED DATA:
 <data>
 {gathered_json}
 </data>
 
-CURRENT HTML — rendering sections replaced by placeholders you MUST pass through unchanged:
+CURRENT HTML (pass all placeholder comments through UNCHANGED):
 <current_file>
 {prompt_html}
 </current_file>
 
-REQUIRED PLACEHOLDERS — include these EXACTLY, do not alter them:
+REQUIRED PLACEHOLDERS — copy EXACTLY:
   <style>/* CSS_PLACEHOLDER — restored automatically */</style>
   // [COMPONENTS_PLACEHOLDER — restored automatically]
   // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
   // [TBILLCHART_RENDER_PLACEHOLDER — restored automatically]
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
   // [TARIFF_RENDER_PLACEHOLDER — restored automatically]
+  // [TRADE_RENDER_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
 
+UPDATE RULES (use gathered JSON keys by exact name):
+HEADER: BRIEF_DATE = "{today} · HHMM BDT"
+SectionBB: bb_policy_rate_pct sdf_rate_pct slf_rate_pct gdp_growth_pct credit_growth_pct forex_reserves_bn cpi_headline_pct remittance_mn news_banking
+SectionMacro: cpi_headline_pct/_month cpi_food_pct/_month bb_policy_rate_pct sdf_rate_pct slf_rate_pct mpc_note
+DSEXChart: drop[0], append{{label:"Mar 7",value:dsex,showLabel:true,today:true}}, remove today:true from prior last. SectionDSE: all dse_* + news_dse
+TBillChart: tbill_new_auction→drop[0]+append new yields; else update last entry. SectionTBond: tbill_91d/182d/364d bond_10y/5y tbill_auction_date news_tbill
+SectionComm: gold_22k_bdt brent_usd wti_usd natgas_usd news_commodity
+SectionFX: usd/eur/gbp_bdt forex_reserves_bn exports/rmg_exports_mn exports_month imports_mn trade_deficit_mn/_yoy_pct news_forex
+SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
+SectionBanking: npl_ratio_pct car_pct news_banking
+OilChart: remove old today:true, append{{label:"Mar 7",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
+SectionExec: WRITE 5 fresh bullets (bull📈/bear📉/warn⚠️/watch🔭). Cover: reserves+remittance, exports, oil/geopolitics, market/rates, outlook. Update events calendar. trafficStatus(bull/bear/warn/neu).
+SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
+SectionRMG: rmg_eu/us/uk/canada/others_pct; rmg_exports_latest_mn/_yoy_pct/_month; rmg_ytd_bn/_yoy_pct; rmg_pipeline; news_rmg; trafficStatus(bear=neg YoY,warn=softening,bull=improving).
+SectionFiscal: nbr_collected/target_trillion nbr_progress_pct adp_pct/_spent/_target_crore govt_borrow_trillion/_pct/_ceiling_trillion; ProgressBar pcts; news_fiscal; trafficStatus.
+SectionNBR: VAT/IT/Customs(nbr_*_bn/*_share_pct/*_yoy_pct); nbr_collected/target/progress/shortfall/needed; ticker; trafficStatus.
+SectionPower: power_gen/demand/shortage_mw; gen%=round(gen/demand*100); ProgressBar=gen%; shedding_rural/urban; power_lng_mmbtu; news_power; trafficStatus(bear>2000MW,warn1000-2000,bull<1000).
+SectionPeers: BD row(gdp_growth_pct,cpi_headline_pct,forex_reserves_bn); peers_in/vn/pk/lk_* all fields; recalc gdpC/cpiC/fxrC/cabC(best=top,worst=bottom,mid=others); ticker; trafficStatus.
 
-UPDATE INSTRUCTIONS:
-
-1. HEADER: Set BRIEF_DATE = "{today} · HHMM BDT" using the current time.
-
-2. SectionBB: Update with bb_policy_rate_pct, sdf_rate_pct, slf_rate_pct, gdp_growth_pct,
-   credit_growth_pct, forex_reserves_bn, cpi_headline_pct, remittance_mn, news_banking.
-
-3. SectionMacro: Update with cpi_headline_pct, cpi_headline_month, cpi_food_pct,
-   cpi_food_month, bb_policy_rate_pct, sdf_rate_pct, slf_rate_pct, mpc_note.
-
-4. DSEXChart data array (20 points): Drop index 0. Add new last entry:
-   {{ label: "Mar 7", value: <dsex>, showLabel: true, today: true }}
-   Remove today:true from the previous last entry.
-   SectionDSE: Update ticker with dsex, ds30, cscx, dse_turnover_cr, dse_change_pts,
-   dse_change_pct, dse_52wk_high, dse_52wk_low; update news_dse headlines.
-
-5. TBillChart: If tbill_new_auction is true, drop labels[0]/d91[0]/d182[0]/d364[0] and
-   append new values; update pkI/pkV if a new peak. Otherwise update last element if changed.
-   SectionTBond: Update with tbill_91d_pct, tbill_182d_pct, tbill_364d_pct,
-   bond_10y_pct, bond_5y_pct, tbill_auction_date; update news_tbill.
-
-6. SectionComm: Update with gold_22k_bdt, brent_usd, wti_usd, natgas_usd, news_commodity.
-
-7. SectionFX: Update with usd_bdt, eur_bdt, gbp_bdt, forex_reserves_bn, exports_mn,
-   rmg_exports_mn, exports_month, imports_mn, trade_deficit_mn,
-   trade_deficit_yoy_pct, news_forex.
-
-8. SectionRemittance (§07): Update with remittance_mn, remittance_month,
-   remittance_yoy_pct, news_remittance.
-
-9. SectionBanking (§08): Update with npl_ratio_pct, car_pct, news_banking.
-
-10. OilChart STATIC_DATA: Remove today:true from current last entry. Append:
-    {{ label: "Mar 7", value: <brent_spot>, today: true }}
-    Keep event:true on the Feb 28 entry. Drop oldest if array > 12 points.
-    SectionIranWar: Update with brent_spot, news_iranwar.
-
-11. SectionExec (Executive Summary — you WRITE this, do not copy old content):
-    Synthesise 5 bullets from ALL gathered data. Use types: "bull" (positive), "bear" (negative),
-    "warn" (risk/watch). Each bullet needs icon (📈 bull / 📉 bear / ⚠️ warn / 🔭 watch) and text.
-    Cover: forex reserves + remittance, exports trend, oil/geopolitics risk, market/rates, forward look.
-    Update the events array with accurate upcoming Bangladesh economic calendar dates.
-    Set trafficStatus to "bull"/"bear"/"warn"/"neu" based on overall macro sentiment today.
-
-12. SectionDAM (Domestic Food Prices):
-    Update items array with all 9 commodity prices from dam_* fields.
-    Derive MoM change type: price up → "bear", down → "bull", flat → "neu".
-    Update ticker array to show 4 headline staples with current prices and MoM direction.
-    Update hotspotLabel (names of rising items joined by " · "), hotspotStat ("N of 9 staples rising MoM"),
-    hotspotDetail (specific % changes for rising items), easingLabel/easingStat/easingDetail (falling items).
-    Set freshDate and sourceDate from dam_week_ending. Update news with fresh food-price headlines.
-    Set trafficStatus: "warn" if 4+ rising, "neu" if mixed, "bull" if majority falling.
-
-13. SectionRMG (RMG Deep Dive):
-    Update markets array with rmg_eu_pct, rmg_us_pct, rmg_uk_pct, rmg_canada_pct, rmg_others_pct.
-    Update all card and ticker values: rmg_exports_latest_mn, rmg_exports_latest_yoy_pct,
-    rmg_ytd_bn, rmg_ytd_yoy_pct, rmg_pipeline. Update news with news_rmg headlines.
-    Set trafficStatus: "bear" if YoY negative, "warn" if pipeline softening, "bull" if improving.
-
-14. SectionFiscal (Fiscal & Budget):
-    Update ticker and card values from fiscal_period, nbr_collected_trillion, nbr_target_trillion,
-    nbr_progress_pct, adp_pct, adp_spent_crore, adp_target_crore,
-    govt_borrow_trillion, govt_borrow_pct, govt_borrow_ceiling_trillion.
-    Update all ProgressBar pct values to match the new percentages.
-    Update news with news_fiscal headlines. Set trafficStatus based on fiscal health.
-
-15. SectionNBR (NBR Tax Revenue):
-    Update taxes array: VAT (nbr_vat_bn, nbr_vat_share_pct, nbr_vat_yoy_pct),
-    Income Tax (nbr_it_bn, nbr_it_share_pct, nbr_it_yoy_pct),
-    Customs (nbr_customs_bn, nbr_customs_share_pct, nbr_customs_yoy_pct).
-    Update overall collection card: nbr_collected_trillion, nbr_target_trillion, nbr_progress_pct,
-    nbr_shortfall_bn, nbr_needed_5mo_trillion. Update ticker. Set trafficStatus.
-
-16. SectionPower (Power & Energy):
-    Update ticker and cards from power_gen_mw, power_demand_mw, power_shortage_mw.
-    Compute generation % of demand = round(power_gen_mw / power_demand_mw * 100).
-    Update ProgressBar pct to this value. Update loadshedding hours from power_shedding_rural/urban.
-    Update LNG cost from power_lng_mmbtu. Update news with news_power headlines.
-    Set trafficStatus: "bear" if shortage > 2000 MW, "warn" if 1000-2000, "bull" if < 1000.
-
-17. SectionPeers (Regional Peers):
-    Update Bangladesh row: gdp = gdp_growth_pct, cpi = cpi_headline_pct, fxr = forex_reserves_bn,
-    cab from trade/remittance data, rating unchanged unless new info.
-    Update peers array for India, Vietnam, Pakistan, Sri Lanka from peers_* fields.
-    Recalculate gdpC/cpiC/fxrC/cabC: "best" = top performer, "worst" = bottom, "mid" = others.
-    Update ticker with current BD metrics. Set trafficStatus.
-
-OUTPUT: Start your response IMMEDIATELY with <!DOCTYPE html> — the very first character
-must be '<'. Do not write any introduction, summary, explanation, or reasoning before the HTML.
-End with </html>. The complete file, nothing else."""
+OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
 
 print("Phase 2: Generating updated HTML (no web search)...")
 response = _stream_call(
@@ -506,6 +439,7 @@ for _js_key, _js_content in _js_parts.items():
             'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
             'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
             'TARIFF_RENDER_PLACEHOLDER':     ('function SectionTariff()', 'function SectionTrade()'),
+            'TRADE_RENDER_PLACEHOLDER':      ('function SectionTrade()', 'function SectionIranWar()'),
             'APP_PLACEHOLDER':               ('// ── Main App',          '</script>'),
         }
         # Simple fallback: copy the corresponding block from the original HTML
