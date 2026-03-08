@@ -2317,6 +2317,10 @@ function OilChart() {
         const latest = json.data.find(d => parseFloat(d.value) > 0);
         if (!latest) return;
         const liveVal = parseFloat(latest.value);
+        // Guard: AV free tier has 1-3 day lag — reject stale data if it
+        // deviates more than 15% below the static value (e.g. post-spike events)
+        const staticVal = STATIC_DATA[STATIC_DATA.length - 1].value;
+        if (liveVal < staticVal * 0.85) return;
         setData(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = { ...updated[updated.length - 1], value: liveVal };
