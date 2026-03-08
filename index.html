@@ -4,6 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>THE BRIEF — Bangladesh Business Intelligence</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0d0d0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="The Brief" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -725,6 +734,35 @@
     .cross-insight strong { font-style: normal; color: var(--warn); }
 
     /* ── Executive Summary ── */
+    /* ── Banker's Read ───────────────────────────────────────────────────── */
+    .banker-read {
+      margin-top: 18px;
+      padding: 13px 16px 13px 14px;
+      background: rgba(67, 97, 238, 0.05);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+    }
+    .banker-read-label {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 7px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .banker-read-text {
+      font-size: 12.5px;
+      color: var(--text);
+      line-height: 1.65;
+      opacity: 0.88;
+    }
+    :root.light .banker-read {
+      background: rgba(37, 99, 235, 0.04);
+    }
+
     .exec-bullets {
       list-style: none;
       padding: 0; margin: 0;
@@ -1042,6 +1080,7 @@ const BRIEF_DATE = "SUNDAY 08 MARCH 2026 · 0700 BDT";
 const BRIEF_EDITION = "VOL. 1 · ISSUE 66";
 
 const SECTIONS = [
+  { id: "exec",    label: "Home",           short: "Home" },
   { id: "bb",      label: "BB & Finance",   short: "BB" },
   { id: "macro",   label: "Macro",          short: "Macro" },
   { id: "dse",     label: "DSE",            short: "DSE" },
@@ -1185,6 +1224,15 @@ function Sparkline({ data, color }) {
   );
 }
 
+function BankerRead({ text }) {
+  return (
+    <div className="banker-read">
+      <div className="banker-read-label">Banker's Read</div>
+      <div className="banker-read-text">{text}</div>
+    </div>
+  );
+}
+
 function CollapsibleNews({ items, defaultShow = 2 }) {
   const { useState } = React;
   const [expanded, setExpanded] = useState(false);
@@ -1314,6 +1362,7 @@ function SectionBB() {
           time="Sep 2025 data"
         />
       </div>
+      <BankerRead text="A 50bps cut signal is directionally correct for growth but arrives at the worst possible moment — energy-driven inflation is about to re-accelerate. Any bank that pre-emptively reprices retail deposits downward risks deposit flight if the cut is delayed or reversed. Hold deposit rates, review floating-rate SME facility spreads for headroom, and watch the MPC meeting date announcement closely — delay signals the BB itself is uncertain about the inflation trajectory." />
     </div>
   );
 }
@@ -1399,6 +1448,7 @@ function SectionMacro() {
       <div className="context-box">
         <strong>Macro Outlook:</strong> Bangladesh faces a challenging balancing act — inflation (8.58% in Jan 2026) remains stubbornly above the 7% BB target while GDP growth stands at 3.97% in FY2025. The MPC meeting of 4 March was postponed amid an MPC member resignation, though the Governor has signalled a ~50bps cut. Rising remittances ($3.02B in Feb, +19.4% YoY) and recovering forex reserves ($29.47B BPM6) provide balance-of-payments relief, but export weakness and subdued private credit signal fragile domestic demand. Middle East conflict adds both energy-cost risk and a remittance disruption tail.
       </div>
+      <BankerRead text="GDP at 3.97% and private credit at 8% both predate the Middle East energy shock — manufacturing borrower margins will compress in Q2-Q3 as cost pass-through arrives. The BB's rate-cut signal and falling T-bill yields are pulling in the opposite direction to energy-driven cost inflation. Review term loan facilities for import-dependent manufacturers now, before the next drawdown cycle; the stagflationary setup of slowing growth plus rising costs is the hardest environment for credit risk management." />
     </div>
   );
 }
@@ -1601,6 +1651,7 @@ function SectionDSE() {
           />
         </div>
       </div>
+      <BankerRead text="The 595-point DSEX collapse since Feb 26 has wiped out the full election-rally gain. For banks with capital market subsidiaries or pledged-share loan portfolios, this is a margin call review moment — any collateral below 1.5x cover at current prices needs a formal notice. Avoid tactical equity allocation from proprietary books until the market finds a technical floor; this selloff has structural drivers (energy shock, NPL overhang, foreign outflows) that are not resolved by a single session bounce." />
     </div>
   );
 }
@@ -1780,6 +1831,7 @@ function SectionTBond() {
         />
       </div>
       <TBillChart />
+      <BankerRead text="The yield curve is inverting at the short end — 91-day at 10.24% while the 5-year is lower, signalling a market-priced rate-cut cycle. For ALM desks, the play is to lock in longer-term funding costs now at current levels before the cut compresses deposit rates, while resisting asset duration extension until the post-energy-shock inflation trajectory clears. The 10.00% policy rate is the ceiling; directional risk is down, but the timing is now genuinely uncertain." />
     </div>
   );
 }
@@ -1873,6 +1925,7 @@ function SectionComm() {
           time="Mar 2026"
         />
       </div>
+      <BankerRead text="Brent at $92.69 is the single most important number in this issue — it transmits directly into Bangladesh's import bill, fertiliser cost, and LNG procurement price. Banks with trade finance exposure to energy importers, fertiliser distributors, and shipping firms should review LC limits and working capital facilities for stress capacity. The BDT depreciation leg of this shock (higher import cost widening the current account) will compound across every balance sheet in the system; model a $10/bbl sustained spike scenario now." />
     </div>
   );
 }
@@ -1953,6 +2006,7 @@ function SectionFX() {
         />
       </div>
       <CrossInsight text="Remittance inflow up +21.4% YoY while BPM6 reserves rose to $29.47B — suggests BB is absorbing the surplus via forex market purchases ($5.38B in FY26) to manage BDT appreciation pressure and support export competitiveness. Iran war is the key downside risk to this improving trajectory." />
+      <BankerRead text="BDT at 122.44 is holding on the back of record remittance, but the energy shock changes the import bill calculation materially. A $10/bbl sustained oil spike adds roughly $400M/month to the import cost; at current run-rates that is manageable but leaves no buffer for any remittance corridor disruption. Treasury desks should review USD liquidity ratios and FX forward cover on BDT positions — Gulf corridor risk from the Iran conflict is no longer theoretical, and the BDT could test 125 if both oil costs and remittance disappoint simultaneously." />
     </div>
   );
 }
@@ -2039,6 +2093,7 @@ function SectionRemittance() {
         />
       </div>
       <CrossInsight text="Record Feb remittance ($3.02B) driving FX reserve rebuild — but Gulf corridor disruption from Iran war is the single biggest downside risk to Bangladesh's external position in 2026. Every 10% drop in remittance (~$2.7B/year) would erase roughly 2 months of reserve gains." />
+      <BankerRead text="$3.02B in February is a structural pillar, but the Gulf corridor concentration is the risk in plain sight — Saudi Arabia, UAE, Qatar, and Kuwait collectively host over 8M Bangladeshi workers, all proximate to a live conflict zone. For retail banks with remittance-dependent SME customer bases in Chittagong, Sylhet, and Comilla districts, now is the time to model a 20% remittance drop scenario against household debt serviceability. A disruption of this magnitude would be felt in retail delinquency data 60-90 days before it shows in macro numbers." />
     </div>
   );
 }
@@ -2124,6 +2179,7 @@ function SectionBanking() {
           time="Feb–Mar 2026"
         />
       </div>
+      <BankerRead text="NPL at 35.73% and CAR at 6.3% below the regulatory minimum is the most structurally alarming data pairing in this issue. For wholesale banking desks with interbank credit exposure to weaker banks, review limits against CAR-breached institutions immediately — the regulator has shown willingness to impose emergency liquidity measures and any formal BB intervention would freeze interbank positions overnight. This is not a market to be overweight on interbank credit; tighten limits to CAR-compliant counterparties only." />
     </div>
   );
 }
@@ -2202,6 +2258,7 @@ function SectionTariff() {
           time="Mar 2026"
         />
       </div>
+      <BankerRead text="The 90-day US tariff pause defers the risk but does not remove it — Bangladesh's 18% US market share of RMG exports is structurally exposed. For SME banks with RMG-dependent borrowers, every annual credit review should now include an explicit question: what is this borrower's US market concentration, and what is their break-even unit cost against the tariff-affected selling price? The pause is a window to have those conversations, not a reason to postpone them. Diversification toward EU and non-US markets should be an explicit credit condition for new RMG facilities." />
     </div>
   );
 }
@@ -2288,6 +2345,7 @@ function SectionTrade() {
           time="2026"
         />
       </div>
+      <BankerRead text="The negative trade balance is structural, but the recent compression supported by record remittance is a genuine positive trend — one the energy shock now threatens to reverse. For trade finance desks, watch LC utilisation rates on energy and food commodity imports over the next 30 days; a sudden surge is the first real-time signal of import bill pressure arriving before it shows in the headline current account data. Exporters in non-RMG sectors (pharma, leather, frozen food) deserve proactive attention — they represent the diversification story and merit favourable pre-shipment credit terms." />
     </div>
   );
 }
@@ -2629,6 +2687,7 @@ function SectionIranWar() {
 
       {/* ── Sub-section 3: Crude Oil Chart ───────────────────────────────── */}
       <OilChart />
+      <BankerRead text="This is the tail risk that has arrived and is now transmitting in real time. For Bangladesh banks the three transmission channels are: (1) energy cost spike → government subsidy pressure → fiscal deterioration → crowding out of private credit; (2) shipping disruption → LC non-performance risk on commodity and energy imports; (3) Gulf remittance corridor risk → retail deposit volatility in remittance-dependent districts. Stress-test your performing loan book against a sustained 6-month high-energy-price scenario — waiting for the data to confirm the stress is waiting too long." />
     </div>
   );
 }
@@ -2679,6 +2738,7 @@ function SectionExec() {
           ))}
         </div>
       </div>
+      <BankerRead text="This issue's dominant signal is a geopolitical energy shock arriving while the banking sector is structurally impaired — Tk 6.44 trillion in NPLs, CAR below minimum, and a potential LNG supply disruption is a dangerous combination. Rising import costs will squeeze corporate borrowers before any rate cut can ease them, creating a stagflationary window that is historically the hardest environment for credit portfolios. Treasury desks should front-load USD liquidity and hold deposit rates steady; the MPC cut, when it comes, will not solve the cost-of-energy problem and may accelerate deposit repricing risk if timed poorly. The next 30 days will define whether this is a temporary spike or a structural shift that reprices every balance sheet in the system." />
     </div>
   );
 }
@@ -2748,6 +2808,7 @@ function SectionDAM() {
           ))}
         </tbody>
       </table>
+      <BankerRead text="Seven of nine staples rising MoM is a leading indicator, not a lagging one — household cash flow stress at the lower end of the retail portfolio typically shows up in 60-90 day delinquency data before it surfaces in formal NPL reporting. Microfinance institutions and retail banks with unsecured consumer lending books in rural and peri-urban areas should increase monitoring frequency on sub-Tk 5 lakh tickets. The simultaneous pressure on rice, oil, and onion prices suggests supply-side constraints rather than demand pull, meaning a rate cut alone will not resolve this inflation — it requires supply-chain intervention." />
     </div>
   );
 }
@@ -2809,6 +2870,7 @@ function SectionRMG() {
         { sentiment: "warn", headline: "Vietnam gaining RMG market share from Bangladesh as US buyers hedge tariff risk", detail: "US importers increasingly splitting orders between Bangladesh and Vietnam as contingency against potential US tariff action. Bangladesh's RMG wage advantage narrowing as Vietnam labour costs also rise, but compliance record giving Vietnam edge with ESG-conscious EU buyers.", source: "BGMEA / Industry sources", time: "Feb 2026" },
         { sentiment: "neu", headline: "BGMEA calls for duty-free access deal with USA to protect $5B+ annual export relationship", detail: "Bangladesh currently exports $7B+ in RMG to the US under GSP, but faces GSP graduation in 2026. BGMEA president urging government to fast-track TICFA negotiations for a bilateral trade framework. US side yet to respond.", source: "BGMEA / TBS News", time: "Feb 2026" },
       ]} />
+      <BankerRead text="RMG exports down 13.21% YoY in February is the worst sequential performance in two years, and the combination of US tariff uncertainty and Middle East freight disruption means the Q2 order book is thinner than any time since COVID. For banks concentrated in RMG working capital — pre-shipment credit, back-to-back LCs — review utilisation versus limit and ensure facilities are not funding excess inventory. The cash conversion cycle for borrowers is lengthening as buyers defer; a facility that was adequately sized three months ago may be running 30-40 days longer on average now." />
     </div>
   );
 }
@@ -2861,6 +2923,7 @@ function SectionFiscal() {
         { sentiment: "bear", headline: "Government bank borrowing reaches BDT 1.03 trillion in 7 months — 74% of full-year ceiling, raising crowding-out concerns", detail: "Heavy government borrowing from banking system at elevated T-bill rates crowding out private credit. Private sector credit growth at 7.3% YoY — near multi-year low. IMF asking BB to tighten monetary-fiscal coordination as conditionality for Article IV completion.", source: "Bangladesh Bank / Ministry of Finance", time: "Feb 2026" },
         { sentiment: "neu", headline: "FY2026-27 budget preparation underway — govt expected to revise NBR target downward and increase subsidy ceiling for energy", detail: "Finance ministry drafting FY27 budget with revised (lower) revenue targets, higher energy subsidy provision for BPDB/BPC, and continued ADP rationalisation. Budget to be presented to parliament on June 2, 2026. IMF program compliance will influence fiscal arithmetic.", source: "Ministry of Finance", time: "Mar 2026" },
       ]} />
+      <BankerRead text="NBR collection at 26% of target by mid-year is a structural shortfall, not a timing issue — the government will either breach the borrowing ceiling or compress spending, and both scenarios have banking implications. If borrowing overshoots, watch T-bill and T-bond auction cut-offs for a yield reversal that would mark-to-market bond portfolios downward. If spending is compressed, government-contractor borrowers face payment arrears that will slow receivables collection and stress working capital facilities; proactively flag this exposure in the next credit review cycle." />
     </div>
   );
 }
@@ -2913,6 +2976,7 @@ function SectionNBR() {
         { sentiment: "neu", headline: "VAT accounts for 39% of NBR revenue — income tax and customs contribute 33% and 28% respectively", detail: "VAT growing +12% YoY driven by consumption and formal sector formalisation. Income tax up +8% on improved TIN registration (6.5M+ filers). Customs -3% YoY due to lower import values (oil price base effect) and reduced import compression vs prior year.", source: "NBR", time: "Jan 2026" },
         { sentiment: "bear", headline: "IMF conditions tax administration reforms for next BD program tranche — digitisation of VAT, income tax net expansion key requirements", detail: "NBR required to: (1) expand e-TDS coverage, (2) digitise VAT return filing, (3) reduce tax expenditures. Failure to meet milestones could delay IMF disbursement, impacting forex reserve buffer.", source: "IMF Bangladesh Staff Report", time: "Feb 2026" },
       ]} />
+      <BankerRead text="A Tk 380 billion NBR shortfall with five months remaining means enforcement intensity will escalate sharply in Q2 — expect increased audit pressure on mid-market corporate clients and higher advance tax demands on banking institutions themselves. Advise key corporate borrowers to ensure tax compliance documentation is current before the enforcement wave arrives. For banks, the withholding tax and advance income tax burden will increase directly, and any government payment delays driven by fiscal stress will extend receivables for contractor clients." />
     </div>
   );
 }
@@ -2977,6 +3041,7 @@ function SectionPower() {
         { sentiment: "warn", headline: "Iran war driving up LNG spot prices — Bangladesh exposed via 40% spot procurement ratio", detail: "Iran-driven LNG supply disruption pushing spot prices to $13.5–14/MMBtu. Bangladesh pays spot for ~40% of its LNG requirements. Each $1/MMBtu increase costs approximately $80–100M/year in additional import costs. Hormutz Strait risk premium persisting.", source: "Petrobangla / Bloomberg", time: "Mar 2026" },
         { sentiment: "neu", headline: "Bangladesh targets 40% renewable energy by 2041 — current share: ~4% of generation mix", detail: "Government renewable energy roadmap calls for 40,000 MW of renewable capacity by 2041, including 17,000 MW solar, 11,000 MW wind, 2,000 MW nuclear (Rooppur Unit 2). Current installed renewables: ~1,150 MW. Pace of capacity addition severely lagging targets.", source: "SREDA / Power Division", time: "2025" },
       ]} />
+      <BankerRead text="2,600 MW daily shortage with 3-4 hours rural load shedding is a direct productivity hit for the SME manufacturing base — especially for RMG units outside EPZs and light engineering clusters in the Dhaka periphery. For SME credit officers doing site visits, generator fuel cost and backup power arrangements are now a material opex variable that can tip a marginal borrower into non-performance; it should be a standard line item in the next credit review. LNG at $12-14/MMBtu is a structural cost that will not normalise quickly, and BPDB's capacity payment obligations suggest the fiscal-banking feedback loop (subsidy spending → government borrowing → crowding out) will intensify." />
     </div>
   );
 }
@@ -3054,6 +3119,7 @@ function SectionPeers() {
         { sentiment: "bear", headline: "Bangladesh has highest inflation (9.94%) in South/Southeast Asia peer group — BB policy rate at 10% barely above CPI", detail: "Real policy rate near zero. Inflation persistence driven by food prices, energy subsidy pass-through, BDT depreciation pass-through. Peers India (4.3%), Vietnam (3.6%), Sri Lanka (4.1%) all near target ranges. Bangladesh inflation credibility gap risks capital outflows.", source: "Bangladesh Bank / BBS", time: "Jan 2026" },
         { sentiment: "bull", headline: "Vietnam's CA surplus (+4.2% GDP) vs Bangladesh's modest deficit (-0.7%) reflects export model divergence — not necessarily negative for BD", detail: "Bangladesh's smaller CA deficit partly reflects strong remittance inflows offsetting trade deficit. Remittance at ~6% of GDP is a structural strength not available to Vietnam. FX reserve level ($30.3B, 4+ months import cover) improving, unlike Pakistan ($11.7B, under pressure).", source: "IMF / World Bank", time: "2025-26" },
       ]} />
+      <BankerRead text="Bangladesh's 9.94% CPI stands out in this peer table — it is the primary reason international credit rating agencies have not upgraded the sovereign, and it signals a monetary policy credibility gap that counterparts and correspondent banks will price into their terms. India at 4.3%, Vietnam at 3.6%, and post-crisis Sri Lanka at 4.1% are all at or near target; Bangladesh is an outlier. For banks seeking to attract foreign institutional deposits, issue international bonds, or maintain correspondent banking relationships, this inflation differential is a BDT depreciation signal that will be embedded in pricing and tenor limits until CPI sustains below 7% for at least two consecutive quarters." />
     </div>
   );
 }
@@ -3110,7 +3176,7 @@ function App() {
   const lpTimer = React.useRef(null);
 
   const NAV_ICON = {
-    bb:"🏦", macro:"📊", dse:"📈", tbond:"📜", comm:"🌾", dam:"🛒",
+    exec:"📋", bb:"🏦", macro:"📊", dse:"📈", tbond:"📜", comm:"🌾", dam:"🛒",
     fx:"💱", remit:"💸", banking:"🏛️", tariff:"🇺🇸", trade:"🚢",
     iranwar:"🛢️", rmg:"👕", fiscal:"💰", nbr:"🧾", power:"⚡", peers:"🌏"
   };
@@ -3377,6 +3443,16 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+<!-- PWA Service Worker -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js")
+        .catch(err => console.warn("SW registration failed:", err));
+    });
+  }
 </script>
 </body>
 </html>
