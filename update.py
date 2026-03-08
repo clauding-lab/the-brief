@@ -167,8 +167,22 @@ prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
 # Stripping old values saves tokens; Claude regenerates them from gathered_json + instructions.
 _before_prop = len(prompt_html)
 prompt_html = re.sub(r'(<BankerRead\s+text=)"[^"]{30,}"', r'\1""', prompt_html)
-prompt_html = re.sub(r'\bdetail="[^"]{50,}"', 'detail=""', prompt_html)
-prompt_html = re.sub(r'\bsub="[^"]{35,}"', 'sub=""', prompt_html)
+prompt_html = re.sub(r'\bdetail="[^"]{20,}"', 'detail=""', prompt_html)
+prompt_html = re.sub(r'\bsub="[^"]{20,}"', 'sub=""', prompt_html)
+# Citation / metadata props — Claude regenerates from gathered_json each run
+prompt_html = re.sub(r'\bsource="[^"]*"', 'source=""', prompt_html)
+prompt_html = re.sub(r'\bsourceUrl="[^"]*"', 'sourceUrl=""', prompt_html)
+prompt_html = re.sub(r'\btime="[^"]*"', 'time=""', prompt_html)
+prompt_html = re.sub(r'\bchange="[^"]*"', 'change=""', prompt_html)
+# DAM computed label props — Claude rewrites from dam_* data each run
+prompt_html = re.sub(r'\bhotspotLabel="[^"]*"', 'hotspotLabel=""', prompt_html)
+prompt_html = re.sub(r'\bhotspotStat="[^"]*"', 'hotspotStat=""', prompt_html)
+prompt_html = re.sub(r'\bhotspotDetail="[^"]*"', 'hotspotDetail=""', prompt_html)
+prompt_html = re.sub(r'\beasingLabel="[^"]*"', 'easingLabel=""', prompt_html)
+prompt_html = re.sub(r'\beasingStat="[^"]*"', 'easingStat=""', prompt_html)
+prompt_html = re.sub(r'\beasingDetail="[^"]*"', 'easingDetail=""', prompt_html)
+prompt_html = re.sub(r'\bfreshDate="[^"]*"', 'freshDate=""', prompt_html)
+prompt_html = re.sub(r'\bsourceDate="[^"]*"', 'sourceDate=""', prompt_html)
 _prop_saved = _before_prop - len(prompt_html)
 print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} tokens).")
 
@@ -320,7 +334,7 @@ print("Phase 1: Gathering latest Bangladesh data via web search...")
 gather_resp = _stream_call(
     messages=[{"role": "user", "content": GATHER_PROMPT}],
     tools=WEB_SEARCH_TOOL,
-    max_tokens=4000,
+    max_tokens=6000,
     label="Phase 1 (data gather)",
 )
 
