@@ -350,7 +350,31 @@ if last_text:
         lines = text.split("\n")
         text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
     gathered_json = text.strip()
+
+# ── Trim gathered_json to fit Phase 2 token budget ───────────────────────────
+# gathered_json size is variable (7k–15k chars depending on Phase 1 verbosity).
+# Cap at 8,500 chars to guarantee Phase 2 stays under 30k input tokens @2.6 ch/tok.
+# Budget: ~76,000 total chars - ~65,500 prompt_html - ~2,500 framing = ~8,000 for JSON.
+_MAX_JSON = 8500
+if len(gathered_json) > _MAX_JSON:
+    print(f"Gathered JSON ({len(gathered_json):,} chars) exceeds budget ({_MAX_JSON:,}). Trimming...")
+    try:
+        import json as _json
+        _gd = _json.loads(gathered_json)
+        for _k, _v in list(_gd.items()):
+            if _k.startswith('news_') and isinstance(_v, list):
+                _gd[_k] = [str(x)[:100] for x in _v[:2]]  # max 2 headlines, 100 chars each
+            elif isinstance(_v, str) and len(_v) > 100:
+                _gd[_k] = _v[:100]                         # cap other string fields at 100 chars
+        gathered_json = _json.dumps(_gd, ensure_ascii=False)
+        print(f"  Trimmed to {len(gathered_json):,} chars.")
+    except Exception as _e:
+        print(f"  Smart trim failed ({_e}). Hard-capping at {_MAX_JSON:,} chars.")
+        gathered_json = gathered_json[:_MAX_JSON]
+
 print(f"Gathered data: {len(gathered_json):,} chars")
+_p2_est = len(prompt_html) + len(gathered_json) + 2500
+print(f"Phase 2 est: {_p2_est:,} chars (~{int(_p2_est/2.6):,} tok @2.6 ch/tok)")
 
 # ── PHASE 2: Generate updated HTML (no web search, HTML is direct output) ───────
 UPDATE_PROMPT = f"""THE BRIEF update. Today: {today} (UTC; +6 hrs = BDT).
