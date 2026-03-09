@@ -166,7 +166,8 @@ prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
 # MetricCard sub=    — Claude updates sub-labels from gathered data in UPDATE instructions.
 # Stripping old values saves tokens; Claude regenerates them from gathered_json + instructions.
 _before_prop = len(prompt_html)
-prompt_html = re.sub(r'(<BankerRead\s+text=)"[^"]{30,}"', r'\1""', prompt_html)
+prompt_html = re.sub(r'\btext="[^"]{30,}"', 'text=""', prompt_html)
+prompt_html = re.sub(r'\bheadline="[^"]{30,}"', 'headline=""', prompt_html)
 prompt_html = re.sub(r'\bdetail="[^"]{20,}"', 'detail=""', prompt_html)
 prompt_html = re.sub(r'\bsub="[^"]{20,}"', 'sub=""', prompt_html)
 # Citation / metadata props — Claude regenerates from gathered_json each run
