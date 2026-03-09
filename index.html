@@ -1216,7 +1216,7 @@ function CrossInsight({ text }) {
 }
 
 
-function BankerRead({ text }) {
+function BankerRead({ insight }) {
   return (
     <div style={{
       marginTop: 16, padding: "12px 16px",
@@ -1227,7 +1227,7 @@ function BankerRead({ text }) {
       fontSize: 12, color: "var(--text)", lineHeight: 1.75,
     }}>
       <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--accent)", letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 6 }}>Banker&apos;s Read</div>
-      <div style={{ fontStyle: "italic", color: "var(--muted)" }}>{text}</div>
+      <div style={{ fontStyle: "italic", color: "var(--muted)" }}>{insight}</div>
     </div>
   );
 }
@@ -1304,7 +1304,7 @@ function SectionBB() {
         { sentiment: "neu", headline: "BB issues priority lending circular for export-oriented industry wage payments", detail: "Bangladesh Bank issued a circular directing banks to prioritise lending to export-oriented industries for February 2026 wage and bonus payments. Around 80% of RMG factories eligible under the scheme amid financial stress from subdued orders.", source: "TBS / BB", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" },
         { sentiment: "bear", headline: "Bangladesh NPL ratio at 35.73% as of Sep 2025 — highest in history — due to strict asset classification", detail: "BB monetary policy statement confirmed NPL ratio hit 35.73% as of September 2025 under stricter IFRS-aligned classification standards. High NPLs, risk aversion, and government crowding-out are cited as primary dampeners on private credit. Some sources cite >36%. BB governor says reflects accurate accounting, not new defaults.", source: "BB / Dhaka Tribune", sourceUrl: "https://www.dhakatribune.com", time: "Feb 2026 data" }
       ]} />
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -1390,7 +1390,7 @@ function SectionMacro() {
       <div className="context-box">
         <strong>Macro Outlook:</strong> Bangladesh faces a deteriorating balancing act as of 9 March 2026. CPI inflation rebounded to <strong>9.13% headline and 9.30% food</strong> in February 2026 — reversing recent disinflation and pushing further above BB's 7% target — just as the Iran war oil shock (Brent $107.97/bbl) threatens a second wave of import-cost-driven inflation. GDP growth stands at just 3.97% in FY2025 (provisional BBS; IMF Art.IV Jan 2026 cites 3.7%; ADB projects 5.1% for FY2026). Private credit growth hit a record low of 6.10% (Dec 2025), well below the BB MPS target of 8%+. Gross forex reserves at $35.11B (26 Feb 2026; BPM6: $30.36B) provide BOP relief. NPLs at 35.73% (Sep 2025) and capital adequacy below the 10% minimum signal structural banking fragility. The MPC rate cut — signalled at ~50bps — is further complicated by the CPI uptick and oil shock.
       </div>
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -1563,7 +1563,7 @@ function SectionDSE() {
           { sentiment: "bear", headline: "DSE posts crash on 3 Mar 2026 — worst fall in six years at the time — amid Middle East geopolitical tensions", detail: "The 3 March 2026 DSEX fall of ~209 points was at the time the worst single-session loss in six years. The 9 March fall of 231.8 points has now exceeded it in scale. Both events driven by escalating Middle East geopolitical tensions following the US-Israel military operation against Iran.", source: "TBS", sourceUrl: "https://www.tbsnews.net", time: "3 Mar 2026" }
         ]} />
       </div>
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -1727,7 +1727,7 @@ function SectionTBond() {
         { sentiment: "warn", headline: "Oil shock raises upside risk to T-bill yields; rate cut timeline complicated by CPI rebound to 9.13%", detail: "The Iran war oil shock — Brent at $107.97/bbl — and the CPI rebound to 9.13% (Feb 2026) complicate the BB rate-cut timeline. If oil-driven inflation feeds through to CPI in March–April, the MPC may delay or reduce the scale of any rate cut, potentially pushing T-bill yields back above 10%.", source: "TBS / BB", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" }
       ]} />
       <TBillChart />
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -1803,7 +1803,7 @@ function SectionComm() {
         { sentiment: "bear", headline: "Natural gas rises to ~$3.33/MMBtu, up ~11% on the week; LNG spot prices climbing as Hormuz closure disrupts Gulf LNG exports from Qatar", detail: "Henry Hub natural gas prices rose to approximately $3.33/MMBtu on 9 March, up ~11% on the week, as LNG spot prices climb globally following Iran's closure of the Strait of Hormuz — disrupting Qatar's massive LNG export programme (QatarEnergy halted its LNG export facility after an Iranian drone attack). For Bangladesh: spot LNG procurement costs are escalating sharply.", source: "Business Standard", sourceUrl: "https://www.business-standard.com", time: "9 Mar 2026" },
         { sentiment: "warn", headline: "BAJUS gold price for 9 Mar 2026 not yet confirmed; international gold surging on Iran war safe-haven demand — expect significant upward revision from ~Tk 2,68,214", detail: "BAJUS (Bangladesh Jewellers Association) 22-carat gold price for 9 March 2026 has not yet been publicly confirmed in available data. Prior rate: Tk 2,68,214/bhori (effective 4 March, unchanged through 8 March). Given the sharp rally in international gold prices driven by Iran war safe-haven demand, a significant upward BAJUS revision is expected on 9 March. Monitor bajus.org for update.", source: "BAJUS", sourceUrl: "https://bajus.org", time: "9 Mar 2026 (pending)" }
       ]} />
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -1876,7 +1876,7 @@ function SectionFX() {
         { sentiment: "bull", headline: "Taka-dollar rate stable at 122.44 (BB WAR, 8 Mar 2026) under market-based exchange rate regime", detail: "The USD/BDT rate has remained stable near 122.40–122.45 under Bangladesh's market-based exchange rate regime. BB confirmed the WAR (Weighted Average Rate) at 122.4388 as of 8 March 2026, with the range narrowly contained at 122.35–122.45. The stability reflects improved supply from remittances ($22.45B cumulative Jul–Feb FY26, +21.4% YoY) and reduced speculative pressure.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "8 Mar 2026" },
         { sentiment: "warn", headline: "Iran war oil shock threatens Bangladesh's import bill and BOP stability; analysts warn of renewed BDT pressure if oil stays above $100/bbl", detail: "Economists and BB officials warn the Iran war oil shock — Brent at $107.97/bbl — will significantly widen Bangladesh's trade deficit through higher fuel import costs. Maersk has suspended Gulf-Bangladesh bookings; Biman suspended 6 Middle East routes. If oil stays above $100/bbl for an extended period, the current account may swing negative and USD/BDT rate could face significant upward pressure despite current stability.", source: "TBS / BB", sourceUrl: "https://www.tbsnews.net", time: "9 Mar 2026" }
       ]} />
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -1951,7 +1951,7 @@ function SectionRemittance() {
         { sentiment: "bull", headline: "Hundi operators linked to previous government largely absent post-Aug 2024; formal remittance channel dominance continues to boost inflows", detail: "Informal hundi operators associated with the previous government have been largely absent from the market following the political transition in August 2024. The resulting dominance of formal banking and mobile financial service channels has been cited by economists as a structural driver of the 21%+ YoY remittance surge in FY26.", source: "TBS", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" },
         { sentiment: "warn", headline: "Economists warn Middle East conflict could weigh on remittance inflows in coming months as Bangladesh workers in Gulf face uncertainty", detail: "Economists and BB officials have flagged that the US-Iran war and disruption to Gulf economies — Iraq output cut, UAE military activity, Qatar LNG disruption — could significantly reduce future remittance inflows. Bangladesh's approximately 12 million overseas workers in Gulf countries sent approximately $27 billion in FY2024. A prolonged conflict could unwind the record FY26 remittance trend and pressure forex reserves.", source: "Daily Star / TBS", sourceUrl: "https://www.thedailystar.net", time: "Mar 2026" }
       ]} />
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -2018,7 +2018,7 @@ function SectionBanking() {
         { sentiment: "neu", headline: "Five-bank merger to continue seamlessly, says new BB Governor; BB allows continuous loan renewal with 3-month window", detail: "BB confirmed the five-bank consolidation plan will continue without disruption under Governor Mostakur Rahman. BB also issued a BRPD circular allowing banks to renew continuous loans before they formally classify as default, providing a 3-month window for borrowers to restructure. The move aims to reduce NPL formation, though critics warn it may delay recognition of underlying credit deterioration.", source: "BB Circular / TBS", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" },
         { sentiment: "neu", headline: "BB issues BRPD circular on loan facility for export-oriented industries' worker salaries/allowances", detail: "Bangladesh Bank issued a BRPD circular directing banks to provide loan facilities to export-oriented industries specifically for the payment of worker salaries and allowances for February 2026, covering Ramadan/Eid bonuses. Around 80% of RMG factories are eligible under the scheme amid financial stress from subdued orders.", source: "BB BRPD / TBS", sourceUrl: "https://www.bb.org.bd", time: "Mar 2026" }
       ]} />
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -2077,7 +2077,7 @@ function SectionTariff() {
         { sentiment: "bull", headline: "Bangladesh apparel sector targets additional $5B in US exports — industry sees competitive edge over India via zero-duty US-cotton channel", detail: "Mohiuddin Rubel (Denim Expert): zero-duty upside larger than the tariff cut itself. Kutubuddin Ahmed (Envoy Textiles): US cotton slightly more expensive but trade benefits compensate. Former BGMEA President Faruque Hassan: 'Modest but significant.'", source: "Apparel Resources / MKMA", sourceUrl: "https://apparelresources.com/business-news/trade-business-news/bangladesh-apparel-sector-aims-additional-us-5-billion-us-exports-following-us-deal/", time: "Feb 25, 2026" },
         { sentiment: "warn", headline: "BGMEA warns double squeeze: fuel cost inflation from Iran war compounds US ART input-sourcing burden — RMG margins at risk", detail: "RMG sector accounts for 85%+ of total exports and employs ~4M workers. Higher energy costs inflate electricity tariffs, transport, and factory operations. BGMEA flagged the combination of fuel cost inflation, US-cotton sourcing requirements for ART zero-duty channel, and EU FTA preference erosion as compounding pressures.", source: "BGMEA / Pressenza", sourceUrl: "https://www.pressenza.com/2026/03/middle-east-war-could-disrupt-bangladeshs-energy-exports-and-worker-incomes/", time: "Mar 2026" }
       ]} />
-<BankerRead text="The US tariff pause gives Bangladesh’s RMG exporters a temporary reprieve, but the 90-day window is not a cure — buyers are already diversifying sourcing to Vietnam and India. Review your working capital lines to export-oriented RMG borrowers: utilization rates will spike as they rush to front-load orders. Flag any borrower with >40% US export concentration for enhanced monitoring." />
+<BankerRead insight="The US tariff pause gives Bangladesh’s RMG exporters a temporary reprieve, but the 90-day window is not a cure — buyers are already diversifying sourcing to Vietnam and India. Review your working capital lines to export-oriented RMG borrowers: utilization rates will spike as they rush to front-load orders. Flag any borrower with >40% US export concentration for enhanced monitoring." />
     </div>
   );
 }
@@ -2145,7 +2145,7 @@ function SectionTrade() {
         { sentiment: "neu", headline: "Bangladesh strikes US wheat deal to ease tariff pressure; cumulative FY26 exports at $28.41B (−1.93% YoY Jul–Jan)", detail: "Bangladesh struck a deal to import US wheat in an effort to ease tariff pressure from the Trump administration amid concerns over retaliatory measures against Bangladesh's garment exports. Total exports in January 2026 were $4.42B (essentially flat, −0.2% YoY). Jul–Jan FY26 cumulative: $28.41B vs $28.97B prior year (−1.93% YoY).", source: "MoC / EPB / TBS", sourceUrl: "https://www.tbsnews.net", time: "Feb–Mar 2026" },
         { sentiment: "warn", headline: "Iran war disrupts Gulf trade routes; Bangladesh import supply chains at risk as Maersk suspends Gulf bookings", detail: "The US-Iran war and Strait of Hormuz closure has disrupted Gulf trade routes that Bangladesh relies on for fuel imports, raw materials, and food commodities. Maersk has suspended new bookings between Bangladesh and the Gulf region; freight costs on remaining routes are surging. Bangladesh's import bill faces major upward pressure beyond just the oil price spike.", source: "TBS / Maersk", sourceUrl: "https://www.tbsnews.net", time: "9 Mar 2026" }
       ]} />
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -2313,7 +2313,7 @@ function SectionIranWar() {
 
       <OilChart />
 
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -2364,7 +2364,7 @@ function SectionExec() {
           ))}
         </div>
       </div>
-<BankerRead text="" />
+<BankerRead insight="" />
     </div>
   );
 }
@@ -2435,7 +2435,7 @@ function SectionDAM() {
           ))}
         </tbody>
       </table>
-<BankerRead text="Fuel price hikes directly compress the working capital cycle of every transport-dependent borrower — garments, ceramics, steel, logistics. Identify your top 20 exposures with fuel as a major input cost and run a 15% fuel-cost-increase stress test on their DSCR now. The fuel subsidy burden also crowds out BB’s fiscal space for credit-supportive measures." />
+<BankerRead insight="Fuel price hikes directly compress the working capital cycle of every transport-dependent borrower — garments, ceramics, steel, logistics. Identify your top 20 exposures with fuel as a major input cost and run a 15% fuel-cost-increase stress test on their DSCR now. The fuel subsidy burden also crowds out BB’s fiscal space for credit-supportive measures." />
     </div>
   );
 }
@@ -2480,7 +2480,7 @@ function SectionRMG() {
       <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: "var(--text)", marginBottom: 12 }}>
         <strong style={{ color: "var(--warn)" }}>⚠ Order pipeline: SOFTENING</strong> — EU buyers cautious on LDC graduation tariff risk; US buyers diversifying sourcing to Vietnam post-tariff uncertainty.
       </div>
-      <BankerRead text="RMG export weakness is now structural, not cyclical — seven consecutive months of YoY decline signals buyer diversification is accelerating. Banks with concentrated RMG exposure should stress-test for a sustained 10–15% revenue decline scenario. Working capital rollover requests from mid-tier RMG borrowers will rise through Q2; tighten collateral coverage requirements now before the refinancing cycle begins." />
+      <BankerRead insight="RMG export weakness is now structural, not cyclical — seven consecutive months of YoY decline signals buyer diversification is accelerating. Banks with concentrated RMG exposure should stress-test for a sustained 10–15% revenue decline scenario. Working capital rollover requests from mid-tier RMG borrowers will rise through Q2; tighten collateral coverage requirements now before the refinancing cycle begins." />
     </div>
   );
 }
@@ -2522,7 +2522,7 @@ function SectionFiscal() {
           <div style={{ fontSize: 10, color: "var(--muted)" }}>{b.note}</div>
         </div>
       ))}
-      <BankerRead text="Severe revenue underperformance (74% of NBR target unmet at mid-year) combined with high government bank borrowing (74% of ceiling already used by February) signals a fiscal squeeze ahead. Treasury desks should expect crowding-out pressure to persist — government borrowing will dominate the T-bill/bond market through Q4. Lending to government-linked contractors may face delayed payment risk as ADP disbursements stall." />
+      <BankerRead insight="Severe revenue underperformance (74% of NBR target unmet at mid-year) combined with high government bank borrowing (74% of ceiling already used by February) signals a fiscal squeeze ahead. Treasury desks should expect crowding-out pressure to persist — government borrowing will dominate the T-bill/bond market through Q4. Lending to government-linked contractors may face delayed payment risk as ADP disbursements stall." />
     </div>
   );
 }
@@ -2565,7 +2565,7 @@ function SectionNBR() {
           </div>
         ))}
       </div>
-      <BankerRead text="NBR's 26% collection rate at mid-year signals a ৳380B+ shortfall vs required run-rate — the government will likely seek emergency VAT administrative measures or supplementary tax enforcement in H2. Banks should anticipate heavier government borrowing and potential retrospective tax audits on large corporates. Corporate banking clients with pending tax disputes should be flagged for provision review." />
+      <BankerRead insight="NBR's 26% collection rate at mid-year signals a ৳380B+ shortfall vs required run-rate — the government will likely seek emergency VAT administrative measures or supplementary tax enforcement in H2. Banks should anticipate heavier government borrowing and potential retrospective tax audits on large corporates. Corporate banking clients with pending tax disputes should be flagged for provision review." />
     </div>
   );
 }
@@ -2604,7 +2604,7 @@ function SectionPower() {
       <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: "var(--text)", marginBottom: 12 }}>
         <strong style={{ color: "var(--warn)" }}>Iran-war oil spike compounds the crisis</strong> — LNG and fuel oil import costs rising sharply, widening BPDB's deficit and threatening industrial load-shedding schedules that manufacturers rely on for production planning.
       </div>
-      <BankerRead text="Power sector stress cascades directly into industrial loan quality. Manufacturers running captive generators at $14+/MMBtu LNG face 8–12% cost inflation on energy alone — stress-test your manufacturing sector borrowers' EBITDA margins accordingly. BPDB's mounting losses (fully govt backstopped) are consuming fiscal space that would otherwise support credit-easing policy, so expect the high-rate environment to persist longer than the MPC's guidance implies." />
+      <BankerRead insight="Power sector stress cascades directly into industrial loan quality. Manufacturers running captive generators at $14+/MMBtu LNG face 8–12% cost inflation on energy alone — stress-test your manufacturing sector borrowers' EBITDA margins accordingly. BPDB's mounting losses (fully govt backstopped) are consuming fiscal space that would otherwise support credit-easing policy, so expect the high-rate environment to persist longer than the MPC's guidance implies." />
     </div>
   );
 }
@@ -2643,7 +2643,7 @@ function SectionPeers() {
         </table>
       </div>
       <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 12 }}>Sources: IMF WEO, World Bank, central bank data. GDP growth = latest full-year estimate. CPI = latest YoY. FX Reserves = latest reported. CAB = current account balance % GDP.</div>
-      <BankerRead text="Bangladesh's CPI at 9.94% is the highest in this peer group by a wide margin, reinforcing why BB cannot cut rates as aggressively as the MPC's tone implies. Vietnam's combination of 6.8% GDP growth, 3.6% CPI and $103B reserves illustrates why RMG buyers are accelerating sourcing diversification there. The peer table is a client conversation tool: use it with corporate treasury clients to frame Bangladesh's relative risk-reward position when competing for FDI or correspondent banking relationships." />
+      <BankerRead insight="Bangladesh's CPI at 9.94% is the highest in this peer group by a wide margin, reinforcing why BB cannot cut rates as aggressively as the MPC's tone implies. Vietnam's combination of 6.8% GDP growth, 3.6% CPI and $103B reserves illustrates why RMG buyers are accelerating sourcing diversification there. The peer table is a client conversation tool: use it with corporate treasury clients to frame Bangladesh's relative risk-reward position when competing for FDI or correspondent banking relationships." />
     </div>
   );
 }

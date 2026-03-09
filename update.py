@@ -161,7 +161,9 @@ def strip_js_render(html):
 prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
 
 # ── Strip long data prop values to stay under 30k input-token rate limit ─────────
-# BankerRead text=   — Claude writes fresh analytical text from gathered JSON each day.
+# BankerRead insight= — NOT stripped (prop renamed from text= to insight=).
+#   Claude sees existing analytical commentary and can update it if today's data
+#   changes materially; otherwise it persists unchanged.
 # NewsItem detail=   — Claude writes fresh headlines; old detail values not needed.
 # MetricCard sub=    — Claude updates sub-labels from gathered data in UPDATE instructions.
 # Stripping old values saves tokens; Claude regenerates them from gathered_json + instructions.
@@ -461,6 +463,7 @@ OilChart: remove old today:true, append{{label:"Mar 7",value:brent_spot,today:tr
 SectionExec: WRITE 5 fresh bullets (bull📈/bear📉/warn⚠️/watch🔭). Cover: reserves+remittance, exports, oil/geopolitics, market/rates, outlook. Update events calendar. trafficStatus(bull/bear/warn/neu).
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
+BankerRead: Each section has <BankerRead insight="..." /> — the insight= prop is NOT stripped, so the previous text is visible. Update it only if today's gathered data represents a material change for that section; otherwise leave it EXACTLY as-is.
 
 OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
 
