@@ -2448,18 +2448,205 @@ function SectionRMG() {
     { country: "Canada", pct: 4, color: "var(--neutral)" },
     { country: "Others", pct: 12, color: "var(--muted)" },
   ];
-
+  return (
+    <div id="rmg" style={{ marginBottom: 48 }}>
+      <SectionHeader num="11" title="RMG & Apparel Export" icon="👕" status="warn" label="Softening" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 8, marginBottom: 12 }}>
+        {[
+          { label: "Feb RMG Exports", val: "$2.81B", sub: "YoY: -13.21%", type: "bear" },
+          { label: "Jul–Feb FY26 RMG", val: "$24.1B", sub: "YoY: -4.2%", type: "bear" },
+          { label: "BGMEA Factories", val: "3,500+", sub: "4.2M workers", type: "neu" },
+          { label: "EU Share", val: "57%", sub: "Largest buyer bloc", type: "neu" },
+        ].map(c => (
+          <div key={c.label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 12px" }}>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 4 }}>{c.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>{c.val}</div>
+            <div style={{ fontSize: 11, color: c.type === "bear" ? "var(--bear)" : "var(--muted)", marginTop: 2 }}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "12px 16px", marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8 }}>EXPORT MARKET BREAKDOWN</div>
+        {markets.map(m => (
+          <div key={m.country} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 48, fontSize: 11, color: "var(--muted)", flexShrink: 0 }}>{m.country}</div>
+            <div style={{ flex: 1, background: "var(--bg)", borderRadius: 3, height: 10, overflow: "hidden" }}>
+              <div style={{ width: `${m.pct}%`, background: m.color, height: "100%", borderRadius: 3 }} />
+            </div>
+            <div style={{ width: 32, fontSize: 11, fontWeight: 700, color: "var(--text)", textAlign: "right" }}>{m.pct}%</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: "var(--text)", marginBottom: 12 }}>
+        <strong style={{ color: "var(--warn)" }}>⚠ Order pipeline: SOFTENING</strong> — EU buyers cautious on LDC graduation tariff risk; US buyers diversifying sourcing to Vietnam post-tariff uncertainty.
+      </div>
+      <BankerRead text="RMG export weakness is now structural, not cyclical — seven consecutive months of YoY decline signals buyer diversification is accelerating. Banks with concentrated RMG exposure should stress-test for a sustained 10–15% revenue decline scenario. Working capital rollover requests from mid-tier RMG borrowers will rise through Q2; tighten collateral coverage requirements now before the refinancing cycle begins." />
+    </div>
+  );
 }
 
-// [SECTIONRMG_PLACEHOLDER — restored automatically]
+function SectionFiscal() {
+  const adpPct = 22.5;
+  const nbrPct = 26;
+  const borrowPct = Math.round(102500 / 137500 * 100);
+  return (
+    <div id="fiscal" style={{ marginBottom: 48 }}>
+      <SectionHeader num="12" title="Fiscal & Budget" icon="💰" status="warn" label="Lagging" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 8, marginBottom: 12 }}>
+        {[
+          { label: "FY26 Revenue Target", val: "৳7.97T", sub: "Full year", type: "neu" },
+          { label: "NBR Jul–Jan Collection", val: "৳2.08T", sub: "26% of target", type: "bear" },
+          { label: "ADP Utilisation", val: "22.5%", sub: "Jul–Jan FY26", type: "bear" },
+          { label: "Fiscal Deficit Target", val: "5.0%", sub: "of GDP", type: "neu" },
+        ].map(c => (
+          <div key={c.label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 12px" }}>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 4 }}>{c.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>{c.val}</div>
+            <div style={{ fontSize: 11, color: c.type === "bear" ? "var(--bear)" : "var(--muted)", marginTop: 2 }}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+      {[
+        { label: "NBR Collection vs Target", pct: nbrPct, color: "var(--bear)", note: "৳2.08T of ৳7.97T" },
+        { label: "ADP Utilisation", pct: adpPct, color: "var(--warn)", note: "৳64,440cr of ৳2.85L cr" },
+        { label: "Govt Bank Borrowing", pct: borrowPct, color: "var(--warn)", note: "৳1.025L cr of ৳1.375L cr ceiling" },
+      ].map(b => (
+        <div key={b.label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 14px", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 6 }}>
+            <span style={{ color: "var(--muted)" }}>{b.label}</span>
+            <span style={{ fontWeight: 700, color: b.color }}>{b.pct}%</span>
+          </div>
+          <div style={{ background: "var(--bg)", borderRadius: 4, height: 8, overflow: "hidden", marginBottom: 4 }}>
+            <div style={{ width: `${b.pct}%`, background: b.color, height: "100%", borderRadius: 4 }} />
+          </div>
+          <div style={{ fontSize: 10, color: "var(--muted)" }}>{b.note}</div>
+        </div>
+      ))}
+      <BankerRead text="Severe revenue underperformance (74% of NBR target unmet at mid-year) combined with high government bank borrowing (74% of ceiling already used by February) signals a fiscal squeeze ahead. Treasury desks should expect crowding-out pressure to persist — government borrowing will dominate the T-bill/bond market through Q4. Lending to government-linked contractors may face delayed payment risk as ADP disbursements stall." />
+    </div>
+  );
+}
 
-// [SECTIONFISCAL_PLACEHOLDER — restored automatically]
+function SectionNBR() {
+  const components = [
+    { label: "VAT", val: "৳810B", pct: 39, yoy: "+12%", color: "var(--accent)" },
+    { label: "Income Tax", val: "৳680B", pct: 33, yoy: "+8%", color: "var(--bull)" },
+    { label: "Customs Duty", val: "৳590B", pct: 28, yoy: "-3%", color: "var(--bear)" },
+  ];
+  return (
+    <div id="nbr" style={{ marginBottom: 48 }}>
+      <SectionHeader num="13" title="NBR Tax Revenue" icon="🧾" status="bear" label="Behind Target" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 8, marginBottom: 12 }}>
+        {[
+          { label: "Jul–Jan Collection", val: "৳2.08T", sub: "FY26", type: "neu" },
+          { label: "Annual Target", val: "৳7.97T", sub: "FY26", type: "neu" },
+          { label: "Progress vs Target", val: "26%", sub: "Severely lagging", type: "bear" },
+          { label: "Gap vs Target Pace", val: "৳380B", sub: "Behind required run-rate", type: "bear" },
+        ].map(c => (
+          <div key={c.label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 12px" }}>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 4 }}>{c.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>{c.val}</div>
+            <div style={{ fontSize: 11, color: c.type === "bear" ? "var(--bear)" : "var(--muted)", marginTop: 2 }}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "12px 16px", marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 10 }}>REVENUE BREAKDOWN</div>
+        {components.map(c => (
+          <div key={c.label} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+              <span style={{ color: "var(--text)", fontWeight: 600 }}>{c.label}</span>
+              <span>{c.val} <span style={{ color: c.yoy.startsWith("+") ? "var(--bull)" : "var(--bear)", fontWeight: 700 }}>{c.yoy}</span></span>
+            </div>
+            <div style={{ background: "var(--bg)", borderRadius: 3, height: 8, overflow: "hidden" }}>
+              <div style={{ width: `${c.pct}%`, background: c.color, height: "100%", borderRadius: 3 }} />
+            </div>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{c.pct}% of total collection</div>
+          </div>
+        ))}
+      </div>
+      <BankerRead text="NBR's 26% collection rate at mid-year signals a ৳380B+ shortfall vs required run-rate — the government will likely seek emergency VAT administrative measures or supplementary tax enforcement in H2. Banks should anticipate heavier government borrowing and potential retrospective tax audits on large corporates. Corporate banking clients with pending tax disputes should be flagged for provision review." />
+    </div>
+  );
+}
 
-// [SECTIONNBR_PLACEHOLDER — restored automatically]
+function SectionPower() {
+  return (
+    <div id="power" style={{ marginBottom: 48 }}>
+      <SectionHeader num="14" title="Power & Energy" icon="⚡" status="warn" label="Strained" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 8, marginBottom: 12 }}>
+        {[
+          { label: "Installed Capacity", val: "28,514 MW", sub: "Total nameplate", type: "neu" },
+          { label: "Avg Daily Generation", val: "13,200 MW", sub: "vs 15,800 MW demand", type: "warn" },
+          { label: "Power Shortage", val: "2,600 MW", sub: "Daily gap", type: "bear" },
+          { label: "BPDB Annual Loss", val: "৳52,000cr", sub: "FY25, govt subsidised", type: "bear" },
+        ].map(c => (
+          <div key={c.label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 12px" }}>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 4 }}>{c.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>{c.val}</div>
+            <div style={{ fontSize: 11, color: c.type === "bear" ? "var(--bear)" : c.type === "warn" ? "var(--warn)" : "var(--muted)", marginTop: 2 }}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+        {[
+          { label: "Load Shedding (Rural)", val: "3–4 hrs/day" },
+          { label: "Load Shedding (Urban)", val: "1–2 hrs/day" },
+          { label: "LNG Import Cost", val: "$12–14/MMBtu" },
+          { label: "Coal Dependency", val: "60% of thermal" },
+        ].map(s => (
+          <div key={s.label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 12px" }}>
+            <div style={{ fontSize: 10, color: "var(--muted)" }}>{s.label}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--warn)", marginTop: 2 }}>{s.val}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: "var(--text)", marginBottom: 12 }}>
+        <strong style={{ color: "var(--warn)" }}>Iran-war oil spike compounds the crisis</strong> — LNG and fuel oil import costs rising sharply, widening BPDB's deficit and threatening industrial load-shedding schedules that manufacturers rely on for production planning.
+      </div>
+      <BankerRead text="Power sector stress cascades directly into industrial loan quality. Manufacturers running captive generators at $14+/MMBtu LNG face 8–12% cost inflation on energy alone — stress-test your manufacturing sector borrowers' EBITDA margins accordingly. BPDB's mounting losses (fully govt backstopped) are consuming fiscal space that would otherwise support credit-easing policy, so expect the high-rate environment to persist longer than the MPC's guidance implies." />
+    </div>
+  );
+}
 
-// [SECTIONPOWER_PLACEHOLDER — restored automatically]
-
-// [SECTIONPEERS_PLACEHOLDER — restored automatically]
+function SectionPeers() {
+  const peers = [
+    { country: "Bangladesh", flag: "🇧🇩", gdp: "5.17%", cpi: "9.94%", fxr: "$30.3B", cab: "-0.7%", rating: "B+/BB-", highlight: true },
+    { country: "India",      flag: "🇮🇳", gdp: "6.4%",  cpi: "4.3%",  fxr: "$638B",  cab: "-1.0%", rating: "BBB-",   highlight: false },
+    { country: "Vietnam",    flag: "🇻🇳", gdp: "6.8%",  cpi: "3.6%",  fxr: "$103B",  cab: "+4.2%", rating: "BB+",    highlight: false },
+    { country: "Pakistan",   flag: "🇵🇰", gdp: "2.8%",  cpi: "23.0%", fxr: "$11.7B", cab: "-0.8%", rating: "CCC+",   highlight: false },
+    { country: "Sri Lanka",  flag: "🇱🇰", gdp: "4.5%",  cpi: "4.1%",  fxr: "$6.1B",  cab: "-2.1%", rating: "B-",     highlight: false },
+  ];
+  const cols = ["GDP Gr.", "CPI", "FX Res.", "CAB", "Rating"];
+  const keys = ["gdp", "cpi", "fxr", "cab", "rating"];
+  return (
+    <div id="peers" style={{ marginBottom: 48 }}>
+      <SectionHeader num="15" title="Regional Peers" icon="🌏" status="neu" label="Comparative" />
+      <div style={{ overflowX: "auto", marginBottom: 12 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: "var(--surface)" }}>
+              <th style={{ padding: "8px 10px", textAlign: "left", color: "var(--muted)", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>Country</th>
+              {cols.map(c => <th key={c} style={{ padding: "8px 10px", textAlign: "right", color: "var(--muted)", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {peers.map(p => (
+              <tr key={p.country} style={{ background: p.highlight ? "rgba(59,130,246,0.06)" : "transparent", borderBottom: "1px solid var(--border)" }}>
+                <td style={{ padding: "8px 10px", fontWeight: p.highlight ? 700 : 400, color: "var(--text)" }}>{p.flag} {p.country}</td>
+                {keys.map(k => (
+                  <td key={k} style={{ padding: "8px 10px", textAlign: "right", color: "var(--text)", fontWeight: p.highlight ? 700 : 400 }}>{p[k]}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 12 }}>Sources: IMF WEO, World Bank, central bank data. GDP growth = latest full-year estimate. CPI = latest YoY. FX Reserves = latest reported. CAB = current account balance % GDP.</div>
+      <BankerRead text="Bangladesh's CPI at 9.94% is the highest in this peer group by a wide margin, reinforcing why BB cannot cut rates as aggressively as the MPC's tone implies. Vietnam's combination of 6.8% GDP growth, 3.6% CPI and $103B reserves illustrates why RMG buyers are accelerating sourcing diversification there. The peer table is a client conversation tool: use it with corporate treasury clients to frame Bangladesh's relative risk-reward position when competing for FDI or correspondent banking relationships." />
+    </div>
+  );
+}
 
 
 function App() {
