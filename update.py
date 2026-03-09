@@ -23,18 +23,31 @@ with open("the-brief.html", "r", encoding="utf-8") as f:
 today = datetime.utcnow().strftime("%A %d %B %Y").upper()
 
 # ── Strip CSS to stay under rate-limit (Claude is told not to touch CSS anyway) ─
+# ── Strip <head> block (CDN scripts, PWA tags, meta) — Claude never touches these ─
+# Saves ~600 chars and guarantees PWA manifest/SW/apple tags are never lost.
+# The <title> is inside but Claude updates BRIEF_DATE via the JS constant, not <title>.
+_head_match = re.search(r'(<head>)(.*?)(</head>)', current_html, re.DOTALL)
+if _head_match:
+    _head_block   = _head_match.group(0)
+    _head_placeholder = "<head><!-- HEAD_PLACEHOLDER — restored automatically --></head>"
+    prompt_html   = current_html.replace(_head_block, _head_placeholder, 1)
+    print(f"Head stripped: {len(_head_block):,} chars saved (~{len(_head_block)//3:,} tokens).")
+else:
+    prompt_html   = current_html
+    _head_block   = None
+    print("Warning: no <head> block found.")
+
 # Extract and stash the <style>...</style> block; replace with a tiny placeholder.
 # We'll re-inject it into whatever HTML Claude returns.
-_css_match = re.search(r'(<style>)(.*?)(</style>)', current_html, re.DOTALL)
+_css_match = re.search(r'(<style>)(.*?)(</style>)', prompt_html, re.DOTALL)
 if _css_match:
     _css_block   = _css_match.group(0)          # full <style>...</style>
     _css_content = _css_match.group(2)           # just the CSS text
     _placeholder = "<style>/* CSS_PLACEHOLDER — restored automatically */</style>"
-    prompt_html  = current_html.replace(_css_block, _placeholder, 1)
+    prompt_html  = prompt_html.replace(_css_block, _placeholder, 1)
     print(f"CSS stripped: {len(_css_content):,} chars saved from prompt "
           f"(~{len(_css_content)//3:,} tokens).")
 else:
-    prompt_html  = current_html
     _css_block   = None
     print("Warning: no <style> block found — sending full HTML.")
 
@@ -435,6 +448,7 @@ CURRENT HTML (pass all placeholder comments through UNCHANGED):
 </current_file>
 
 REQUIRED PLACEHOLDERS — copy EXACTLY:
+  <head><!-- HEAD_PLACEHOLDER — restored automatically --></head>
   <style>/* CSS_PLACEHOLDER — restored automatically */</style>
   // [COMPONENTS_PLACEHOLDER — restored automatically]
   // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
@@ -501,6 +515,21 @@ if not updated_html:
         btext = getattr(block, "text", "")[:300] if btype == "text" else ""
         print(f"  [{i}] type={btype} {btext!r}")
     sys.exit(1)
+
+# ── Restore <head> block (PWA tags, CDN scripts, meta) ─────────────────────────
+if _head_block and "HEAD_PLACEHOLDER" in updated_html:
+    updated_html = updated_html.replace(
+        "<head><!-- HEAD_PLACEHOLDER — restored automatically --></head>",
+        _head_block, 1)
+    print("Head block restored.")
+elif _head_block:
+    # Fallback: splice original head into Claude's output
+    _hm = re.search(r'<head>.*?</head>', updated_html, re.DOTALL)
+    if _hm:
+        updated_html = updated_html[:_hm.start()] + _head_block + updated_html[_hm.end():]
+        print("Head block fallback-restored (placeholder missing).")
+    else:
+        print("Warning: could not restore <head> block.")
 
 # ── Restore CSS block ──────────────────────────────────────────────────────────
 if _css_block and "CSS_PLACEHOLDER" in updated_html:
