@@ -1215,6 +1215,22 @@ function CrossInsight({ text }) {
   );
 }
 
+
+function BankerRead({ text }) {
+  return (
+    <div style={{
+      marginTop: 16, padding: "12px 16px",
+      background: "rgba(59,130,246,0.05)",
+      border: "1px solid rgba(59,130,246,0.20)",
+      borderLeft: "4px solid var(--accent)",
+      borderRadius: "0 6px 6px 0",
+      fontSize: 12, color: "var(--text)", lineHeight: 1.75,
+    }}>
+      <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--accent)", letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 6 }}>Banker&apos;s Read</div>
+      <div style={{ fontStyle: "italic", color: "var(--muted)" }}>{text}</div>
+    </div>
+  );
+}
 function ProgressBar({ pct, type, label, subLabel }) {
   return (
     <div>
@@ -1287,6 +1303,7 @@ function SectionBB() {
         { sentiment: "neu", headline: "BB issues priority lending circular for export-oriented industry wage payments", detail: "Bangladesh Bank issued a circular directing banks to prioritise lending to export-oriented industries for February 2026 wage and bonus payments. Around 80% of RMG factories eligible under the scheme amid financial stress from subdued orders.", source: "TBS / BB", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" },
         { sentiment: "bear", headline: "Bangladesh NPL ratio exceeds 36% as of Sep 2025 — highest in history — due to strict asset classification", detail: "BB monetary policy statement confirmed NPL ratio exceeded 36% as of September 2025 under stricter IFRS-aligned classification standards. High NPLs, risk aversion, and government crowding-out are cited as primary dampeners on private credit.", source: "BB / Dhaka Tribune", sourceUrl: "https://www.dhakatribune.com", time: "Feb 2026 data" }
       ]} />
+<BankerRead text="The NPL ratio at 36%+ and CAR below 10% means the entire banking system is undercapitalized — every credit decision carries systemic risk that isn't priced. Before welcoming a rate cut, model the NIM compression against your existing NPL provisions: a 50bps cut helps borrowers but squeezes the margin you need to absorb rising defaults. Flag your five largest restructured accounts for immediate stress-testing at $104/bbl fuel costs — these are the exposures most likely to re-default in H2 FY26." />
     </div>
   );
 }
@@ -1372,6 +1389,7 @@ function SectionMacro() {
       <div className="context-box">
         <strong>Macro Outlook:</strong> Bangladesh faces a challenging balancing act — CPI inflation (8.58% headline, 8.29% food, Jan 2026) remains stubbornly above the BB 7% target while GDP growth stands at just 3.97% in FY2025 (provisional BBS). The MPC meeting of 4 March was postponed amid an MPC member resignation, though the Governor has signalled a ~50bps cut. Gross forex reserves at $35.2B (Dec 2025) provide balance-of-payments relief, but NPLs at 36%+ (Sep 2025) and capital adequacy below the 10% minimum signal structural banking fragility. The Iran war oil shock — Brent at $104/bbl and rising — represents the single biggest upside inflation risk for the remainder of FY26. World Bank FY26 GDP forecast: 4.8%; IMF: 6.5%.
       </div>
+<BankerRead text="GDP at 3.97% with CPI at 8.58% and an oil shock is the stagflation setup — the worst combination for bank balance sheets because rate relief and credit demand move in opposite directions. Tighten provisioning on consumer and energy-intensive SME exposures now, before the $104/bbl import cost pass-through hits Q2 repayment capacity. Flag the next BBS CPI release as your single most important data point for rate-cut timing, loan growth targets, and provisioning adequacy." />
     </div>
   );
 }
@@ -1464,7 +1482,7 @@ function DSEXChart() {
         <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−209pts · Mar 3</text>
 
         {/* Today label */}
-        <text x={cx(todayIdx) - 6} y={cy(data[todayIdx].value) - 14} fill="var(--bear)" fontSize="10" textAnchor="end" fontWeight="700">5,554</text>
+        <text x={cx(todayIdx) - 6} y={cy(data[todayIdx].value) - 14} fill="var(--bear)" fontSize="10" textAnchor="end" fontWeight="700">5,008</text>
         <text x={cx(todayIdx) - 6} y={cy(data[todayIdx].value) - 3}  fill="var(--bear)" fontSize="9"  textAnchor="end">TODAY</text>
 
         {/* Dots */}
@@ -1543,6 +1561,7 @@ function SectionDSE() {
           { sentiment: "neu", headline: "UNILEVERCL price limit lifted on 8 Mar 2026 following corporate declaration", detail: "Bangladesh Securities and Exchange Commission lifted the price limit on Unilever Consumer Care Ltd (UNILEVERCL) shares effective 8 March 2026, following a corporate announcement. The stock had been trading under restriction after a major price movement.", source: "DSE / BSEC", sourceUrl: "https://www.dsebd.org", time: "8 Mar 2026" }
         ]} />
       </div>
+<BankerRead text="A 231-point single-day crash is a liquidity event, not just a price event — your institutional clients with equity-backed collateral may face margin calls this week, triggering forced selling that deepens the trough. Review all loans secured against listed securities and set a floor trigger at DSEX 4,800 for automatic credit review. BATBC's 67% profit collapse is a consumer spending signal — monitor FMCG-sector borrowers for receivables stress in the next reporting cycle." />
     </div>
   );
 }
@@ -1575,213 +1594,72 @@ function TBillChart() {
   const bpBw = 112, bpBh = 22;
   const bpBx = bpX - bpBw - 8, bpBy = bpY - bpBh - 16;
 
-    return (
-    <div>
-      {/* Header */}
-      <header className="header">
-        <div className="header-left">
-          <div className="brand">THE <span>BRIEF</span></div>
-          <div className="tagline">Bangladesh Business Intelligence</div>
-        </div>
-        <div className="header-right">
-          <div className="date-stamp">{BRIEF_DATE}</div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, marginTop: 6 }}>
-            <button className="subscribe-btn" onClick={() => setShowSubscribe(true)}>
-              ✉ Subscribe
-            </button>
-            <button className="theme-toggle" onClick={() => setDark(d => !d)}>
-              {dark ? "☀ Light" : "☾ Dark"}
-            </button>
-          </div>
-        </div>
-      </header>
+      return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
 
-      {/* Nav */}
-      <nav className="nav">
-        {SECTIONS.map(s => (
-          <button
-            key={s.id}
-            className={`nav-btn ${activeSection === s.id ? "active" : ""}`}
-            onClick={() => scrollTo(s.id)}
-          >
-            {s.label}
-          </button>
+        {/* Y-axis ticks */}
+        {yTicks.map(v => (
+          <g key={v}>
+            <line x1={pad.left} y1={cy(v)} x2={W - pad.right} y2={cy(v)}
+              stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
+            <text x={pad.left - 6} y={cy(v) + 4} fill="var(--muted)" fontSize="10" textAnchor="end">{v.toFixed(2)}%</text>
+          </g>
         ))}
-      </nav>
 
-      {/* Body */}
-      <main className="main">
-        <SectionExec />
-        <hr className="divider" />
-        <SectionBB />
-        <hr className="divider" />
-        <SectionMacro />
-        <hr className="divider" />
-        <SectionDSE />
-        <hr className="divider" />
-        <SectionTBond />
-        <hr className="divider" />
-        <SectionComm />
-        <hr className="divider" />
-        <SectionDAM />
-        <hr className="divider" />
-        <SectionFX />
-        <hr className="divider" />
-        <SectionRemittance />
-        <hr className="divider" />
-        <SectionBanking />
-        <hr className="divider" />
-        <SectionTariff />
-        <hr className="divider" />
-        <SectionTrade />
-        <hr className="divider" />
-        <SectionIranWar />
-        <hr className="divider" />
-        <SectionRMG />
-        <hr className="divider" />
-        <SectionFiscal />
-        <hr className="divider" />
-        <SectionNBR />
-        <hr className="divider" />
-        <SectionPower />
-        <hr className="divider" />
-        <SectionPeers />
-      </main>
+        {/* Policy rate line */}
+        <line x1={pad.left} y1={policyY} x2={W - pad.right} y2={policyY}
+          stroke="rgba(234,179,8,0.6)" strokeWidth="1.5" strokeDasharray="6,3" />
+        <text x={W - pad.right + 3} y={policyY + 4} fill="var(--warn)" fontSize="9" textAnchor="start">Policy</text>
 
-      {/* Mobile Bottom Nav */}
-      <nav className="bottom-nav">
-        {/* Fixed left 3 */}
-        {[
-          { id: "exec",    icon: "📋", label: "Summary" },
-          { id: "dse",     icon: "📈", label: "DSE" },
-          { id: "iranwar", icon: "🛢️", label: "Iran/Oil" },
-        ].map(s => (
-          <button key={s.id}
-            className={`bottom-nav-btn ${activeSection === s.id ? "active" : ""}`}
-            onClick={() => scrollTo(s.id)}>
-            <span className="bottom-nav-icon">{s.icon}</span>
-            {s.label}
-          </button>
-        ))}
-        {/* Customisable right 2 — long-press to change */}
-        {customSlots.map((sid, idx) => {
-          const sec = SECTIONS.find(s => s.id === sid);
-          if (!sec) return null;
-          return (
-            <button key={idx}
-              className={`bottom-nav-btn customizable ${activeSection === sid ? "active" : ""}`}
-              onClick={() => scrollTo(sid)}
-              onPointerDown={() => startLP(idx)}
-              onPointerUp={cancelLP}
-              onPointerLeave={cancelLP}
-              onContextMenu={e => { e.preventDefault(); setEditingSlot(idx); }}>
-              <span className="bottom-nav-icon">{NAV_ICON[sid] || "📌"}</span>
-              <span className="bottom-nav-edit-dot">✏️</span>
-              {sec.short}
-            </button>
-          );
+        {/* Lines */}
+        <polyline points={pts(d91)}  fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
+        <polyline points={pts(d182)} fill="none" stroke="var(--bull)"   strokeWidth="2" strokeLinejoin="round" />
+        <polyline points={pts(d364)} fill="none" stroke="var(--warn)"   strokeWidth="2" strokeLinejoin="round" />
+
+        {/* Peak annotation */}
+        <line x1={pkX} y1={pkY - 4} x2={pkX} y2={pkBy + pkBh}
+          stroke="var(--warn)" strokeWidth="1" strokeDasharray="3,2" />
+        <rect x={pkBx} y={pkBy} width={pkBw} height={pkBh} rx={3}
+          fill="rgba(234,179,8,0.15)" stroke="rgba(234,179,8,0.4)" strokeWidth="1" />
+        <text x={pkX} y={pkBy + 9}  fill="var(--warn)" fontSize="8.5" textAnchor="middle" fontWeight="700">Jan peak</text>
+        <text x={pkX} y={pkBy + 18} fill="var(--warn)" fontSize="8.5" textAnchor="middle">10.66% (364d)</text>
+
+        {/* Mar '26 annotation */}
+        <rect x={bpBx} y={bpBy} width={bpBw} height={bpBh} rx={3}
+          fill="rgba(34,197,94,0.12)" stroke="rgba(34,197,94,0.35)" strokeWidth="1" />
+        <text x={bpBx + bpBw / 2} y={bpBy + 9}  fill="var(--bull)" fontSize="8.5" textAnchor="middle" fontWeight="700">Mar '26 auction</text>
+        <text x={bpBx + bpBw / 2} y={bpBy + 18} fill="var(--bull)" fontSize="8.5" textAnchor="middle">All tenors below 10%</text>
+
+        {/* Dots */}
+        {[d91, d182, d364].map((arr, si) => {
+          const cols = ["var(--accent)", "var(--bull)", "var(--warn)"];
+          return arr.map((v, i) => (
+            <circle key={`${si}-${i}`} cx={cx(i)} cy={cy(v)} r={3}
+              fill={cols[si]} stroke="var(--surface)" strokeWidth="1.5" />
+          ));
         })}
-      </nav>
 
-      {/* Slot picker sheet */}
-      {editingSlot !== null && (
-        <div className="slot-picker">
-          <div className="slot-picker-header">
-            <span>Choose shortcut {editingSlot + 4}</span>
-            <button className="slot-picker-close" onClick={() => setEditingSlot(null)}>✕</button>
-          </div>
-          <div className="slot-picker-grid">
-            {SECTIONS
-              .filter(s => !["exec","dse","iranwar"].includes(s.id))
-              .map(s => (
-                <button key={s.id}
-                  className={`slot-picker-btn ${customSlots[editingSlot] === s.id ? "selected" : ""}`}
-                  onClick={() => pickSlot(s.id)}>
-                  <span className="slot-picker-btn-icon">{NAV_ICON[s.id] || "📌"}</span>
-                  {s.short}
-                </button>
-              ))
-            }
-          </div>
-        </div>
-      )}
+        {/* X-axis labels */}
+        {labels.map((l, i) => (
+          <text key={i} x={cx(i)} y={H - pad.bottom + 16} fill="var(--muted)" fontSize="10" textAnchor="middle">{l}</text>
+        ))}
 
-      {/* Footer */}
-      <footer className="footer">
-        <div>
-          <span>Sources: </span>
-          {[
-            ["The Daily Star", "https://www.thedailystar.net"],
-            ["TBS News", "https://www.tbsnews.net"],
-            ["Financial Express BD", "https://today.thefinancialexpress.com.bd"],
-            ["Bangladesh Bank", "https://www.bb.org.bd"],
-            ["Trading Economics", "https://tradingeconomics.com/bangladesh"],
-            ["Al Jazeera", "https://www.aljazeera.com"],
-            ["The Diplomat", "https://thediplomat.com"],
-          ].map(([name, url], i) => (
-            <span key={i}>
-              {i > 0 && " · "}
-              <a href={url} target="_blank" rel="noreferrer">{name}</a>
-            </span>
-          ))}
-        </div>
-        <div>THE BRIEF · Bangladesh · {new Date().getFullYear()}</div>
-      </footer>
-
-      {/* Subscribe modal */}
-      {showSubscribe && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div className="modal-card">
-            <button className="modal-close" onClick={closeModal}>×</button>
-
-            {subSubmitted ? (
-              <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
-                <div style={{ fontSize: 32, color: "var(--bull)", marginBottom: 10 }}>✓</div>
-                <div className="modal-title">You're on the list</div>
-                <div className="modal-sub" style={{ marginTop: 6, marginBottom: 0 }}>
-                  We'll send THE BRIEF to {subEmail} every morning.
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="modal-title">Subscribe to THE BRIEF</div>
-                <div className="modal-sub">Daily Bangladesh business intelligence, delivered to your inbox.</div>
-                <form onSubmit={handleSubscribe}>
-                  <div className="form-group">
-                    <label className="form-label">Name <span className="req">*</span></label>
-                    <input className="form-input" type="text" placeholder="Your name"
-                      value={subName} onChange={e => setSubName(e.target.value)} autoFocus />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Organisation</label>
-                    <input className="form-input" type="text" placeholder="Company / institution (optional)"
-                      value={subOrg} onChange={e => setSubOrg(e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Email Address <span className="req">*</span></label>
-                    <input className="form-input" type="email" placeholder="you@example.com"
-                      value={subEmail} onChange={e => setSubEmail(e.target.value)} />
-                  </div>
-                  <button className="submit-btn" type="submit" disabled={!canSubmit}>
-                    {subLoading ? "Sending…" : "Subscribe →"}
-                  </button>
-                  {subError && (
-                    <div style={{ color: "var(--bear)", fontSize: 10, letterSpacing: "0.05em", marginTop: 8, textAlign: "center" }}>
-                      {subError}
-                    </div>
-                  )}
-                </form>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+        {/* Legend */}
+        <circle cx={pad.left + 10} cy={pad.top - 28} r={4} fill="var(--accent)" />
+        <text x={pad.left + 18} y={pad.top - 24} fill="var(--fg)" fontSize="9.5">91-day</text>
+        <circle cx={pad.left + 68} cy={pad.top - 28} r={4} fill="var(--bull)" />
+        <text x={pad.left + 76} y={pad.top - 24} fill="var(--fg)" fontSize="9.5">182-day</text>
+        <circle cx={pad.left + 130} cy={pad.top - 28} r={4} fill="var(--warn)" />
+        <text x={pad.left + 138} y={pad.top - 24} fill="var(--fg)" fontSize="9.5">364-day</text>
+      </svg>
+      <div style={{ fontSize: 9, color: "var(--muted)", textAlign: "right", paddingRight: 12, marginTop: 4 }}>
+        Source: Bangladesh Bank primary auction results · Policy rate: 10.00% · Last auction: 1 Mar 2026
+      </div>
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-}
 
 function SectionTBond() {
   return (
@@ -1793,9 +1671,9 @@ function SectionTBond() {
 
       <TickerStrip items={[
         { name: "10Y Bond", value: "10.82%", change: "Dec '25 data", chgType: "bear" },
-        { name: "91d T-Bill", value: "~9.90%", change: "Mar '26 auction (est.)", chgType: "bull" },
-        { name: "182d T-Bill", value: "~9.98%", change: "Mar '26 auction (est.)", chgType: "bull" },
-        { name: "364d T-Bill", value: "~9.93%", change: "Mar '26 auction (est.)", chgType: "bull" },
+        { name: "91d T-Bill", value: "9.90%", change: "1 Mar '26 confirmed", chgType: "bull" },
+        { name: "182d T-Bill", value: "9.98%", change: "1 Mar '26 confirmed", chgType: "bull" },
+        { name: "364d T-Bill", value: "9.93%", change: "1 Mar '26 confirmed", chgType: "bull" },
         { name: "Policy Rate", value: "10.00%", change: "Anchor", chgType: "neu" },
         { name: "SDF (floor)", value: "7.50%", change: "▼ −50bps", chgType: "bull" },
       ]} />
@@ -1848,6 +1726,7 @@ function SectionTBond() {
         { sentiment: "neu", headline: "Southeast Bank 1st Perpetual Bond coupon set at 10.00% p.a. for Mar 11 – Sep 10, 2026", detail: "DSE notice confirmed Southeast Bank's 1st Perpetual Bond coupon at 10.00% per annum for the period 11 March to 10 September 2026, aligning with the current policy rate. The coupon reflects the current rate environment ahead of any MPC cut.", source: "DSE Notice", sourceUrl: "https://www.dsebd.org", time: "Mar 2026" }
       ]} />
       <TBillChart />
+<BankerRead text="T-bill yields dipping below 10% ahead of the MPC signal creates a narrow ALM window: lock in slightly longer-duration T-bond positions now before the cut fully reprices the yield curve downward. The crowding-out data — government net credit +32.8% versus private credit +6.10% — is the structural constraint suppressing your loan book regardless of the rate level. Monitor the Tk1,18,000 crore borrowing ceiling closely; when it binds, treasury yields reverse fast." />
     </div>
   );
 }
@@ -1922,6 +1801,7 @@ function SectionComm() {
         { sentiment: "bear", headline: "Oil prices surge ~20% on 9 Mar 2026 hitting highest since 2022 as US-Israel war with Iran widens; Iran's Revolutionary Guards target US facilities in UAE", detail: "WTI crude posted its biggest weekly percentage gain in the history of oil futures markets as Iran's Revolutionary Guards targeted US military facilities in the UAE and Dubai airport was partially disrupted. JPMorgan analysts warned Brent could test $120/bbl if disruption persists. For Bangladesh: higher fuel import costs will widen the trade deficit sharply.", source: "CNBC / Fortune", sourceUrl: "https://www.cnbc.com", time: "9 Mar 2026" },
         { sentiment: "warn", headline: "BAJUS cuts 22K gold price by Tk 9,214/bhori to Tk 2,68,214 on 4 Mar 2026; unchanged through 8 Mar", detail: "The Bangladesh Jewellers Association (BAJUS) reduced the 22-carat gold price by Tk 9,214 per bhori to Tk 2,68,214, effective 4 March 2026, following a brief correction in international gold prices. Rate confirmed unchanged through 8 March. 9 March update pending — global gold is rallying on safe-haven demand from Iran war, likely reversing the cut.", source: "BAJUS", sourceUrl: "https://bajus.org", time: "4 Mar 2026 (effective)" }
       ]} />
+<BankerRead text="Gold at record highs while equities crash is the classic flight-to-safety signal: expect HNI clients to shift deposits to gold and USD-denominated instruments this week. The palm oil/soya correlation with edible oil inflation matters for your agri-lending book — monitor working capital lines for edible oil importers as commodity costs rise. Rice price stability is your backstop; if that breaks, retail deposit behavior changes fast." />
     </div>
   );
 }
@@ -1990,6 +1870,7 @@ function SectionFX() {
         { sentiment: "bull", headline: "Taka-dollar rate remains stable under market-based exchange rate regime without central bank intervention", detail: "The USD/BDT rate has remained stable near 122.40–122.45 under Bangladesh's market-based exchange rate regime. BB confirmed the WAR (Weighted Average Rate) at 122.4388 as of 8 March 2026, with the range narrowly contained at 122.35–122.45. The stability reflects improved supply from remittances and reduced speculative pressure.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "8 Mar 2026" },
         { sentiment: "warn", headline: "Iran war threatens Gulf trade routes; Maersk Gulf-Bangladesh bookings suspended; import cost shock building", detail: "The US-Iran war and Strait of Hormuz closure threat has disrupted Gulf trade routes critical to Bangladesh's fuel, food, and industrial imports. Shipping disruption and the $104/bbl Brent oil price will widen the trade deficit significantly in coming months, putting upward pressure on the USD/BDT rate despite current stability.", source: "TBS / Maersk", sourceUrl: "https://www.tbsnews.net", time: "9 Mar 2026" }
       ]} />
+<BankerRead text="Reserves at $35.2B provide a ~6-month import cover buffer, but the Iran war creates a binary scenario: if Hormuz stays open, reserves hold; if it closes for >2 weeks, fuel import costs spike and the BOP deteriorates sharply. Hedge any open USD receivables positions in the next 30 days and review your trade finance exposure to fuel importers — these are your highest-risk counterparties in a Hormuz disruption scenario. The crawling peg gives BB limited room to respond to a sudden reserve drawdown." />
     </div>
   );
 }
@@ -2054,6 +1935,7 @@ function SectionRemittance() {
         { sentiment: "bull", headline: "BB Governor: strong remittance inflows underpinning current account surplus and forex reserve rebuilding", detail: "BB Governor Mostakur Rahman highlighted that strong and sustained remittance inflows have underpinned Bangladesh's current account surplus, enabling the central bank to purchase $4.3 billion from the interbank market and build gross reserves to $35.2 billion — up from $25.6 billion in August 2024.", source: "TBS / BB", sourceUrl: "https://www.tbsnews.net", time: "Feb 2026" },
         { sentiment: "warn", headline: "Iran war and Gulf disruption pose major tail risk to Bangladesh remittance corridor — ~12M workers, ~$27B at stake", detail: "Economists and BB officials have flagged that the US-Iran war and disruption to Gulf economies could significantly reduce future remittance inflows from Bangladesh's approximately 12 million overseas workers in Gulf countries — who sent approximately $27 billion in FY2024. A prolonged disruption could unwind the record FY26 remittance trend and pressure forex reserves.", source: "Daily Star / TBS", sourceUrl: "https://www.thedailystar.net", time: "Mar 2026" }
       ]} />
+<BankerRead text="Reserves provide a ~6-month import cover buffer, but the Iran war creates a binary scenario: if Hormuz stays open, reserves hold; if it closes for >2 weeks, fuel import costs spike and the BOP deteriorates sharply. Hedge any open USD receivables positions in the next 30 days and review your trade finance exposure to fuel importers — these are your highest-risk counterparties in a Hormuz disruption scenario. The crawling peg gives BB limited room to respond to a sudden reserve drawdown." />
     </div>
   );
 }
@@ -2119,6 +2001,7 @@ function SectionBanking() {
         { sentiment: "warn", headline: "BB postpones MPC meeting scheduled for 4 Mar 2026 under new Governor Mostakur Rahman; governor signals rate cut", detail: "New BB Governor Mostakur Rahman postponed the 4 March MPC meeting after MPC member Sadiq Ahmed resigned. The Governor has signalled a ~50bps policy rate cut to stimulate private credit growth, which remains well below the 8% MPS target. Rescheduled MPC meeting date not yet confirmed as of 9 March 2026.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" },
         { sentiment: "neu", headline: "BB allows continuous loan renewal before default; 3-month window for borrowers to restructure", detail: "Bangladesh Bank issued a new circular allowing banks to renew continuous loans before they formally classify as default, providing a 3-month window for borrowers to restructure. The move is intended to reduce NPL formation rates, though critics warn it may delay recognition of underlying credit deterioration.", source: "BB Circular / TBS", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" }
       ]} />
+<BankerRead text="The five-bank merger is the most consequential structural event in Bangladesh banking in a decade — identify which merged entities hold NPL concentrations that could become your counterparty risk post-consolidation. The BB circular allowing continuous loan renewal is a double-edged tool: it prevents technical defaults but masks true NPL levels. Run a clean-sheet NPL analysis stripping out all restructured and renewed accounts to see your true exposure." />
     </div>
   );
 }
@@ -2176,6 +2059,7 @@ function SectionTariff() {
         { sentiment: "bull", headline: "Bangladesh apparel sector targets additional $5B in US exports — industry sees competitive edge over India via zero-duty US-cotton channel", detail: "Mohiuddin Rubel (Denim Expert): zero-duty upside larger than the tariff cut itself. Kutubuddin Ahmed (Envoy Textiles): US cotton slightly more expensive but trade benefits compensate. Former BGMEA President Faruque Hassan: 'Modest but significant.'", source: "Apparel Resources / MKMA", sourceUrl: "https://apparelresources.com/business-news/trade-business-news/bangladesh-apparel-sector-aims-additional-us-5-billion-us-exports-following-us-deal/", time: "Feb 25, 2026" },
         { sentiment: "warn", headline: "BGMEA warns double squeeze: fuel cost inflation from Iran war compounds US ART input-sourcing burden — RMG margins at risk", detail: "RMG sector accounts for 85%+ of total exports and employs ~4M workers. Higher energy costs inflate electricity tariffs, transport, and factory operations. BGMEA flagged the combination of fuel cost inflation, US-cotton sourcing requirements for ART zero-duty channel, and EU FTA preference erosion as compounding pressures.", source: "BGMEA / Pressenza", sourceUrl: "https://www.pressenza.com/2026/03/middle-east-war-could-disrupt-bangladeshs-energy-exports-and-worker-incomes/", time: "Mar 2026" }
       ]} />
+<BankerRead text="The US tariff pause gives Bangladesh’s RMG exporters a temporary reprieve, but the 90-day window is not a cure — buyers are already diversifying sourcing to Vietnam and India. Review your working capital lines to export-oriented RMG borrowers: utilization rates will spike as they rush to front-load orders. Flag any borrower with >40% US export concentration for enhanced monitoring." />
     </div>
   );
 }
@@ -2233,6 +2117,7 @@ function SectionTrade() {
         { sentiment: "neu", headline: "Bangladesh strikes US wheat deal to ease tariff pressure; export order pipeline seen resilient by some", detail: "Bangladesh struck a deal to import US wheat in an effort to ease tariff pressure from the Trump administration amid concerns over retaliatory measures against Bangladesh's garment exports. Some industry groups see the export order pipeline as relatively resilient despite geopolitical headwinds.", source: "MoC / TBS", sourceUrl: "https://www.tbsnews.net", time: "Feb 2026" },
         { sentiment: "warn", headline: "Iran war disrupts Gulf trade routes; Bangladesh import supply chains at risk as Maersk suspends Gulf bookings", detail: "The US-Iran war and Strait of Hormuz closure has disrupted Gulf trade routes that Bangladesh relies on for fuel imports, raw materials, and food commodities. Maersk has suspended Gulf-Bangladesh bookings; freight costs on remaining routes are surging. Bangladesh's import bill faces upward pressure beyond just the oil price spike.", source: "TBS / Maersk", sourceUrl: "https://www.tbsnews.net", time: "9 Mar 2026" }
       ]} />
+<BankerRead text="The EU-India FTA (January 2027) is the slow-moving threat that will hurt Bangladesh's export competitiveness more than any tariff shock — start stress-testing your RMG-sector loan book against a 15% export revenue decline scenario now, 18 months before it bites. The LDC graduation timeline (November 2026) intersects with this: borrowers losing EBA preferences and facing EU-India competition simultaneously is a compounding risk that standard credit models don't capture. Engage your top 10 export borrowers on their diversification plans this quarter." />
     </div>
   );
 }
@@ -2315,6 +2200,97 @@ function OilChart() {
 
 // ── New Sections ──────────────────────────────────────────────────────────────
 
+
+function SectionIranWar() {
+    return (
+    <div className="section scroll-target" id="iranwar">
+      <div style={{ display:"flex", alignItems:"center" }}>
+        <SectionHeader num="11" title="Impact of US-Iran War on Bangladesh" icon="🔥" />
+        <TrafficLight status="bear" label="CRITICAL" />
+      </div>
+
+      <TickerStrip items={[
+        { name: "Brent Crude",      value: "$104.47/bbl",  change: "▲ +35.6% weekly",        chgType: "bear" },
+        { name: "WTI",              value: "$103.74/bbl",  change: "Record weekly gain",            chgType: "bear" },
+        { name: "Hormuz Status",    value: "NEAR-CLOSED",  change: "200+ vessels anchored",        chgType: "bear" },
+        { name: "Iraq Output Cut",  value: "−1.5M bpd", change: "Hormuz closure",             chgType: "bear" },
+        { name: "Remittance Exp.",  value: "12M workers",  change: "~$27B in FY24",               chgType: "warn" },
+      ]} />
+
+      <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
+        <span className="impact-icon">🔴</span>
+        <div className="impact-text" style={{ color: "var(--bear)" }}>
+          <strong>CRISIS — 9 Mar 2026:</strong> Joint US-Israeli Operation Epic Fury (commenced ~28 Feb) killed Supreme Leader Khamenei and struck Iran’s nuclear and missile infrastructure. Iran retaliated closing the Strait of Hormuz to commercial traffic — <strong>200+ oil/LNG vessels anchored outside</strong>. Brent at <strong>$104.47/bbl</strong>; WTI at <strong>$103.74/bbl</strong> — WTI posted its <strong>biggest weekly gain in futures history (+35.6% w/w)</strong>. Iraq cut 1.5M bpd; Kuwait cutting output; QatarEnergy halted the world’s largest LNG export facility. Traders warn <strong>$120 imminent</strong> if conflict persists. <strong>55%+ of Bangladesh’s LNG supply chain</strong> is at acute risk. 12M Bangladeshi workers in Gulf face remittance disruption.
+        </div>
+      </div>
+
+      <div className="sub-head">Impact on Bangladesh Economy</div>
+
+      <div className="cards-grid" style={{ marginBottom: 16 }}>
+        <MetricCard
+          label="LNG Supply at Risk"
+          value="55%+"
+          change="Qatar + UAE disrupted"
+          changeType="bear"
+          sub="Qatar supplies ~67% of Bangladesh’s LNG. QatarEnergy suspended production after Iranian drone strikes on Ras Laffan Industrial City. LNG tanker freight rates jumped 40%+."
+          accent="bear"
+          pill="ACUTE"
+          pillType="bear"
+        />
+        <MetricCard
+          label="Brent Crude"
+          value="$104.47/bbl"
+          change="▲ WTI +35.6% w/w — historic"
+          changeType="bear"
+          sub="$120 now in sight; analyst worst case $130/bbl if Hormuz closure extends. Each $10/bbl rise adds ~0.2pp to CPI. WTI at $103.74/bbl."
+          accent="bear"
+          pill="ESCALATING"
+          pillType="bear"
+        />
+        <MetricCard
+          label="Remittance at Risk"
+          value="~$27B"
+          change="FY2024 · 12M workers exposed"
+          changeType="warn"
+          sub="~6% of GDP. Saudi Arabia, UAE, Qatar, Kuwait, Oman account for most of it. Biman suspended 6 key Middle East routes."
+          accent="warn"
+          pill="HIGH RISK"
+          pillType="warn"
+        />
+        <MetricCard
+          label="Projected Power Deficit"
+          value="1,400–1,800 MW"
+          change="if LNG shortfall hits 200–250 mmcfd"
+          changeType="bear"
+          sub="BD produces ~1,714 mmcfd domestically; imports 850–1,000 mmcfd via LNG. A partial Hormuz closure could trigger rolling industrial power cuts."
+          accent="bear"
+          pill="RISK SCENARIO"
+          pillType="warn"
+        />
+      </div>
+
+      <CollapsibleNews defaultShow={2} items={[
+        { sentiment: "bear", headline: "Brent surges past $108/bbl — first time above $100 since Russia–Ukraine war", detail: "Brent crude surged past $108/bbl on 8 March 2026, the first time it has traded above $100/bbl since the Russia–Ukraine war energy shock, as US–Israel strikes on Iran killed Supreme Leader Khamenei and Iran responded by closing the Strait of Hormuz — threatening ~15 million barrels/day of global crude exports.", source: "CNN / AXIOS", sourceUrl: "https://www.aljazeera.com", time: "8 Mar 2026" },
+        { sentiment: "bear", headline: "Oil posts biggest weekly gain in futures history; Iraq cuts 1.5 mbd, Kuwait reduces output", detail: "WTI crude posted its biggest weekly percentage gain in the history of oil futures markets (+35% w/w) as Iraq collapsed output by 60% of normal, Kuwait cut production citing storage constraints, and tanker traffic through the Strait of Hormuz effectively stalled. JPMorgan analysts warned Brent could test $120/bbl if disruption persists.", source: "CNBC / Fortune", sourceUrl: "https://www.reuters.com", time: "6 Mar 2026" },
+        { sentiment: "bear", headline: "Hormuz near-closure adds 10–14 days and 40% fuel cost to rerouted LNG tankers via Cape of Good Hope", detail: "Oxford Institute for Energy Studies: a full Hormuz closure removes ~86 billion m³/year (~15% of global LNG supply). Ships rerouting via Cape face dramatically higher voyage costs and longer lead times.", source: "Daily Star / Al Jazeera", sourceUrl: "https://www.thedailystar.net", time: "Mar 2–8, 2026" },
+        { sentiment: "warn", headline: "BB faces ‘policy dilemma’ — cannot ease rates with oil-driven inflation rising while GDP growth at 3.97%", detail: "Economists warn oil price pass-through in BD is larger than advanced-economy estimates, given 65–70% energy import dependence. Higher fuel import bills will widen the current account deficit and complicate BB’s rate-cut timeline.", source: "LightCastle Partners / CNBC", sourceUrl: "https://lightcastlepartners.com", time: "Mar 2026" }
+      ]} />
+
+      <div className="sub-head">Government Response</div>
+
+      <CollapsibleNews defaultShow={2} items={[
+        { sentiment: "warn", headline: "Power Ministry holds emergency meeting — fuel conservation directives issued; coal-fired generation to ramp up", detail: "Energy Minister Iqbal Hasan Mahmood convened emergency session. Coal generation will be expanded to compensate for reduced gas-to-power output. Current stocks: 201,610T diesel (~14 days), 21,705T petrol (~17 days).", source: "TBS News / Prothom Alo", sourceUrl: "https://www.tbsnews.net", time: "Mar 3, 2026" },
+        { sentiment: "warn", headline: "BPC secures alternative crude supply from Malaysia, China, Singapore, Indonesia — all BD fuel imports bypass Strait of Hormuz", detail: "BPC Chairman confirmed all remaining import contracts rerouted via non-Hormuz suppliers. Government considering increased spot LNG purchases (35–40% more expensive than contracted rates).", source: "Daily Star / bdnews24", sourceUrl: "https://www.thedailystar.net", time: "Mar 4, 2026" },
+        { sentiment: "bull", headline: "Foreign Ministry activates emergency consular coordination for 12M Bangladeshi workers in Gulf", detail: "Foreign Minister Khalilur Rahman held emergency session. Bangladesh missions in Tehran and Gulf capitals on high alert. Dhaka publicly called for restraint and diplomatic resolution.", source: "bdnews24 / Daily Sun", sourceUrl: "https://bdnews24.com", time: "Mar 1–3, 2026" }
+      ]} />
+
+      <OilChart />
+
+<BankerRead text="The Iran war is Bangladesh’s largest exogenous macro shock since the 2022 Russia–Ukraine crisis — mandate immediate margin calls on fuel importer facilities; open oil LC positions carry direct loss exposure at $104/bbl. Build a contingency funding plan for a Gulf remittance disruption scenario: if 12 million workers lose income simultaneously, retail deposit outflows could reach Tk15,000–20,000 crore within 60 days. The Hormuz closure probability is non-trivial — stress-test your FX liquidity against a 30-day import disruption now." />
+    </div>
+  );
+}
+
 function SectionExec() {
   const bullets = [
     { type: "bull", icon: "📈", text: "Forex reserves surged to $35.2B gross (Dec 2025) — up from $25.6B in August 2024 — as BB purchased $4.3B via interbank auctions and remittances hit record levels. December 2025 remittance reached $3.22B — Bangladesh's second-highest monthly inflow ever — with the FY26 cumulative trend running strongly above FY25. USD/BDT stable at 122.44 (8 Mar BB WAR) under the market-based exchange rate regime. Current account surplus underpinned by remittance momentum." },
@@ -2360,6 +2336,7 @@ function SectionExec() {
           ))}
         </div>
       </div>
+<BankerRead text="Today's Brief is dominated by three compounding shocks arriving simultaneously: a 231-point DSEX crash (worst in six years), Brent crude at $104/bbl from the Iran-Hormuz disruption, and a banking system with 36% NPLs and sub-10% CAR. The cross-domain risk is that each shock amplifies the others — oil inflation delays rate cuts that could ease NPL pressure, while the equity crash erodes collateral values backing your largest restructured accounts. Your immediate action list: (1) stress-test fuel-importer LCs at $120 scenario; (2) mark equity-backed collateral to market; (3) model NIM impact of a 50bps cut against your NPL provisioning requirement." />
     </div>
   );
 }
@@ -2430,6 +2407,7 @@ function SectionDAM() {
           ))}
         </tbody>
       </table>
+<BankerRead text="Fuel price hikes directly compress the working capital cycle of every transport-dependent borrower — garments, ceramics, steel, logistics. Identify your top 20 exposures with fuel as a major input cost and run a 15% fuel-cost-increase stress test on their DSCR now. The fuel subsidy burden also crowds out BB’s fiscal space for credit-supportive measures." />
     </div>
   );
 }
@@ -2491,6 +2469,7 @@ function SectionRMG() {
         { sentiment: "warn", headline: "Vietnam gaining RMG market share from Bangladesh as US buyers hedge tariff risk", detail: "US importers increasingly splitting orders between Bangladesh and Vietnam as contingency against potential US tariff action. Bangladesh's RMG wage advantage narrowing as Vietnam labour costs also rise, but compliance record giving Vietnam edge with ESG-conscious EU buyers.", source: "BGMEA / Industry sources", time: "Feb 2026" },
         { sentiment: "neu", headline: "BGMEA calls for duty-free access deal with USA to protect $5B+ annual export relationship", detail: "Bangladesh currently exports $7B+ in RMG to the US under GSP, but faces GSP graduation in 2026. BGMEA president urging government to fast-track TICFA negotiations for a bilateral trade framework. US side yet to respond.", source: "BGMEA / TBS News", time: "Feb 2026" },
       ]} />
+<BankerRead text="RMG’s export growth masks a structural vulnerability: order concentration in the US/EU duopoly means the tariff and LDC graduation risks are correlated, not independent. Review working capital utilization across your garment borrowers — a buyer order slowdown from US tariff uncertainty will show up as utilization drops 4–6 weeks before the borrower flags it. Flag any RMG borrower with <6 months of confirmed orders as a watch-list credit." />
     </div>
   );
 }
@@ -2543,6 +2522,7 @@ function SectionFiscal() {
         { sentiment: "bear", headline: "Government bank borrowing reaches BDT 1.03 trillion in 7 months — 74% of full-year ceiling, raising crowding-out concerns", detail: "Heavy government borrowing from banking system at elevated T-bill rates crowding out private credit. Private sector credit growth at 7.3% YoY — near multi-year low. IMF asking BB to tighten monetary-fiscal coordination as conditionality for Article IV completion.", source: "Bangladesh Bank / Ministry of Finance", time: "Feb 2026" },
         { sentiment: "neu", headline: "FY2026-27 budget preparation underway — govt expected to revise NBR target downward and increase subsidy ceiling for energy", detail: "Finance ministry drafting FY27 budget with revised (lower) revenue targets, higher energy subsidy provision for BPDB/BPC, and continued ADP rationalisation. Budget to be presented to parliament on June 2, 2026. IMF program compliance will influence fiscal arithmetic.", source: "Ministry of Finance", time: "Mar 2026" },
       ]} />
+<BankerRead text="The fiscal deficit at 3.7% of GDP looks manageable until you add the oil shock subsidy burden: every $10/bbl increase in Brent costs the government approximately Tk3,000–4,000 crore in additional fuel subsidy. Government crowding-out is already squeezing private credit — if the deficit widens from oil subsidies, the crowding effect intensifies and your loan book growth targets for FY26 are at risk. Review your treasury portfolio duration now." />
     </div>
   );
 }
@@ -2595,6 +2575,7 @@ function SectionNBR() {
         { sentiment: "neu", headline: "VAT accounts for 39% of NBR revenue — income tax and customs contribute 33% and 28% respectively", detail: "VAT growing +12% YoY driven by consumption and formal sector formalisation. Income tax up +8% on improved TIN registration (6.5M+ filers). Customs -3% YoY due to lower import values (oil price base effect) and reduced import compression vs prior year.", source: "NBR", time: "Jan 2026" },
         { sentiment: "bear", headline: "IMF conditions tax administration reforms for next BD program tranche — digitisation of VAT, income tax net expansion key requirements", detail: "NBR required to: (1) expand e-TDS coverage, (2) digitise VAT return filing, (3) reduce tax expenditures. Failure to meet milestones could delay IMF disbursement, impacting forex reserve buffer.", source: "IMF Bangladesh Staff Report", time: "Feb 2026" },
       ]} />
+<BankerRead text="NBR’s revenue shortfall and the VAT reform timeline have direct implications for your corporate borrowers’ cash flows — delayed refunds and increased compliance costs are a working capital drag. Identify your top borrowers with large VAT refund receivables and model the cash flow impact of a 6-month refund delay. The ADP implementation gap signals infrastructure project financing will be slow-disbursing." />
     </div>
   );
 }
@@ -2659,6 +2640,7 @@ function SectionPower() {
         { sentiment: "warn", headline: "Iran war driving up LNG spot prices — Bangladesh exposed via 40% spot procurement ratio", detail: "Iran-driven LNG supply disruption pushing spot prices to $13.5–14/MMBtu. Bangladesh pays spot for ~40% of its LNG requirements. Each $1/MMBtu increase costs approximately $80–100M/year in additional import costs. Hormutz Strait risk premium persisting.", source: "Petrobangla / Bloomberg", time: "Mar 2026" },
         { sentiment: "neu", headline: "Bangladesh targets 40% renewable energy by 2041 — current share: ~4% of generation mix", detail: "Government renewable energy roadmap calls for 40,000 MW of renewable capacity by 2041, including 17,000 MW solar, 11,000 MW wind, 2,000 MW nuclear (Rooppur Unit 2). Current installed renewables: ~1,150 MW. Pace of capacity addition severely lagging targets.", source: "SREDA / Power Division", time: "2025" },
       ]} />
+<BankerRead text="Power sector NPLs are the hidden time bomb: BPDB’s receivables from distribution companies are ultimately a government contingent liability that will land on bank balance sheets. Review your exposure to power sector borrowers as the oil shock will widen the sector’s structural losses. The LNG terminal delay extends fossil fuel dependency just as oil prices spike: flag any borrower in the independent power producer space for immediate cash flow review." />
     </div>
   );
 }
@@ -2736,6 +2718,7 @@ function SectionPeers() {
         { sentiment: "bear", headline: "Bangladesh has highest inflation (9.94%) in South/Southeast Asia peer group — BB policy rate at 10% barely above CPI", detail: "Real policy rate near zero. Inflation persistence driven by food prices, energy subsidy pass-through, BDT depreciation pass-through. Peers India (4.3%), Vietnam (3.6%), Sri Lanka (4.1%) all near target ranges. Bangladesh inflation credibility gap risks capital outflows.", source: "Bangladesh Bank / BBS", time: "Jan 2026" },
         { sentiment: "bull", headline: "Vietnam's CA surplus (+4.2% GDP) vs Bangladesh's modest deficit (-0.7%) reflects export model divergence — not necessarily negative for BD", detail: "Bangladesh's smaller CA deficit partly reflects strong remittance inflows offsetting trade deficit. Remittance at ~6% of GDP is a structural strength not available to Vietnam. FX reserve level ($30.3B, 4+ months import cover) improving, unlike Pakistan ($11.7B, under pressure).", source: "IMF / World Bank", time: "2025-26" },
       ]} />
+<BankerRead text="Bangladesh’s peer comparison is deteriorating: Vietnam and India are widening the FDI gap while Bangladesh faces simultaneous headwinds from NPL crisis, oil shock, and LDC graduation. Use this data in client conversations to frame the structural reform urgency — the banks that clean their books now will be the ones that survive the post-2026 competitive landscape. Bangladesh cannot compete for investment capital with a 36% NPL ratio when Vietnam is at ~2%." />
     </div>
   );
 }
@@ -2866,8 +2849,206 @@ function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  return (
+    <div>
+      {/* Header */}
+      <header className="header">
+        <div className="header-left">
+          <div className="brand">THE <span>BRIEF</span></div>
+          <div className="tagline">Bangladesh Business Intelligence</div>
+        </div>
+        <div className="header-right">
+          <div className="date-stamp">{BRIEF_DATE}</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, marginTop: 6 }}>
+            <button className="subscribe-btn" onClick={() => setShowSubscribe(true)}>
+              ✉ Subscribe
+            </button>
+            <button className="theme-toggle" onClick={() => setDark(d => !d)}>
+              {dark ? "☀ Light" : "☾ Dark"}
+            </button>
+          </div>
+        </div>
+      </header>
 
+      {/* Nav */}
+      <nav className="nav">
+        {SECTIONS.map(s => (
+          <button
+            key={s.id}
+            className={`nav-btn ${activeSection === s.id ? "active" : ""}`}
+            onClick={() => scrollTo(s.id)}
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Body */}
+      <main className="main">
+        <SectionExec />
+        <hr className="divider" />
+        <SectionBB />
+        <hr className="divider" />
+        <SectionMacro />
+        <hr className="divider" />
+        <SectionDSE />
+        <hr className="divider" />
+        <SectionTBond />
+        <hr className="divider" />
+        <SectionComm />
+        <hr className="divider" />
+        <SectionDAM />
+        <hr className="divider" />
+        <SectionFX />
+        <hr className="divider" />
+        <SectionRemittance />
+        <hr className="divider" />
+        <SectionBanking />
+        <hr className="divider" />
+        <SectionTariff />
+        <hr className="divider" />
+        <SectionTrade />
+        <hr className="divider" />
+        <SectionIranWar />
+        <hr className="divider" />
+        <SectionRMG />
+        <hr className="divider" />
+        <SectionFiscal />
+        <hr className="divider" />
+        <SectionNBR />
+        <hr className="divider" />
+        <SectionPower />
+        <hr className="divider" />
+        <SectionPeers />
+      </main>
+
+      {/* Mobile Bottom Nav */}
+      <nav className="bottom-nav">
+        {[
+          { id: "exec",    icon: "📋", label: "Summary" },
+          { id: "dse",     icon: "📈", label: "DSE" },
+          { id: "iranwar", icon: "🛢️", label: "Iran/Oil" },
+        ].map(s => (
+          <button key={s.id}
+            className={`bottom-nav-btn ${activeSection === s.id ? "active" : ""}`}
+            onClick={() => scrollTo(s.id)}>
+            <span className="bottom-nav-icon">{s.icon}</span>
+            {s.label}
+          </button>
+        ))}
+        {customSlots.map((sid, idx) => {
+          const sec = SECTIONS.find(s => s.id === sid);
+          if (!sec) return null;
+          return (
+            <button key={idx}
+              className={`bottom-nav-btn customizable ${activeSection === sid ? "active" : ""}`}
+              onClick={() => scrollTo(sid)}
+              onPointerDown={() => startLP(idx)}
+              onPointerUp={cancelLP}
+              onPointerLeave={cancelLP}
+              onContextMenu={e => { e.preventDefault(); setEditingSlot(idx); }}>
+              <span className="bottom-nav-icon">{NAV_ICON[sid] || "📌"}</span>
+              <span className="bottom-nav-edit-dot">✏️</span>
+              {sec.short}
+            </button>
+          );
+        })}
+      </nav>
+
+      {editingSlot !== null && (
+        <div className="slot-picker">
+          <div className="slot-picker-header">
+            <span>Choose shortcut {editingSlot + 4}</span>
+            <button className="slot-picker-close" onClick={() => setEditingSlot(null)}>✕</button>
+          </div>
+          <div className="slot-picker-grid">
+            {SECTIONS
+              .filter(s => !["exec","dse","iranwar"].includes(s.id))
+              .map(s => (
+                <button key={s.id}
+                  className={`slot-picker-btn ${customSlots[editingSlot] === s.id ? "selected" : ""}`}
+                  onClick={() => pickSlot(s.id)}>
+                  <span className="slot-picker-btn-icon">{NAV_ICON[s.id] || "📌"}</span>
+                  {s.short}
+                </button>
+              ))
+            }
+          </div>
+        </div>
+      )}
+
+      <footer className="footer">
+        <div>
+          <span>Sources: </span>
+          {[
+            ["The Daily Star", "https://www.thedailystar.net"],
+            ["TBS News", "https://www.tbsnews.net"],
+            ["Financial Express BD", "https://today.thefinancialexpress.com.bd"],
+            ["Bangladesh Bank", "https://www.bb.org.bd"],
+            ["Trading Economics", "https://tradingeconomics.com/bangladesh"],
+            ["Al Jazeera", "https://www.aljazeera.com"],
+            ["The Diplomat", "https://thediplomat.com"],
+          ].map(([name, url], i) => (
+            <span key={i}>
+              {i > 0 && " · "}
+              <a href={url} target="_blank" rel="noreferrer">{name}</a>
+            </span>
+          ))}
+        </div>
+        <div>THE BRIEF · Bangladesh · {new Date().getFullYear()}</div>
+      </footer>
+
+      {showSubscribe && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+          <div className="modal-card">
+            <button className="modal-close" onClick={closeModal}>×</button>
+            {subSubmitted ? (
+              <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
+                <div style={{ fontSize: 32, color: "var(--bull)", marginBottom: 10 }}>✓</div>
+                <div className="modal-title">You're on the list</div>
+                <div className="modal-sub" style={{ marginTop: 6, marginBottom: 0 }}>
+                  We'll send THE BRIEF to {subEmail} every morning.
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="modal-title">Subscribe to THE BRIEF</div>
+                <div className="modal-sub">Daily Bangladesh business intelligence, delivered to your inbox.</div>
+                <form onSubmit={handleSubscribe}>
+                  <div className="form-group">
+                    <label className="form-label">Name <span className="req">*</span></label>
+                    <input className="form-input" type="text" placeholder="Your name"
+                      value={subName} onChange={e => setSubName(e.target.value)} autoFocus />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Organisation</label>
+                    <input className="form-input" type="text" placeholder="Company / institution (optional)"
+                      value={subOrg} onChange={e => setSubOrg(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Email Address <span className="req">*</span></label>
+                    <input className="form-input" type="email" placeholder="you@example.com"
+                      value={subEmail} onChange={e => setSubEmail(e.target.value)} />
+                  </div>
+                  <button className="submit-btn" type="submit" disabled={!canSubmit}>
+                    {subLoading ? "Sending…" : "Subscribe →"}
+                  </button>
+                  {subError && (
+                    <div style={{ color: "var(--bear)", fontSize: 10, letterSpacing: "0.05em", marginTop: 8, textAlign: "center" }}>
+                      {subError}
+                    </div>
+                  )}
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 </body>
 </html>
