@@ -21,6 +21,8 @@ with open("the-brief.html", "r", encoding="utf-8") as f:
     current_html = f.read()
 
 today = datetime.utcnow().strftime("%A %d %B %Y").upper()
+_now = datetime.utcnow()
+chart_label = _now.strftime("%b ") + str(_now.day)   # e.g. "Mar 9" — no leading zero, portable
 
 # ── Strip CSS to stay under rate-limit (Claude is told not to touch CSS anyway) ─
 # ── Strip <head> block (CDN scripts, PWA tags, meta) — Claude never touches these ─
@@ -467,17 +469,17 @@ UPDATE RULES (use gathered JSON keys by exact name):
 HEADER: BRIEF_DATE = "{today} · HHMM BDT"
 SectionBB: bb_policy_rate_pct sdf_rate_pct slf_rate_pct gdp_growth_pct credit_growth_pct forex_reserves_bn cpi_headline_pct remittance_mn news_banking
 SectionMacro: cpi_headline_pct/_month cpi_food_pct/_month bb_policy_rate_pct sdf_rate_pct slf_rate_pct mpc_note
-DSEXChart: drop[0], append{{label:"Mar 7",value:dsex,showLabel:true,today:true}}, remove today:true from prior last. SectionDSE: all dse_* + news_dse
+DSEXChart: drop[0], append{{label:"{chart_label}",value:dsex,showLabel:true,today:true}}, remove today:true from prior last. SectionDSE: all dse_* + news_dse
 TBillChart: tbill_new_auction→drop[0]+append new yields; else update last entry. SectionTBond: tbill_91d/182d/364d bond_10y/5y tbill_auction_date news_tbill
 SectionComm: gold_22k_bdt brent_usd wti_usd natgas_usd news_commodity
 SectionFX: usd/eur/gbp_bdt forex_reserves_bn exports/rmg_exports_mn exports_month imports_mn trade_deficit_mn/_yoy_pct news_forex
 SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
 SectionBanking: npl_ratio_pct car_pct news_banking
-OilChart: remove old today:true, append{{label:"Mar 7",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
+OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 5 fresh bullets (bull📈/bear📉/warn⚠️/watch🔭). Cover: reserves+remittance, exports, oil/geopolitics, market/rates, outlook. Update events calendar. trafficStatus(bull/bear/warn/neu).
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
-BankerRead: Each section has <BankerRead insight="..." /> — the insight= prop is NOT stripped, so the previous text is visible. Update it only if today's gathered data represents a material change for that section; otherwise leave it EXACTLY as-is.
+BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
 
 OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
 
