@@ -193,6 +193,16 @@ print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} t
 # bodies saves ~15,000–20,000 chars from prompt_html, giving Phase 2 a comfortable
 # margin under 30k tokens. Their original code is restored unchanged after Phase 2.
 _SLOW_SECTIONS = ['SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers']
+# Save originals from current_html (before ANY stripping/prop-erasure) so restoration
+# always uses the full, unmodified function body regardless of what Claude outputs.
+_slow_originals = {}
+for _sname in _SLOW_SECTIONS:
+    _om = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', current_html)
+    if _om:
+        _ob = current_html.find('{', _om.end())
+        if _ob != -1:
+            _oe = _brace_end(current_html, _ob)
+            _slow_originals[_sname] = current_html[_om.start():_oe + 1]
 _slow_saved = {}
 _slow_chars_saved = 0
 for _sname in _SLOW_SECTIONS:
@@ -550,6 +560,47 @@ for _sname, _fn_body in _slow_saved.items():
                         _ube = _brace_end(updated_html, _ub)
                         updated_html = updated_html[:_um.start()] + _orig_fn + updated_html[_ube + 1:]
                         print(f"  {_sname} fallback-restored from original HTML.")
+
+# ── Hard-validate slow sections ─────────────────────────────────────────────────
+# Claude may (a) generate a stub without a return, (b) generate a stub AND pass
+# through the placeholder (causing two defs), or (c) omit the section entirely.
+# This pass handles all three cases using the unstripped originals from current_html.
+for _sname in _SLOW_SECTIONS:
+    _original = _slow_originals.get(_sname) or _slow_saved.get(_sname, '')
+    if not _original:
+        continue
+
+    # (a/b) Remove any stubs Claude generated that lack a return statement
+    _dupes = list(re.finditer(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html))
+    for _dup in reversed(_dupes[:-1]):           # all occurrences except the last
+        _db = updated_html.find('{', _dup.end())
+        if _db != -1:
+            _de = _brace_end(updated_html, _db)
+            if 'return (' not in updated_html[_db:_de + 1]:
+                updated_html = updated_html[:_dup.start()] + updated_html[_de + 1:]
+                print(f"  {_sname}: removed Claude-generated stub.")
+
+    # Force-replace from original if the remaining definition has no return
+    _fm2 = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html)
+    if _fm2:
+        _fb2 = updated_html.find('{', _fm2.end())
+        if _fb2 != -1:
+            _fe2 = _brace_end(updated_html, _fb2)
+            if 'return (' not in updated_html[_fb2:_fe2 + 1]:
+                updated_html = updated_html[:_fm2.start()] + _original + updated_html[_fe2 + 1:]
+                print(f"  {_sname}: force-replaced (no return statement) from original.")
+    else:
+        # (c) Section missing entirely — inject before function App()
+        _app_pos = updated_html.find('function App()')
+        if _app_pos != -1:
+            updated_html = updated_html[:_app_pos] + _original + '\n\n' + updated_html[_app_pos:]
+            print(f"  {_sname}: injected from original (was missing entirely).")
+
+    # Clean up any orphaned placeholder comment left in the output
+    _sph2 = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
+    if _sph2 in updated_html:
+        updated_html = updated_html.replace(_sph2, '', 1)
+        print(f"  {_sname}: removed orphaned placeholder comment.")
 
 # ── Post-restoration sanity check ──────────────────────────────────────────────
 # Verify the output is a complete, renderable file before writing.
