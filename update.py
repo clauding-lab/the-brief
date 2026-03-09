@@ -187,6 +187,31 @@ prompt_html = re.sub(r'\bsourceDate="[^"]*"', 'sourceDate=""', prompt_html)
 _prop_saved = _before_prop - len(prompt_html)
 print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} tokens).")
 
+# ── Strip non-daily section functions to free Phase 2 token budget ─────────────
+# SectionRMG, SectionFiscal, SectionNBR, SectionPower, SectionPeers contain
+# monthly/quarterly data — they do NOT need daily updates. Stripping their JSX
+# bodies saves ~15,000–20,000 chars from prompt_html, giving Phase 2 a comfortable
+# margin under 30k tokens. Their original code is restored unchanged after Phase 2.
+_SLOW_SECTIONS = ['SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers']
+_slow_saved = {}
+_slow_chars_saved = 0
+for _sname in _SLOW_SECTIONS:
+    _sm = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', prompt_html)
+    if _sm:
+        _bs = prompt_html.find('{', _sm.end())
+        if _bs != -1:
+            _be = _brace_end(prompt_html, _bs)
+            _full_fn = prompt_html[_sm.start():_be + 1]
+            _sph = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
+            _slow_saved[_sname] = _full_fn
+            prompt_html = prompt_html[:_sm.start()] + _sph + prompt_html[_be + 1:]
+            _slow_chars_saved += len(_full_fn) - len(_sph)
+if _slow_saved:
+    print(f"Slow sections stripped: {_slow_chars_saved:,} chars saved from "
+          f"{len(_slow_saved)} sections: {list(_slow_saved.keys())}")
+else:
+    print("Warning: no slow sections found to strip — check function names.")
+
 # ── Two-phase approach: gather data first, then generate HTML ───────────────────
 # Phase 1 prompt: tiny (no HTML in prompt), Claude searches and returns JSON data.
 # Phase 2 prompt: gathered JSON + stripped HTML (~22k tokens), Claude writes HTML.
@@ -398,6 +423,11 @@ REQUIRED PLACEHOLDERS — copy EXACTLY:
   // [TARIFF_RENDER_PLACEHOLDER — restored automatically]
   // [TRADE_RENDER_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
+  // [SECTIONRMG_PLACEHOLDER — restored automatically]
+  // [SECTIONFISCAL_PLACEHOLDER — restored automatically]
+  // [SECTIONNBR_PLACEHOLDER — restored automatically]
+  // [SECTIONPOWER_PLACEHOLDER — restored automatically]
+  // [SECTIONPEERS_PLACEHOLDER — restored automatically]
 
 UPDATE RULES (use gathered JSON keys by exact name):
 HEADER: BRIEF_DATE = "{today} · HHMM BDT"
@@ -412,11 +442,7 @@ SectionBanking: npl_ratio_pct car_pct news_banking
 OilChart: remove old today:true, append{{label:"Mar 7",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 5 fresh bullets (bull📈/bear📉/warn⚠️/watch🔭). Cover: reserves+remittance, exports, oil/geopolitics, market/rates, outlook. Update events calendar. trafficStatus(bull/bear/warn/neu).
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
-SectionRMG: rmg_eu/us/uk/canada/others_pct; rmg_exports_latest_mn/_yoy_pct/_month; rmg_ytd_bn/_yoy_pct; rmg_pipeline; news_rmg; trafficStatus(bear=neg YoY,warn=softening,bull=improving).
-SectionFiscal: nbr_collected/target_trillion nbr_progress_pct adp_pct/_spent/_target_crore govt_borrow_trillion/_pct/_ceiling_trillion; ProgressBar pcts; news_fiscal; trafficStatus.
-SectionNBR: VAT/IT/Customs(nbr_*_bn/*_share_pct/*_yoy_pct); nbr_collected/target/progress/shortfall/needed; ticker; trafficStatus.
-SectionPower: power_gen/demand/shortage_mw; gen%=round(gen/demand*100); ProgressBar=gen%; shedding_rural/urban; power_lng_mmbtu; news_power; trafficStatus(bear>2000MW,warn1000-2000,bull<1000).
-SectionPeers: BD row(gdp_growth_pct,cpi_headline_pct,forex_reserves_bn); peers_in/vn/pk/lk_* all fields; recalc gdpC/cpiC/fxrC/cabC(best=top,worst=bottom,mid=others); ticker; trafficStatus.
+NOTE: SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
 
 OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
 
@@ -493,6 +519,29 @@ for _js_key, _js_content in _js_parts.items():
                 if upd_s != -1 and upd_e != -1:
                     updated_html = updated_html[:upd_s] + orig_block + updated_html[upd_e:]
                     print(f"  {_js_key} fallback-restored from original HTML.")
+
+# ── Restore non-daily section functions ─────────────────────────────────────────
+for _sname, _fn_body in _slow_saved.items():
+    _sph = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
+    if _sph in updated_html:
+        updated_html = updated_html.replace(_sph, _fn_body, 1)
+        print(f"  {_sname} restored.")
+    else:
+        print(f"Warning: {_sname} placeholder missing — restoring from original HTML.")
+        # Fallback: locate the function in current_html and splice it into updated_html
+        _fm = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', current_html)
+        if _fm:
+            _fb = current_html.find('{', _fm.end())
+            if _fb != -1:
+                _fbe = _brace_end(current_html, _fb)
+                _orig_fn = current_html[_fm.start():_fbe + 1]
+                _um = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html)
+                if _um:
+                    _ub = updated_html.find('{', _um.end())
+                    if _ub != -1:
+                        _ube = _brace_end(updated_html, _ub)
+                        updated_html = updated_html[:_um.start()] + _orig_fn + updated_html[_ube + 1:]
+                        print(f"  {_sname} fallback-restored from original HTML.")
 
 # ── Post-restoration sanity check ──────────────────────────────────────────────
 # Verify the output is a complete, renderable file before writing.
