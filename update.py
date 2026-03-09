@@ -327,8 +327,8 @@ client = anthropic.Anthropic(
     timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
 )
 
-WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 30}]
-MAX_RETRIES = 3
+WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 12}]
+MAX_RETRIES = 6   # allows 120+240+360+480+600 = 1,800s total wait across 5 retries
 
 def _stream_call(messages, tools, max_tokens, label):
     """Stream a Claude call with retry on rate limit. Returns final Message."""
@@ -345,7 +345,7 @@ def _stream_call(messages, tools, max_tokens, label):
             print(f"{label} done in {time.time()-t0:.0f}s. Stop reason: {resp.stop_reason}")
             return resp
         except anthropic.RateLimitError as e:
-            wait = 65 * attempt
+            wait = 120 * attempt   # 120s, 240s, 360s, 480s, 600s — clears any ≤10-min window
             print(f"Rate limit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s... ({e})")
             if attempt == MAX_RETRIES:
                 print("ERROR: Max retries exceeded.")
