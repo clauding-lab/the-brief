@@ -401,6 +401,14 @@ print(f"Gathered data: {len(gathered_json):,} chars")
 _p2_est = len(prompt_html) + len(gathered_json) + 2500
 print(f"Phase 2 est: {_p2_est:,} chars (~{int(_p2_est/2.6):,} tok @2.6 ch/tok)")
 
+# ── Rate-limit cooldown between Phase 1 and Phase 2 ────────────────────────────
+# Phase 1's web_search tool makes 15-20 successive internal API calls, each
+# accumulating prior search results. The last internal calls can send 20,000-40,000
+# input tokens — much of the 30k/min budget. Waiting 70s ensures those tokens
+# have rolled off Anthropic's 60-second sliding window before Phase 2 fires.
+print("Cooling down 70s to clear Phase 1 token usage from rate-limit window...")
+time.sleep(70)
+
 # ── PHASE 2: Generate updated HTML (no web search, HTML is direct output) ───────
 UPDATE_PROMPT = f"""THE BRIEF update. Today: {today} (UTC; +6 hrs = BDT).
 
