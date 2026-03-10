@@ -1051,7 +1051,7 @@ const _sb = window.supabase.createClient(
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
-const BRIEF_DATE = "MONDAY 09 MARCH 2026 · 0700 BDT";
+const BRIEF_DATE = "TUESDAY 10 MARCH 2026";
 const BRIEF_EDITION = "VOL. 1 · ISSUE 67";
 
 const SECTIONS = [
@@ -1067,7 +1067,7 @@ const SECTIONS = [
   { id: "banking", label: "Banking",        short: "Banking" },
   { id: "tariff",  label: "US Tariffs",     short: "Tariff" },
   { id: "trade",   label: "Int'l Trade",    short: "Trade" },
-  { id: "iranwar", label: "Iran/Oil",       short: "Iran" },
+  { id: "iranwar", label: "Iran/Oil",       short: "Iran/Oil" },
   { id: "rmg",     label: "RMG",            short: "RMG" },
   { id: "fiscal",  label: "Fiscal",         short: "Fiscal" },
   { id: "nbr",     label: "NBR Tax",        short: "NBR" },
@@ -1422,32 +1422,45 @@ function DSEXChart() {
     { label: "Feb 24", value: 5542 },
     { label: "Feb 25", value: 5554 },
     { label: "Feb 26", value: 5600, showLabel: true },
-    { label: "Mar 1",  value: 5462, showLabel: true },
-    { label: "Mar 2",  value: 5534 },
-    { label: "Mar 3",  value: 5325, showLabel: true, event: "crash" },
-    { label: "Mar 4",  value: 5323 },
-    { label: "Mar 5",  value: 5241 },
-    { label: "Mar 6",  value: 5241 },
-    { label: "Mar 9",  value: 5009, showLabel: true, today: true },
+    { label: "Mar 1", value: 5462, showLabel: true },
+    { label: "Mar 2", value: 5534 },
+    { label: "Mar 3", value: 5325, showLabel: true, event: "crash" },
+    { label: "Mar 4", value: 5323 },
+    { label: "Mar 5", value: 5241 },
+    { label: "Mar 6", value: 5241 },
+    { label: "Mar 9", value: 5009, showLabel: true },
+    { label: "Mar 10", value: 5290, showLabel: true, today: true },
   ];
 
   const W = 720, H = 270;
   const pad = { top: 46, right: 30, bottom: 62, left: 62 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
-  const minV = 4900, maxV = 5680;
+  const _vals = data.map(d => d.value);
+  const minV = Math.floor(Math.min(..._vals) / 100) * 100 - 100;
+  const maxV = Math.ceil(Math.max(..._vals) / 100) * 100 + 80;
 
   const cx = i => pad.left + (i / (data.length - 1)) * iW;
   const cy = v => pad.top + ((maxV - v) / (maxV - minV)) * iH;
 
+  const bnpIdx   = data.findIndex(d => d.event === "bnp");
+  const crashIdx = data.findIndex(d => d.event === "crash");
+  const todayIdx = data.findIndex(d => d.today);
+  const splitIdx = crashIdx >= 0 ? crashIdx : data.length;
+
   const allPts   = data.map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
-  const bluePts  = data.slice(0, 14).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
-  const redPts   = data.slice(13).map((d, i) => `${cx(13 + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
+  const bluePts  = data.slice(0, splitIdx).map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
+  const redPts   = splitIdx > 0 ? data.slice(splitIdx - 1).map((d, i) => `${cx(splitIdx - 1 + i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ") : "";
   const areaPts  = `${cx(0).toFixed(1)},${(H - pad.bottom).toFixed(1)} ${allPts} ${cx(data.length - 1).toFixed(1)},${(H - pad.bottom).toFixed(1)}`;
 
-  const gridVals = [4950, 5050, 5150, 5250, 5350, 5450, 5550, 5650];
+  const gridVals = [];
+  for (let _gv = Math.ceil(minV / 100) * 100 + 50; _gv <= maxV; _gv += 100) gridVals.push(_gv);
 
-  const bnpIdx = 2, crashIdx = 14, todayIdx = 18;
+  const _tv = todayIdx >= 0 ? data[todayIdx].value : 0;
+  const _pv = todayIdx > 0 ? data[todayIdx - 1].value : _tv;
+  const _pct = _pv ? ((_tv - _pv) / _pv * 100) : 0;
+  const _todayUp = _pct >= 0;
+  const _todayColor = _todayUp ? "var(--bull)" : "var(--bear)";
 
     return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
@@ -1479,31 +1492,37 @@ function DSEXChart() {
 
         {/* ── Annotations ── */}
 
-        {/* BNP win – Feb 15 */}
+        {/* BNP win annotation */}
+        {bnpIdx >= 0 && (<>
         <line x1={cx(bnpIdx)} y1={cy(data[bnpIdx].value) - 5} x2={cx(bnpIdx)} y2={pad.top - 4}
           stroke="var(--bull)" strokeWidth="1" strokeDasharray="3,2" />
         <rect x={cx(bnpIdx) - 54} y={pad.top - 40} width={108} height={36} rx={3}
           fill="rgba(34,197,94,0.15)" stroke="rgba(34,197,94,0.35)" strokeWidth="1" />
         <text x={cx(bnpIdx)} y={pad.top - 24} fill="var(--bull)" fontSize="9" textAnchor="middle" fontWeight="700">BNP Wins Election</text>
-        <text x={cx(bnpIdx)} y={pad.top - 12} fill="var(--bull)" fontSize="9" textAnchor="middle">+200pts · Feb 15</text>
+        <text x={cx(bnpIdx)} y={pad.top - 12} fill="var(--bull)" fontSize="9" textAnchor="middle">+200pts · {data[bnpIdx].label}</text>
+        </>)}
 
-        {/* Crash – Mar 3 */}
+        {/* Crash annotation */}
+        {crashIdx >= 0 && (<>
         <line x1={cx(crashIdx)} y1={cy(data[crashIdx].value) + 5} x2={cx(crashIdx)} y2={cy(data[crashIdx].value) + 17}
           stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
         <rect x={cx(crashIdx) - 62} y={cy(data[crashIdx].value) + 19} width={124} height={36} rx={3}
           fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
         <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 33} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Worst fall in 6 years</text>
-        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−209pts · Mar 3</text>
+        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−209pts · {data[crashIdx].label}</text>
+        </>)}
 
-        {/* Today label – Mar 9 */}
-        <text x={cx(todayIdx) - 6} y={cy(data[todayIdx].value) - 14} fill="var(--bear)" fontSize="10" textAnchor="end" fontWeight="700">5,009</text>
-        <text x={cx(todayIdx) - 6} y={cy(data[todayIdx].value) - 3}  fill="var(--bear)" fontSize="9"  textAnchor="end">TODAY −4.42%</text>
+        {/* Today label — computed from data */}
+        {todayIdx >= 0 && (<>
+        <text x={cx(todayIdx) - 6} y={cy(_tv) - 14} fill={_todayColor} fontSize="10" textAnchor="end" fontWeight="700">{_tv.toLocaleString()}</text>
+        <text x={cx(todayIdx) - 6} y={cy(_tv) - 3}  fill={_todayColor} fontSize="9"  textAnchor="end">{data[todayIdx].label.toUpperCase()} · {_todayUp ? "+" : ""}{_pct.toFixed(2)}%</text>
+        </>)}
 
         {/* Dots */}
         {data.map((d, i) => {
           const isKey = i === bnpIdx || i === crashIdx;
           const isToday = i === todayIdx;
-          const col = i >= 13 ? "var(--bear)" : "var(--accent)";
+          const col = crashIdx >= 0 && i >= splitIdx - 1 ? "var(--bear)" : "var(--accent)";
           return (
             <circle key={i} cx={cx(i)} cy={cy(d.value)}
               r={isKey || isToday ? 4.5 : 2.5}
@@ -1515,7 +1534,7 @@ function DSEXChart() {
         {/* X-axis labels (selected) */}
         {data.map((d, i) => {
           if (!d.showLabel) return null;
-          const col = i >= 13 ? "var(--bear)" : i === bnpIdx ? "var(--bull)" : "var(--muted)";
+          const col = crashIdx >= 0 && i >= splitIdx - 1 ? "var(--bear)" : i === bnpIdx ? "var(--bull)" : "var(--muted)";
         
    return (
             <text key={i} x={cx(i)} y={H - pad.bottom + 16} fill={col} fontSize="9" textAnchor="middle">{d.label}</text>
@@ -2183,15 +2202,16 @@ function OilChart() {
   const AV_KEY = "T294W0RCT1U6OOPE";
 
   const STATIC_DATA = [
-    { label: "Oct '25",   value: 63.2 },
-    { label: "Jan '26",   value: 62 },
-    { label: "Jan 30",    value: 72 },
-    { label: "Mid-Feb",   value: 77 },
-    { label: "Feb 28",    value: 69,  event: true },
-    { label: "Mar 2",     value: 82 },
-    { label: "Mar 4",     value: 82.8 },
-    { label: "Mar 6",     value: 92.69 },
-    { label: "Mar 9",     value: 107.97, today: true },
+    { label: "Oct '25", value: 63.2 },
+    { label: "Jan '26", value: 62.0 },
+    { label: "Jan 30", value: 72.0 },
+    { label: "Mid-Feb", value: 77.0 },
+    { label: "Feb 28", value: 69.0, event: true },
+    { label: "Mar 2", value: 82.0 },
+    { label: "Mar 4", value: 82.8 },
+    { label: "Mar 6", value: 92.69 },
+    { label: "Mar 9", value: 107.97 },
+    { label: "Mar 10", value: 91.59, today: true },
   ];
 
   
@@ -2938,7 +2958,7 @@ function App() {
         {[
           { id: "exec",    icon: "📋", label: "Summary" },
           { id: "dse",     icon: "📈", label: "DSE" },
-          { id: "iranwar", icon: "🛢️", label: "Iran/Oil" },
+          { id: "banking", icon: "🏛️", label: "Banking" },
         ].map(s => (
           <button key={s.id}
             className={`bottom-nav-btn ${activeSection === s.id ? "active" : ""}`}

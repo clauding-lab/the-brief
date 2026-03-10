@@ -20,9 +20,11 @@ FROM_NAME        = "THE BRIEF"
 with open("the-brief.html", "r", encoding="utf-8") as f:
     current_html = f.read()
 
-today = datetime.utcnow().strftime("%A %d %B %Y").upper()
-_now = datetime.utcnow()
-chart_label = _now.strftime("%b ") + str(_now.day)   # e.g. "Mar 9" — no leading zero, portable
+from datetime import timezone, timedelta
+_BDT = timezone(timedelta(hours=6))
+_now = datetime.now(_BDT)
+today = _now.strftime("%A %d %B %Y").upper()
+chart_label = _now.strftime("%b ") + str(_now.day)   # e.g. "Mar 11" — no leading zero, BDT
 
 # ── Strip CSS to stay under rate-limit (Claude is told not to touch CSS anyway) ─
 # ── Strip <head> block (CDN scripts, PWA tags, meta) — Claude never touches these ─
@@ -128,8 +130,7 @@ def strip_js_render(html):
                + sc[s0:])
 
     # 2-3. Chart return() statements
-    for fname, key in (('DSEXChart',  'DSEXCHART_RENDER_PLACEHOLDER'),
-                       ('TBillChart', 'TBILLCHART_RENDER_PLACEHOLDER')):
+    for fname, key in (('TBillChart', 'TBILLCHART_RENDER_PLACEHOLDER'),):
         sc = _strip_return(sc, fname, key)
 
     # 2d. SectionTariff — static US tariff explainer, never updated daily;
@@ -192,6 +193,9 @@ prompt_html = re.sub(r'\bsource="[^"]*"', 'source=""', prompt_html)
 prompt_html = re.sub(r'\bsourceUrl="[^"]*"', 'sourceUrl=""', prompt_html)
 prompt_html = re.sub(r'\btime="[^"]*"', 'time=""', prompt_html)
 prompt_html = re.sub(r'\bchange="[^"]*"', 'change=""', prompt_html)
+# BankerRead insight props — stripped so Claude is forced to generate fresh every run
+# (keeping old text visible caused Claude to preserve it despite "ALWAYS rewrite" instruction)
+prompt_html = re.sub(r'\binsight="[^"]*"', 'insight=""', prompt_html)
 # DAM computed label props — Claude rewrites from dam_* data each run
 prompt_html = re.sub(r'\bhotspotLabel="[^"]*"', 'hotspotLabel=""', prompt_html)
 prompt_html = re.sub(r'\bhotspotStat="[^"]*"', 'hotspotStat=""', prompt_html)
@@ -205,11 +209,11 @@ _prop_saved = _before_prop - len(prompt_html)
 print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} tokens).")
 
 # ── Strip non-daily section functions to free Phase 2 token budget ─────────────
-# SectionRMG, SectionFiscal, SectionNBR, SectionPower, SectionPeers contain
-# monthly/quarterly data — they do NOT need daily updates. Stripping their JSX
-# bodies saves ~15,000–20,000 chars from prompt_html, giving Phase 2 a comfortable
-# margin under 30k tokens. Their original code is restored unchanged after Phase 2.
-_SLOW_SECTIONS = ['SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers']
+# DSEXChart, SectionRMG, SectionFiscal, SectionNBR, SectionPower, SectionPeers
+# are stripped from the Phase 2 prompt. DSEXChart data is updated deterministically
+# via Python post-processing. The others contain monthly/quarterly data that does
+# NOT need daily updates. Their original code is restored unchanged after Phase 2.
+_SLOW_SECTIONS = ['DSEXChart', 'SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers']
 # Save originals from current_html (before ANY stripping/prop-erasure) so restoration
 # always uses the full, unmodified function body regardless of what Claude outputs.
 _slow_originals = {}
@@ -453,9 +457,9 @@ REQUIRED PLACEHOLDERS — copy EXACTLY:
   <head><!-- HEAD_PLACEHOLDER — restored automatically --></head>
   <style>/* CSS_PLACEHOLDER — restored automatically */</style>
   // [COMPONENTS_PLACEHOLDER — restored automatically]
-  // [DSEXCHART_RENDER_PLACEHOLDER — restored automatically]
   // [TBILLCHART_RENDER_PLACEHOLDER — restored automatically]
   // [OILCHART_RENDER_PLACEHOLDER — restored automatically]
+  // [DSEXCHART_PLACEHOLDER — restored automatically]
   // [TARIFF_RENDER_PLACEHOLDER — restored automatically]
   // [TRADE_RENDER_PLACEHOLDER — restored automatically]
   // [APP_PLACEHOLDER — restored automatically]
@@ -466,10 +470,10 @@ REQUIRED PLACEHOLDERS — copy EXACTLY:
   // [SECTIONPEERS_PLACEHOLDER — restored automatically]
 
 UPDATE RULES (use gathered JSON keys by exact name):
-HEADER: BRIEF_DATE = "{today} · HHMM BDT"
+HEADER: BRIEF_DATE = "{today}"
 SectionBB: bb_policy_rate_pct sdf_rate_pct slf_rate_pct gdp_growth_pct credit_growth_pct forex_reserves_bn cpi_headline_pct remittance_mn news_banking
 SectionMacro: cpi_headline_pct/_month cpi_food_pct/_month bb_policy_rate_pct sdf_rate_pct slf_rate_pct mpc_note
-DSEXChart: drop[0], append{{label:"{chart_label}",value:dsex,showLabel:true,today:true}}, remove today:true from prior last. SectionDSE: all dse_* + news_dse
+SectionDSE: all dse_* + news_dse (DSEXChart is PLACEHOLDER-restored — pass its placeholder through unchanged)
 TBillChart: tbill_new_auction→drop[0]+append new yields; else update last entry. SectionTBond: tbill_91d/182d/364d bond_10y/5y tbill_auction_date news_tbill
 SectionComm: gold_22k_bdt brent_usd wti_usd natgas_usd news_commodity
 SectionFX: usd/eur/gbp_bdt forex_reserves_bn exports/rmg_exports_mn exports_month imports_mn trade_deficit_mn/_yoy_pct news_forex
@@ -478,7 +482,7 @@ SectionBanking: npl_ratio_pct car_pct news_banking
 OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 5 fresh bullets (bull📈/bear📉/warn⚠️/watch🔭). Cover: reserves+remittance, exports, oil/geopolitics, market/rates, outlook. Update events calendar. trafficStatus(bull/bear/warn/neu).
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
-NOTE: SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
+NOTE: DSEXChart/SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
 BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
 
 OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
@@ -552,7 +556,6 @@ for _js_key, _js_content in _js_parts.items():
         # Fallback: inject the original rendering back at the known anchor point
         anchor_map = {
             'COMPONENTS_PLACEHOLDER':       ('// ── Components',      '// ── Sections'),
-            'DSEXCHART_RENDER_PLACEHOLDER':  ('function DSEXChart()',  'function SectionDSE()'),
             'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
             'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
             'TARIFF_RENDER_PLACEHOLDER':     ('function SectionTariff()', 'function SectionTrade()'),
@@ -573,10 +576,13 @@ for _js_key, _js_content in _js_parts.items():
                     print(f"  {_js_key} fallback-restored from original HTML.")
 
 # ── Restore non-daily section functions ─────────────────────────────────────────
+# Use _slow_originals (saved from current_html before ANY prop stripping) so that
+# insight= props are restored with their previous values, not blanked by the strip.
 for _sname, _fn_body in _slow_saved.items():
     _sph = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
+    _restore_body = _slow_originals.get(_sname, _fn_body)  # prefer pre-strip original
     if _sph in updated_html:
-        updated_html = updated_html.replace(_sph, _fn_body, 1)
+        updated_html = updated_html.replace(_sph, _restore_body, 1)
         print(f"  {_sname} restored.")
     else:
         print(f"Warning: {_sname} placeholder missing — restoring from original HTML.")
@@ -664,16 +670,223 @@ for _k in _orphaned:
     updated_html = updated_html.replace(f'// [{_k} — restored automatically]', '', 1)
     _sanity_ok = False
 
-# 3. File must end with </html>
+# 3. Fix stray "} />" in JSX self-closing tags (AI sometimes writes =" } />" instead of =" />")
+_stray_count = updated_html.count('" } />')
+if _stray_count:
+    updated_html = updated_html.replace('" } />', '" />')
+    print(f"⚠️  Sanity: fixed {_stray_count} stray '}}' in JSX self-closing tags.")
+    _sanity_ok = False
+
+# 4. Truncate after first </html> — removes any orphaned duplicate closing tags
+_first_html_close = updated_html.find('</html>')
+if _first_html_close != -1:
+    _after = updated_html[_first_html_close + len('</html>'):].strip()
+    if _after:
+        print(f"⚠️  Sanity: {len(_after)} chars of orphaned content after first </html> — truncating.")
+        updated_html = updated_html[:_first_html_close + len('</html>')] + '\n'
+        _sanity_ok = False
+
+# 4b. File must end with </html>
 if not updated_html.rstrip().endswith('</html>'):
     print("⚠️  Sanity: file does not end with </html> — aborting write, keeping original.")
     updated_html = current_html   # full rollback
+    _sanity_ok = False
+
+# 5. JSX syntax validation — extract <script type="text/babel"> and check for common errors
+_script_m = re.search(r'<script[^>]*type="text/babel"[^>]*>(.*?)</script>', updated_html, re.DOTALL)
+_jsx_errors = []
+if _script_m:
+    _jsx_src = _script_m.group(1)
+    # 5a. Orphaned closing tags between functions (stray </svg>, </div> etc.)
+    _between_fns = re.findall(r'\)\s*;\s*\n\s*(</(?:svg|div|span|section)>)', _jsx_src)
+    if _between_fns:
+        _jsx_errors.append(f"{len(_between_fns)} orphaned closing tag(s) between functions")
+    # 5b. JSX prop using colon instead of equals on a component tag line
+    #     e.g. <MetricCard value: "X" ...> — but NOT style={{ color: "red" }}
+    #     Look for lines starting with < followed by word: "string" NOT inside {{ }}
+    _colon_prop_lines = re.findall(
+        r'^\s*<[A-Z]\w+[^>]*?\b(value|label|change|sub|insight|headline|detail|source|time):\s*"',
+        _jsx_src, re.MULTILINE
+    )
+    if _colon_prop_lines:
+        _jsx_errors.append(f"{len(_colon_prop_lines)} colon-instead-of-equals in JSX props ({_colon_prop_lines[:3]})")
+    # 5c. Unclosed JSX fragments: <> without matching </>
+    _frags_open = len(re.findall(r'(?<!\w)<>(?!\s*$)', _jsx_src))
+    _frags_close = len(re.findall(r'</>', _jsx_src))
+    if _frags_open != _frags_close:
+        _jsx_errors.append(f"mismatched JSX fragments: {_frags_open} opens vs {_frags_close} closes")
+if _jsx_errors:
+    print(f"⚠️  Sanity: JSX validation failed — falling back to original HTML:")
+    for _je in _jsx_errors:
+        print(f"    • {_je}")
+    updated_html = current_html
     _sanity_ok = False
 
 if _sanity_ok:
     print("Sanity check passed ✅")
 else:
     print("Sanity check applied fixes — review warnings above.")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DETERMINISTIC POST-PROCESSING
+# These updates run AFTER sanity checks / fallback so they always apply,
+# even when the AI output is rolled back to original HTML.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── 1. BRIEF_DATE — always set to today ───────────────────────────────────────
+_date_m = re.search(r'const BRIEF_DATE\s*=\s*"[^"]*"', updated_html)
+if _date_m:
+    updated_html = updated_html[:_date_m.start()] + f'const BRIEF_DATE = "{today}"' + updated_html[_date_m.end():]
+    print(f"BRIEF_DATE set to \"{today}\"")
+
+# ── 2. DSEXChart data update ─────────────────────────────────────────────────
+try:
+    _gd = json.loads(gathered_json)
+    _dsex_val = _gd.get("dsex")
+    if _dsex_val is not None:
+        _dsex_val = int(round(float(str(_dsex_val).replace(",", ""))))
+
+        _dm = re.search(
+            r'(function DSEXChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
+            updated_html, re.DOTALL
+        )
+        if _dm:
+            _data_body = _dm.group(2)
+            _entries_raw = re.findall(r'\{([^}]+)\}', _data_body)
+            _parsed_entries = []
+            for _er in _entries_raw:
+                _entry = {}
+                _lm = re.search(r'label:\s*"([^"]+)"', _er)
+                if _lm: _entry['label'] = _lm.group(1)
+                _vm = re.search(r'value:\s*(\d+)', _er)
+                if _vm: _entry['value'] = int(_vm.group(1))
+                if re.search(r'showLabel:\s*true', _er): _entry['showLabel'] = True
+                if re.search(r'today:\s*true', _er): _entry['today'] = True
+                _em = re.search(r'event:\s*"([^"]+)"', _er)
+                if _em: _entry['event'] = _em.group(1)
+                if 'label' in _entry and 'value' in _entry:
+                    _parsed_entries.append(_entry)
+
+            if _parsed_entries:
+                for _pe in _parsed_entries:
+                    _pe.pop('today', None)
+
+                _today_found = False
+                for _pe in _parsed_entries:
+                    if _pe.get('label') == chart_label:
+                        _pe['value'] = _dsex_val
+                        _pe['showLabel'] = True
+                        _pe['today'] = True
+                        _today_found = True
+                        break
+
+                if not _today_found:
+                    _parsed_entries.append({
+                        'label': chart_label,
+                        'value': _dsex_val,
+                        'showLabel': True,
+                        'today': True,
+                    })
+
+                while len(_parsed_entries) > 25:
+                    _parsed_entries.pop(0)
+
+                _lines = []
+                for _pe in _parsed_entries:
+                    _parts = [f'label: "{_pe["label"]}"', f'value: {_pe["value"]}']
+                    if _pe.get('showLabel'): _parts.append('showLabel: true')
+                    if _pe.get('event'): _parts.append(f'event: "{_pe["event"]}"')
+                    if _pe.get('today'): _parts.append('today: true')
+                    _lines.append('    { ' + ', '.join(_parts) + ' }')
+                _new_data = '\n' + ',\n'.join(_lines) + ',\n  '
+
+                updated_html = (
+                    updated_html[:_dm.start(2)] +
+                    _new_data +
+                    updated_html[_dm.end(2):]
+                )
+                print(f"DSEXChart data updated: {len(_parsed_entries)} points, "
+                      f"today={chart_label} DSEX={_dsex_val}")
+            else:
+                print("Warning: could not parse DSEXChart data entries.")
+        else:
+            print("Warning: DSEXChart data array pattern not found in output.")
+    else:
+        print("Note: no DSEX value in gathered data — chart data unchanged.")
+except Exception as _e:
+    print(f"Warning: DSEXChart post-processing failed ({_e}) — chart data unchanged.")
+
+# ── 3. OilChart STATIC_DATA update ───────────────────────────────────────────
+try:
+    _gd = _gd if '_gd' in dir() else json.loads(gathered_json)
+    _brent_val = _gd.get("brent_spot") or _gd.get("brent_usd")
+    if _brent_val is not None:
+        _brent_val = round(float(str(_brent_val).replace(",", "")), 2)
+
+        _om = re.search(
+            r'(const STATIC_DATA = \[)(.*?)(\];)',
+            updated_html, re.DOTALL
+        )
+        if _om:
+            _oil_body = _om.group(2)
+            _oil_entries_raw = re.findall(r'\{([^}]+)\}', _oil_body)
+            _oil_parsed = []
+            for _oer in _oil_entries_raw:
+                _oe = {}
+                _olm = re.search(r'label:\s*"([^"]+)"', _oer)
+                if _olm: _oe['label'] = _olm.group(1)
+                _ovm = re.search(r'value:\s*([\d.]+)', _oer)
+                if _ovm: _oe['value'] = float(_ovm.group(1))
+                if re.search(r'event:\s*true', _oer): _oe['event'] = True
+                if re.search(r'today:\s*true', _oer): _oe['today'] = True
+                if 'label' in _oe and 'value' in _oe:
+                    _oil_parsed.append(_oe)
+
+            if _oil_parsed:
+                for _oe in _oil_parsed:
+                    _oe.pop('today', None)
+
+                _oil_today_found = False
+                for _oe in _oil_parsed:
+                    if _oe.get('label') == chart_label:
+                        _oe['value'] = _brent_val
+                        _oe['today'] = True
+                        _oil_today_found = True
+                        break
+
+                if not _oil_today_found:
+                    _oil_parsed.append({
+                        'label': chart_label,
+                        'value': _brent_val,
+                        'today': True,
+                    })
+
+                while len(_oil_parsed) > 12:
+                    _oil_parsed.pop(0)
+
+                _oil_lines = []
+                for _oe in _oil_parsed:
+                    _oparts = [f'label: "{_oe["label"]}"', f'value: {_oe["value"]}']
+                    if _oe.get('event'): _oparts.append('event: true')
+                    if _oe.get('today'): _oparts.append('today: true')
+                    _oil_lines.append('    { ' + ', '.join(_oparts) + ' }')
+                _new_oil = '\n' + ',\n'.join(_oil_lines) + ',\n  '
+
+                updated_html = (
+                    updated_html[:_om.start(2)] +
+                    _new_oil +
+                    updated_html[_om.end(2):]
+                )
+                print(f"OilChart data updated: {len(_oil_parsed)} points, "
+                      f"today={chart_label} Brent=${_brent_val}")
+            else:
+                print("Warning: could not parse OilChart STATIC_DATA entries.")
+        else:
+            print("Warning: OilChart STATIC_DATA pattern not found in output.")
+    else:
+        print("Note: no Brent value in gathered data — oil chart unchanged.")
+except Exception as _e:
+    print(f"Warning: OilChart post-processing failed ({_e}) — oil chart unchanged.")
 
 # ── Write updated files ────────────────────────────────────────────────────────
 with open("the-brief.html", "w", encoding="utf-8") as f:
