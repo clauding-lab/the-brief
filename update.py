@@ -279,6 +279,10 @@ WHAT TO SEARCH:
 23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
 24. Bangladesh power/electricity sector (BPDB, PGCB): current average daily generation MW, peak demand MW, daily shortage/loadshedding MW; rural and urban loadshedding hours per day; LNG spot import cost USD/MMBtu; 1-2 power sector news headlines.
 25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
+26. Today's ({today}) top 2 business/economy news headlines from The Daily Star Bangladesh (thedailystar.net/business) with article URLs and publication date. MUST be published today — do not include older articles.
+27. Today's ({today}) top 2 business/economy news headlines from Financial Express BD (thefinancialexpress.com.bd) and top 2 from TBS News (tbsnews.net) with article URLs and publication dates. MUST be published today only.
+28. Today's ({today}) top 1-2 Bangladesh/South Asia relevant headlines from Financial Times (ft.com) with URLs and publication dates. MUST be published today only.
+29. Today's top 2-3 business/economy Op-Ed and opinion columns from Daily Star, Financial Express BD, TBS, or Financial Times — with title, author name, one-line summary, source name, article URL, and publication date. Op-eds may be from today or at most 1-2 days prior.
 
 Return ONLY this JSON (use null for any value not found):
 {{
@@ -349,7 +353,13 @@ Return ONLY this JSON (use null for any value not found):
   "peers_in_gdp": "6.4",   "peers_in_cpi": "4.3",   "peers_in_fxr": "638",  "peers_in_cab": "-1.0",  "peers_in_rating": "BBB-",
   "peers_vn_gdp": "6.8",   "peers_vn_cpi": "3.6",   "peers_vn_fxr": "103",  "peers_vn_cab": "+4.2",  "peers_vn_rating": "BB+",
   "peers_pk_gdp": "2.8",   "peers_pk_cpi": "23.0",  "peers_pk_fxr": "11.7", "peers_pk_cab": "-0.8",  "peers_pk_rating": "CCC+",
-  "peers_lk_gdp": "4.5",   "peers_lk_cpi": "4.1",   "peers_lk_fxr": "6.1",  "peers_lk_cab": "-2.1",  "peers_lk_rating": "B-"
+  "peers_lk_gdp": "4.5",   "peers_lk_cpi": "4.1",   "peers_lk_fxr": "6.1",  "peers_lk_cab": "-2.1",  "peers_lk_rating": "B-",
+
+  "headlines_ds": [{{"title": "headline", "url": "https://thedailystar.net/...", "date": "11 Mar 2026"}}],
+  "headlines_fe": [{{"title": "headline", "url": "https://thefinancialexpress.com.bd/...", "date": "11 Mar 2026"}}],
+  "headlines_tbs": [{{"title": "headline", "url": "https://tbsnews.net/...", "date": "11 Mar 2026"}}],
+  "headlines_ft": [{{"title": "headline", "url": "https://ft.com/...", "date": "11 Mar 2026"}}],
+  "opeds": [{{"title": "op-ed title", "author": "Author Name", "summary": "one-line summary", "source": "DS", "url": "https://...", "date": "11 Mar 2026"}}]
 }}"""
 
 # ── API client (used by both phases) ───────────────────────────────────────────
@@ -358,7 +368,7 @@ client = anthropic.Anthropic(
     timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
 )
 
-WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 12}]
+WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 15}]
 MAX_RETRIES = 6   # allows 120+240+360+480+600 = 1,800s total wait across 5 retries
 
 def _stream_call(messages, tools, max_tokens, label):
@@ -409,9 +419,9 @@ if last_text:
 
 # ── Trim gathered_json to fit Phase 2 token budget ───────────────────────────
 # gathered_json size is variable (7k–15k chars depending on Phase 1 verbosity).
-# Cap at 8,500 chars to guarantee Phase 2 stays under 30k input tokens @2.6 ch/tok.
-# Budget: ~76,000 total chars - ~65,500 prompt_html - ~2,500 framing = ~8,000 for JSON.
-_MAX_JSON = 8500
+# Cap at 16,500 chars — Phase 2 total ~95k chars (~36k tok) well within API limits.
+# Headline URLs and op-ed data must not be truncated or Claude will hallucinate URLs.
+_MAX_JSON = 16500
 if len(gathered_json) > _MAX_JSON:
     print(f"Gathered JSON ({len(gathered_json):,} chars) exceeds budget ({_MAX_JSON:,}). Trimming...")
     try:
@@ -420,6 +430,12 @@ if len(gathered_json) > _MAX_JSON:
         for _k, _v in list(_gd.items()):
             if _k.startswith('news_') and isinstance(_v, list):
                 _gd[_k] = [str(x)[:100] for x in _v[:2]]  # max 2 headlines, 100 chars each
+            elif _k.startswith('headlines_') and isinstance(_v, list):
+                _gd[_k] = _v[:2]                           # keep max 2 per source, preserve URLs/dates
+            elif _k == 'opeds' and isinstance(_v, list):
+                for _op in _v:                             # trim op-ed summaries
+                    if isinstance(_op, dict) and 'summary' in _op:
+                        _op['summary'] = _op['summary'][:80]
             elif isinstance(_v, str) and len(_v) > 100:
                 _gd[_k] = _v[:100]                         # cap other string fields at 100 chars
         gathered_json = _json.dumps(_gd, ensure_ascii=False)
@@ -481,10 +497,12 @@ SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
 SectionBanking: npl_ratio_pct car_pct news_banking
 OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 5 fresh bullets (bull📈/bear📉/warn⚠️/watch🔭). Cover: reserves+remittance, exports, oil/geopolitics, market/rates, outlook. Update events calendar. trafficStatus(bull/bear/warn/neu).
+SectionHeadlines: headlines_ds/fe/tbs/ft → populate headline card arrays (6-8 total, mix sources). opeds → populate 2-3 op-ed cards. Use actual article URLs from gathered data. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, FT=Financial Times. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. FRESHNESS RULES: ALL headlines MUST be from today ({today}) only — never use older articles. Op-eds may be from today or at most 1-2 days prior. For the `time` field: use the REAL publication date from the gathered data (format: "11 Mar" — day + abbreviated month). Do NOT hardcode today's date — use the actual article publication date from the `date` field in gathered JSON. If a source has no articles from today, use fewer headlines from that source rather than using stale articles. BankerRead: summarize the news narrative for a banking executive — what the headlines collectively signal for the bank's risk posture.
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: DSEXChart/SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
 BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
 
+JSX SYNTAX: Use EQUALS for JSX component props: <MetricCard value="10%" label="Rate" /> — NEVER use colons for JSX props. Colons are ONLY for JS object literals inside {{ }}.
 OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
 
 print("Phase 2: Generating updated HTML (no web search)...")
@@ -701,15 +719,34 @@ if _script_m:
     _between_fns = re.findall(r'\)\s*;\s*\n\s*(</(?:svg|div|span|section)>)', _jsx_src)
     if _between_fns:
         _jsx_errors.append(f"{len(_between_fns)} orphaned closing tag(s) between functions")
-    # 5b. JSX prop using colon instead of equals on a component tag line
-    #     e.g. <MetricCard value: "X" ...> — but NOT style={{ color: "red" }}
-    #     Look for lines starting with < followed by word: "string" NOT inside {{ }}
-    _colon_prop_lines = re.findall(
-        r'^\s*<[A-Z]\w+[^>]*?\b(value|label|change|sub|insight|headline|detail|source|time):\s*"',
-        _jsx_src, re.MULTILINE
-    )
-    if _colon_prop_lines:
-        _jsx_errors.append(f"{len(_colon_prop_lines)} colon-instead-of-equals in JSX props ({_colon_prop_lines[:3]})")
+    # 5b. JSX prop using colon instead of equals — auto-fix line by line
+    #     Only fix on lines that are clearly JSX tags (start with < or are
+    #     continuation lines ending with />), NOT inside JS object literals.
+    _colon_props_re = r'\b(value|label|change|sub|insight|detail|num|title|icon):\s*"'
+    _colon_fix_count = 0
+    _fixed_lines = []
+    for _line in _jsx_src.split('\n'):
+        _stripped = _line.lstrip()
+        # Only fix on lines that look like JSX tags, not JS object literals
+        _is_jsx_tag = (_stripped.startswith('<') and not _stripped.startswith('</') and not _stripped.startswith('<!--')) \
+                      or _stripped.endswith('/>') or _stripped.endswith('>') \
+                      and not _stripped.startswith('{') and not _stripped.startswith('//')
+        # Skip lines that are clearly object literals (contain { name: or start with {)
+        _is_obj_literal = '{ name:' in _line or '{ id:' in _line or _stripped.startswith('{') \
+                          or 'const ' in _line or re.match(r'^\s*\{', _line)
+        if _is_jsx_tag and not _is_obj_literal:
+            _new_line, _n = re.subn(_colon_props_re, lambda m: m.group(1) + '="', _line)
+            if _n:
+                _colon_fix_count += _n
+                _line = _new_line
+        _fixed_lines.append(_line)
+    if _colon_fix_count:
+        _jsx_src = '\n'.join(_fixed_lines)
+        _script_start = _script_m.start(1)
+        _script_end = _script_m.end(1)
+        updated_html = updated_html[:_script_start] + _jsx_src + updated_html[_script_end:]
+        print(f"⚠️  Sanity: auto-fixed {_colon_fix_count} colon-instead-of-equals in JSX props.")
+        _sanity_ok = False
     # 5c. Unclosed JSX fragments: <> without matching </>
     _frags_open = len(re.findall(r'(?<!\w)<>(?!\s*$)', _jsx_src))
     _frags_close = len(re.findall(r'</>', _jsx_src))
