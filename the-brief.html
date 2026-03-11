@@ -140,39 +140,43 @@
 
     /* ── Nav Bar ── */
     .nav {
-      display: flex;
-      gap: 2px;
-      padding: 0 32px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-      scrollbar-width: none;
-      position: fixed;
-      top: 80px;
-      left: 0;
-      right: 0;
-      z-index: 99;
+      display: flex; gap: 0; padding: 0 32px;
+      background: var(--bg); border-bottom: 1px solid var(--border);
+      overflow: visible;
+      position: fixed; top: 80px; left: 0; right: 0; z-index: 99;
     }
     .nav::-webkit-scrollbar { display: none; }
-    .nav-btn {
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-family: inherit;
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 10px 14px;
-      cursor: pointer;
-      white-space: nowrap;
-      border-bottom: 2px solid transparent;
+    .nav-group { position: relative; }
+    .nav-group-btn {
+      background: none; border: none; color: var(--muted);
+      font-family: inherit; font-size: 10px; letter-spacing: 0.12em;
+      text-transform: uppercase; padding: 10px 16px; cursor: pointer;
+      white-space: nowrap; border-bottom: 2px solid transparent;
       transition: color .2s, border-color .2s;
+      display: flex; align-items: center; gap: 4px;
     }
-    .nav-btn:hover { color: var(--text); }
-    .nav-btn.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
+    .nav-group-btn:hover { color: var(--text); }
+    .nav-group-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .nav-chevron { font-size: 7px; transition: transform .2s; }
+    .nav-group-btn.open .nav-chevron { transform: rotate(180deg); }
+    .nav-dropdown {
+      position: absolute; top: 100%; left: 0; min-width: 160px;
+      background: var(--surface); border: 1px solid var(--border); border-top: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 101;
+      padding: 4px 0;
+      opacity: 0; transform: translateY(-4px); pointer-events: none;
+      transition: opacity .15s, transform .15s;
     }
+    .nav-dropdown.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .nav-drop-item {
+      display: block; width: 100%; background: none; border: none;
+      color: var(--muted); font-family: inherit; font-size: 10px;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 8px 16px; cursor: pointer; text-align: left;
+      white-space: nowrap; transition: color .15s, background .15s;
+    }
+    .nav-drop-item:hover { color: var(--text); background: var(--border); }
+    .nav-drop-item.active { color: var(--accent); background: rgba(59,130,246,0.08); }
 
     /* ── Main layout ── */
     .main {
@@ -556,6 +560,8 @@
       .main { padding: 20px 16px; }
       .header { padding: 16px; }
       .nav { padding: 0 16px; }
+      .nav-group-btn { padding: 10px 12px; font-size: 9px; }
+      .nav-dropdown { min-width: 140px; }
     }
 
     /* ── Context box ── */
@@ -754,35 +760,23 @@
     .cross-insight strong { font-style: normal; color: var(--warn); }
 
     /* ── Executive Summary ── */
-    .exec-bullets {
-      list-style: none;
-      padding: 0; margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+    .exec-headlines { display: flex; flex-direction: column; gap: 0; }
+    .exec-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px; line-height: 1.4;
+      text-decoration: none; color: inherit;
+      transition: background .15s;
     }
-    .exec-bullet {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 10px 14px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      font-size: 12px;
-      line-height: 1.6;
-      color: var(--text);
-    }
-    .exec-bullet-icon {
-      font-size: 14px;
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-    .exec-bullet-text { flex: 1; }
-    .exec-bullet.bull { border-left: 3px solid var(--bull); }
-    .exec-bullet.bear { border-left: 3px solid var(--bear); }
-    .exec-bullet.warn { border-left: 3px solid var(--warn); }
-    .exec-bullet.watch { border-left: 3px solid var(--accent); }
+    .exec-row:hover { background: var(--surface); }
+    .exec-row:first-child { border-top: 1px solid var(--border); }
+    .exec-row.bull .exec-indicator { color: var(--bull); }
+    .exec-row.bear .exec-indicator { color: var(--bear); }
+    .exec-row.warn .exec-indicator { color: var(--warn); }
+    .exec-row.watch .exec-indicator { color: var(--accent); }
+    .exec-indicator { font-size: 14px; font-weight: 700; flex-shrink: 0; width: 18px; text-align: center; }
+    .exec-text { flex: 1; }
 
     /* ── What to Watch ── */
     .what-to-watch {
@@ -966,9 +960,9 @@
         z-index: 200;
         background: var(--surface);
         border-top: 1px solid var(--border);
-        padding: 4px
+        padding: 8px
           max(32px, env(safe-area-inset-right, 32px))
-          env(safe-area-inset-bottom, 4px)
+          max(8px, env(safe-area-inset-bottom, 8px))
           max(32px, env(safe-area-inset-left, 32px));
         justify-content: space-around;
       }
@@ -984,7 +978,7 @@
         font-size: 8.5px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        padding: 6px 8px;
+        padding: 8px 8px 4px;
         cursor: pointer;
         min-width: 56px;
         transition: color .2s;
@@ -1090,6 +1084,15 @@ const SECTIONS = [
   { id: "nbr",     label: "NBR Tax",        short: "NBR" },
   { id: "power",   label: "Power & Energy", short: "Power" },
   { id: "peers",   label: "Regional Peers", short: "Peers" },
+];
+
+const NAV_GROUPS = [
+  { key: "overview", label: "Overview",  ids: ["exec", "headlines"] },
+  { key: "markets",  label: "Markets",   ids: ["dse", "tbond", "fx"] },
+  { key: "economy",  label: "Economy",   ids: ["macro", "dam", "comm"] },
+  { key: "banking",  label: "Banking",   ids: ["bb", "banking"] },
+  { key: "trade",    label: "Trade",     ids: ["remit", "rmg", "trade", "tariff", "iranwar"] },
+  { key: "policy",   label: "Policy",    ids: ["fiscal", "nbr", "power", "peers"] },
 ];
 
 // ── Components ───────────────────────────────────────────────────────────────
@@ -2525,11 +2528,14 @@ function SectionIranWar() {
 
 function SectionExec() {
   const bullets = [
-    { type: "bull", icon: "📈", text: "Forex reserves are the strongest macro anchor Bangladesh has deployed in years: BPM6 reserves crossed $29.03 billion in February 2026 — the highest since July 2023 — while gross reserves stand at $34.06B (highest since November 2022), driven by record remittance inflows and BB's active dollar purchase programme. December 2025 remittances hit $3.22B — the second-highest monthly figure on record — and strong remittance inflows drove the reserves rebound from $25.6B (August 2024) to $33.2B (December 2025), a $7.6B improvement in 16 months. The current account turned surplus in FY25 — a structural milestone. USD/BDT held stable at 122.58 (BB WAR, 10 March). IMF is set to release $1.3B after a reform breakthrough, providing additional sovereign credibility. BB is purchasing dollars to curb taka appreciation amid strong remittance inflows. These buffers are the critical firewall against the oil shock — but the Gulf corridor through which 12M workers send ~$27B/yr is under acute stress with Biman suspending 6 Middle East routes, Maersk and MSC suspending Gulf bookings, and Mojtaba Khamenei's hardline succession signalling no near-term Hormuz reopening." },
-    { type: "bear", icon: "📉", text: "Export and corporate earnings data send a uniformly deteriorating signal. February 2026 total exports fell 12.03% YoY to $3.49B — the seventh consecutive monthly decline, matching the worst sustained export run since the COVID-19 lockdowns. RMG exports fell 13.21% to $2.81B; Jul–Feb FY26 cumulative RMG at $25.79B (−3.73% YoY); total cumulative exports $31.90B (−3.15% YoY). Non-RMG sectors (engineering +23%, leather +18%) are growing but cannot offset RMG weakness at current scale. The DSE crashed 231 points (−4.42%) to 5,008 on 8 March — the steepest single-day drop in six years — driven by Iran war panic. BATBC's lowest decade dividend (67% profit fall in 2025) reflects broad corporate earnings stress. GDP growth at just 3.49% (FY2025 final BBS, released February 2026) is the weakest non-COVID reading. Private sector credit growth collapsed to 6.10% YoY (December 2025, record low) — well below BB's FY26 projection of above 8% by June 2026 — signalling an investment and credit contraction cycle. NPL ratio exceeds 36% of total loans (Sep 2025, BB H2 FY26 MPS), the highest in BB's history under international classification standards." },
-    { type: "warn", icon: "⚠️", text: "The Iran war oil shock is partially stabilised today by a historic IEA intervention but remains structurally unresolved. On 11 March, the IEA proposed the largest-ever coordinated emergency petroleum reserve release, with Brent dropping to $89.45/bbl and WTI to $85.59/bbl — down from the 9 March surge to ~$94/bbl amid Strait of Hormuz disruptions. However: Iran's Assembly of Experts named Mojtaba Khamenei (hardline son of the slain Supreme Leader) as new Supreme Leader on 9 March, signalling no near-term Hormuz reopening. Qatar LNG facility was shut following an Iranian drone attack, forcing Bangladesh fully onto the volatile spot LNG market at 35–40% premium over contracted rates — LNG suppliers have suspended long-term contracts with Bangladesh. Maersk and MSC suspended Bangladesh-Gulf bookings. BPC is rerouting all fuel imports via Malaysia, China, Singapore, and Indonesia. BAJUS 22K gold revised to BDT 268,213/bhori (11 March, up BDT 3,265 from 264,948 on 9 March). Henry Hub EIA 2026 average forecast: $3.80/MMBtu, but spot LNG prices are sharply higher on Qatar disruption. Bangladesh's 55%+ LNG supply via Gulf routes is at acute risk. BPDB sits on unpaid bills to power producers while imposing shortfall penalties — sector governance crisis deepens at the worst possible moment." },
-    { type: "warn", icon: "📊", text: "Monetary policy is paralysed at the worst possible moment. BB MPC meeting (scheduled 4 March) was postponed after external member Sadiq Ahmed (PRI Vice-Chairman) resigned amid controversy over the proposed rate cut from 10% to 9.50%. New Governor Md Mostaqur Rahman has signalled the ~50bps cut publicly, but no decision has been taken as of 11 March — policy rate remains at 10.00% (SDF: 7.50% effective 10 Feb per H2-FY26 MPS; SLF: 11.50%). T-bill yields (91d ~9.90%, 182d ~9.98%, 364d ~9.93%) all trade below the policy rate, pricing in the cut. 10Y BGTB yield: 10.82% (Dec 2025). CPI at 9.13% (Feb 2026, food: 9.30%) already above BB's 7% target before the full oil shock pass-through. Today's IEA release marginally eases the inflation case against cutting, but if March CPI prints above 9.5%, the MPC may delay or scale back the cut. Government's Tk 1,18,000 crore FY26 bank borrowing ceiling is crowding out private credit. New governor meets Finance Minister, pledges to continue NPL reduction and merged-bank stabilisation. Five-bank merger (EXIM, SIBL, FSIBL, Global Islami, Union Bank) with Tk 200B capital injection continues. IMF $1.3B disbursement expected after reform breakthrough." },
-    { type: "watch", icon: "🔭", text: "Key watches for 11 March and ahead: (1) MPC rescheduled meeting — ~50bps cut to 9.50% signalled; today's Brent retreat to $89.45 slightly eases the case against cutting, but CPI at 9.13% (food: 9.30%) is the binding constraint — watch for meeting date announcement this week. (2) Hormuz status — Mojtaba Khamenei's hardline succession is the single most important geopolitical variable; Brent closing back above $94/bbl would signal the IEA release has failed and push the spot LNG crisis deeper. (3) DSE reopening Thursday 12 March — with Brent down from panic highs to $89.45, watch for partial DSEX recovery above 5,100 from the 5,008 close; sustained below 4,800 is the next structural bear signal. (4) BAJUS gold 11 March current: BDT 268,213/bhori (up from 264,948 on 9 March); safe-haven demand indicator. (5) BBS March CPI (due mid-April) — will Brent averaging $89+ for 2+ weeks push March CPI above 9.5%? This is the single most important data point for MPC timing. (6) Qatar LNG facility restart — direct impact on Bangladesh's spot LNG costs and power sector stability. (7) March 2026 full remittance (due early April) — if below $2.7B, Gulf disruption is materialising in worker cash flows. (8) LDC graduation: November 24, 2026 — ~257 days remaining; EU-India FTA (~2027 in force) accelerates competitive pressure. (9) IMF $1.3B disbursement — key sovereign credibility signal. (10) EPB February 2026 final export data confirmation." },
+    { type: "bull", indicator: "▲", text: "Forex reserves cross $29B (BPM6) — highest since July 2023", section: "bb" },
+    { type: "bull", indicator: "▲", text: "Remittances hit record $3.22B in Dec; Feb stays above $3B trend", section: "remit" },
+    { type: "bear", indicator: "▼", text: "Exports fall 7th straight month — Feb down 12% YoY to $3.49B", section: "fx" },
+    { type: "bear", indicator: "▼", text: "DSEX crashes 231 pts (−4.4%) to 5,008 — worst day in six years", section: "dse" },
+    { type: "warn", indicator: "⚠", text: "IEA historic reserve release pulls Brent to $89 from $94 panic high", section: "iranwar" },
+    { type: "warn", indicator: "⚠", text: "MPC postponed — rate stuck at 10% as CPI hits 9.13%, oil complicates", section: "macro" },
+    { type: "warn", indicator: "⚠", text: "Qatar LNG shut; Gulf shipping suspended — energy supply at acute risk", section: "comm" },
+    { type: "watch", indicator: "→", text: "DSE reopens Thu 12 Mar — watch DSEX 5,100 recovery vs 4,800 bear break", section: "dse" },
   ];
   const events = [
     { date: "12 Mar (Thu)", event: "DSE reopens — watch DSEX vs 5,008 support; IEA release may support partial recovery toward 5,100–5,200" },
@@ -2552,14 +2558,14 @@ function SectionExec() {
         <SectionHeader num="00" title="Executive Summary" icon="📋" />
         <TrafficLight status="warn" label="OVERVIEW" />
       </div>
-      <ul className="exec-bullets">
+      <div className="exec-headlines">
         {bullets.map((b, i) => (
-          <li key={i} className={`exec-bullet ${b.type}`}>
-            <span className="exec-bullet-icon">{b.icon}</span>
-            <span className="exec-bullet-text">{b.text}</span>
-          </li>
+          <a key={i} href={`#${b.section}`} className={`exec-row ${b.type}`}>
+            <span className="exec-indicator">{b.indicator}</span>
+            <span className="exec-text">{b.text}</span>
+          </a>
         ))}
-      </ul>
+      </div>
       <div className="what-to-watch">
         <div className="wtw-label">What to Watch</div>
         <div className="wtw-strip">
@@ -2934,6 +2940,7 @@ function SectionPeers() {
 function App() {
   const [activeSection, setActiveSection] = useState("bb");
   const [dark, setDark] = useState(false);
+  const [openGroup, setOpenGroup] = useState(null);
 
   // ── Subscribe modal state ─────────────────────────────────────────────────
   const [showSubscribe, setShowSubscribe] = useState(false);
@@ -3039,6 +3046,20 @@ function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // ── Close nav dropdown on click outside ──
+  useEffect(() => {
+    if (!openGroup) return;
+    function handleClickOutside(e) {
+      if (!e.target.closest('.nav-group')) setOpenGroup(null);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [openGroup]);
+
   return (
     <div>
       {/* Header */}
@@ -3062,15 +3083,33 @@ function App() {
 
       {/* Nav */}
       <nav className="nav">
-        {SECTIONS.map(s => (
-          <button
-            key={s.id}
-            className={`nav-btn ${activeSection === s.id ? "active" : ""}`}
-            onClick={() => scrollTo(s.id)}
-          >
-            {s.label}
-          </button>
-        ))}
+        {NAV_GROUPS.map(g => {
+          const isActiveGroup = g.ids.includes(activeSection);
+          const isOpen = openGroup === g.key;
+          return (
+            <div key={g.key} className="nav-group">
+              <button
+                className={`nav-group-btn${isActiveGroup ? " active" : ""}${isOpen ? " open" : ""}`}
+                onClick={() => setOpenGroup(isOpen ? null : g.key)}
+              >
+                {g.label}
+                <span className="nav-chevron">&#9662;</span>
+              </button>
+              <div className={`nav-dropdown${isOpen ? " visible" : ""}`}>
+                {g.ids.map(id => {
+                  const sec = SECTIONS.find(s => s.id === id);
+                  if (!sec) return null;
+                  return (
+                    <button key={id}
+                      className={`nav-drop-item${activeSection === id ? " active" : ""}`}
+                      onClick={() => { scrollTo(id); setOpenGroup(null); }}
+                    >{sec.label}</button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
       {/* Body */}
