@@ -2814,8 +2814,8 @@ function App() {
 
   // ── Custom bottom-nav slots (persisted in localStorage) ───────────────────
   const [customSlots, setCustomSlots] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem("tb-custom-slots")) || ["remit","iranwar"]; }
-    catch { return ["remit","iranwar"]; }
+    try { return JSON.parse(localStorage.getItem("tb-custom-slots")) || ["remit","banking"]; }
+    catch { return ["remit","banking"]; }
   });
   const [editingSlot, setEditingSlot] = React.useState(null);
   const lpTimer = React.useRef(null);
@@ -2958,7 +2958,7 @@ function App() {
         {[
           { id: "exec",    icon: "📋", label: "Summary" },
           { id: "dse",     icon: "📈", label: "DSE" },
-          { id: "banking", icon: "🏛️", label: "Banking" },
+          { id: "iranwar", icon: "🛢️", label: "Iran/Oil" },
         ].map(s => (
           <button key={s.id}
             className={`bottom-nav-btn ${activeSection === s.id ? "active" : ""}`}
@@ -2994,7 +2994,7 @@ function App() {
           </div>
           <div className="slot-picker-grid">
             {SECTIONS
-              .filter(s => !["exec","dse","iranwar"].includes(s.id))
+              .filter(s => !["exec","dse","iranwar"].includes(s.id) && !customSlots.includes(s.id))
               .map(s => (
                 <button key={s.id}
                   className={`slot-picker-btn ${customSlots[editingSlot] === s.id ? "selected" : ""}`}
@@ -3166,8 +3166,8 @@ function App() {
 
   // ── Custom bottom-nav slots (persisted in localStorage) ───────────────────
   const [customSlots, setCustomSlots] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem("tb-custom-slots")) || ["remit","iranwar"]; }
-    catch { return ["remit","iranwar"]; }
+    try { return JSON.parse(localStorage.getItem("tb-custom-slots")) || ["remit","banking"]; }
+    catch { return ["remit","banking"]; }
   });
   const [editingSlot, setEditingSlot] = React.useState(null);
   const lpTimer = React.useRef(null);
@@ -3346,7 +3346,7 @@ function App() {
           </div>
           <div className="slot-picker-grid">
             {SECTIONS
-              .filter(s => !["exec","dse","iranwar"].includes(s.id))
+              .filter(s => !["exec","dse","iranwar"].includes(s.id) && !customSlots.includes(s.id))
               .map(s => (
                 <button key={s.id}
                   className={`slot-picker-btn ${customSlots[editingSlot] === s.id ? "selected" : ""}`}
