@@ -72,6 +72,7 @@
       font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
       font-size: 13px;
       line-height: 1.6;
+      -webkit-text-size-adjust: 100%;
       min-height: 100vh;
     }
 
@@ -140,13 +141,13 @@
 
     /* ── Nav Bar ── */
     .nav {
-      display: flex; gap: 0; padding: 0 32px;
+      display: flex; gap: 0; padding: 0;
       background: var(--bg); border-bottom: 1px solid var(--border);
       overflow: visible;
       position: fixed; top: 80px; left: 0; right: 0; z-index: 99;
     }
     .nav::-webkit-scrollbar { display: none; }
-    .nav-group { position: relative; }
+    .nav-group { position: relative; flex: 1; }
     .nav-group-btn {
       background: none; border: none; color: var(--muted);
       font-family: inherit; font-size: 10px; letter-spacing: 0.12em;
@@ -154,6 +155,7 @@
       white-space: nowrap; border-bottom: 2px solid transparent;
       transition: color .2s, border-color .2s;
       display: flex; align-items: center; gap: 4px;
+      width: 100%; justify-content: center;
     }
     .nav-group-btn:hover { color: var(--text); }
     .nav-group-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -559,8 +561,7 @@
       .cards-grid { grid-template-columns: 1fr; }
       .main { padding: 20px 16px; }
       .header { padding: 16px; }
-      .nav { padding: 0 16px; }
-      .nav-group-btn { padding: 10px 12px; font-size: 9px; }
+      .nav-group-btn { padding: 10px 4px; font-size: 8px; letter-spacing: 0.04em; }
       .nav-dropdown { min-width: 140px; }
     }
 
