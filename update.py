@@ -55,7 +55,7 @@ else:
     _css_block   = None
     print("Warning: no <style> block found — sending full HTML.")
 
-# ── Strip JS render sections to stay under the 30k input-token rate limit ──────
+# ── Strip JS render sections to reduce Phase 2 input token count ───────────────
 # Component helpers (Pill, MetricCard, etc.), chart return() JSX, and the App
 # function are rendering-only — Claude never needs to update them.
 # We strip each section, save it, and restore it into Claude's output afterwards.
@@ -245,7 +245,7 @@ else:
 
 # ── Two-phase approach: gather data first, then generate HTML ───────────────────
 # Phase 1 prompt: tiny (no HTML in prompt), Claude searches and returns JSON data.
-# Phase 2 prompt: gathered JSON + stripped HTML (~22k tokens), Claude writes HTML.
+# Phase 2 prompt: gathered JSON + stripped HTML (~38k tokens), Claude writes HTML.
 # This guarantees Phase 2 has no tool use — Claude's first output IS the HTML.
 
 GATHER_PROMPT = f"""Today is {today}.
@@ -279,10 +279,10 @@ WHAT TO SEARCH:
 23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
 24. Bangladesh power/electricity sector (BPDB, PGCB): current average daily generation MW, peak demand MW, daily shortage/loadshedding MW; rural and urban loadshedding hours per day; LNG spot import cost USD/MMBtu; 1-2 power sector news headlines.
 25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
-26. Today's ({today}) top 2 business/economy news headlines from The Daily Star Bangladesh (thedailystar.net/business) with article URLs and publication date. MUST be published today — do not include older articles.
-27. Today's ({today}) top 2 business/economy news headlines from Financial Express BD (thefinancialexpress.com.bd) and top 2 from TBS News (tbsnews.net) with article URLs and publication dates. MUST be published today only.
-28. Today's ({today}) top 1-2 Bangladesh/South Asia relevant headlines from Financial Times (ft.com) with URLs and publication dates. MUST be published today only.
-29. Today's top 2-3 business/economy Op-Ed and opinion columns from Daily Star, Financial Express BD, TBS, or Financial Times — with title, author name, one-line summary, source name, article URL, and publication date. Op-eds may be from today or at most 1-2 days prior.
+26. Top 2 business/economy news headlines from The Daily Star Bangladesh (thedailystar.net/business) published within the last 6 hours of {today} — with article URLs and publication date. STRICT: only include articles published in the last 6 hours. If none exist, return an empty list for this source.
+27. Top 2 business/economy news headlines from Financial Express BD (thefinancialexpress.com.bd) and top 2 from TBS News (tbsnews.net) published within the last 6 hours of {today} — with article URLs and publication dates. STRICT: only include articles published in the last 6 hours per source. Return empty list for any source with no recent articles.
+28. Top 1-2 Bangladesh/South Asia relevant headlines from Financial Times (ft.com) published within the last 6 hours of {today} — with URLs and publication dates. STRICT: only include articles published in the last 6 hours. Return empty list if none.
+29. Top 3 business/economy Op-Ed and opinion columns about Bangladesh from ANY of these sources: Daily Star, Financial Express BD, TBS News, Financial Times, BBC (bbc.com), Al Jazeera (aljazeera.com), The Economist (economist.com), Wall Street Journal (wsj.com), The Guardian (theguardian.com) — with title, author name, one-line summary, source code (DS/FE/TBS/FT/BBC/AJ/ECON/WSJ/GDN), article URL, and publication date. Op-eds MUST be published within the last 6 hours. If fewer than 3 exist from the last 6 hours, return only what is available.
 
 Return ONLY this JSON (use null for any value not found):
 {{
@@ -359,7 +359,7 @@ Return ONLY this JSON (use null for any value not found):
   "headlines_fe": [{{"title": "headline", "url": "https://thefinancialexpress.com.bd/...", "date": "11 Mar 2026"}}],
   "headlines_tbs": [{{"title": "headline", "url": "https://tbsnews.net/...", "date": "11 Mar 2026"}}],
   "headlines_ft": [{{"title": "headline", "url": "https://ft.com/...", "date": "11 Mar 2026"}}],
-  "opeds": [{{"title": "op-ed title", "author": "Author Name", "summary": "one-line summary", "source": "DS", "url": "https://...", "date": "11 Mar 2026"}}]
+  "opeds": [{{"title": "op-ed title", "author": "Author Name", "summary": "one-line summary", "source": "DS|FE|TBS|FT|BBC|AJ|ECON|WSJ|GDN", "url": "https://...", "date": "11 Mar 2026"}}]
 }}"""
 
 # ── API client (used by both phases) ───────────────────────────────────────────
@@ -419,7 +419,8 @@ if last_text:
 
 # ── Trim gathered_json to fit Phase 2 token budget ───────────────────────────
 # gathered_json size is variable (7k–15k chars depending on Phase 1 verbosity).
-# Cap at 16,500 chars — Phase 2 total ~95k chars (~36k tok) well within API limits.
+# Cap at 16,500 chars — Phase 2 total ~98k chars (~38k tok), well within 200k context.
+# Tier 2 ITPM is 450k/min so no rate-limit concern at this size.
 # Headline URLs and op-ed data must not be truncated or Claude will hallucinate URLs.
 _MAX_JSON = 16500
 if len(gathered_json) > _MAX_JSON:
@@ -449,12 +450,11 @@ _p2_est = len(prompt_html) + len(gathered_json) + 2500
 print(f"Phase 2 est: {_p2_est:,} chars (~{int(_p2_est/2.6):,} tok @2.6 ch/tok)")
 
 # ── Rate-limit cooldown between Phase 1 and Phase 2 ────────────────────────────
-# Phase 1's web_search tool makes 15-20 successive internal API calls, each
-# accumulating prior search results. The last internal calls can send 20,000-40,000
-# input tokens — much of the 30k/min budget. Waiting 70s ensures those tokens
-# have rolled off Anthropic's 60-second sliding window before Phase 2 fires.
-print("Cooling down 70s to clear Phase 1 token usage from rate-limit window...")
-time.sleep(70)
+# Tier 2 Sonnet 4.x: 450k ITPM / 90k OTPM. Phase 1 web_search uses ~30k input
+# tokens across multiple internal calls. A short pause lets the token bucket
+# replenish before Phase 2's ~38k input token request.
+print("Cooling down 10s between phases...")
+time.sleep(10)
 
 # ── PHASE 2: Generate updated HTML (no web search, HTML is direct output) ───────
 UPDATE_PROMPT = f"""THE BRIEF update. Today: {today} (UTC; +6 hrs = BDT).
@@ -497,7 +497,7 @@ SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
 SectionBanking: npl_ratio_pct car_pct news_banking
 OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 5 fresh bullets (bull📈/bear📉/warn⚠️/watch🔭). Cover: reserves+remittance, exports, oil/geopolitics, market/rates, outlook. Update events calendar. trafficStatus(bull/bear/warn/neu).
-SectionHeadlines: headlines_ds/fe/tbs/ft → populate headline card arrays (6-8 total, mix sources). opeds → populate 2-3 op-ed cards. Use actual article URLs from gathered data. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, FT=Financial Times. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. FRESHNESS RULES: ALL headlines MUST be from today ({today}) only — never use older articles. Op-eds may be from today or at most 1-2 days prior. For the `time` field: use the REAL publication date from the gathered data (format: "11 Mar" — day + abbreviated month). Do NOT hardcode today's date — use the actual article publication date from the `date` field in gathered JSON. If a source has no articles from today, use fewer headlines from that source rather than using stale articles. BankerRead: summarize the news narrative for a banking executive — what the headlines collectively signal for the bank's risk posture.
+SectionHeadlines: headlines_ds/fe/tbs/ft → populate headline card arrays (6-8 total, mix sources). opeds → populate exactly 3 op-ed cards. Use actual article URLs from gathered data. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, FT=Financial Times, BBC=BBC, AJ=Al Jazeera, ECON=The Economist, WSJ=Wall Street Journal, GDN=The Guardian. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. FRESHNESS RULES: ALL headlines and op-eds MUST be from the last 6 hours only — never use older articles. For the `time` field: use the REAL publication date from the gathered data (format: "11 Mar" — day + abbreviated month). Do NOT hardcode today's date — use the actual article publication date from the `date` field in gathered JSON. If a source has no recent articles, use fewer items from that source rather than using stale articles. Add sourceColors/sourceNames entries for any new source codes (BBC/AJ/ECON/WSJ/GDN). BankerRead: summarize the news narrative for a banking executive — what the headlines collectively signal for the bank's risk posture.
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: DSEXChart/SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
 BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
@@ -728,8 +728,9 @@ if _script_m:
     for _line in _jsx_src.split('\n'):
         _stripped = _line.lstrip()
         # Only fix on lines that look like JSX tags, not JS object literals
-        _is_jsx_tag = (_stripped.startswith('<') and not _stripped.startswith('</') and not _stripped.startswith('<!--')) \
-                      or _stripped.endswith('/>') or _stripped.endswith('>') \
+        _is_jsx_tag = ((_stripped.startswith('<') and not _stripped.startswith('</') and not _stripped.startswith('<!--'))
+                       or _stripped.endswith('/>')
+                       or _stripped.endswith('>')) \
                       and not _stripped.startswith('{') and not _stripped.startswith('//')
         # Skip lines that are clearly object literals (contain { name: or start with {)
         _is_obj_literal = '{ name:' in _line or '{ id:' in _line or _stripped.startswith('{') \
@@ -855,7 +856,10 @@ except Exception as _e:
 
 # ── 3. OilChart STATIC_DATA update ───────────────────────────────────────────
 try:
-    _gd = _gd if '_gd' in dir() else json.loads(gathered_json)
+    try:
+        _gd
+    except NameError:
+        _gd = json.loads(gathered_json)
     _brent_val = _gd.get("brent_spot") or _gd.get("brent_usd")
     if _brent_val is not None:
         _brent_val = round(float(str(_brent_val).replace(",", "")), 2)
