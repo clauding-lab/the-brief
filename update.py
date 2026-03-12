@@ -444,7 +444,7 @@ if len(gathered_json) > _MAX_JSON:
 from datetime import datetime as _dt
 _today_short = _dt.now().strftime("%d %b").lstrip("0")  # e.g. "12 Mar"
 try:
-    _gf = _json.loads(gathered_json)
+    _gf = json.loads(gathered_json)
     if 'headlines' in _gf and isinstance(_gf['headlines'], list):
         _before = len(_gf['headlines'])
         _gf['headlines'] = [h for h in _gf['headlines']
@@ -459,7 +459,7 @@ try:
         _after = len(_gf['opeds'])
         if _before != _after:
             print(f"  Op-eds date-filtered: {_before} -> {_after} (dropped {_before - _after} stale)")
-    gathered_json = _json.dumps(_gf, ensure_ascii=False)
+    gathered_json = json.dumps(_gf, ensure_ascii=False)
 except Exception as _e:
     print(f"  Date filter failed: {_e}")
 
