@@ -213,7 +213,7 @@ print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} t
 # are stripped from the Phase 2 prompt. DSEXChart data is updated deterministically
 # via Python post-processing. The others contain monthly/quarterly data that does
 # NOT need daily updates. Their original code is restored unchanged after Phase 2.
-_SLOW_SECTIONS = ['DSEXChart', 'SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers']
+_SLOW_SECTIONS = ['DSEXChart', 'SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers', 'SectionIranWar']
 # Save originals from current_html (before ANY stripping/prop-erasure) so restoration
 # always uses the full, unmodified function body regardless of what Claude outputs.
 _slow_originals = {}
@@ -410,7 +410,39 @@ if last_text:
     if text.startswith("```"):
         lines = text.split("\n")
         text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+    text = text.strip()
+    # Extract JSON object even if wrapped in extra text
+    _j_start = text.find('{')
+    if _j_start > 0:
+        text = text[_j_start:]
+    # If truncated (max_tokens), try to repair the JSON by progressive trimming
     gathered_json = text.strip()
+    try:
+        json.loads(gathered_json)
+    except json.JSONDecodeError:
+        # Truncated JSON — progressively trim from the end until parseable
+        _repaired = False
+        _attempt = gathered_json
+        for _ in range(200):  # max 200 trim attempts
+            # Remove last partial line and try closing brackets
+            _last_nl = _attempt.rfind('\n')
+            if _last_nl <= 0:
+                break
+            _attempt = _attempt[:_last_nl].rstrip().rstrip(',')
+            # Try closing with various bracket combos
+            for _suffix in ['}', ']}', '"]}', '"}]}', '"}', '"]}']:
+                try:
+                    json.loads(_attempt + _suffix)
+                    gathered_json = _attempt + _suffix
+                    _repaired = True
+                    print(f"  JSON repaired (trimmed {len(text) - len(gathered_json)} chars)")
+                    break
+                except json.JSONDecodeError:
+                    continue
+            if _repaired:
+                break
+        if not _repaired:
+            print("  WARNING: Could not repair truncated JSON — Phase 2 may have incomplete data")
 
 # ── Trim gathered_json to fit Phase 2 token budget ───────────────────────────
 # gathered_json size is variable (7k–15k chars depending on Phase 1 verbosity).
@@ -441,25 +473,43 @@ if len(gathered_json) > _MAX_JSON:
         gathered_json = gathered_json[:_MAX_JSON]
 
 # ── Filter stale headlines/opeds: keep only today's articles ─────────────────
-from datetime import datetime as _dt
-_today_short = _dt.now().strftime("%d %b").lstrip("0")  # e.g. "12 Mar"
+# Use BDT date (_now) so filter matches the brief date even if local clock differs
+_today_d = _now.day                          # e.g. 12
+_today_mon = _now.strftime("%b")             # e.g. "Mar"
+_today_yr = _now.year                        # e.g. 2026
+def _is_today(date_str):
+    """Check if a date string contains today's day+month (BDT)."""
+    if not date_str:
+        return False
+    # Match patterns like "12 Mar", "12 Mar 2026", "Mar 12"
+    return (f"{_today_d} {_today_mon}" in date_str or
+            f"{_today_mon} {_today_d}" in date_str)
 try:
-    _gf = json.loads(gathered_json)
+    # Ensure gathered_json starts with '{' — Phase 1 sometimes wraps in extra text
+    _json_start = gathered_json.find('{')
+    _json_end = gathered_json.rfind('}')
+    _parseable = gathered_json[_json_start:_json_end+1] if _json_start >= 0 and _json_end > _json_start else gathered_json
+    _gf = json.loads(_parseable)
     if 'headlines' in _gf and isinstance(_gf['headlines'], list):
         _before = len(_gf['headlines'])
         _gf['headlines'] = [h for h in _gf['headlines']
-                           if isinstance(h, dict) and _today_short in h.get('date', '')]
+                           if isinstance(h, dict) and _is_today(h.get('date', ''))]
         _after = len(_gf['headlines'])
         if _before != _after:
             print(f"  Headlines date-filtered: {_before} -> {_after} (dropped {_before - _after} stale)")
+        if _after == 0:
+            print(f"  WARNING: All headlines filtered out! No articles dated {_today_d} {_today_mon} {_today_yr}")
     if 'opeds' in _gf and isinstance(_gf['opeds'], list):
         _before = len(_gf['opeds'])
         _gf['opeds'] = [o for o in _gf['opeds']
-                       if isinstance(o, dict) and _today_short in o.get('date', '')]
+                       if isinstance(o, dict) and _is_today(o.get('date', ''))]
         _after = len(_gf['opeds'])
         if _before != _after:
             print(f"  Op-eds date-filtered: {_before} -> {_after} (dropped {_before - _after} stale)")
+        if _after == 0:
+            print(f"  WARNING: All op-eds filtered out! No op-eds dated {_today_d} {_today_mon} {_today_yr}")
     gathered_json = json.dumps(_gf, ensure_ascii=False)
+    print(f"  Date filter applied (target: {_today_d} {_today_mon} {_today_yr})")
 except Exception as _e:
     print(f"  Date filter failed: {_e}")
 
