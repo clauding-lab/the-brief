@@ -279,10 +279,8 @@ WHAT TO SEARCH:
 23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
 24. Bangladesh power/electricity sector (BPDB, PGCB): current average daily generation MW, peak demand MW, daily shortage/loadshedding MW; rural and urban loadshedding hours per day; LNG spot import cost USD/MMBtu; 1-2 power sector news headlines.
 25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
-26. Top 2 business/economy news headlines from The Daily Star Bangladesh (thedailystar.net/business) published within the last 6 hours of {today} — with article URLs and publication date. STRICT: only include articles published in the last 6 hours. If none exist, return an empty list for this source.
-27. Top 2 business/economy news headlines from Financial Express BD (thefinancialexpress.com.bd) and top 2 from TBS News (tbsnews.net) published within the last 6 hours of {today} — with article URLs and publication dates. STRICT: only include articles published in the last 6 hours per source. Return empty list for any source with no recent articles.
-28. Top 1-2 Bangladesh/South Asia relevant headlines from Financial Times (ft.com) published within the last 6 hours of {today} — with URLs and publication dates. STRICT: only include articles published in the last 6 hours. Return empty list if none.
-29. Top 3 business/economy Op-Ed and opinion columns about Bangladesh from ANY of these sources: Daily Star, Financial Express BD, TBS News, Financial Times, BBC (bbc.com), Al Jazeera (aljazeera.com), The Economist (economist.com), Wall Street Journal (wsj.com), The Guardian (theguardian.com) — with title, author name, one-line summary, source code (DS/FE/TBS/FT/BBC/AJ/ECON/WSJ/GDN), article URL, and publication date. Op-eds MUST be published within the last 6 hours. If fewer than 3 exist from the last 6 hours, return only what is available.
+26. Top 10-12 business/economy news headlines about Bangladesh or issues affecting Bangladesh published TODAY ({today}). Search ALL of these sources: The Daily Star (thedailystar.net), Financial Express BD (thefinancialexpress.com.bd), TBS News (tbsnews.net), New Age (newagebd.net), Financial Times (ft.com), BBC (bbc.com), Reuters (reuters.com), Al Jazeera (aljazeera.com), NY Times (nytimes.com), Washington Post (washingtonpost.com), The Print (theprint.in), The Statesman (thestatesman.com). For each: title, source URL, source code (DS/FE/TBS/NEWAGE/FT/BBC/REUTERS/AJ/NYT/WAPO/PRINT/STATESMAN), and publication date. STRICT: only include articles published TODAY ({today}). Prioritize Bangladeshi sources (DS, FE, TBS, New Age) but include international sources if they have Bangladesh-relevant or Bangladesh-affecting coverage today. If NONE of the listed sources have today's articles, widen the search to ANY credible news source with Bangladesh-relevant business/economic coverage published today. Skip any source with no articles from today.
+27. Top 3 business/economy Op-Ed and opinion columns about Bangladesh published TODAY ({today}) from ANY of these sources: Daily Star, Financial Express BD, TBS News, New Age, Financial Times, BBC (bbc.com), Al Jazeera (aljazeera.com), The Economist (economist.com), Wall Street Journal (wsj.com), The Guardian (theguardian.com), Reuters (reuters.com), NY Times (nytimes.com), Washington Post (washingtonpost.com), The Print (theprint.in), The Statesman (thestatesman.com) — with title, author name, one-line summary, source code (DS/FE/TBS/NEWAGE/FT/BBC/AJ/ECON/WSJ/GDN/REUTERS/NYT/WAPO/PRINT/STATESMAN), article URL, and publication date. STRICT: only include op-eds published TODAY ({today}). If named sources have nothing today, search any credible source. If fewer than 3 exist from today, return only what is available.
 
 Return ONLY this JSON (use null for any value not found):
 {{
@@ -355,11 +353,8 @@ Return ONLY this JSON (use null for any value not found):
   "peers_pk_gdp": "2.8",   "peers_pk_cpi": "23.0",  "peers_pk_fxr": "11.7", "peers_pk_cab": "-0.8",  "peers_pk_rating": "CCC+",
   "peers_lk_gdp": "4.5",   "peers_lk_cpi": "4.1",   "peers_lk_fxr": "6.1",  "peers_lk_cab": "-2.1",  "peers_lk_rating": "B-",
 
-  "headlines_ds": [{{"title": "headline", "url": "https://thedailystar.net/...", "date": "11 Mar 2026"}}],
-  "headlines_fe": [{{"title": "headline", "url": "https://thefinancialexpress.com.bd/...", "date": "11 Mar 2026"}}],
-  "headlines_tbs": [{{"title": "headline", "url": "https://tbsnews.net/...", "date": "11 Mar 2026"}}],
-  "headlines_ft": [{{"title": "headline", "url": "https://ft.com/...", "date": "11 Mar 2026"}}],
-  "opeds": [{{"title": "op-ed title", "author": "Author Name", "summary": "one-line summary", "source": "DS|FE|TBS|FT|BBC|AJ|ECON|WSJ|GDN", "url": "https://...", "date": "11 Mar 2026"}}]
+  "headlines": [{{"title": "headline", "url": "https://...", "source": "DS|FE|TBS|NEWAGE|FT|BBC|REUTERS|AJ|NYT|WAPO|PRINT|STATESMAN", "date": "12 Mar 2026"}}],
+  "opeds": [{{"title": "op-ed title", "author": "Author Name", "summary": "one-line summary", "source": "DS|FE|TBS|NEWAGE|FT|BBC|AJ|ECON|WSJ|GDN|REUTERS|NYT|WAPO|PRINT|STATESMAN", "url": "https://...", "date": "12 Mar 2026"}}]
 }}"""
 
 # ── API client (used by both phases) ───────────────────────────────────────────
@@ -431,8 +426,8 @@ if len(gathered_json) > _MAX_JSON:
         for _k, _v in list(_gd.items()):
             if _k.startswith('news_') and isinstance(_v, list):
                 _gd[_k] = [str(x)[:100] for x in _v[:2]]  # max 2 headlines, 100 chars each
-            elif _k.startswith('headlines_') and isinstance(_v, list):
-                _gd[_k] = _v[:2]                           # keep max 2 per source, preserve URLs/dates
+            elif _k == 'headlines' and isinstance(_v, list):
+                _gd[_k] = _v[:12]                          # keep max 12 headlines, preserve URLs/dates
             elif _k == 'opeds' and isinstance(_v, list):
                 for _op in _v:                             # trim op-ed summaries
                     if isinstance(_op, dict) and 'summary' in _op:
@@ -444,6 +439,29 @@ if len(gathered_json) > _MAX_JSON:
     except Exception as _e:
         print(f"  Smart trim failed ({_e}). Hard-capping at {_MAX_JSON:,} chars.")
         gathered_json = gathered_json[:_MAX_JSON]
+
+# ── Filter stale headlines/opeds: keep only today's articles ─────────────────
+from datetime import datetime as _dt
+_today_short = _dt.now().strftime("%d %b").lstrip("0")  # e.g. "12 Mar"
+try:
+    _gf = _json.loads(gathered_json)
+    if 'headlines' in _gf and isinstance(_gf['headlines'], list):
+        _before = len(_gf['headlines'])
+        _gf['headlines'] = [h for h in _gf['headlines']
+                           if isinstance(h, dict) and _today_short in h.get('date', '')]
+        _after = len(_gf['headlines'])
+        if _before != _after:
+            print(f"  Headlines date-filtered: {_before} -> {_after} (dropped {_before - _after} stale)")
+    if 'opeds' in _gf and isinstance(_gf['opeds'], list):
+        _before = len(_gf['opeds'])
+        _gf['opeds'] = [o for o in _gf['opeds']
+                       if isinstance(o, dict) and _today_short in o.get('date', '')]
+        _after = len(_gf['opeds'])
+        if _before != _after:
+            print(f"  Op-eds date-filtered: {_before} -> {_after} (dropped {_before - _after} stale)")
+    gathered_json = _json.dumps(_gf, ensure_ascii=False)
+except Exception as _e:
+    print(f"  Date filter failed: {_e}")
 
 print(f"Gathered data: {len(gathered_json):,} chars")
 _p2_est = len(prompt_html) + len(gathered_json) + 2500
@@ -497,7 +515,7 @@ SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
 SectionBanking: npl_ratio_pct car_pct news_banking
 OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 6-8 single-line headlines (max 15 words each). Each object: {{type, indicator, text, section}}. Types/indicators: bull="▲", bear="▼", warn="⚠", watch="→". `section` = anchor ID of the relevant section below (bb, macro, dse, tbond, comm, fx, remit, banking, iranwar, headlines, dam). Cover the day's most important signals: reserves, exports, oil/geopolitics, market/rates, policy, outlook. NO paragraphs — each `text` must be one punchy headline sentence, max 15 words. Update events calendar. trafficStatus(bull/bear/warn/neu).
-SectionHeadlines: headlines_ds/fe/tbs/ft → populate headline card arrays (6-8 total, mix sources). opeds → populate exactly 3 op-ed cards. Use actual article URLs from gathered data. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, FT=Financial Times, BBC=BBC, AJ=Al Jazeera, ECON=The Economist, WSJ=Wall Street Journal, GDN=The Guardian. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. FRESHNESS RULES: ALL headlines and op-eds MUST be from the last 6 hours only — never use older articles. For the `time` field: use the REAL publication date from the gathered data (format: "11 Mar" — day + abbreviated month). Do NOT hardcode today's date — use the actual article publication date from the `date` field in gathered JSON. If a source has no recent articles, use fewer items from that source rather than using stale articles. Add sourceColors/sourceNames entries for any new source codes (BBC/AJ/ECON/WSJ/GDN). BankerRead: summarize the news narrative for a banking executive — what the headlines collectively signal for the bank's risk posture.
+SectionHeadlines: headlines → populate 8 headline cards. opeds → populate exactly 3 op-ed cards. Use actual article URLs and dates from gathered data — do NOT invent URLs. ALL headlines and op-eds MUST be from today only — if gathered data contains fewer than 8 fresh headlines, show whatever is available rather than padding with stale articles. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, NEWAGE=New Age, FT=Financial Times, BBC=BBC, REUTERS=Reuters, AJ=Al Jazeera, ECON=The Economist, WSJ=Wall Street Journal, GDN=The Guardian, NYT=NY Times, WAPO=Washington Post, PRINT=The Print, STATESMAN=The Statesman. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. For the `time` field: use the REAL publication date from gathered data (format: "12 Mar" — day + abbreviated month). Do NOT hardcode today's date. Add sourceColors/sourceNames entries for any new source codes used. BankerRead: summarize what the headlines collectively signal for the bank's risk posture.
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: DSEXChart/SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
 BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
