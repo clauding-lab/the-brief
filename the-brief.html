@@ -1650,13 +1650,14 @@ function TBillChart() {
   const pkX = cx(pkI), pkY = cy(pkV);
   const pkBw = 72, pkBh = 22, pkBx = pkX - pkBw / 2, pkBy = pad.top - 44;
 
-  const bpX = cx(4), bpY = cy(d91[4]);
-  const bpBw = 140, bpBh = 22;
-  const bpBx = bpX - bpBw - 8, bpBy = Math.max(pad.top + 4, bpY - bpBh - 16);
+  const bpX = cx(4);
+  const bpBw = 160, bpBh = 22;
+  // Place auction annotation below the x-axis labels in the bottom margin
+  const bpBx = cx(4) - bpBw + 20, bpBy = H - pad.bottom + 28;
 
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H + 28}`} style={{ width: "100%", height: "auto", display: "block" }}>
 
         {yTicks.map(v => (
           <g key={v}>
@@ -1681,10 +1682,13 @@ function TBillChart() {
         <text x={pkX} y={pkBy + 9}  fill="var(--warn)" fontSize="8.5" textAnchor="middle" fontWeight="700">Jan peak</text>
         <text x={pkX} y={pkBy + 18} fill="var(--warn)" fontSize="8.5" textAnchor="middle">10.66% (364d)</text>
 
+        {/* Auction annotation — placed below x-axis to avoid line overlap */}
+        <line x1={cx(4)} y1={cy(d91[4]) + 4} x2={cx(4)} y2={bpBy}
+          stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
         <rect x={bpBx} y={bpBy} width={bpBw} height={bpBh} rx={3}
           fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.35)" strokeWidth="1" />
         <text x={bpBx + bpBw / 2} y={bpBy + 9}  fill="var(--bear)" fontSize="8.5" textAnchor="middle" fontWeight="700">9 Mar '26 auction</text>
-        <text x={bpBx + bpBw / 2} y={bpBy + 18} fill="var(--bear)" fontSize="8.5" textAnchor="middle">91d:9.57% 182d:9.63% 364d:9.74%</text>
+        <text x={bpBx + bpBw / 2} y={bpBy + 18} fill="var(--bear)" fontSize="8.5" textAnchor="middle">91d:9.57%  182d:9.63%  364d:9.74%</text>
 
         {[d91, d182, d364].map((arr, si) => {
           const cols = ["var(--accent)", "var(--bull)", "var(--warn)"];
@@ -2337,7 +2341,7 @@ function OilChart() {
   }, []);
 
   const W = 720, H = 270;
-  const pad = { top: 46, right: 58, bottom: 68, left: 54 };
+  const pad = { top: 46, right: 58, bottom: 100, left: 54 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
 
@@ -2357,6 +2361,9 @@ function OilChart() {
   const eIdx    = Math.max(0, data.findIndex(d => d.event) === -1 ? Math.floor(data.length * 0.7) : data.findIndex(d => d.event));
   const lastIdx = data.length - 1;
   const lastVal = data[lastIdx].value;
+
+  // Annotation box below x-axis labels so it never overlaps chart content
+  const annotY = H - pad.bottom + 30;
 
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
@@ -2381,16 +2388,6 @@ function OilChart() {
         {/* Price line */}
         <polyline points={linePoints} fill="none" stroke="var(--warn)" strokeWidth="2.5" strokeLinejoin="round" />
 
-        {/* ── Annotations ── */}
-
-        {/* Iran War / Hormuz event */}
-        <line x1={cx(eIdx)} y1={cy(data[eIdx].value) + 6} x2={cx(eIdx)} y2={cy(data[eIdx].value) + 20}
-          stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
-        <rect x={cx(eIdx) - 66} y={cy(data[eIdx].value) + 22} width={132} height={36} rx={3}
-          fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
-        <text x={cx(eIdx)} y={cy(data[eIdx].value) + 36} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Iran War Outbreak</text>
-        <text x={cx(eIdx)} y={cy(data[eIdx].value) + 48} fill="var(--bear)" fontSize="9" textAnchor="middle">Hormuz Shock · Feb 28</text>
-
         {/* Today label */}
         <text x={cx(lastIdx) + 6} y={cy(lastVal) - 12} fill="var(--warn)" fontSize="10" textAnchor="start" fontWeight="700">${lastVal.toFixed(2)}</text>
         <text x={cx(lastIdx) + 6} y={cy(lastVal) - 1}  fill="var(--warn)" fontSize="9"  textAnchor="start">TODAY</text>
@@ -2413,6 +2410,14 @@ function OilChart() {
             fill={i === lastIdx ? "var(--warn)" : i === eIdx ? "var(--bear)" : "var(--muted)"}
             fontSize="9" textAnchor="middle">{d.label}</text>
         ))}
+
+        {/* Iran War annotation — below x-axis to avoid overlap */}
+        <line x1={cx(eIdx)} y1={cy(data[eIdx].value) + 6} x2={cx(eIdx)} y2={annotY}
+          stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
+        <rect x={cx(eIdx) - 66} y={annotY} width={132} height={36} rx={3}
+          fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
+        <text x={cx(eIdx)} y={annotY + 14} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Iran War Outbreak</text>
+        <text x={cx(eIdx)} y={annotY + 26} fill="var(--bear)" fontSize="9" textAnchor="middle">Hormuz Shock · Feb 28</text>
 
       </svg>
 
