@@ -1450,9 +1450,9 @@ function DSEXChart() {
     { label: "Mar 5", value: 5241 },
     { label: "Mar 6", value: 5241 },
     { label: "Mar 9", value: 5009, showLabel: true },
-    { label: "Mar 10", value: 5290, showLabel: true },
+    { label: "Mar 10", value: 5290 },
     { label: "Mar 11", value: 5008, showLabel: true },
-    { label: "Mar 12", value: 5402, showLabel: true },
+    { label: "Mar 12", value: 5402 },
     { label: "Mar 13", value: 5290, showLabel: true, today: true },
   ];
 
@@ -1538,8 +1538,8 @@ function DSEXChart() {
 
         {/* Today label — computed from data */}
         {todayIdx >= 0 && (<>
-        <text x={cx(todayIdx) - 6} y={cy(_tv) - 14} fill={_todayColor} fontSize="10" textAnchor="end" fontWeight="700">{_tv.toLocaleString()}</text>
-        <text x={cx(todayIdx) - 6} y={cy(_tv) - 3}  fill={_todayColor} fontSize="9"  textAnchor="end">{data[todayIdx].label.toUpperCase()} · {_todayUp ? "+" : ""}{_pct.toFixed(2)}%</text>
+        <text x={Math.min(cx(todayIdx) - 6, W - pad.right - 10)} y={cy(_tv) - 18} fill={_todayColor} fontSize="10" textAnchor="end" fontWeight="700">{_tv.toLocaleString()}</text>
+        <text x={Math.min(cx(todayIdx) - 6, W - pad.right - 10)} y={cy(_tv) - 7}  fill={_todayColor} fontSize="9"  textAnchor="end">{data[todayIdx].label.toUpperCase()} · {_todayUp ? "+" : ""}{_pct.toFixed(2)}%</text>
         </>)}
 
         {/* Dots */}
@@ -1628,7 +1628,7 @@ function SectionDSE() {
 
 function TBillChart() {
   const W = 680, H = 230;
-  const pad = { top: 50, right: 44, bottom: 44, left: 52 };
+  const pad = { top: 50, right: 62, bottom: 44, left: 52 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
 
@@ -1652,7 +1652,7 @@ function TBillChart() {
 
   const bpX = cx(4), bpY = cy(d91[4]);
   const bpBw = 140, bpBh = 22;
-  const bpBx = bpX - bpBw - 8, bpBy = bpY - bpBh - 8;
+  const bpBx = bpX - bpBw - 8, bpBy = Math.max(pad.top + 4, bpY - bpBh - 16);
 
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
@@ -2357,6 +2357,84 @@ function OilChart() {
   const eIdx    = Math.max(0, data.findIndex(d => d.event) === -1 ? Math.floor(data.length * 0.7) : data.findIndex(d => d.event));
   const lastIdx = data.length - 1;
   const lastVal = data[lastIdx].value;
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+
+        {/* Y-axis title */}
+        <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
+          transform={`translate(13,${(pad.top + (H - pad.bottom)) / 2}) rotate(-90)`}>Brent $/bbl</text>
+
+        {/* Grid lines */}
+        {gridVals.map(v => (
+          <g key={v}>
+            <line x1={pad.left} y1={cy(v)} x2={W - pad.right} y2={cy(v)}
+              stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
+            <text x={pad.left - 6} y={cy(v) + 4} fill="var(--muted)" fontSize="10" textAnchor="end">${v}</text>
+          </g>
+        ))}
+
+        {/* Area fill */}
+        <polygon points={areaPoints} fill="rgba(251,146,60,0.07)" />
+
+        {/* Price line */}
+        <polyline points={linePoints} fill="none" stroke="var(--warn)" strokeWidth="2.5" strokeLinejoin="round" />
+
+        {/* ── Annotations ── */}
+
+        {/* Iran War / Hormuz event */}
+        <line x1={cx(eIdx)} y1={cy(data[eIdx].value) + 6} x2={cx(eIdx)} y2={cy(data[eIdx].value) + 20}
+          stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
+        <rect x={cx(eIdx) - 66} y={cy(data[eIdx].value) + 22} width={132} height={36} rx={3}
+          fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
+        <text x={cx(eIdx)} y={cy(data[eIdx].value) + 36} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Iran War Outbreak</text>
+        <text x={cx(eIdx)} y={cy(data[eIdx].value) + 48} fill="var(--bear)" fontSize="9" textAnchor="middle">Hormuz Shock · Feb 28</text>
+
+        {/* Today label */}
+        <text x={cx(lastIdx) + 6} y={cy(lastVal) - 12} fill="var(--warn)" fontSize="10" textAnchor="start" fontWeight="700">${lastVal.toFixed(2)}</text>
+        <text x={cx(lastIdx) + 6} y={cy(lastVal) - 1}  fill="var(--warn)" fontSize="9"  textAnchor="start">TODAY</text>
+
+        {/* Dots */}
+        {data.map((d, i) => {
+          const isToday = i === lastIdx;
+          const isEvent = i === eIdx;
+          return (
+            <circle key={i} cx={cx(i)} cy={cy(d.value)}
+              r={isToday || isEvent ? 4.5 : 2.5}
+              fill={isToday ? "var(--warn)" : isEvent ? "var(--bear)" : "var(--warn)"}
+              stroke="var(--surface)" strokeWidth="1.5" />
+          );
+        })}
+
+        {/* X-axis labels */}
+        {data.map((d, i) => (
+          <text key={i} x={cx(i)} y={H - pad.bottom + 16}
+            fill={i === lastIdx ? "var(--warn)" : i === eIdx ? "var(--bear)" : "var(--muted)"}
+            fontSize="9" textAnchor="middle">{d.label}</text>
+        ))}
+
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ display: "inline-block", width: 20, height: 2.5, background: "var(--warn)", borderRadius: 1 }} />
+          Brent Crude ($/bbl)
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--bear)" }} />
+          Iran War / Hormuz Shock
+        </span>
+        {isLive && (
+          <span style={{ marginLeft: "auto", color: "var(--bull)", fontWeight: 700 }}>● LIVE (Alpha Vantage)</span>
+        )}
+        {!isLive && (
+          <span style={{ marginLeft: "auto" }}>Source: EIA / Alpha Vantage</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function SectionExec() {
