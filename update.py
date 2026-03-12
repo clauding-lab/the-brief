@@ -1074,6 +1074,9 @@ def build_email_html(name, date_str):
               </a>
             </td></tr>
           </table>
+          <p style="margin:18px 0 0;font-size:10px;color:#64748b;letter-spacing:0.06em;font-style:italic;">
+            Human-directed, AI-assisted intelligence.
+          </p>
         </td></tr>
 
         <!-- Footer -->

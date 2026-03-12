@@ -1457,7 +1457,7 @@ function DSEXChart() {
   ];
 
   const W = 720, H = 270;
-  const pad = { top: 46, right: 30, bottom: 62, left: 62 };
+  const pad = { top: 46, right: 110, bottom: 62, left: 62 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
   const _vals = data.map(d => d.value);
@@ -1536,11 +1536,15 @@ function DSEXChart() {
         <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−209pts · {data[crashIdx].label}</text>
         </>)}
 
-        {/* Today label — computed from data */}
-        {todayIdx >= 0 && (<>
-        <text x={Math.min(cx(todayIdx) - 6, W - pad.right - 10)} y={cy(_tv) - 18} fill={_todayColor} fontSize="10" textAnchor="end" fontWeight="700">{_tv.toLocaleString()}</text>
-        <text x={Math.min(cx(todayIdx) - 6, W - pad.right - 10)} y={cy(_tv) - 7}  fill={_todayColor} fontSize="9"  textAnchor="end">{data[todayIdx].label.toUpperCase()} · {_todayUp ? "+" : ""}{_pct.toFixed(2)}%</text>
-        </>)}
+        {/* Today label — positioned to the right, clear of chart lines */}
+        {todayIdx >= 0 && (() => {
+          const _tx = cx(todayIdx) + 8;
+          const _ty = cy(_tv);
+          return (<>
+            <text x={_tx} y={_ty - 6} fill={_todayColor} fontSize="10" textAnchor="start" fontWeight="700">{_tv.toLocaleString()}</text>
+            <text x={_tx} y={_ty + 5} fill={_todayColor} fontSize="9"  textAnchor="start">{data[todayIdx].label.toUpperCase()} · {_todayUp ? "+" : ""}{_pct.toFixed(2)}%</text>
+          </>);
+        })()}
 
         {/* Dots */}
         {data.map((d, i) => {
