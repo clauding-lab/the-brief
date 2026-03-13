@@ -1860,7 +1860,7 @@ function SectionComm() {
         { sentiment: "warn", headline: "Bangladesh government limits fuel purchases for vehicles as Middle East crisis sparks supply fears; energy ministry says no immediate fuel shortage", detail: "Bangladesh government issued a precautionary gas and energy saving circular (BB BRPD-1 CL No. 10) limiting vehicle fuel purchases as the Middle East crisis sparked supply fears. The energy ministry confirmed no immediate fuel shortage but the circular signals official concern about sustained supply disruption. Bangladesh is particularly exposed through its LNG spot market dependency and Maersk/MSC Gulf-Bangladesh booking suspension.", source: "TBS", sourceUrl: "https://www.tbsnews.net", time: "~9 Mar 2026" }
       ]} />
 
-      <OilChart />
+      <LNGChart />
       <BankerRead insight="Brent futures at $101.75/bbl with EIA forecasting above $95/b for two months creates a direct transmission mechanism to food CPI through cooking oil and transport costs — banks with large agro-processing, poultry, and FMCG corporate loan books should immediately apply a $110/bbl stress scenario to debt service coverage ratios for borrowers with revenues below Tk 500 crore. The Asian LNG spot price at $15–18/MMBtu (vs $3.80 Henry Hub) means BPDB's IPP arrears will accelerate — flag all power sector term loans and working capital facilities for arrear buildup risk exceeding 90 days from 1 April 2026. Gold at BDT 2,70,430/bhori (BAJUS 22 Mar) signals safe-haven demand — actively cross-sell gold-backed deposit products and gold savings schemes to retail clients during the Eid window (18–23 Mar) when remittance inflows peak. Front-load letters of credit for essential imports (cooking oil, lentils, fuel) in the 13–17 March window before Eid closure and potential further freight cost escalation from Maersk/MSC Gulf suspension." />
     </div>
   );
@@ -2281,6 +2281,115 @@ function SectionTrade() {
         { sentiment: "warn", headline: "Bangladesh strikes US reciprocal trade deal; CPD warns Tk1,327cr revenue loss; Jul-Feb FY26 exports fell 3.15% YoY as seventh consecutive monthly decline", detail: "Bangladesh signed an 'Agreement on Reciprocal Trade' with the US granting duty-free access to 4,500 US products. CPD warns this will cost Tk1,327 crore in customs revenue in FY26 alone, and may violate WTO rules. The US Ambassador visited BGMEA to discuss trade and investment. Total exports in July–February FY26 fell 3.15% YoY. NBR customs revenue already down 4% YoY in Jul–Jan FY26 — the revenue loss compounds the fiscal shortfall where NBR has collected only 27% of annual target.", source: "TBS / CPD", sourceUrl: "https://www.tbsnews.net/bangladesh/us-trade-deal-may-lose-bangladesh-tk1327-crore-revenue-cpd-1382601", time: "10 Mar 2026" }
       ]} />
       <BankerRead insight="The seventh consecutive monthly RMG export contraction (−13.21% YoY in February) combined with Maersk and MSC suspending Bangladesh-Gulf bookings means trade finance revenue is under dual pressure — falling export LC volumes and disrupted import LC flows through Gulf routes. Immediately review all open Gulf-route import LCs for oil, LNG, and raw material imports and assess whether alternative-route endorsements are needed before letters expire; add a 15% contingency on all new import LC values to account for freight surcharge risk at $100.50/bbl. The forward trigger for trade finance demand recovery is an RMG export bounce: this requires both a Brent fall below $85 (restoring logistics normalcy) and a rescheduled MPC rate cut (restoring buyer confidence) — neither is imminent. Prioritise trade finance fee income over balance sheet deployment, and develop a fast-track LC product for emergency energy imports (diesel, LNG spot) as government procurement volumes through this channel will surge in Q4 FY26." />
+    </div>
+  );
+}
+
+// ── LNG Chart ────────────────────────────────────────────────────────────────
+
+function LNGChart() {
+  const data = [
+    { label: "Oct '25", value: 12.5 },
+    { label: "Nov '25", value: 13.2 },
+    { label: "Dec '25", value: 13.8 },
+    { label: "Jan '26", value: 14.2 },
+    { label: "Feb '26", value: 14.8, event: true },
+    { label: "Early Mar", value: 16.5 },
+    { label: "Mar 12", value: 17.5, today: true },
+  ];
+
+  const W = 720, H = 250;
+  const pad = { top: 40, right: 58, bottom: 80, left: 54 };
+  const iW = W - pad.left - pad.right;
+  const iH = H - pad.top - pad.bottom;
+
+  const vals   = data.map(d => d.value);
+  const minV   = Math.floor((Math.min(...vals) - 1) / 2) * 2;
+  const maxV   = Math.ceil ((Math.max(...vals) + 1) / 2) * 2;
+
+  const cx = i => pad.left + (i / (data.length - 1)) * iW;
+  const cy = v => pad.top  + ((maxV - v) / (maxV - minV)) * iH;
+
+  const linePoints = data.map((d, i) => `${cx(i).toFixed(1)},${cy(d.value).toFixed(1)}`).join(" ");
+  const areaPoints = `${cx(0).toFixed(1)},${(H-pad.bottom).toFixed(1)} ${linePoints} ${cx(data.length-1).toFixed(1)},${(H-pad.bottom).toFixed(1)}`;
+
+  const gridVals = [];
+  for (let v = minV + 2; v < maxV; v += 2) gridVals.push(v);
+
+  const eIdx    = data.findIndex(d => d.event);
+  const lastIdx = data.length - 1;
+  const lastVal = data[lastIdx].value;
+  const annotY  = H - pad.bottom + 30;
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+
+        {/* Y-axis title */}
+        <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
+          transform={`translate(13,${(pad.top + (H - pad.bottom)) / 2}) rotate(-90)`}>Asian LNG Spot $/MMBtu</text>
+
+        {/* Grid lines */}
+        {gridVals.map(v => (
+          <g key={v}>
+            <line x1={pad.left} y1={cy(v)} x2={W - pad.right} y2={cy(v)}
+              stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
+            <text x={pad.left - 6} y={cy(v) + 4} fill="var(--muted)" fontSize="10" textAnchor="end">${v}</text>
+          </g>
+        ))}
+
+        {/* Area fill */}
+        <polygon points={areaPoints} fill="rgba(239,68,68,0.07)" />
+
+        {/* Price line */}
+        <polyline points={linePoints} fill="none" stroke="var(--bear)" strokeWidth="2.5" strokeLinejoin="round" />
+
+        {/* Hormuz event annotation — below x-axis */}
+        {eIdx >= 0 && (<>
+          <line x1={cx(eIdx)} y1={cy(data[eIdx].value) + 6} x2={cx(eIdx)} y2={annotY}
+            stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
+          <rect x={cx(eIdx) - 72} y={annotY} width={144} height={22} rx={3}
+            fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
+          <text x={cx(eIdx)} y={annotY + 14} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Hormuz Disruption · LNG Surge</text>
+        </>)}
+
+        {/* Today label */}
+        <text x={cx(lastIdx) + 6} y={cy(lastVal) - 12} fill="var(--bear)" fontSize="10" textAnchor="start" fontWeight="700">${lastVal.toFixed(1)}</text>
+        <text x={cx(lastIdx) + 6} y={cy(lastVal) - 1}  fill="var(--bear)" fontSize="9"  textAnchor="start">TODAY</text>
+
+        {/* Dots */}
+        {data.map((d, i) => {
+          const isToday = i === lastIdx;
+          const isEvent = eIdx >= 0 && i === eIdx;
+          return (
+            <circle key={i} cx={cx(i)} cy={cy(d.value)}
+              r={isToday || isEvent ? 4.5 : 2.5}
+              fill="var(--bear)"
+              stroke="var(--surface)" strokeWidth="1.5" />
+          );
+        })}
+
+        {/* X-axis labels */}
+        {data.map((d, i) => (
+          <text key={i} x={cx(i)} y={H - pad.bottom + 16}
+            fill={i === lastIdx ? "var(--bear)" : "var(--muted)"}
+            fontSize="9" textAnchor="middle">{d.label}</text>
+        ))}
+
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ display: "inline-block", width: 20, height: 2.5, background: "var(--bear)", borderRadius: 1 }} />
+          Asian LNG Spot ($/MMBtu)
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--bear)" }} />
+          Hormuz Disruption
+        </span>
+        <span style={{ marginLeft: "auto" }}>Source: Platts JKM / ICIS · Estimates</span>
+      </div>
     </div>
   );
 }

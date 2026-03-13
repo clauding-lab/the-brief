@@ -213,7 +213,7 @@ print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} t
 # are stripped from the Phase 2 prompt. DSEXChart data is updated deterministically
 # via Python post-processing. The others contain monthly/quarterly data that does
 # NOT need daily updates. Their original code is restored unchanged after Phase 2.
-_SLOW_SECTIONS = ['DSEXChart', 'SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers', 'SectionIranWar']
+_SLOW_SECTIONS = ['DSEXChart', 'LNGChart', 'SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers', 'SectionIranWar']
 # Save originals from current_html (before ANY stripping/prop-erasure) so restoration
 # always uses the full, unmodified function body regardless of what Claude outputs.
 _slow_originals = {}
@@ -258,13 +258,13 @@ WHAT TO SEARCH:
 2. Bangladesh Bank (BB) policy rate %, SDF rate %, SLF rate %
 3. Any recent BB MPC meeting decision or statement
 4. Bangladesh GDP growth rate (BBS/World Bank latest), private sector credit growth % YoY (BB)
-5. DSEX closing value, DS30, CSCX, daily turnover crore BDT, change pts/%, 52-week high/low
+5. DSEX closing value, DS30, CSCX, daily turnover crore BDT, change pts/%, 52-week high/low. Check amarstock.com AND tradingview.com/symbols/DSEBD-DSEX/ for the latest DSEX close — these are more reliable than dsebd.org. Use the MOST RECENT trading day close (DSE trades Sun-Thu, closed Fri-Sat and holidays). If DSE was closed today, use the last trading day's close and note the date.
 6. Latest DSE news (2-3 headlines)
 7. BB T-bill primary auction cut-off yields: 91-day %, 182-day %, 364-day % (most recent auction)
 8. 10-year and 5-year government bond yields (secondary market)
 9. Any T-bill/bond market news
 10. BAJUS gold price 22K BDT per bhori (bajus.org or news)
-11. Brent crude spot USD/bbl, WTI crude USD/bbl, Henry Hub natural gas USD/MMBtu
+11. Brent crude spot USD/bbl, WTI crude USD/bbl, Henry Hub natural gas USD/MMBtu, Asian LNG spot price USD/MMBtu (JKM benchmark or equivalent). For LNG: provide 6-8 monthly/biweekly historical data points from Oct 2025 to today for Asian LNG spot (JKM or equivalent) to chart the trend.
 12. Any commodity news
 13. USD/BDT BB reference rate, EUR/BDT, GBP/BDT
 14. Bangladesh gross forex reserves USD billion (BPM6 basis, BB)
@@ -301,7 +301,8 @@ Return ONLY this JSON (use null for any value not found):
   "bond_10y_pct": "12.50",  "bond_5y_pct": "11.90",
   "news_tbill": ["headline 1"],
   "gold_22k_bdt": 144956,
-  "brent_usd": 84.0,  "wti_usd": 80.5,  "natgas_usd": 4.20,
+  "brent_usd": 84.0,  "wti_usd": 80.5,  "natgas_usd": 4.20,  "lng_spot_usd": 15.5,
+  "lng_history": [{{"label": "Oct '25", "value": 12.5}}, {{"label": "Nov '25", "value": 13.0}}, {{"label": "Dec '25", "value": 14.0}}, {{"label": "Jan '26", "value": 14.5}}, {{"label": "Feb '26", "value": 15.0}}, {{"label": "Mar '26", "value": 15.5}}],
   "news_commodity": ["headline 1", "headline 2"],
   "usd_bdt": 121.50,  "eur_bdt": 132.00,  "gbp_bdt": 154.00,
   "forex_reserves_bn": 20.5,
@@ -559,13 +560,13 @@ SectionBB: bb_policy_rate_pct sdf_rate_pct slf_rate_pct gdp_growth_pct credit_gr
 SectionMacro: cpi_headline_pct/_month cpi_food_pct/_month bb_policy_rate_pct sdf_rate_pct slf_rate_pct mpc_note
 SectionDSE: all dse_* + news_dse (DSEXChart is PLACEHOLDER-restored — pass its placeholder through unchanged)
 TBillChart: tbill_new_auction→drop[0]+append new yields; else update last entry. SectionTBond: tbill_91d/182d/364d bond_10y/5y tbill_auction_date news_tbill
-SectionComm: gold_22k_bdt brent_usd wti_usd natgas_usd news_commodity
+SectionComm: gold_22k_bdt brent_usd wti_usd natgas_usd lng_spot_usd news_commodity. The OilChart in SectionComm has been REPLACED with LNGChart — do NOT add OilChart here (it lives in SectionIranWar only). Keep the existing LNGChart component as-is.
 SectionFX: usd/eur/gbp_bdt forex_reserves_bn exports/rmg_exports_mn exports_month imports_mn trade_deficit_mn/_yoy_pct news_forex
 SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
 SectionBanking: npl_ratio_pct car_pct news_banking
 OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 6-8 single-line headlines (max 15 words each). Each object: {{type, indicator, text, section}}. Types/indicators: bull="▲", bear="▼", warn="⚠", watch="→". `section` = anchor ID of the relevant section below (bb, macro, dse, tbond, comm, fx, remit, banking, iranwar, headlines, dam). Cover the day's most important signals: reserves, exports, oil/geopolitics, market/rates, policy, outlook. NO paragraphs — each `text` must be one punchy headline sentence, max 15 words. Update events calendar. trafficStatus(bull/bear/warn/neu).
-SectionHeadlines: headlines → populate 8 headline cards. opeds → populate exactly 3 op-ed cards. Use actual article URLs and dates from gathered data — do NOT invent URLs. ALL headlines and op-eds MUST be from today only — if gathered data contains fewer than 8 fresh headlines, show whatever is available rather than padding with stale articles. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, NEWAGE=New Age, FT=Financial Times, BBC=BBC, REUTERS=Reuters, AJ=Al Jazeera, ECON=The Economist, WSJ=Wall Street Journal, GDN=The Guardian, NYT=NY Times, WAPO=Washington Post, PRINT=The Print, STATESMAN=The Statesman. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. For the `time` field: use the REAL publication date from gathered data (format: "12 Mar" — day + abbreviated month). Do NOT hardcode today's date. Add sourceColors/sourceNames entries for any new source codes used. BankerRead: summarize what the headlines collectively signal for the bank's risk posture.
+SectionHeadlines: headlines → populate headline cards. opeds → populate op-ed cards. CRITICAL RULES: (1) ONLY use headlines and opeds from the gathered data JSON — do NOT invent, fabricate, or recall headlines from memory. (2) If the gathered headlines array is EMPTY, show zero headline cards — leave the headlines grid empty with a note "No headlines available for today". (3) If the gathered opeds array is EMPTY, show zero op-ed cards — leave the op-eds section empty with a note "No op-eds available for today". (4) Every headline `time` field MUST exactly match the `date` field from gathered data — do NOT change dates. (5) Every headline `url` MUST exactly match the `url` from gathered data — do NOT invent URLs. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, NEWAGE=New Age, FT=Financial Times, BBC=BBC, REUTERS=Reuters, AJ=Al Jazeera, ECON=The Economist, WSJ=Wall Street Journal, GDN=The Guardian, BSS=BSS News, NYT=NY Times, WAPO=Washington Post, PRINT=The Print, STATESMAN=The Statesman. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. Add sourceColors/sourceNames entries for any new source codes used. BankerRead: summarize what the headlines collectively signal for the bank's risk posture.
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: DSEXChart/SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
 BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
@@ -1013,6 +1014,67 @@ try:
         print("Note: no Brent value in gathered data — oil chart unchanged.")
 except Exception as _e:
     print(f"Warning: OilChart post-processing failed ({_e}) — oil chart unchanged.")
+
+# ── 4. LNGChart data update ──────────────────────────────────────────────────
+try:
+    try:
+        _gd
+    except NameError:
+        _gd = json.loads(gathered_json)
+    _lng_val = _gd.get("lng_spot_usd")
+    _lng_hist = _gd.get("lng_history")
+    if _lng_val is not None:
+        _lng_val = round(float(str(_lng_val).replace(",", "")), 1)
+    if _lng_hist and isinstance(_lng_hist, list) and len(_lng_hist) >= 4:
+        # Replace entire LNGChart data array with gathered history
+        _lm = re.search(
+            r'(function LNGChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
+            updated_html, re.DOTALL
+        )
+        if _lm:
+            _lng_parsed = []
+            for _lh in _lng_hist:
+                if isinstance(_lh, dict) and 'label' in _lh and 'value' in _lh:
+                    _lng_parsed.append({
+                        'label': str(_lh['label']),
+                        'value': round(float(_lh['value']), 1),
+                    })
+            # Append today's value if not already present
+            if _lng_val and _lng_parsed:
+                _lng_parsed[-1].pop('today', None)
+                if _lng_parsed[-1].get('label') != chart_label:
+                    _lng_parsed.append({'label': chart_label, 'value': _lng_val, 'today': True})
+                else:
+                    _lng_parsed[-1]['value'] = _lng_val
+                    _lng_parsed[-1]['today'] = True
+            # Mark the Hormuz event on the Feb entry if present
+            for _le in _lng_parsed:
+                if 'Feb' in _le.get('label', '') and 'early' not in _le.get('label', '').lower():
+                    _le['event'] = True
+                    break
+            # Build new data string
+            _lng_lines = []
+            for _le in _lng_parsed:
+                _lparts = [f'label: "{_le["label"]}"', f'value: {_le["value"]}']
+                if _le.get('event'): _lparts.append('event: true')
+                if _le.get('today'): _lparts.append('today: true')
+                _lng_lines.append('    { ' + ', '.join(_lparts) + ' }')
+            _new_lng = '\n' + ',\n'.join(_lng_lines) + ',\n  '
+            updated_html = (
+                updated_html[:_lm.start(2)] +
+                _new_lng +
+                updated_html[_lm.end(2):]
+            )
+            print(f"LNGChart data updated: {len(_lng_parsed)} points, "
+                  f"today={chart_label} LNG=${_lng_val}")
+        else:
+            print("Warning: LNGChart data pattern not found.")
+    elif _lng_val:
+        print(f"Note: LNG spot ${_lng_val} but no history — chart unchanged.")
+    else:
+        print("Note: no LNG data in gathered data — LNG chart unchanged.")
+except Exception as _e:
+    print(f"Warning: LNGChart post-processing failed ({_e}) — chart unchanged.")
 
 # ── Write updated files ────────────────────────────────────────────────────────
 with open("the-brief.html", "w", encoding="utf-8") as f:
