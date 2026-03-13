@@ -1421,10 +1421,93 @@ function SectionMacro() {
         />
       </div>
 
+      <YieldCurveChart />
+
       <div className="context-box">
         <strong>Macro Outlook (13 Mar 2026):</strong> Bangladesh's macro picture is now defined by four simultaneous stress vectors: (1) CPI inflation at <strong>9.13% headline / 9.30% food</strong> (Feb 2026) — above BB's 7% target — with Brent futures at <strong>$101.75/bbl</strong> (12 Mar) after Strait of Hormuz flows disrupted by US-Israel-Iran conflict; EIA STEO (10 Mar 2026) forecasts Brent remaining above $95/b over the next two months. (2) GDP growth at <strong>3.97%</strong> (FY2025 provisional BBS; IMF est. 3.7%) while private credit growth is at <strong>~7.0%</strong> — below BB's H2 FY26 projection of 8.5%. (3) BPM6 reserves at <strong>$30.36B</strong> (26 Feb 2026; gross $35.11B) — highest since Jul 2023 — provide a critical BOP buffer; strong remittances ($3.02B in Feb 2026, +19.4% YoY; $1.92B in Mar 1–11, +44.3% YoY) continue to anchor the position. (4) RMG exports Jul–Feb FY26: −3.73% YoY to $25.80B; February alone −13.21% YoY at $2.81B. Total exports Feb 2026: $3.49B (−12.03% YoY). BB issued precautionary energy saving circular (BRPD-1 CL No. 10). NPL ratio: <strong>35.73%</strong> (Sep 2025 — all-time high). CAR: <strong>6.3%</strong> (Oct 2025, WB). IMF resident rep Maxym Kryshko reaffirmed IMF commitment to Bangladesh on 12 Mar 2026.
       </div>
       <BankerRead insight="The macro constellation of 9.13% CPI, $101.75/bbl Brent, and 3.97% FY25 GDP growth creates a stagflationary environment where rate cuts are politically blocked but growth demands stimulus — bank CFOs must model two scenarios: (1) rate cut by May 2026 if March CPI prints below 9.0%, requiring duration extension in bond portfolios now; (2) rates held above 10% through Q3, requiring liability cost management below 9.5% to protect NIM. Stress-test all commodity-linked corporate loans above Tk 50 crore for oil price sensitivity at $110/bbl — the EIA STEO projects Brent above $95/b for two months. Watch the Mar 2026 CPI print (~10 April) as the definitive MPC trigger — a print above 9.5% kills H1 easing and signals 10Y BGTB yields above 11%. Front-load SME loan disbursements in non-oil-exposed sectors (agro-processing, pharma) before Eid closure (18–23 Mar) to capture the Eid demand cycle." />
+    </div>
+  );
+}
+
+function YieldCurveChart() {
+  const W = 680, H = 240;
+  const pad = { top: 36, right: 50, bottom: 44, left: 52 };
+  const iW = W - pad.left - pad.right;
+  const iH = H - pad.top - pad.bottom;
+
+  const maturities = ["3M", "6M", "1Y", "2Y", "5Y", "10Y", "15Y", "20Y"];
+  const yields =     [9.92, 10.02, 10.03, 9.77, 10.25, 10.40, 10.37, 10.47];
+  const n = maturities.length;
+
+  const yMin = 9.4, yMax = 10.8;
+  const cx = i => pad.left + (i / (n - 1)) * iW;
+  const cy = v => pad.top + ((yMax - v) / (yMax - yMin)) * iH;
+  const pts = yields.map((v, i) => `${cx(i).toFixed(1)},${cy(v).toFixed(1)}`).join(" ");
+
+  const yTicks = [9.50, 9.75, 10.00, 10.25, 10.50, 10.75];
+
+  /* Policy rate line at 10.00% */
+  const policyY = cy(10.00);
+
+  /* Find the dip (2Y = 9.77) and the peak (20Y = 10.47) */
+  const dipIdx = 3;  /* 2Y */
+  const peakIdx = 7; /* 20Y */
+
+  /* Area fill path */
+  const areaPath = `M ${cx(0).toFixed(1)},${cy(yields[0]).toFixed(1)} ` +
+    yields.map((v, i) => `L ${cx(i).toFixed(1)},${cy(v).toFixed(1)}`).join(" ") +
+    ` L ${cx(n - 1).toFixed(1)},${cy(yMin).toFixed(1)} L ${cx(0).toFixed(1)},${cy(yMin).toFixed(1)} Z`;
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+
+        {/* Y-axis grid */}
+        {yTicks.map(v => (
+          <g key={v}>
+            <line x1={pad.left} y1={cy(v)} x2={W - pad.right} y2={cy(v)}
+              stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
+            <text x={pad.left - 6} y={cy(v) + 4} fill="var(--muted)" fontSize="10" textAnchor="end">{v.toFixed(2)}%</text>
+          </g>
+        ))}
+
+        {/* Policy rate reference */}
+        <line x1={pad.left} y1={policyY} x2={W - pad.right} y2={policyY}
+          stroke="rgba(234,179,8,0.6)" strokeWidth="1.5" strokeDasharray="6,3" />
+        <text x={W - pad.right + 3} y={policyY + 4} fill="var(--warn)" fontSize="9" textAnchor="start">Policy 10%</text>
+
+        {/* Shaded area under curve */}
+        <path d={areaPath} fill="rgba(59,130,246,0.08)" />
+
+        {/* Yield curve line */}
+        <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+
+        {/* Dots + value labels */}
+        {yields.map((v, i) => (
+          <g key={i}>
+            <circle cx={cx(i)} cy={cy(v)} r={3.5} fill="var(--accent)" stroke="var(--surface)" strokeWidth="1.5" />
+            <text x={cx(i)} y={cy(v) - 8} fill="var(--fg)" fontSize="9" textAnchor="middle" fontWeight="600">{v.toFixed(2)}%</text>
+          </g>
+        ))}
+
+        {/* 2Y dip annotation */}
+        <text x={cx(dipIdx)} y={cy(yields[dipIdx]) + 16} fill="var(--bear)" fontSize="8" textAnchor="middle" fontWeight="600">▼ 2Y dip</text>
+
+        {/* X-axis labels */}
+        {maturities.map((m, i) => (
+          <text key={i} x={cx(i)} y={H - pad.bottom + 16} fill="var(--muted)" fontSize="10" textAnchor="middle">{m}</text>
+        ))}
+
+        {/* Title */}
+        <text x={W / 2} y={16} fill="var(--fg)" fontSize="11" textAnchor="middle" fontWeight="700" letterSpacing="0.05em">BANGLADESH YIELD CURVE — GOVERNMENT BONDS</text>
+
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 14px 4px", fontSize: 10, color: "var(--muted)" }}>
+        <span>Last update: 13 Mar 2026 · worldgovernmentbonds.com</span>
+        <span style={{ marginLeft: "auto" }}>Source: World Government Bonds</span>
+      </div>
     </div>
   );
 }
