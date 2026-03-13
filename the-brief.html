@@ -1445,15 +1445,14 @@ function DSEXChart() {
     { label: "Feb 26", value: 5600, showLabel: true },
     { label: "Mar 1", value: 5462, showLabel: true },
     { label: "Mar 2", value: 5534 },
-    { label: "Mar 3", value: 5325, showLabel: true, event: "crash" },
+    { label: "Mar 3", value: 5325 },
     { label: "Mar 4", value: 5323 },
     { label: "Mar 5", value: 5241 },
-    { label: "Mar 6", value: 5241 },
-    { label: "Mar 9", value: 5009, showLabel: true },
-    { label: "Mar 10", value: 5290 },
-    { label: "Mar 11", value: 5008, showLabel: true },
-    { label: "Mar 12", value: 5402 },
-    { label: "Mar 13", value: 5008, showLabel: true, today: true },
+    { label: "Mar 8", value: 5009, showLabel: true, event: "crash" },
+    { label: "Mar 9", value: 5141 },
+    { label: "Mar 10", value: 5290, showLabel: true },
+    { label: "Mar 11", value: 5292 },
+    { label: "Mar 12", value: 5368, showLabel: true, today: true },
   ];
 
   const W = 720, H = 270;
@@ -1533,7 +1532,7 @@ function DSEXChart() {
         <rect x={cx(crashIdx) - 62} y={cy(data[crashIdx].value) + 19} width={124} height={36} rx={3}
           fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
         <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 33} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Worst fall in 6 years</text>
-        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−209pts · {data[crashIdx].label}</text>
+        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−231pts · {data[crashIdx].label}</text>
         </>)}
 
         {/* Today label — positioned to the right, clear of chart lines */}
@@ -1585,7 +1584,7 @@ function DSEXChart() {
           <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--bull)" }} />
           Key event
         </span>
-        <span style={{ marginLeft: "auto" }}>Source: DSE · TBS News · The Daily Star</span>
+        <span style={{ marginLeft: "auto" }}>Source: DSE · LankaBD · amarstock.com</span>
       </div>
     </div>
   );
