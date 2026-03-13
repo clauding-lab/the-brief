@@ -1347,7 +1347,7 @@ function SectionMacro() {
   return (
     <div className="section scroll-target" id="macro">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="03" title="Key Macroeconomic Indicators" icon="📊" />
+        <SectionHeader num="07" title="Key Macroeconomic Indicators" icon="📊" />
         <TrafficLight status="bear" label="DETERIORATING" />
       </div>
 
@@ -1890,7 +1890,7 @@ function SectionComm() {
   return (
     <div className="section scroll-target" id="comm">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="06" title="Global Commodities" icon="🛢️" />
+        <SectionHeader num="09" title="Global Commodities" icon="🛢️" />
         <TrafficLight status="bear" label="OIL SHOCK" />
       </div>
 
@@ -1956,7 +1956,7 @@ function SectionFX() {
   return (
     <div className="section scroll-target" id="fx">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="08" title="BDT/USD FX & Forex Reserves" icon="💱" />
+        <SectionHeader num="06" title="BDT/USD FX & Forex Reserves" icon="💱" />
         <TrafficLight status="warn" label="WATCH" />
       </div>
 
@@ -2050,7 +2050,7 @@ function SectionRemittance() {
   return (
     <div className="section scroll-target" id="remit">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="09" title="Remittances" icon="💸" />
+        <SectionHeader num="10" title="Remittances" icon="💸" />
         <TrafficLight status="bull" label="STRONG SURGE" />
       </div>
 
@@ -2147,7 +2147,7 @@ function SectionBanking() {
   return (
     <div className="section scroll-target" id="banking">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="10" title="Banking Sector" icon="🏛️" />
+        <SectionHeader num="03" title="Banking Sector" icon="🏛️" />
         <TrafficLight status="bear" label="STRESSED" />
       </div>
 
@@ -2247,7 +2247,7 @@ function SectionTariff() {
    return (
     <div className="section scroll-target" id="tariff">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="11" title="US Tariff Impact on Bangladesh RMG & Exports" icon="🇺🇸" />
+        <SectionHeader num="13" title="US Tariff Impact on Bangladesh RMG & Exports" icon="🇺🇸" />
         <TrafficLight status="bear" label="RISK" />
       </div>
 
@@ -2813,7 +2813,7 @@ function SectionDAM() {
   return (
     <div className="section scroll-target" id="dam">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="07" title="Domestic Food Prices (DAM)" icon="🛒" />
+        <SectionHeader num="08" title="Domestic Food Prices (DAM)" icon="🛒" />
         <TrafficLight status="warn" label="RISK ELEVATED" />
       </div>
       <TickerStrip items={[
@@ -2873,7 +2873,7 @@ function SectionIranWar() {
     return (
     <div className="section scroll-target" id="iranwar">
       <div style={{ display:"flex", alignItems:"center" }}>
-        <SectionHeader num="14" title="Impact of US-Iran War on Bangladesh" icon="🔥" />
+        <SectionHeader num="15" title="Impact of US-Iran War on Bangladesh" icon="🔥" />
         <TrafficLight status="bear" label="CRITICAL" />
       </div>
 
@@ -2991,7 +2991,7 @@ function SectionRMG() {
   ];
   return (
     <div id="rmg" style={{ marginBottom: 48 }}>
-      <SectionHeader num="15" title="RMG & Apparel Export" icon="👕" status="warn" label="Softening" />
+      <SectionHeader num="11" title="RMG & Apparel Export" icon="👕" status="warn" label="Softening" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 8, marginBottom: 12 }}>
         {[
           { label: "Feb RMG Exports", val: "$2.81B", sub: "YoY: -13.21%", type: "bear" },
@@ -3374,29 +3374,29 @@ function App() {
         <hr className="divider" />
         <SectionBB />
         <hr className="divider" />
-        <SectionMacro />
+        <SectionBanking />
         <hr className="divider" />
         <SectionDSE />
         <hr className="divider" />
         <SectionTBond />
         <hr className="divider" />
-        <SectionComm />
+        <SectionFX />
+        <hr className="divider" />
+        <SectionMacro />
         <hr className="divider" />
         <SectionDAM />
         <hr className="divider" />
-        <SectionFX />
+        <SectionComm />
         <hr className="divider" />
         <SectionRemittance />
         <hr className="divider" />
-        <SectionBanking />
-        <hr className="divider" />
-        <SectionTariff />
+        <SectionRMG />
         <hr className="divider" />
         <SectionTrade />
         <hr className="divider" />
-        <SectionIranWar />
+        <SectionTariff />
         <hr className="divider" />
-        <SectionRMG />
+        <SectionIranWar />
         <hr className="divider" />
         <SectionFiscal />
         <hr className="divider" />
