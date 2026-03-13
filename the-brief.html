@@ -1525,15 +1525,19 @@ function DSEXChart() {
         <text x={cx(bnpIdx)} y={pad.top - 12} fill="var(--bull)" fontSize="9" textAnchor="middle">+200pts · {data[bnpIdx].label}</text>
         </>)}
 
-        {/* Crash annotation */}
-        {crashIdx >= 0 && (<>
-        <line x1={cx(crashIdx)} y1={cy(data[crashIdx].value) + 5} x2={cx(crashIdx)} y2={cy(data[crashIdx].value) + 17}
-          stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
-        <rect x={cx(crashIdx) - 62} y={cy(data[crashIdx].value) + 19} width={124} height={36} rx={3}
-          fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
-        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 33} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Worst fall in 6 years</text>
-        <text x={cx(crashIdx)} y={cy(data[crashIdx].value) + 45} fill="var(--bear)" fontSize="9" textAnchor="middle">−231pts · {data[crashIdx].label}</text>
-        </>)}
+        {/* Crash annotation — anchored below x-axis labels to never overlap */}
+        {crashIdx >= 0 && (() => {
+          const _bx = cx(crashIdx);
+          const _by = H - pad.bottom + 28;  /* always below x-axis labels */
+          return (<>
+          <line x1={_bx} y1={cy(data[crashIdx].value) + 5} x2={_bx} y2={_by}
+            stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
+          <rect x={_bx - 62} y={_by} width={124} height={32} rx={3}
+            fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
+          <text x={_bx} y={_by + 13} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Worst fall in 6 years</text>
+          <text x={_bx} y={_by + 25} fill="var(--bear)" fontSize="9" textAnchor="middle">−231pts · {data[crashIdx].label}</text>
+          </>);
+        })()}
 
         {/* Today label — positioned to the right, clear of chart lines */}
         {todayIdx >= 0 && (() => {
