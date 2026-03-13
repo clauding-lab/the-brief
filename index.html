@@ -1062,7 +1062,7 @@ const _sb = window.supabase.createClient(
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
-const BRIEF_DATE = "FRIDAY 13 MARCH 2026";
+const BRIEF_DATE = "SATURDAY 14 MARCH 2026";
 const BRIEF_EDITION = "VOL. 1 · ISSUE 69";
 
 const SECTIONS = [
@@ -1535,7 +1535,8 @@ function DSEXChart() {
     { label: "Mar 9", value: 5141 },
     { label: "Mar 10", value: 5290, showLabel: true },
     { label: "Mar 11", value: 5292 },
-    { label: "Mar 12", value: 5368, showLabel: true, today: true },
+    { label: "Mar 12", value: 5368, showLabel: true },
+    { label: "Mar 14", value: 5323, showLabel: true, today: true },
   ];
 
   const W = 720, H = 270;
@@ -2375,13 +2376,15 @@ function SectionTrade() {
 
 function LNGChart() {
   const data = [
-    { label: "Oct '25", value: 12.5 },
-    { label: "Nov '25", value: 13.2 },
-    { label: "Dec '25", value: 13.8 },
-    { label: "Jan '26", value: 14.2 },
-    { label: "Feb '26", value: 14.8, event: true },
-    { label: "Early Mar", value: 16.5 },
-    { label: "Mar 12", value: 17.5, today: true },
+    { label: "Oct '25", value: 12.8 },
+    { label: "Nov '25", value: 13.5 },
+    { label: "Dec '25", value: 14.2 },
+    { label: "Jan '26", value: 10.4 },
+    { label: "early Feb '26", value: 11.5 },
+    { label: "late Feb '26", value: 12.5, event: true },
+    { label: "early Mar '26", value: 14.0 },
+    { label: "mid-Mar '26", value: 16.0 },
+    { label: "Mar 14", value: 16.0, today: true },
   ];
 
   const W = 720, H = 250;
@@ -2488,7 +2491,6 @@ function OilChart() {
   const AV_KEY = "T294W0RCT1U6OOPE";
 
   const STATIC_DATA = [
-    { label: "Jan '26", value: 62.0 },
     { label: "Jan 30", value: 72.0 },
     { label: "Mid-Feb", value: 77.0 },
     { label: "Feb 28", value: 69.0, event: true },
@@ -2499,7 +2501,8 @@ function OilChart() {
     { label: "Mar 9", value: 94.5 },
     { label: "Mar 11", value: 89.45 },
     { label: "Mar 12", value: 100.11 },
-    { label: "Mar 13", value: 101.75, today: true },
+    { label: "Mar 13", value: 101.75 },
+    { label: "Mar 14", value: 103.14, today: true },
   ];
 
   
