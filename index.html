@@ -1476,7 +1476,7 @@ function YieldCurveChart() {
         {/* Policy rate reference */}
         <line x1={pad.left} y1={policyY} x2={W - pad.right} y2={policyY}
           stroke="rgba(234,179,8,0.6)" strokeWidth="1.5" strokeDasharray="6,3" />
-        <text x={W - pad.right + 3} y={policyY + 4} fill="var(--warn)" fontSize="9" textAnchor="start">Policy 10%</text>
+        <text x={W - pad.right - 4} y={policyY - 4} fill="var(--warn)" fontSize="9" textAnchor="end" fontWeight="600">Policy 10%</text>
 
         {/* Shaded area under curve */}
         <path d={areaPath} fill="rgba(59,130,246,0.08)" />
