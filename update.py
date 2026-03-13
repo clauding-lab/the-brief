@@ -728,6 +728,23 @@ for _sname in _SLOW_SECTIONS:
         updated_html = updated_html.replace(_sph2, '', 1)
         print(f"  {_sname}: removed orphaned placeholder comment.")
 
+# ── Final dedup: remove any function declared more than once ───────────────────
+# Phase 2 sometimes generates full copies of slow sections AND the restore logic
+# also appends them, creating duplicates that crash Babel.  Keep the FIRST
+# occurrence (which is the one defined inside the main script block) and remove
+# later duplicates.
+for _sname in _SLOW_SECTIONS:
+    _dups = list(re.finditer(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html))
+    if len(_dups) > 1:
+        # Remove all but the first occurrence
+        for _dup in reversed(_dups[1:]):
+            _db = updated_html.find('{', _dup.end())
+            if _db != -1:
+                _de = _brace_end(updated_html, _db)
+                if _de != -1:
+                    updated_html = updated_html[:_dup.start()] + updated_html[_de + 1:]
+                    print(f"  {_sname}: removed duplicate definition (kept first).")
+
 # ── Post-restoration sanity check ──────────────────────────────────────────────
 # Verify the output is a complete, renderable file before writing.
 # If critical pieces are missing or orphaned placeholders remain, fall back to
