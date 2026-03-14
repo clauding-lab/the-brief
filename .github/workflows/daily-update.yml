@@ -2,13 +2,13 @@ name: Daily Brief Update
 
 on:
   schedule:
-    - cron: '0 22 * * *'      # 4:00 AM BDT (UTC+6) — every day
+    - cron: '0 22 * * 0-5'    # 4:00 AM BDT (UTC+6) — Sun–Fri (skip Saturday)
   workflow_dispatch:           # Also allows manual trigger from GitHub UI
 
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 45        # Kill the job if it hangs (web search + 32k tokens ≈ 20 min)
+    timeout-minutes: 60        # Kill the job if it hangs (Opus 4.6 is slower than Sonnet)
     permissions:
       contents: write          # Needed to commit and push
 

@@ -373,7 +373,7 @@ def _stream_call(messages, tools, max_tokens, label):
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             with client.messages.stream(
-                model="claude-sonnet-4-6",
+                model="claude-opus-4-6",
                 max_tokens=max_tokens,
                 tools=tools,
                 messages=messages,
@@ -519,7 +519,7 @@ _p2_est = len(prompt_html) + len(gathered_json) + 2500
 print(f"Phase 2 est: {_p2_est:,} chars (~{int(_p2_est/2.6):,} tok @2.6 ch/tok)")
 
 # ── Rate-limit cooldown between Phase 1 and Phase 2 ────────────────────────────
-# Tier 2 Sonnet 4.x: 450k ITPM / 90k OTPM. Phase 1 web_search uses ~30k input
+# Tier 2 Opus 4.x. Phase 1 web_search uses ~30k input
 # tokens across multiple internal calls. A short pause lets the token bucket
 # replenish before Phase 2's ~38k input token request.
 print("Cooling down 10s between phases...")
