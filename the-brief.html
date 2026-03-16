@@ -2771,21 +2771,6 @@ function SectionHeadlines() {
           </a>
         ))}
       </div>
-      <div className="subsection-label">Op-Ed & Opinion</div>
-      <div className="oped-grid">
-        {opeds.map((o, i) => (
-          <a key={i} href={o.url} target="_blank" rel="noreferrer" className="oped-card">
-            <div className="oped-title">{o.title}</div>
-            {o.author && <div className="oped-author">By {o.author}</div>}
-            {o.summary && <div className="oped-summary">{o.summary}</div>}
-            <div className="oped-meta">
-              <span style={{ color: sourceColors[o.source] || "var(--accent)" }}>{sourceNames[o.source] || o.source}</span>
-              {o.time && <span> · {o.time}</span>}
-              <span> · Opinion</span>
-            </div>
-          </a>
-        ))}
-      </div>
       <BankerRead insight="Today's headlines collectively signal a bank operating in a full-spectrum risk environment: oil shock ($101.75/bbl Brent futures), market crash (DSEX −4.42% worst fall in 6 years), trade disruption (Maersk/MSC Gulf suspension, RMG −13.21% YoY), policy paralysis (MPC postponed, Sadiq Ahmed resigned), and a singular bright spot (remittance $3.02B Feb +19.4% YoY; $1.92B Mar 1–11 +44.3% YoY). The CRO must immediately activate an oil price scenario dashboard with three triggers: $105/bbl (amber — review energy sector LCs), $110/bbl (red — freeze new energy sector disbursements, activate contingency liquidity plan), $115/bbl (crisis — convene ALCO emergency session). The DSE crash to 5,008 with 16 days of closure through 23 March means equity-linked collateral values are stale and likely overstated — require fresh valuations on all margin loans and equity-backed facilities above Tk 5 crore before 24 March reopening. Convert the Eid remittance peak (18 March, tracking toward $3.29B monthly record) into long-term retail deposit acquisition — offer a 90-day promotional NRB term deposit at 9.5% to lock in Eid inflows and fund the asset book at below-corridor cost." />
     </div>
   );
