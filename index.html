@@ -1537,7 +1537,7 @@ function DSEXChart() {
     { label: "Mar 11", value: 5292 },
     { label: "Mar 12", value: 5368, showLabel: true },
     { label: "Mar 14", value: 5323, showLabel: true },
-    { label: "Mar 16", value: 5319, showLabel: true, today: true },
+    { label: "Mar 16", value: 5368, showLabel: true, today: true },
   ];
 
   const W = 720, H = 270;
@@ -2377,12 +2377,14 @@ function SectionTrade() {
 
 function LNGChart() {
   const data = [
-    { label: "Oct '25", value: 12.5 },
-    { label: "Nov '25", value: 13.0 },
-    { label: "Dec '25", value: 13.5 },
+    { label: "Oct '25", value: 12.9 },
+    { label: "Nov '25", value: 13.5 },
+    { label: "Dec '25", value: 14.2 },
     { label: "Jan '26", value: 10.4 },
-    { label: "Feb '26", value: 12.5, event: true },
-    { label: "early Mar '26", value: 16.2 },
+    { label: "Early Feb '26", value: 12.5 },
+    { label: "Late Feb '26", value: 14.0, event: true },
+    { label: "Early Mar '26", value: 15.5 },
+    { label: "13 Mar '26", value: 16.2 },
     { label: "Mar 16", value: 16.2, today: true },
   ];
 
@@ -2501,7 +2503,7 @@ function OilChart() {
     { label: "Mar 12", value: 100.11 },
     { label: "Mar 13", value: 101.75 },
     { label: "Mar 14", value: 103.14 },
-    { label: "Mar 16", value: 103.14, today: true },
+    { label: "Mar 16", value: 106.36, today: true },
   ];
 
   
@@ -2705,21 +2707,8 @@ function SectionExec() {
 }
 
 function SectionHeadlines() {
-  const headlines = [
-    { title: "IMF reaffirms commitment to Bangladesh in meeting with new BB Governor Md Mostaqur Rahman; IMF rep Maxym Kryshko pledges full cooperation", url: "https://www.bssnews.net/business/368242", source: "BSS", time: "12 Mar" },
-    { title: "Brent crude hits $100/bbl on 12 Mar 2026 — Iran's new supreme leader Mojtaba Khamenei triggers fresh oil price surge as Strait of Hormuz effectively closed", url: "https://oilprice.com", source: "REUTERS", time: "12 Mar" },
-    { title: "DSE suffers worst single-day fall in six years — DSEX plunges 231 pts (4.42%) to 5,008 on 8 Mar 2026 as Middle East war triggers panic selling", url: "https://www.thedailystar.net/business/economy/news/dse-posts-worst-single-day-fall-six-years-4120126", source: "DS", time: "8 Mar" },
-    { title: "DSE to remain closed 17–23 March for seven-day Eid-ul-Fitr and Shab-e-Qadr holiday; trading resumes 24 Mar 2026", url: "https://www.tbsnews.net", source: "TBS", time: "11 Mar" },
-    { title: "First 11 days of March 2026 remittance: $1.92bn, +44.3% YoY growth — robust Eid-season inflows continue", url: "https://www.bssnews.net", source: "BSS", time: "12 Mar" },
-    { title: "Central bank postpones MPC meeting scheduled for ~4 Mar; Sadiq Ahmed leaves BB's monetary policy committee; 9.50% rate cut plan shelved amid controversy", url: "https://www.tbsnews.net/bangladesh/central-bank-postpones-mpc-meeting-scheduled-today-1376826", source: "TBS", time: "4 Mar" },
-    { title: "Bangladesh RMG exports fall 13.21% YoY in Feb 2026 to $2.81bn; total exports $3.49bn (−12.03% YoY) — seventh consecutive month of pressure", url: "https://thefinancialexpress.com.bd/economy/exports-keep-falling-for-7-months", source: "FE", time: "~2 Mar" },
-    { title: "Maersk, MSC suspend cargo bookings between Bangladesh/Indian subcontinent and Gulf region amid Iran war escalation", url: "https://www.tbsnews.net", source: "TBS", time: "Early Mar" },
-  ];
-  const opeds = [
-    { title: "Bangladesh economy in 2025 and expectations for 2026", author: "Dr Fahmida Khatun (CPD Executive Director)", summary: "CPD Executive Director argues Bangladesh's macroeconomic recovery is fragile — growth slowed to 3.97% in FY25, NPLs at 35.73% and inflation at 9.13% remain elevated, private credit growth ~7.0% below projection, and LDC graduation in Nov 2026 poses export competitiveness risk. Iran oil shock at $101.75/bbl (Brent futures 12 Mar) adds acute external pressure. Urges urgent structural reforms rather than short-term monetary easing.", source: "DS", url: "https://cpd.org.bd/bangladesh-economy-in-2025-and-expectations-for-2026/", time: "5 Jan 2026" },
-    { title: "Short on actions — Bangladesh Bank's new monetary policy", author: "Op-Ed contributor (The Daily Star)", summary: "Critiques the BB monetary policy for mixed signalling — cutting SDF 50bps to 7.50% while holding policy rate at 10% — and argues the stance is insufficient to address structural inflation at 9.13% (food 9.30%), credit crowding-out (~7.0% growth), and banking sector fragility (NPL 35.73%, CAR 6.3% below minimum) without complementary fiscal reforms. Brent futures at $101.75/bbl and MPC postponement make the easing case even weaker.", source: "DS", url: "https://www.thedailystar.net/business/news/short-actions-3521626", time: "Feb 2026" },
-    { title: "Iran conflict shipping crisis threatens Bangladesh trade: Maersk/MSC suspend Bangladesh-Gulf bookings; freight costs surge amid Hormuz closure", author: "Analysis (TBS News)", summary: "Analysis of how the US-Israel-Iran conflict and Strait of Hormuz disruption are creating a cascading crisis for Bangladesh's trade sector — Maersk and MSC have suspended Bangladesh-Gulf bookings, disrupting RMG export supply chains and import routes for fuel, LNG, and food commodities. Feb 2026 exports already −12.03% YoY ($3.49B); RMG −13.21% YoY ($2.81B). LDC graduation in Nov 2026 and NPL at 35.73% make this an existential challenge.", source: "TBS", url: "https://www.tbsnews.net", time: "Mar 2026" },
-  ];
+  const headlines = [];
+  const opeds = [];
   const sourceColors = {
     DS: "var(--accent)",
     FE: "var(--bull)",
