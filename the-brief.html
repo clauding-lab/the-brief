@@ -1537,7 +1537,7 @@ function DSEXChart() {
     { label: "Mar 11", value: 5292 },
     { label: "Mar 12", value: 5368, showLabel: true },
     { label: "Mar 14", value: 5323, showLabel: true },
-    { label: "Mar 16", value: 5319, showLabel: true, today: true },
+    { label: "Mar 16", value: 5368, showLabel: true, today: true },
   ];
 
   const W = 720, H = 270;
@@ -2378,13 +2378,12 @@ function SectionTrade() {
 function LNGChart() {
   const data = [
     { label: "Oct '25", value: 12.5 },
-    { label: "Nov '25", value: 13.2 },
-    { label: "Dec '25", value: 14.0 },
+    { label: "Nov '25", value: 13.0 },
+    { label: "Dec '25", value: 13.5 },
     { label: "Jan '26", value: 10.4 },
-    { label: "Early Feb '26", value: 12.5 },
-    { label: "Late Feb '26", value: 14.0, event: true },
-    { label: "Early Mar '26", value: 16.2 },
-    { label: "13 Mar '26", value: 16.2 },
+    { label: "Feb '26", value: 12.5, event: true },
+    { label: "early Mar '26", value: 16.2 },
+    { label: "mid-Mar '26 (NE Asia Apr delivery)", value: 19.5 },
     { label: "Mar 16", value: 16.2, today: true },
   ];
 
@@ -2503,7 +2502,7 @@ function OilChart() {
     { label: "Mar 12", value: 100.11 },
     { label: "Mar 13", value: 101.75 },
     { label: "Mar 14", value: 103.14 },
-    { label: "Mar 16", value: 103.14, today: true },
+    { label: "Mar 16", value: 104.37, today: true },
   ];
 
   
@@ -2708,8 +2707,9 @@ function SectionExec() {
 
 function SectionHeadlines() {
   const headlines = [
-    { title: "Dhaka stocks slip as Middle East uncertainty halts four-day rally", url: "https://www.tbsnews.net/economy/stocks/dhaka-stocks-slip-middle-east-uncertainty-halts-four-day-rally-1387926", source: "TBS", time: "16 Mar" },
-    { title: "War further clouds private credit demand; January credit growth lowest in 5 years at 6.03%", url: "https://www.thedailystar.net/business/news/war-further-clouds-private-credit-demand-4129431", source: "DS", time: "16 Mar" }
+    { title: "Govt to rally support to defer LDC graduation at WTO ministerial conference", url: "https://www.thedailystar.net/business/economy/news/govt-rally-support-defer-ldc-graduation-4129646", source: "DS", time: "16 Mar" },
+    { title: "Govt body to probe unusual gap between wholesale and retail prices", url: "https://www.thedailystar.net/business/economy/news/govt-body-probe-unusual-gap-between-wholesale-and-retail-prices-4129631", source: "DS", time: "15 Mar" },
+    { title: "War further clouds private credit demand — growth falls to 6.03% in January", url: "https://www.thedailystar.net/business/news/war-further-clouds-private-credit-demand-4129431", source: "DS", time: "15 Mar" }
   ];
   const opeds = [];
   const sourceColors = {
