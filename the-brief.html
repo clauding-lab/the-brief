@@ -1537,7 +1537,7 @@ function DSEXChart() {
     { label: "Mar 11", value: 5292 },
     { label: "Mar 12", value: 5368, showLabel: true },
     { label: "Mar 14", value: 5323, showLabel: true },
-    { label: "Mar 16", value: 5368, showLabel: true, today: true },
+    { label: "Mar 16", value: 5319, showLabel: true, today: true },
   ];
 
   const W = 720, H = 270;
@@ -2377,13 +2377,13 @@ function SectionTrade() {
 
 function LNGChart() {
   const data = [
-    { label: "Oct '25", value: 12.9 },
-    { label: "Nov '25", value: 13.5 },
-    { label: "Dec '25", value: 14.2 },
+    { label: "Oct '25", value: 12.5 },
+    { label: "Nov '25", value: 13.2 },
+    { label: "Dec '25", value: 14.0 },
     { label: "Jan '26", value: 10.4 },
     { label: "Early Feb '26", value: 12.5 },
     { label: "Late Feb '26", value: 14.0, event: true },
-    { label: "Early Mar '26", value: 15.5 },
+    { label: "Early Mar '26", value: 16.2 },
     { label: "13 Mar '26", value: 16.2 },
     { label: "Mar 16", value: 16.2, today: true },
   ];
@@ -2503,7 +2503,7 @@ function OilChart() {
     { label: "Mar 12", value: 100.11 },
     { label: "Mar 13", value: 101.75 },
     { label: "Mar 14", value: 103.14 },
-    { label: "Mar 16", value: 106.36, today: true },
+    { label: "Mar 16", value: 103.14, today: true },
   ];
 
   
@@ -2707,7 +2707,10 @@ function SectionExec() {
 }
 
 function SectionHeadlines() {
-  const headlines = [];
+  const headlines = [
+    { title: "Dhaka stocks slip as Middle East uncertainty halts four-day rally", url: "https://www.tbsnews.net/economy/stocks/dhaka-stocks-slip-middle-east-uncertainty-halts-four-day-rally-1387926", source: "TBS", time: "16 Mar" },
+    { title: "War further clouds private credit demand; January credit growth lowest in 5 years at 6.03%", url: "https://www.thedailystar.net/business/news/war-further-clouds-private-credit-demand-4129431", source: "DS", time: "16 Mar" }
+  ];
   const opeds = [];
   const sourceColors = {
     DS: "var(--accent)",
