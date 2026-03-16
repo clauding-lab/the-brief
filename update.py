@@ -872,6 +872,62 @@ if _sanity_ok:
 else:
     print("Sanity check applied fixes — review warnings above.")
 
+# ── HARD ENFORCEMENT: headlines/opeds must be today-only ──────────────────────
+# Claude sometimes hallucates old headlines from memory even when gathered JSON
+# has empty arrays and the template was stripped. This Python guard is the final
+# line of defense — it runs AFTER Phase 2 and overwrites the headline arrays
+# with ONLY gathered data that passed the date filter.
+try:
+    _gf_enforce = json.loads(gathered_json)
+    _today_headlines = _gf_enforce.get('headlines', [])
+    _today_opeds = _gf_enforce.get('opeds', [])
+
+    # Build JS array literal from gathered (date-filtered) headlines
+    def _js_headline_array(items):
+        if not items:
+            return '[]'
+        parts = []
+        for h in items:
+            t = h.get('title', '').replace('"', '\\"').replace('\n', ' ')
+            u = h.get('url', '').replace('"', '\\"')
+            s = h.get('source', 'NEWS')
+            d = h.get('date', today)
+            parts.append(f'    {{ title: "{t}", url: "{u}", source: "{s}", time: "{d}" }}')
+        return '[\n' + ',\n'.join(parts) + '\n  ]'
+
+    def _js_oped_array(items):
+        if not items:
+            return '[]'
+        parts = []
+        for o in items:
+            t = o.get('title', '').replace('"', '\\"').replace('\n', ' ')
+            a = o.get('author', 'Unknown').replace('"', '\\"')
+            sm = o.get('summary', '').replace('"', '\\"').replace('\n', ' ')
+            u = o.get('url', '').replace('"', '\\"')
+            s = o.get('source', 'NEWS')
+            d = o.get('date', today)
+            parts.append(f'    {{ title: "{t}", author: "{a}", summary: "{sm}", url: "{u}", source: "{s}", time: "{d}" }}')
+        return '[\n' + ',\n'.join(parts) + '\n  ]'
+
+    # Replace const headlines = [...]; in the output HTML
+    _hl_re = re.sub(
+        r'(const headlines\s*=\s*)\[.*?\];',
+        lambda m: m.group(1) + _js_headline_array(_today_headlines) + ';',
+        updated_html, count=1, flags=re.DOTALL)
+    if _hl_re != updated_html:
+        updated_html = _hl_re
+        print(f"Headlines hard-enforced: {len(_today_headlines)} items from gathered data.")
+    # Replace const opeds = [...]; in the output HTML
+    _op_re = re.sub(
+        r'(const opeds\s*=\s*)\[.*?\];',
+        lambda m: m.group(1) + _js_oped_array(_today_opeds) + ';',
+        updated_html, count=1, flags=re.DOTALL)
+    if _op_re != updated_html:
+        updated_html = _op_re
+        print(f"Op-eds hard-enforced: {len(_today_opeds)} items from gathered data.")
+except Exception as _e:
+    print(f"Warning: headline hard-enforcement failed: {_e}")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # DETERMINISTIC POST-PROCESSING
 # These updates run AFTER sanity checks / fallback so they always apply,
