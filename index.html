@@ -1537,7 +1537,7 @@ function DSEXChart() {
     { label: "Mar 11", value: 5292 },
     { label: "Mar 12", value: 5368, showLabel: true },
     { label: "Mar 14", value: 5323, showLabel: true },
-    { label: "Mar 16", value: 5368, showLabel: true, today: true },
+    { label: "Mar 16", value: 5319, showLabel: true, today: true },
   ];
 
   const W = 720, H = 270;
@@ -2381,9 +2381,9 @@ function LNGChart() {
     { label: "Nov '25", value: 13.0 },
     { label: "Dec '25", value: 13.5 },
     { label: "Jan '26", value: 10.4 },
-    { label: "Feb '26", value: 12.5, event: true },
-    { label: "early Mar '26", value: 16.2 },
-    { label: "mid-Mar '26 (NE Asia Apr delivery)", value: 19.5 },
+    { label: "Feb '26 (pre-war)", value: 12.8, event: true },
+    { label: "Early Mar '26", value: 14.5 },
+    { label: "Mid-Mar '26 (war)", value: 16.2 },
     { label: "Mar 16", value: 16.2, today: true },
   ];
 
@@ -2707,9 +2707,15 @@ function SectionExec() {
 
 function SectionHeadlines() {
   const headlines = [
-    { title: "Govt to rally support to defer LDC graduation at WTO ministerial conference", url: "https://www.thedailystar.net/business/economy/news/govt-rally-support-defer-ldc-graduation-4129646", source: "DS", time: "16 Mar" },
-    { title: "Govt body to probe unusual gap between wholesale and retail prices", url: "https://www.thedailystar.net/business/economy/news/govt-body-probe-unusual-gap-between-wholesale-and-retail-prices-4129631", source: "DS", time: "15 Mar" },
-    { title: "War further clouds private credit demand — growth falls to 6.03% in January", url: "https://www.thedailystar.net/business/news/war-further-clouds-private-credit-demand-4129431", source: "DS", time: "15 Mar" }
+    { title: "Govt to rally support to defer LDC graduation", url: "https://www.thedailystar.net/business/economy/news/govt-rally-support-defer-ldc-graduation-4129646", source: "DS", time: "16 Mar" },
+    { title: "War further clouds private credit demand", url: "https://www.thedailystar.net/business/economy/news/war-further-clouds-private-credit-demand-4129641", source: "DS", time: "16 Mar" },
+    { title: "Chairman of Sammilito Islami Bank Mohammad Ayub Mia resigns", url: "https://www.thedailystar.net/business/news/chairman-sammilito-islami-bank-mohammad-ayub-mia-resigns-4130026", source: "DS", time: "16 Mar" },
+    { title: "World Bank keen on continuing constructive partnership with Bangladesh", url: "https://www.thedailystar.net/business/news/world-bank-keen-continuing-constructive-partnership-bangladesh-4130076", source: "DS", time: "16 Mar" },
+    { title: "Exporters allowed to send shipping documents directly to buyers to speed up business", url: "https://www.tbsnews.net/economy/bb-allows-shipping-documents-importers-names-1388546", source: "TBS", time: "16 Mar" },
+    { title: "Beximco paid bond profits from raised capital, now faces payment crisis", url: "https://www.tbsnews.net/economy/beximco-paid-bond-profits-raised-capital-now-faces-payment-crisis-1388026", source: "TBS", time: "16 Mar" },
+    { title: "Remittance inflow up 35.7% in first half of March ahead of Eid", url: "https://www.tbsnews.net/economy/remittance-inflow-357-first-half-march-ahead-eid-1387681", source: "TBS", time: "16 Mar" },
+    { title: "Bangladesh Bank raises max credit card limit to Tk40 lakh", url: "https://www.tbsnews.net/economy/credit-card-limit-raised-tk40-lakh-1387641", source: "TBS", time: "16 Mar" },
+    { title: "Remembering Moazzem Hossain", url: "https://today.thefinancialexpress.com.bd/special-issues/remembering-moazzem-hossain", source: "FE", time: "16 Mar" }
   ];
   const opeds = [];
   const sourceColors = {
