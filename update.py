@@ -52,9 +52,10 @@ _HEADLINE_SOURCES = [
         "url": "https://today.thefinancialexpress.com.bd/",
         "code": "FE",
         "name": "Financial Express BD",
-        # FE front page: <a href="...thefinancialexpress.com.bd/...">Title</a>
-        "pattern": r'<a\s+href="(https?://[^"]*thefinancialexpress\.com\.bd/[^"]+)"[^>]*>\s*([^<]{15,}?)\s*</a>',
+        # FE uses <a href="URL" class="local-news">...<h4>Title</h4>...</a>
+        "pattern": r'<a\s+href="(https://today\.thefinancialexpress\.com\.bd/(?:first-page|last-page|economy|stock-corporate|trade-market|trade-commodities|public|national)/[^"]+)"[^>]*>.*?<h4>([^<]+)</h4>',
         "base": "",
+        "dotall": True,
     },
 ]
 
@@ -68,11 +69,12 @@ def _scrape_headlines(source, count=4):
     except Exception as e:
         print(f"  ⚠️  Failed to fetch {source['url']}: {e}")
         return []
-    matches = re.findall(source["pattern"], page, re.IGNORECASE)
+    _flags = re.IGNORECASE | (re.DOTALL if source.get("dotall") else 0)
+    matches = re.findall(source["pattern"], page, _flags)
     seen_titles = set()
     results = []
     for path, title in matches:
-        title = html_mod.unescape(title).strip()
+        title = re.sub(r'\s+', ' ', html_mod.unescape(title)).strip()
         # Skip navigational/generic links
         if len(title) < 20 or title.lower() in ("read more", "see all", "more news"):
             continue
