@@ -302,16 +302,12 @@ WHAT TO SEARCH:
 23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
 24. Bangladesh power/electricity sector (BPDB, PGCB): current average daily generation MW, peak demand MW, daily shortage/loadshedding MW; rural and urban loadshedding hours per day; LNG spot import cost USD/MMBtu; 1-2 power sector news headlines.
 25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
-26. Top 10-12 business/economy news headlines about Bangladesh or affecting Bangladesh published TODAY ({today_search}). SEARCH STRATEGY — run SEPARATE searches for each source to maximise coverage:
-  - Search "site:thedailystar.net Bangladesh economy business {today_search}" (Daily Star = DS)
-  - Search "site:thefinancialexpress.com.bd {today_search}" (Financial Express = FE)
-  - Search "site:tbsnews.net Bangladesh {today_search}" (TBS News = TBS)
-  - Search "site:newagebd.net Bangladesh economy {today_search}" (New Age = NEWAGE)
-  - Search "site:bssnews.net Bangladesh {today_search}" (BSS News = BSS)
-  - Search "Bangladesh economy business news today {today_search}" (catches Reuters, BBC, FT, etc.)
-  - Search "site:ft.com Bangladesh {today_search}" OR "site:reuters.com Bangladesh {today_search}"
-  For each headline: title, source URL, source code (DS/FE/TBS/NEWAGE/BSS/FT/BBC/REUTERS/AJ/NYT/WAPO/PRINT/STATESMAN), and publication date as "{today_short}" (e.g. "16 Mar"). Include articles published today only. If a source has no articles from today, skip it. Return whatever you find — even 2-3 headlines is fine. If you truly find ZERO articles from today across ALL sources, return "headlines": [].
-27. Top 3 business/economy Op-Ed and opinion columns about Bangladesh published TODAY ({today_search}) from Daily Star, Financial Express BD, TBS News, New Age, or any international source. Search "site:thedailystar.net opinion {today_search}" and "site:thefinancialexpress.com.bd editorial {today_search}" and "site:tbsnews.net opinion {today_search}". For each: title, author name, one-line summary, source code (DS/FE/TBS/NEWAGE/FT/BBC/AJ/ECON/WSJ/GDN/REUTERS/NYT/WAPO/PRINT/STATESMAN), article URL, and date as "{today_short}". If fewer than 3 exist from today, return only what you find. If none, return "opeds": [].
+26. Top 12-15 business/economy news headlines about Bangladesh or affecting Bangladesh. MANDATORY MINIMUMS — you MUST find at least 3 headlines from EACH of these three sources:
+  (a) Daily Star business: Search "site:thedailystar.net/business" — pick 3+ most recent business/economy articles (DS)
+  (b) TBS News economy: Search "site:tbsnews.net/economy" — pick 3+ most recent economy/business articles (TBS)
+  (c) Financial Express BD: Search "site:today.thefinancialexpress.com.bd" — pick 3+ most recent articles (FE)
+  Then ALSO search for additional headlines from: BSS News (bssnews.net), Reuters, BBC, FT, Al Jazeera, NY Times, Washington Post, The Print, The Statesman — any Bangladesh-relevant business coverage.
+  DATE RULE: Include articles published within the last 24 hours (i.e. dated {today_search} or the day before). For each headline: title, source URL, source code (DS/FE/TBS/NEWAGE/BSS/FT/BBC/REUTERS/AJ/NYT/WAPO/PRINT/STATESMAN), and publication date (e.g. "{today_short}"). If a source has no articles within 24 hours, still include their most recent business headlines but note the actual date.
 
 Return ONLY this JSON (use null for any value not found):
 {{
@@ -385,8 +381,7 @@ Return ONLY this JSON (use null for any value not found):
   "peers_pk_gdp": "2.8",   "peers_pk_cpi": "23.0",  "peers_pk_fxr": "11.7", "peers_pk_cab": "-0.8",  "peers_pk_rating": "CCC+",
   "peers_lk_gdp": "4.5",   "peers_lk_cpi": "4.1",   "peers_lk_fxr": "6.1",  "peers_lk_cab": "-2.1",  "peers_lk_rating": "B-",
 
-  "headlines": [{{"title": "headline", "url": "https://...", "source": "DS|FE|TBS|NEWAGE|FT|BBC|REUTERS|AJ|NYT|WAPO|PRINT|STATESMAN", "date": "12 Mar 2026"}}],
-  "opeds": [{{"title": "op-ed title", "author": "Author Name", "summary": "one-line summary", "source": "DS|FE|TBS|NEWAGE|FT|BBC|AJ|ECON|WSJ|GDN|REUTERS|NYT|WAPO|PRINT|STATESMAN", "url": "https://...", "date": "12 Mar 2026"}}]
+  "headlines": [{{"title": "headline", "url": "https://...", "source": "DS|FE|TBS|NEWAGE|FT|BBC|REUTERS|AJ|NYT|WAPO|PRINT|STATESMAN", "date": "16 Mar"}}]
 }}"""
 
 # ── API client (used by both phases) ───────────────────────────────────────────
@@ -504,25 +499,34 @@ if len(gathered_json) > _MAX_JSON:
         print(f"  Smart trim failed ({_e}). Hard-capping at {_MAX_JSON:,} chars.")
         gathered_json = gathered_json[:_MAX_JSON]
 
-# ── Filter stale headlines/opeds: keep only today's articles ─────────────────
+# ── Filter stale headlines: keep articles within 24 hours ─────────────────────
 # Use BDT date (_now) so filter matches the brief date even if local clock differs
-_today_d = _now.day                          # e.g. 12
+_today_d = _now.day                          # e.g. 16
 _today_mon = _now.strftime("%b")             # e.g. "Mar"
 _today_yr = _now.year                        # e.g. 2026
-def _is_today(date_str):
-    """Check if a date string contains today's day+month (BDT)."""
+_yesterday = _now - timedelta(days=1)
+_yest_d = _yesterday.day
+_yest_mon = _yesterday.strftime("%b")
+
+def _date_matches(date_str, day, mon_short):
+    """Check if a date string contains the given day+month."""
+    ds = date_str.strip().upper()
+    _ms = mon_short.upper()
+    _d = str(day)
+    _d0 = f"{day:02d}"
+    _dt = _now if day == _today_d else _yesterday
+    _mf = _dt.strftime("%B").upper()
+    return (f"{_d} {_ms}" in ds or f"{_ms} {_d}" in ds or
+            f"{_d} {_mf}" in ds or f"{_mf} {_d}" in ds or
+            f"{_dt.year}-{_dt.month:02d}-{_d0}" in ds or
+            f"{_d0}/{_dt.month:02d}" in ds)
+
+def _is_within_24h(date_str):
+    """Check if a date string is today or yesterday (within 24 hours)."""
     if not date_str:
         return False
-    ds = date_str.strip().upper()
-    _mon_full = _now.strftime("%B").upper()  # e.g. "MARCH"
-    _mon_short = _today_mon.upper()          # e.g. "MAR"
-    _d = str(_today_d)                       # e.g. "16"
-    _d0 = f"{_today_d:02d}"                  # e.g. "16" (zero-padded)
-    # Match: "16 Mar", "Mar 16", "16 March", "March 16", "16/03", "2026-03-16"
-    return (f"{_d} {_mon_short}" in ds or f"{_mon_short} {_d}" in ds or
-            f"{_d} {_mon_full}" in ds or f"{_mon_full} {_d}" in ds or
-            f"{_now.year}-{_now.month:02d}-{_d0}" in ds or
-            f"{_d0}/{_now.month:02d}" in ds)
+    return (_date_matches(date_str, _today_d, _today_mon) or
+            _date_matches(date_str, _yest_d, _yest_mon))
 try:
     # Ensure gathered_json starts with '{' — Phase 1 sometimes wraps in extra text
     _json_start = gathered_json.find('{')
@@ -536,26 +540,17 @@ try:
             _dates_found = [h.get('date', 'NO_DATE') for h in _gf['headlines'] if isinstance(h, dict)]
             print(f"  Phase 1 headline dates: {_dates_found}")
         _gf['headlines'] = [h for h in _gf['headlines']
-                           if isinstance(h, dict) and _is_today(h.get('date', ''))]
+                           if isinstance(h, dict) and _is_within_24h(h.get('date', ''))]
         _after = len(_gf['headlines'])
         if _before != _after:
-            print(f"  Headlines date-filtered: {_before} -> {_after} (dropped {_before - _after} stale)")
+            print(f"  Headlines date-filtered: {_before} -> {_after} (dropped {_before - _after} older than 24h)")
         if _after == 0:
-            print(f"  WARNING: All headlines filtered out! No articles dated {_today_d} {_today_mon} {_today_yr}")
-    if 'opeds' in _gf and isinstance(_gf['opeds'], list):
-        _before = len(_gf['opeds'])
-        if _gf['opeds']:
-            _oped_dates = [o.get('date', 'NO_DATE') for o in _gf['opeds'] if isinstance(o, dict)]
-            print(f"  Phase 1 oped dates: {_oped_dates}")
-        _gf['opeds'] = [o for o in _gf['opeds']
-                       if isinstance(o, dict) and _is_today(o.get('date', ''))]
-        _after = len(_gf['opeds'])
-        if _before != _after:
-            print(f"  Op-eds date-filtered: {_before} -> {_after} (dropped {_before - _after} stale)")
-        if _after == 0:
-            print(f"  WARNING: All op-eds filtered out! No op-eds dated {_today_d} {_today_mon} {_today_yr}")
+            print(f"  WARNING: All headlines filtered out! No articles within 24h of {_today_d} {_today_mon} {_today_yr}")
+    # Remove opeds from gathered data (op-ed section excluded)
+    if 'opeds' in _gf:
+        del _gf['opeds']
     gathered_json = json.dumps(_gf, ensure_ascii=False)
-    print(f"  Date filter applied (target: {_today_d} {_today_mon} {_today_yr})")
+    print(f"  Date filter applied (target: {_today_d} {_today_mon} {_today_yr}, also accepts {_yest_d} {_yest_mon})")
 except Exception as _e:
     print(f"  Date filter failed: {_e}")
 
@@ -611,7 +606,7 @@ SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
 SectionBanking: npl_ratio_pct car_pct news_banking
 OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 6-8 single-line headlines (max 15 words each). Each object: {{type, indicator, text, section}}. Types/indicators: bull="▲", bear="▼", warn="⚠", watch="→". `section` = anchor ID of the relevant section below (bb, macro, dse, tbond, comm, fx, remit, banking, iranwar, headlines, dam). Cover the day's most important signals: reserves, exports, oil/geopolitics, market/rates, policy, outlook. NO paragraphs — each `text` must be one punchy headline sentence, max 15 words. Update events calendar. trafficStatus(bull/bear/warn/neu).
-SectionHeadlines: The template has EMPTY headline and oped arrays (const headlines = []; const opeds = [];). You MUST populate them EXCLUSIVELY from the gathered data JSON "headlines" and "opeds" arrays. CRITICAL RULES: (1) ONLY use headlines and opeds from the gathered data JSON — do NOT invent, fabricate, or recall headlines from memory or prior knowledge. (2) If the gathered "headlines" array is EMPTY ([]), keep const headlines = [] and show a note "No headlines available for {today}" instead of cards. (3) If the gathered "opeds" array is EMPTY ([]), keep const opeds = [] and show a note "No op-eds available for {today}" instead of cards. (4) Every headline `time` field MUST exactly match the `date` field from gathered data — do NOT change dates. (5) Every headline `url` MUST exactly match the `url` from gathered data — do NOT invent URLs. (6) NEVER carry over or preserve old headlines from any previous version — the template arrays are intentionally empty. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, NEWAGE=New Age, FT=Financial Times, BBC=BBC, REUTERS=Reuters, AJ=Al Jazeera, ECON=The Economist, WSJ=Wall Street Journal, GDN=The Guardian, BSS=BSS News, NYT=NY Times, WAPO=Washington Post, PRINT=The Print, STATESMAN=The Statesman. Each headline object: {{title, url, source, time}}. Each oped object: {{title, author, summary, url, source, time}}. Add sourceColors/sourceNames entries for any new source codes used. BankerRead: summarize what the headlines collectively signal for the bank's risk posture.
+SectionHeadlines: The template has an EMPTY headline array (const headlines = [];). You MUST populate it EXCLUSIVELY from the gathered data JSON "headlines" array. The OP-ED SECTION IS REMOVED — keep const opeds = [] and do NOT render any op-ed cards or op-ed section header. CRITICAL RULES: (1) ONLY use headlines from the gathered data JSON — do NOT invent, fabricate, or recall headlines from memory or prior knowledge. (2) If the gathered "headlines" array is EMPTY ([]), keep const headlines = [] and show a note "No headlines available for {today}" instead of cards. (3) Every headline `time` field MUST exactly match the `date` field from gathered data — do NOT change dates. (4) Every headline `url` MUST exactly match the `url` from gathered data — do NOT invent URLs. (5) NEVER carry over or preserve old headlines from any previous version — the template arrays are intentionally empty. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, NEWAGE=New Age, FT=Financial Times, BBC=BBC, REUTERS=Reuters, AJ=Al Jazeera, BSS=BSS News, NYT=NY Times, WAPO=Washington Post, PRINT=The Print, STATESMAN=The Statesman. Each headline object: {{title, url, source, time}}. Add sourceColors/sourceNames entries for any new source codes used. BankerRead: summarize what the headlines collectively signal for the bank's risk posture.
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: DSEXChart/SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
 BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
@@ -904,7 +899,6 @@ else:
 try:
     _gf_enforce = json.loads(gathered_json)
     _today_headlines = _gf_enforce.get('headlines', [])
-    _today_opeds = _gf_enforce.get('opeds', [])
 
     # Build JS array literal from gathered (date-filtered) headlines
     def _js_headline_array(items):
@@ -915,22 +909,8 @@ try:
             t = h.get('title', '').replace('"', '\\"').replace('\n', ' ')
             u = h.get('url', '').replace('"', '\\"')
             s = h.get('source', 'NEWS')
-            d = h.get('date', today)
+            d = h.get('date', today_short)
             parts.append(f'    {{ title: "{t}", url: "{u}", source: "{s}", time: "{d}" }}')
-        return '[\n' + ',\n'.join(parts) + '\n  ]'
-
-    def _js_oped_array(items):
-        if not items:
-            return '[]'
-        parts = []
-        for o in items:
-            t = o.get('title', '').replace('"', '\\"').replace('\n', ' ')
-            a = o.get('author', 'Unknown').replace('"', '\\"')
-            sm = o.get('summary', '').replace('"', '\\"').replace('\n', ' ')
-            u = o.get('url', '').replace('"', '\\"')
-            s = o.get('source', 'NEWS')
-            d = o.get('date', today)
-            parts.append(f'    {{ title: "{t}", author: "{a}", summary: "{sm}", url: "{u}", source: "{s}", time: "{d}" }}')
         return '[\n' + ',\n'.join(parts) + '\n  ]'
 
     # Replace const headlines = [...]; in the output HTML
@@ -941,14 +921,14 @@ try:
     if _hl_re != updated_html:
         updated_html = _hl_re
         print(f"Headlines hard-enforced: {len(_today_headlines)} items from gathered data.")
-    # Replace const opeds = [...]; in the output HTML
+    # Force opeds to empty (op-ed section removed)
     _op_re = re.sub(
         r'(const opeds\s*=\s*)\[.*?\];',
-        lambda m: m.group(1) + _js_oped_array(_today_opeds) + ';',
+        r'\1[];',
         updated_html, count=1, flags=re.DOTALL)
     if _op_re != updated_html:
         updated_html = _op_re
-        print(f"Op-eds hard-enforced: {len(_today_opeds)} items from gathered data.")
+        print("Op-eds cleared (section removed).")
 except Exception as _e:
     print(f"Warning: headline hard-enforcement failed: {_e}")
 
