@@ -24,6 +24,8 @@ from datetime import timezone, timedelta
 _BDT = timezone(timedelta(hours=6))
 _now = datetime.now(_BDT)
 today = _now.strftime("%A %d %B %Y").upper()
+today_search = f"{_now.day} {_now.strftime('%B')} {_now.year}"  # e.g. "16 March 2026" — for web search
+today_short = f"{_now.day} {_now.strftime('%b')}"                # e.g. "16 Mar" — for date fields
 chart_label = _now.strftime("%b ") + str(_now.day)   # e.g. "Mar 11" — no leading zero, BDT
 
 # ── Strip CSS to stay under rate-limit (Claude is told not to touch CSS anyway) ─
@@ -300,8 +302,16 @@ WHAT TO SEARCH:
 23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
 24. Bangladesh power/electricity sector (BPDB, PGCB): current average daily generation MW, peak demand MW, daily shortage/loadshedding MW; rural and urban loadshedding hours per day; LNG spot import cost USD/MMBtu; 1-2 power sector news headlines.
 25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
-26. Top 10-12 business/economy news headlines about Bangladesh or issues affecting Bangladesh published TODAY ({today}). Search ALL of these sources: The Daily Star (thedailystar.net), Financial Express BD (thefinancialexpress.com.bd), TBS News (tbsnews.net), New Age (newagebd.net), BSS News (bssnews.net), Financial Times (ft.com), BBC (bbc.com), Reuters (reuters.com), Al Jazeera (aljazeera.com), NY Times (nytimes.com), Washington Post (washingtonpost.com), The Print (theprint.in), The Statesman (thestatesman.com). For each: title, source URL, source code (DS/FE/TBS/NEWAGE/BSS/FT/BBC/REUTERS/AJ/NYT/WAPO/PRINT/STATESMAN), and publication date. ABSOLUTE RULE — ZERO TOLERANCE: Every headline date field MUST be exactly "{today}". Do NOT include ANY article older than today. If an article's publish date is yesterday or earlier, EXCLUDE it — no exceptions. Verify each article's date before including it. Prioritize Bangladeshi sources (DS, FE, TBS, New Age, BSS) but include international sources if they have Bangladesh-relevant or Bangladesh-affecting coverage today. If NONE of the listed sources have today's articles, widen the search to ANY credible news source with Bangladesh-relevant business/economic coverage published today. If you truly cannot find ANY articles from today ({today}), return an EMPTY array: "headlines": []. NEVER fill with older articles as substitutes.
-27. Top 3 business/economy Op-Ed and opinion columns about Bangladesh published TODAY ({today}) from ANY of these sources: Daily Star, Financial Express BD, TBS News, New Age, Financial Times, BBC (bbc.com), Al Jazeera (aljazeera.com), The Economist (economist.com), Wall Street Journal (wsj.com), The Guardian (theguardian.com), Reuters (reuters.com), NY Times (nytimes.com), Washington Post (washingtonpost.com), The Print (theprint.in), The Statesman (thestatesman.com) — with title, author name, one-line summary, source code (DS/FE/TBS/NEWAGE/FT/BBC/AJ/ECON/WSJ/GDN/REUTERS/NYT/WAPO/PRINT/STATESMAN), article URL, and publication date. ABSOLUTE RULE: Every oped date MUST be exactly "{today}". Do NOT include any op-ed older than today. If fewer than 3 exist from today, return only what is available. If NONE exist from today, return an EMPTY array: "opeds": [].
+26. Top 10-12 business/economy news headlines about Bangladesh or affecting Bangladesh published TODAY ({today_search}). SEARCH STRATEGY — run SEPARATE searches for each source to maximise coverage:
+  - Search "site:thedailystar.net Bangladesh economy business {today_search}" (Daily Star = DS)
+  - Search "site:thefinancialexpress.com.bd {today_search}" (Financial Express = FE)
+  - Search "site:tbsnews.net Bangladesh {today_search}" (TBS News = TBS)
+  - Search "site:newagebd.net Bangladesh economy {today_search}" (New Age = NEWAGE)
+  - Search "site:bssnews.net Bangladesh {today_search}" (BSS News = BSS)
+  - Search "Bangladesh economy business news today {today_search}" (catches Reuters, BBC, FT, etc.)
+  - Search "site:ft.com Bangladesh {today_search}" OR "site:reuters.com Bangladesh {today_search}"
+  For each headline: title, source URL, source code (DS/FE/TBS/NEWAGE/BSS/FT/BBC/REUTERS/AJ/NYT/WAPO/PRINT/STATESMAN), and publication date as "{today_short}" (e.g. "16 Mar"). Include articles published today only. If a source has no articles from today, skip it. Return whatever you find — even 2-3 headlines is fine. If you truly find ZERO articles from today across ALL sources, return "headlines": [].
+27. Top 3 business/economy Op-Ed and opinion columns about Bangladesh published TODAY ({today_search}) from Daily Star, Financial Express BD, TBS News, New Age, or any international source. Search "site:thedailystar.net opinion {today_search}" and "site:thefinancialexpress.com.bd editorial {today_search}" and "site:tbsnews.net opinion {today_search}". For each: title, author name, one-line summary, source code (DS/FE/TBS/NEWAGE/FT/BBC/AJ/ECON/WSJ/GDN/REUTERS/NYT/WAPO/PRINT/STATESMAN), article URL, and date as "{today_short}". If fewer than 3 exist from today, return only what you find. If none, return "opeds": [].
 
 Return ONLY this JSON (use null for any value not found):
 {{
@@ -503,9 +513,16 @@ def _is_today(date_str):
     """Check if a date string contains today's day+month (BDT)."""
     if not date_str:
         return False
-    # Match patterns like "12 Mar", "12 Mar 2026", "Mar 12"
-    return (f"{_today_d} {_today_mon}" in date_str or
-            f"{_today_mon} {_today_d}" in date_str)
+    ds = date_str.strip().upper()
+    _mon_full = _now.strftime("%B").upper()  # e.g. "MARCH"
+    _mon_short = _today_mon.upper()          # e.g. "MAR"
+    _d = str(_today_d)                       # e.g. "16"
+    _d0 = f"{_today_d:02d}"                  # e.g. "16" (zero-padded)
+    # Match: "16 Mar", "Mar 16", "16 March", "March 16", "16/03", "2026-03-16"
+    return (f"{_d} {_mon_short}" in ds or f"{_mon_short} {_d}" in ds or
+            f"{_d} {_mon_full}" in ds or f"{_mon_full} {_d}" in ds or
+            f"{_now.year}-{_now.month:02d}-{_d0}" in ds or
+            f"{_d0}/{_now.month:02d}" in ds)
 try:
     # Ensure gathered_json starts with '{' — Phase 1 sometimes wraps in extra text
     _json_start = gathered_json.find('{')
@@ -514,6 +531,10 @@ try:
     _gf = json.loads(_parseable)
     if 'headlines' in _gf and isinstance(_gf['headlines'], list):
         _before = len(_gf['headlines'])
+        # Log all dates Phase 1 returned so we can debug filtering
+        if _gf['headlines']:
+            _dates_found = [h.get('date', 'NO_DATE') for h in _gf['headlines'] if isinstance(h, dict)]
+            print(f"  Phase 1 headline dates: {_dates_found}")
         _gf['headlines'] = [h for h in _gf['headlines']
                            if isinstance(h, dict) and _is_today(h.get('date', ''))]
         _after = len(_gf['headlines'])
@@ -523,6 +544,9 @@ try:
             print(f"  WARNING: All headlines filtered out! No articles dated {_today_d} {_today_mon} {_today_yr}")
     if 'opeds' in _gf and isinstance(_gf['opeds'], list):
         _before = len(_gf['opeds'])
+        if _gf['opeds']:
+            _oped_dates = [o.get('date', 'NO_DATE') for o in _gf['opeds'] if isinstance(o, dict)]
+            print(f"  Phase 1 oped dates: {_oped_dates}")
         _gf['opeds'] = [o for o in _gf['opeds']
                        if isinstance(o, dict) and _is_today(o.get('date', ''))]
         _after = len(_gf['opeds'])
