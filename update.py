@@ -1,4 +1,5 @@
 import anthropic
+import html as html_mod
 import json
 import os
 import re
@@ -27,6 +28,77 @@ today = _now.strftime("%A %d %B %Y").upper()
 today_search = f"{_now.day} {_now.strftime('%B')} {_now.year}"  # e.g. "16 March 2026" — for web search
 today_short = f"{_now.day} {_now.strftime('%b')}"                # e.g. "16 Mar" — for date fields
 chart_label = _now.strftime("%b ") + str(_now.day)   # e.g. "Mar 11" — no leading zero, BDT
+
+# ── Scrape latest 4 headlines from each mandatory source ─────────────────────
+# Direct HTTP fetch + regex extraction — no AI involved, deterministic.
+_HEADLINE_SOURCES = [
+    {
+        "url": "https://www.thedailystar.net/business",
+        "code": "DS",
+        "name": "Daily Star",
+        # DS business page: <h3 class="..."><a href="/business/...">Title</a></h3>
+        "pattern": r'<a\s+href="(/business/[^"]+)"[^>]*>\s*([^<]+?)\s*</a>',
+        "base": "https://www.thedailystar.net",
+    },
+    {
+        "url": "https://www.tbsnews.net/economy",
+        "code": "TBS",
+        "name": "TBS News",
+        # TBS economy page: <a href="/economy/...">Title</a>
+        "pattern": r'<a\s+href="(/economy/[^"]+)"[^>]*>\s*([^<]{15,}?)\s*</a>',
+        "base": "https://www.tbsnews.net",
+    },
+    {
+        "url": "https://today.thefinancialexpress.com.bd/",
+        "code": "FE",
+        "name": "Financial Express BD",
+        # FE front page: <a href="...thefinancialexpress.com.bd/...">Title</a>
+        "pattern": r'<a\s+href="(https?://[^"]*thefinancialexpress\.com\.bd/[^"]+)"[^>]*>\s*([^<]{15,}?)\s*</a>',
+        "base": "",
+    },
+]
+
+def _scrape_headlines(source, count=4):
+    """Fetch a news page and extract the first `count` unique article headlines."""
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; TheBrief/1.0)"}
+    req = urllib.request.Request(source["url"], headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            page = resp.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"  ⚠️  Failed to fetch {source['url']}: {e}")
+        return []
+    matches = re.findall(source["pattern"], page, re.IGNORECASE)
+    seen_titles = set()
+    results = []
+    for path, title in matches:
+        title = html_mod.unescape(title).strip()
+        # Skip navigational/generic links
+        if len(title) < 20 or title.lower() in ("read more", "see all", "more news"):
+            continue
+        # Deduplicate by normalised title
+        _norm = re.sub(r'\s+', ' ', title.lower())
+        if _norm in seen_titles:
+            continue
+        seen_titles.add(_norm)
+        url = source["base"] + path if source["base"] else path
+        results.append({
+            "title": title,
+            "url": url,
+            "source": source["code"],
+            "date": today_short,  # scraped right now, so it's today's page
+        })
+        if len(results) >= count:
+            break
+    return results
+
+print("Scraping headlines from 3 mandatory sources...")
+_scraped_headlines = []
+for _src in _HEADLINE_SOURCES:
+    _hl = _scrape_headlines(_src, count=4)
+    print(f"  {_src['code']}: {len(_hl)} headlines from {_src['url']}")
+    _scraped_headlines.extend(_hl)
+print(f"Total scraped: {len(_scraped_headlines)} headlines")
 
 # ── Strip CSS to stay under rate-limit (Claude is told not to touch CSS anyway) ─
 # ── Strip <head> block (CDN scripts, PWA tags, meta) — Claude never touches these ─
@@ -302,12 +374,7 @@ WHAT TO SEARCH:
 23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
 24. Bangladesh power/electricity sector (BPDB, PGCB): current average daily generation MW, peak demand MW, daily shortage/loadshedding MW; rural and urban loadshedding hours per day; LNG spot import cost USD/MMBtu; 1-2 power sector news headlines.
 25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
-26. Top 12-15 business/economy news headlines about Bangladesh or affecting Bangladesh. MANDATORY MINIMUMS — you MUST find at least 3 headlines from EACH of these three sources:
-  (a) Daily Star business: Search "site:thedailystar.net/business" — pick 3+ most recent business/economy articles (DS)
-  (b) TBS News economy: Search "site:tbsnews.net/economy" — pick 3+ most recent economy/business articles (TBS)
-  (c) Financial Express BD: Search "site:today.thefinancialexpress.com.bd" — pick 3+ most recent articles (FE)
-  Then ALSO search for additional headlines from: BSS News (bssnews.net), Reuters, BBC, FT, Al Jazeera, NY Times, Washington Post, The Print, The Statesman — any Bangladesh-relevant business coverage.
-  DATE RULE: Include articles published within the last 24 hours (i.e. dated {today_search} or the day before). For each headline: title, source URL, source code (DS/FE/TBS/NEWAGE/BSS/FT/BBC/REUTERS/AJ/NYT/WAPO/PRINT/STATESMAN), and publication date (e.g. "{today_short}"). If a source has no articles within 24 hours, still include their most recent business headlines but note the actual date.
+26. Headlines are pre-scraped — DO NOT search for headlines. They will be injected into your JSON automatically.
 
 Return ONLY this JSON (use null for any value not found):
 {{
@@ -381,7 +448,7 @@ Return ONLY this JSON (use null for any value not found):
   "peers_pk_gdp": "2.8",   "peers_pk_cpi": "23.0",  "peers_pk_fxr": "11.7", "peers_pk_cab": "-0.8",  "peers_pk_rating": "CCC+",
   "peers_lk_gdp": "4.5",   "peers_lk_cpi": "4.1",   "peers_lk_fxr": "6.1",  "peers_lk_cab": "-2.1",  "peers_lk_rating": "B-",
 
-  "headlines": [{{"title": "headline", "url": "https://...", "source": "DS|FE|TBS|NEWAGE|FT|BBC|REUTERS|AJ|NYT|WAPO|PRINT|STATESMAN", "date": "16 Mar"}}]
+  "headlines": "PRE_SCRAPED_PLACEHOLDER"
 }}"""
 
 # ── API client (used by both phases) ───────────────────────────────────────────
@@ -390,7 +457,7 @@ client = anthropic.Anthropic(
     timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
 )
 
-WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 40}]
+WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 25}]
 MAX_RETRIES = 6   # allows 120+240+360+480+600 = 1,800s total wait across 5 retries
 
 def _stream_call(messages, tools, max_tokens, label):
@@ -499,60 +566,23 @@ if len(gathered_json) > _MAX_JSON:
         print(f"  Smart trim failed ({_e}). Hard-capping at {_MAX_JSON:,} chars.")
         gathered_json = gathered_json[:_MAX_JSON]
 
-# ── Filter stale headlines: keep articles within 24 hours ─────────────────────
-# Use BDT date (_now) so filter matches the brief date even if local clock differs
-_today_d = _now.day                          # e.g. 16
-_today_mon = _now.strftime("%b")             # e.g. "Mar"
-_today_yr = _now.year                        # e.g. 2026
-_yesterday = _now - timedelta(days=1)
-_yest_d = _yesterday.day
-_yest_mon = _yesterday.strftime("%b")
-
-def _date_matches(date_str, day, mon_short):
-    """Check if a date string contains the given day+month."""
-    ds = date_str.strip().upper()
-    _ms = mon_short.upper()
-    _d = str(day)
-    _d0 = f"{day:02d}"
-    _dt = _now if day == _today_d else _yesterday
-    _mf = _dt.strftime("%B").upper()
-    return (f"{_d} {_ms}" in ds or f"{_ms} {_d}" in ds or
-            f"{_d} {_mf}" in ds or f"{_mf} {_d}" in ds or
-            f"{_dt.year}-{_dt.month:02d}-{_d0}" in ds or
-            f"{_d0}/{_dt.month:02d}" in ds)
-
-def _is_within_24h(date_str):
-    """Check if a date string is today or yesterday (within 24 hours)."""
-    if not date_str:
-        return False
-    return (_date_matches(date_str, _today_d, _today_mon) or
-            _date_matches(date_str, _yest_d, _yest_mon))
+# ── Inject scraped headlines into gathered JSON ──────────────────────────────
+# Headlines are scraped directly from the 3 source websites (deterministic),
+# not from Claude's web search (which has stale index issues).
 try:
-    # Ensure gathered_json starts with '{' — Phase 1 sometimes wraps in extra text
     _json_start = gathered_json.find('{')
     _json_end = gathered_json.rfind('}')
     _parseable = gathered_json[_json_start:_json_end+1] if _json_start >= 0 and _json_end > _json_start else gathered_json
     _gf = json.loads(_parseable)
-    if 'headlines' in _gf and isinstance(_gf['headlines'], list):
-        _before = len(_gf['headlines'])
-        # Log all dates Phase 1 returned so we can debug filtering
-        if _gf['headlines']:
-            _dates_found = [h.get('date', 'NO_DATE') for h in _gf['headlines'] if isinstance(h, dict)]
-            print(f"  Phase 1 headline dates: {_dates_found}")
-        _gf['headlines'] = [h for h in _gf['headlines']
-                           if isinstance(h, dict) and _is_within_24h(h.get('date', ''))]
-        _after = len(_gf['headlines'])
-        if _before != _after:
-            print(f"  Headlines date-filtered: {_before} -> {_after} (dropped {_before - _after} older than 24h)")
-        if _after == 0:
-            print(f"  WARNING: All headlines filtered out! No articles within 24h of {_today_d} {_today_mon} {_today_yr}")
+    # Replace whatever Phase 1 returned with our scraped headlines
+    _gf['headlines'] = _scraped_headlines
     # Remove opeds from gathered data (op-ed section excluded)
     if 'opeds' in _gf:
         del _gf['opeds']
     gathered_json = json.dumps(_gf, ensure_ascii=False)
-    print(f"  Date filter applied (target: {_today_d} {_today_mon} {_today_yr}, also accepts {_yest_d} {_yest_mon})")
+    print(f"  Injected {len(_scraped_headlines)} scraped headlines into gathered JSON")
 except Exception as _e:
-    print(f"  Date filter failed: {_e}")
+    print(f"  Headline injection failed: {_e}")
 
 print(f"Gathered data: {len(gathered_json):,} chars")
 _p2_est = len(prompt_html) + len(gathered_json) + 2500
@@ -891,14 +921,11 @@ if _sanity_ok:
 else:
     print("Sanity check applied fixes — review warnings above.")
 
-# ── HARD ENFORCEMENT: headlines/opeds must be today-only ──────────────────────
-# Claude sometimes hallucates old headlines from memory even when gathered JSON
-# has empty arrays and the template was stripped. This Python guard is the final
-# line of defense — it runs AFTER Phase 2 and overwrites the headline arrays
-# with ONLY gathered data that passed the date filter.
+# ── HARD ENFORCEMENT: headlines from scraped data only ────────────────────────
+# Overwrites whatever Claude put in const headlines = [...] with the
+# deterministically scraped headlines. No AI involvement in headline selection.
 try:
-    _gf_enforce = json.loads(gathered_json)
-    _today_headlines = _gf_enforce.get('headlines', [])
+    _today_headlines = _scraped_headlines
 
     # Build JS array literal from gathered (date-filtered) headlines
     def _js_headline_array(items):
