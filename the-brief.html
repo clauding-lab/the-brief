@@ -1432,6 +1432,7 @@ function SectionMacro() {
 }
 
 function YieldCurveChart() {
+  const [hovered, setHovered] = React.useState(null);
   const W = 680, H = 240;
   const pad = { top: 36, right: 50, bottom: 44, left: 52 };
   const iW = W - pad.left - pad.right;
@@ -1460,9 +1461,22 @@ function YieldCurveChart() {
     yields.map((v, i) => `L ${cx(i).toFixed(1)},${cy(v).toFixed(1)}`).join(" ") +
     ` L ${cx(n - 1).toFixed(1)},${cy(yMin).toFixed(1)} L ${cx(0).toFixed(1)},${cy(yMin).toFixed(1)} Z`;
 
+  const handleMouseMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width * W;
+    let closest = 0, closestDist = Infinity;
+    for (let i = 0; i < n; i++) {
+      const dist = Math.abs(mouseX - cx(i));
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    }
+    setHovered(closest);
+  };
+
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
 
         {/* Y-axis grid */}
         {yTicks.map(v => (
@@ -1487,7 +1501,7 @@ function YieldCurveChart() {
         {/* Dots + value labels */}
         {yields.map((v, i) => (
           <g key={i}>
-            <circle cx={cx(i)} cy={cy(v)} r={3.5} fill="var(--accent)" stroke="var(--surface)" strokeWidth="1.5" />
+            <circle cx={cx(i)} cy={cy(v)} r={hovered === i ? 6 : 3.5} fill="var(--accent)" stroke="var(--surface)" strokeWidth="1.5" />
             <text x={cx(i)} y={cy(v) - 8} fill="var(--fg)" fontSize="9" textAnchor="middle" fontWeight="600">{v.toFixed(2)}%</text>
           </g>
         ))}
@@ -1503,6 +1517,19 @@ function YieldCurveChart() {
         {/* Title */}
         <text x={W / 2} y={16} fill="var(--fg)" fontSize="11" textAnchor="middle" fontWeight="700" letterSpacing="0.05em">BANGLADESH YIELD CURVE — GOVERNMENT BONDS</text>
 
+        {/* Hover crosshair + tooltip */}
+        {hovered !== null && (<>
+          <line x1={cx(hovered)} y1={pad.top} x2={cx(hovered)} y2={H - pad.bottom}
+            stroke="var(--muted)" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+          <foreignObject
+            x={Math.min(cx(hovered) + 10, W - 140)} y={Math.max(cy(yields[hovered]) - 40, pad.top)}
+            width="130" height="44" style={{ pointerEvents: "none" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+              <strong>{maturities[hovered]}</strong>: {yields[hovered].toFixed(2)}%
+            </div>
+          </foreignObject>
+        </>)}
+
       </svg>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 14px 4px", fontSize: 10, color: "var(--muted)" }}>
         <span>Last update: 13 Mar 2026 · worldgovernmentbonds.com</span>
@@ -1513,6 +1540,7 @@ function YieldCurveChart() {
 }
 
 function DSEXChart() {
+  const [hovered, setHovered] = React.useState(null);
   const data = [
     { label: "Feb 10", value: 5399 },
     { label: "Feb 11", value: 5400 },
@@ -1570,9 +1598,22 @@ function DSEXChart() {
   const _todayUp = _pct >= 0;
   const _todayColor = _todayUp ? "var(--bull)" : "var(--bear)";
 
+  const handleMouseMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width * W;
+    let closest = 0, closestDist = Infinity;
+    for (let i = 0; i < data.length; i++) {
+      const dist = Math.abs(mouseX - cx(i));
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    }
+    setHovered(closest);
+  };
+
     return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
 
         {/* Y-axis title */}
         <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
@@ -1641,7 +1682,7 @@ function DSEXChart() {
           const col = crashIdx >= 0 && i >= splitIdx - 1 ? "var(--bear)" : "var(--accent)";
           return (
             <circle key={i} cx={cx(i)} cy={cy(d.value)}
-              r={isKey || isToday ? 4.5 : 2.5}
+              r={hovered === i ? 6 : (isKey || isToday ? 4.5 : 2.5)}
               fill={i === bnpIdx ? "var(--bull)" : col}
               stroke="var(--surface)" strokeWidth="1.5" />
           );
@@ -1651,11 +1692,25 @@ function DSEXChart() {
         {data.map((d, i) => {
           if (!d.showLabel) return null;
           const col = crashIdx >= 0 && i >= splitIdx - 1 ? "var(--bear)" : i === bnpIdx ? "var(--bull)" : "var(--muted)";
-        
+
    return (
             <text key={i} x={cx(i)} y={H - pad.bottom + 16} fill={col} fontSize="9" textAnchor="middle">{d.label}</text>
           );
         })}
+
+        {/* Hover crosshair + tooltip */}
+        {hovered !== null && (<>
+          <line x1={cx(hovered)} y1={pad.top} x2={cx(hovered)} y2={H - pad.bottom}
+            stroke="var(--muted)" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+          <foreignObject
+            x={Math.min(cx(hovered) + 10, W - 160)} y={Math.max(cy(data[hovered].value) - 48, pad.top)}
+            width="150" height="50" style={{ pointerEvents: "none" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+              <strong>{data[hovered].label}</strong><br/>
+              DSEX: {data[hovered].value.toLocaleString()}
+            </div>
+          </foreignObject>
+        </>)}
 
       </svg>
 
@@ -1719,6 +1774,7 @@ function SectionDSE() {
 }
 
 function TBillChart() {
+  const [hovered, setHovered] = React.useState(null);
   const W = 680, H = 230;
   const pad = { top: 50, right: 62, bottom: 44, left: 52 };
   const iW = W - pad.left - pad.right;
@@ -1746,9 +1802,22 @@ function TBillChart() {
   const bpBw = 160, bpBh = 22;
   const bpBx = cx(4) - bpBw + 20, bpBy = H - pad.bottom + 28;
 
+  const handleMouseMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width * W;
+    let closest = 0, closestDist = Infinity;
+    for (let i = 0; i < n; i++) {
+      const dist = Math.abs(mouseX - cx(i));
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    }
+    setHovered(closest);
+  };
+
     return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
-      <svg viewBox={`0 0 ${W} ${H + 28}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H + 28}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
 
         {yTicks.map(v => (
           <g key={v}>
@@ -1784,7 +1853,7 @@ function TBillChart() {
         {[d91, d182, d364].map((arr, si) => {
           const cols = ["var(--accent)", "var(--bull)", "var(--warn)"];
           return arr.map((v, i) => (
-            <circle key={`${si}-${i}`} cx={cx(i)} cy={cy(v)} r={3}
+            <circle key={`${si}-${i}`} cx={cx(i)} cy={cy(v)} r={hovered === i ? 6 : 3}
               fill={cols[si]} stroke="var(--surface)" strokeWidth="1.5" />
           ));
         })}
@@ -1799,6 +1868,22 @@ function TBillChart() {
         <text x={pad.left + 76} y={pad.top - 24} fill="var(--fg)" fontSize="9.5">182-day</text>
         <circle cx={pad.left + 130} cy={pad.top - 28} r={4} fill="var(--warn)" />
         <text x={pad.left + 138} y={pad.top - 24} fill="var(--fg)" fontSize="9.5">364-day</text>
+
+        {/* Hover crosshair + tooltip */}
+        {hovered !== null && (<>
+          <line x1={cx(hovered)} y1={pad.top} x2={cx(hovered)} y2={H - pad.bottom}
+            stroke="var(--muted)" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+          <foreignObject
+            x={Math.min(cx(hovered) + 10, W - 180)} y={Math.max(Math.min(cy(d91[hovered]), cy(d182[hovered]), cy(d364[hovered])) - 60, pad.top)}
+            width="170" height="70" style={{ pointerEvents: "none" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+              <strong>{labels[hovered]}</strong><br/>
+              91d: {d91[hovered].toFixed(2)}% · 182d: {d182[hovered].toFixed(2)}%<br/>
+              364d: {d364[hovered].toFixed(2)}%
+            </div>
+          </foreignObject>
+        </>)}
+
       </svg>
       <div style={{ fontSize: 9, color: "var(--muted)", textAlign: "right", paddingRight: 12, marginTop: 4 }}>
         Source: Bangladesh Bank primary auction results · Policy rate: 10.00% · Last auction: 9 Mar 2026 · 10Y BGTB: 10.82%
@@ -2376,6 +2461,7 @@ function SectionTrade() {
 // ── LNG Chart ────────────────────────────────────────────────────────────────
 
 function LNGChart() {
+  const [hovered, setHovered] = React.useState(null);
   const data = [
     { label: "Oct '25", value: 13.0 },
     { label: "Nov '25", value: 13.5 },
@@ -2411,9 +2497,22 @@ function LNGChart() {
   const lastVal = data[lastIdx].value;
   const annotY  = H - pad.bottom + 30;
 
+  const handleMouseMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width * W;
+    let closest = 0, closestDist = Infinity;
+    for (let i = 0; i < data.length; i++) {
+      const dist = Math.abs(mouseX - cx(i));
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    }
+    setHovered(closest);
+  };
+
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
 
         {/* Y-axis title */}
         <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
@@ -2453,7 +2552,7 @@ function LNGChart() {
           const isEvent = eIdx >= 0 && i === eIdx;
           return (
             <circle key={i} cx={cx(i)} cy={cy(d.value)}
-              r={isToday || isEvent ? 4.5 : 2.5}
+              r={hovered === i ? 6 : (isToday || isEvent ? 4.5 : 2.5)}
               fill="var(--bear)"
               stroke="var(--surface)" strokeWidth="1.5" />
           );
@@ -2465,6 +2564,20 @@ function LNGChart() {
             fill={i === lastIdx ? "var(--bear)" : "var(--muted)"}
             fontSize="9" textAnchor="middle">{d.label}</text>
         ))}
+
+        {/* Hover crosshair + tooltip */}
+        {hovered !== null && (<>
+          <line x1={cx(hovered)} y1={pad.top} x2={cx(hovered)} y2={H - pad.bottom}
+            stroke="var(--muted)" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+          <foreignObject
+            x={Math.min(cx(hovered) + 10, W - 160)} y={Math.max(cy(data[hovered].value) - 48, pad.top)}
+            width="150" height="50" style={{ pointerEvents: "none" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+              <strong>{data[hovered].label}</strong><br/>
+              ${data[hovered].value.toFixed(1)}/MMBtu
+            </div>
+          </foreignObject>
+        </>)}
 
       </svg>
 
@@ -2488,6 +2601,7 @@ function LNGChart() {
 
 function OilChart() {
   const { useState, useEffect } = React;
+  const [hovered, setHovered] = React.useState(null);
 
   const AV_KEY = "T294W0RCT1U6OOPE";
 
@@ -2573,9 +2687,22 @@ function OilChart() {
   // Annotation box below x-axis labels so it never overlaps chart content
   const annotY = H - pad.bottom + 30;
 
+  const handleMouseMove = (e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width * W;
+    let closest = 0, closestDist = Infinity;
+    for (let i = 0; i < data.length; i++) {
+      const dist = Math.abs(mouseX - cx(i));
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    }
+    setHovered(closest);
+  };
+
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
 
         {/* Y-axis title */}
         <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
@@ -2606,7 +2733,7 @@ function OilChart() {
           const isEvent = i === eIdx;
           return (
             <circle key={i} cx={cx(i)} cy={cy(d.value)}
-              r={isToday || isEvent ? 4.5 : 2.5}
+              r={hovered === i ? 6 : (isToday || isEvent ? 4.5 : 2.5)}
               fill={isToday ? "var(--warn)" : isEvent ? "var(--bear)" : "var(--warn)"}
               stroke="var(--surface)" strokeWidth="1.5" />
           );
@@ -2626,6 +2753,20 @@ function OilChart() {
           fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
         <text x={cx(eIdx)} y={annotY + 14} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Iran War Outbreak</text>
         <text x={cx(eIdx)} y={annotY + 26} fill="var(--bear)" fontSize="9" textAnchor="middle">Hormuz Shock · Feb 28</text>
+
+        {/* Hover crosshair + tooltip */}
+        {hovered !== null && (<>
+          <line x1={cx(hovered)} y1={pad.top} x2={cx(hovered)} y2={H - pad.bottom}
+            stroke="var(--muted)" strokeWidth="1" strokeDasharray="4,3" opacity="0.6" />
+          <foreignObject
+            x={Math.min(cx(hovered) + 10, W - 160)} y={Math.max(cy(data[hovered].value) - 48, pad.top)}
+            width="150" height="50" style={{ pointerEvents: "none" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+              <strong>{data[hovered].label}</strong><br/>
+              ${data[hovered].value.toFixed(2)}/bbl
+            </div>
+          </foreignObject>
+        </>)}
 
       </svg>
 
