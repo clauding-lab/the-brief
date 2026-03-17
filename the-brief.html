@@ -2537,7 +2537,7 @@ function LNGChart() {
         {eIdx >= 0 && (<>
           <line x1={cx(eIdx)} y1={cy(data[eIdx].value) + 6} x2={cx(eIdx)} y2={annotY}
             stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
-          <rect x={cx(eIdx) - 72} y={annotY} width={144} height={22} rx={3}
+          <rect x={cx(eIdx) - 100} y={annotY} width={200} height={22} rx={3}
             fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
           <text x={cx(eIdx)} y={annotY + 14} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Hormuz Disruption · LNG Surge</text>
         </>)}
