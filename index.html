@@ -1062,7 +1062,7 @@ const _sb = window.supabase.createClient(
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
-const BRIEF_DATE = "MONDAY 16 MARCH 2026";
+const BRIEF_DATE = "TUESDAY 17 MARCH 2026";
 const BRIEF_EDITION = "VOL. 1 · ISSUE 69";
 
 const SECTIONS = [
@@ -2606,7 +2606,6 @@ function OilChart() {
   const AV_KEY = "T294W0RCT1U6OOPE";
 
   const STATIC_DATA = [
-    { label: "Mid-Feb", value: 77.0 },
     { label: "Feb 28", value: 69.0, event: true },
     { label: "Mar 2", value: 82.0 },
     { label: "Mar 4", value: 82.8 },
@@ -2617,7 +2616,8 @@ function OilChart() {
     { label: "Mar 12", value: 100.11 },
     { label: "Mar 13", value: 101.75 },
     { label: "Mar 14", value: 103.14 },
-    { label: "Mar 16", value: 106.36, today: true },
+    { label: "Mar 16", value: 106.36 },
+    { label: "Mar 17", value: 102.92, today: true },
   ];
 
   
@@ -2849,18 +2849,18 @@ function SectionExec() {
 
 function SectionHeadlines() {
   const headlines = [
-    { title: "Govt to rally support to defer LDC graduation", url: "https://www.thedailystar.net/business/economy/news/govt-rally-support-defer-ldc-graduation-4129646", source: "DS", time: "16 Mar" },
-    { title: "War further clouds private credit demand", url: "https://www.thedailystar.net/business/economy/news/war-further-clouds-private-credit-demand-4129641", source: "DS", time: "16 Mar" },
-    { title: "Chairman of Sammilito Islami Bank Mohammad Ayub Mia resigns", url: "https://www.thedailystar.net/business/news/chairman-sammilito-islami-bank-mohammad-ayub-mia-resigns-4130026", source: "DS", time: "16 Mar" },
-    { title: "World Bank keen on continuing constructive partnership with Bangladesh", url: "https://www.thedailystar.net/business/news/world-bank-keen-continuing-constructive-partnership-bangladesh-4130076", source: "DS", time: "16 Mar" },
-    { title: "Exporters allowed to send shipping documents directly to buyers to speed up business", url: "https://www.tbsnews.net/economy/bb-allows-shipping-documents-importers-names-1388546", source: "TBS", time: "16 Mar" },
-    { title: "Beximco paid bond profits from raised capital, now faces payment crisis", url: "https://www.tbsnews.net/economy/beximco-paid-bond-profits-raised-capital-now-faces-payment-crisis-1388026", source: "TBS", time: "16 Mar" },
-    { title: "Remittance inflow up 35.7% in first half of March ahead of Eid", url: "https://www.tbsnews.net/economy/remittance-inflow-357-first-half-march-ahead-eid-1387681", source: "TBS", time: "16 Mar" },
-    { title: "Bangladesh Bank raises max credit card limit to Tk40 lakh", url: "https://www.tbsnews.net/economy/credit-card-limit-raised-tk40-lakh-1387641", source: "TBS", time: "16 Mar" },
-    { title: "Plethora of products, services under tax surveillance", url: "https://today.thefinancialexpress.com.bd/first-page/plethora-of-products-services-under-tax-surveillance-1773599090", source: "FE", time: "16 Mar" },
-    { title: "PM can't advise President to summon anything that doesn't exist constitutionally: Treasury", url: "https://today.thefinancialexpress.com.bd/first-page/pm-cant-advise-president-to-summon-anything-that-doesnt-exist-constitutionally-treasury-1773599143", source: "FE", time: "16 Mar" },
-    { title: "Banks make do with available funds sans crunch", url: "https://today.thefinancialexpress.com.bd/first-page/banks-make-do-with-available-funds-sans-crunch-1773599203", source: "FE", time: "16 Mar" },
-    { title: "Global fertiliser price four-year high, may affect Bangladesh farming", url: "https://today.thefinancialexpress.com.bd/first-page/global-fertiliser-price-four-year-high-may-affect-bangladesh-farming-1773599260", source: "FE", time: "16 Mar" }
+    { title: "EBL, Proyash to support children with special needs", url: "https://www.thedailystar.net/business/economy/news/ebl-proyash-support-children-special-needs-4130511", source: "DS", time: "17 Mar" },
+    { title: "Prime Bank promotes Nazeem A Choudhury to AMD post", url: "https://www.thedailystar.net/business/economy/news/prime-bank-promotes-nazeem-choudhury-amd-post-4130516", source: "DS", time: "17 Mar" },
+    { title: "Bangladesh’s cement producers reject US ‘overcapacity’ claims", url: "https://www.thedailystar.net/business/economy/news/bangladeshs-cement-producers-reject-us-overcapacity-claims-4130441", source: "DS", time: "17 Mar" },
+    { title: "EPA policy delivery key to Japanese investment", url: "https://www.thedailystar.net/business/economy/news/epa-policy-delivery-key-japanese-investment-4130466", source: "DS", time: "17 Mar" },
+    { title: "BB detects unauthorised LPG import ratios by 3 firms, seeks explanation", url: "https://www.tbsnews.net/economy/bb-detects-unauthorised-lpg-import-ratios-3-firms-seeks-explanation-1388966", source: "TBS", time: "17 Mar" },
+    { title: "Bangladesh-Japan EPA success hinges on removing barriers to business: Economists", url: "https://www.tbsnews.net/economy/bangladesh-japan-epa-success-hinges-removing-barriers-business-economists-1388886", source: "TBS", time: "17 Mar" },
+    { title: "Defence EZ prioritised in joint 180-day investment roadmap", url: "https://www.tbsnews.net/economy/4-agencies-including-bida-beza-roll-out-180-day-collaborative-investment-roadmap-1388766", source: "TBS", time: "17 Mar" },
+    { title: "Exporters allowed to send shipping documents directly to buyers to speed up business", url: "https://www.tbsnews.net/economy/bb-allows-shipping-documents-importers-names-1388546", source: "TBS", time: "17 Mar" },
+    { title: "Display defaulters' list on BB website, prohibit their car, house buy", url: "https://today.thefinancialexpress.com.bd/first-page/display-defaulters-list-on-bb-website-prohibit-their-car-house-buy-1773683039", source: "FE", time: "17 Mar" },
+    { title: "PM pledges to build strong, prosperous BD", url: "https://today.thefinancialexpress.com.bd/first-page/pm-pledges-to-build-strong-prosperous-bd-1773683101", source: "FE", time: "17 Mar" },
+    { title: "Iran ready to take war 'as far as necessary'", url: "https://today.thefinancialexpress.com.bd/first-page/iran-ready-to-take-war-as-far-as-necessary-1773683179", source: "FE", time: "17 Mar" },
+    { title: "Bangladesh seeks LNG partnerships, new terminal", url: "https://today.thefinancialexpress.com.bd/first-page/bangladesh-seeks-lng-partnerships-new-terminal-1773683221", source: "FE", time: "17 Mar" }
   ];
   const opeds = [];
   const sourceColors = {
