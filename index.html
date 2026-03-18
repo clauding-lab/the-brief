@@ -1062,7 +1062,7 @@ const _sb = window.supabase.createClient(
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
-const BRIEF_DATE = "TUESDAY 17 MARCH 2026";
+const BRIEF_DATE = "WEDNESDAY 18 MARCH 2026";
 const BRIEF_EDITION = "VOL. 1 · ISSUE 69";
 
 const SECTIONS = [
@@ -2606,7 +2606,6 @@ function OilChart() {
   const AV_KEY = "T294W0RCT1U6OOPE";
 
   const STATIC_DATA = [
-    { label: "Feb 28", value: 69.0, event: true },
     { label: "Mar 2", value: 82.0 },
     { label: "Mar 4", value: 82.8 },
     { label: "Mar 6", value: 92.69 },
@@ -2617,7 +2616,8 @@ function OilChart() {
     { label: "Mar 13", value: 101.75 },
     { label: "Mar 14", value: 103.14 },
     { label: "Mar 16", value: 106.36 },
-    { label: "Mar 17", value: 102.92, today: true },
+    { label: "Mar 17", value: 102.92 },
+    { label: "Mar 18", value: 103.42, today: true },
   ];
 
   
@@ -2849,18 +2849,18 @@ function SectionExec() {
 
 function SectionHeadlines() {
   const headlines = [
-    { title: "EBL, Proyash to support children with special needs", url: "https://www.thedailystar.net/business/economy/news/ebl-proyash-support-children-special-needs-4130511", source: "DS", time: "17 Mar" },
-    { title: "Prime Bank promotes Nazeem A Choudhury to AMD post", url: "https://www.thedailystar.net/business/economy/news/prime-bank-promotes-nazeem-choudhury-amd-post-4130516", source: "DS", time: "17 Mar" },
-    { title: "Bangladesh’s cement producers reject US ‘overcapacity’ claims", url: "https://www.thedailystar.net/business/economy/news/bangladeshs-cement-producers-reject-us-overcapacity-claims-4130441", source: "DS", time: "17 Mar" },
-    { title: "EPA policy delivery key to Japanese investment", url: "https://www.thedailystar.net/business/economy/news/epa-policy-delivery-key-japanese-investment-4130466", source: "DS", time: "17 Mar" },
-    { title: "BB detects unauthorised LPG import ratios by 3 firms, seeks explanation", url: "https://www.tbsnews.net/economy/bb-detects-unauthorised-lpg-import-ratios-3-firms-seeks-explanation-1388966", source: "TBS", time: "17 Mar" },
-    { title: "Bangladesh-Japan EPA success hinges on removing barriers to business: Economists", url: "https://www.tbsnews.net/economy/bangladesh-japan-epa-success-hinges-removing-barriers-business-economists-1388886", source: "TBS", time: "17 Mar" },
-    { title: "Defence EZ prioritised in joint 180-day investment roadmap", url: "https://www.tbsnews.net/economy/4-agencies-including-bida-beza-roll-out-180-day-collaborative-investment-roadmap-1388766", source: "TBS", time: "17 Mar" },
-    { title: "Exporters allowed to send shipping documents directly to buyers to speed up business", url: "https://www.tbsnews.net/economy/bb-allows-shipping-documents-importers-names-1388546", source: "TBS", time: "17 Mar" },
-    { title: "Display defaulters' list on BB website, prohibit their car, house buy", url: "https://today.thefinancialexpress.com.bd/first-page/display-defaulters-list-on-bb-website-prohibit-their-car-house-buy-1773683039", source: "FE", time: "17 Mar" },
-    { title: "PM pledges to build strong, prosperous BD", url: "https://today.thefinancialexpress.com.bd/first-page/pm-pledges-to-build-strong-prosperous-bd-1773683101", source: "FE", time: "17 Mar" },
-    { title: "Iran ready to take war 'as far as necessary'", url: "https://today.thefinancialexpress.com.bd/first-page/iran-ready-to-take-war-as-far-as-necessary-1773683179", source: "FE", time: "17 Mar" },
-    { title: "Bangladesh seeks LNG partnerships, new terminal", url: "https://today.thefinancialexpress.com.bd/first-page/bangladesh-seeks-lng-partnerships-new-terminal-1773683221", source: "FE", time: "17 Mar" }
+    { title: "Middle East tensions may slow remittance inflows: BB", url: "https://www.thedailystar.net/business/economy/news/middle-east-tensions-may-slow-remittance-inflows-bb-4131376", source: "DS", time: "18 Mar" },
+    { title: "BB removes a director from Islami Bank board", url: "https://www.thedailystar.net/business/economy/news/bb-removes-director-islami-bank-board-4131371", source: "DS", time: "18 Mar" },
+    { title: "US trade deal boosts Wi-Fi but threatens revenue", url: "https://www.thedailystar.net/business/global-economy/news/us-trade-deal-boosts-wi-fi-threatens-revenue-4131396", source: "DS", time: "18 Mar" },
+    { title: "‘Artificial shortage’ pushes up edible oil prices", url: "https://www.thedailystar.net/business/economy/news/artificial-shortage-pushes-edible-oil-prices-4131391", source: "DS", time: "18 Mar" },
+    { title: "Bangladesh to join WTO Investment Facilitation Agreement", url: "https://www.tbsnews.net/economy/bangladesh-join-wto-investment-facilitation-agreement-1389581", source: "TBS", time: "18 Mar" },
+    { title: "Bank deposits grow 10.45% in January", url: "https://www.tbsnews.net/economy/bank-deposits-grow-1045-january-1389576", source: "TBS", time: "18 Mar" },
+    { title: "BB detects unauthorised LPG import ratios by 3 firms, seeks explanation", url: "https://www.tbsnews.net/economy/bb-detects-unauthorised-lpg-import-ratios-3-firms-seeks-explanation-1388966", source: "TBS", time: "18 Mar" },
+    { title: "Bangladesh-Japan EPA success hinges on removing barriers to business: Economists", url: "https://www.tbsnews.net/economy/bangladesh-japan-epa-success-hinges-removing-barriers-business-economists-1388886", source: "TBS", time: "18 Mar" },
+    { title: "Padma Barrage project set for approval after decades of deliberation", url: "https://today.thefinancialexpress.com.bd/first-page/padma-barrage-project-set-for-approval-after-decades-of-deliberation-1773770210", source: "FE", time: "18 Mar" },
+    { title: "Dhaka, Delhi move to fast-track CEPA talks", url: "https://today.thefinancialexpress.com.bd/first-page/dhaka-delhi-move-to-fast-track-cepa-talks-1773770268", source: "FE", time: "18 Mar" },
+    { title: "Govt to buy 2 more LNG cargoes from spot mkt", url: "https://today.thefinancialexpress.com.bd/first-page/govt-to-buy-2-more-lng-cargoes-from-spot-mkt-1773770311", source: "FE", time: "18 Mar" },
+    { title: "Dhaka sees mass exodus of holidaymakers", url: "https://today.thefinancialexpress.com.bd/first-page/dhaka-sees-mass-exodus-of-holidaymakers-1773770487", source: "FE", time: "18 Mar" }
   ];
   const opeds = [];
   const sourceColors = {
