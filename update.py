@@ -253,7 +253,7 @@ def strip_js_render(html):
 prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
 
 # ── Strip long data prop values to stay under 30k input-token rate limit ─────────
-# BankerRead insight= — NOT stripped (prop renamed from text= to insight=).
+# BankerRead insight= — stripped below (line 274) so Claude writes fresh placeholders.
 #   Claude sees existing analytical commentary and can update it if today's data
 #   changes materially; otherwise it persists unchanged.
 # NewsItem detail=   — Claude writes fresh headlines; old detail values not needed.
@@ -345,32 +345,36 @@ else:
 # Phase 2 prompt: gathered JSON + stripped HTML (~38k tokens), Claude writes HTML.
 # This guarantees Phase 2 has no tool use — Claude's first output IS the HTML.
 
-GATHER_PROMPT = f"""Today is {today}.
+GATHER_PROMPT = f"""Today is {today}. Search date: {today_search}.
 
 Search for the latest Bangladesh economic and financial data, then return it as JSON.
 Run searches for all categories below. Return ONLY a JSON object — no markdown, no explanation.
 
+CRITICAL: For DAILY-CHANGING data (marked with ★), you MUST search for today's actual value.
+Do NOT use any example values from this prompt — they are PLACEHOLDERS only.
+If a value hasn't changed since yesterday, that's fine — but you must VERIFY by searching.
+
 WHAT TO SEARCH:
 1. Bangladesh CPI headline % YoY (BBS latest month), food inflation % YoY (BBS)
 2. Bangladesh Bank (BB) policy rate %, SDF rate %, SLF rate %
-3. Any recent BB MPC meeting decision or statement
+3. Any recent BB MPC meeting decision or statement (include next MPC date if known)
 4. Bangladesh GDP growth rate (BBS/World Bank latest), private sector credit growth % YoY (BB)
-5. DSEX closing value, DS30, CSCX, daily turnover crore BDT, change pts/%, 52-week high/low. Check amarstock.com AND tradingview.com/symbols/DSEBD-DSEX/ for the latest DSEX close — these are more reliable than dsebd.org. Use the MOST RECENT trading day close (DSE trades Sun-Thu, closed Fri-Sat and holidays). If DSE was closed today, use the last trading day's close and note the date.
+5. ★ DSEX closing value, DS30, CSCX, daily turnover crore BDT, change pts/%, 52-week high/low. Check amarstock.com AND tradingview.com/symbols/DSEBD-DSEX/ for the latest DSEX close — these are more reliable than dsebd.org. Use the MOST RECENT trading day close (DSE trades Sun-Thu, closed Fri-Sat and holidays). If DSE was closed today, use the last trading day's close and note the date. Also include "dsex_date" with the actual date of the close.
 6. Latest DSE news (2-3 headlines)
 7. BB T-bill primary auction cut-off yields: 91-day %, 182-day %, 364-day % (most recent auction)
 8. 10-year and 5-year government bond yields (secondary market)
 9. Any T-bill/bond market news
-10. BAJUS gold price 22K BDT per bhori (bajus.org or news)
-11. Brent crude spot USD/bbl, WTI crude USD/bbl, Henry Hub natural gas USD/MMBtu, Asian LNG spot price USD/MMBtu (JKM benchmark or equivalent). For LNG: provide 6-8 monthly/biweekly historical data points from Oct 2025 to today for Asian LNG spot (JKM or equivalent) to chart the trend.
-12. Any commodity news
-13. USD/BDT BB reference rate, EUR/BDT, GBP/BDT
-14. Bangladesh gross forex reserves USD billion (BPM6 basis, BB)
+10. ★ BAJUS gold price 22K BDT per bhori (bajus.org or news) — search "BAJUS gold price today {today_search}"
+11. ★ Brent crude spot USD/bbl, WTI crude USD/bbl, Henry Hub natural gas USD/MMBtu, Asian LNG spot price USD/MMBtu (JKM benchmark or equivalent). Search "Brent crude price today {today_search}". For LNG: provide 6-8 monthly/biweekly historical data points from Oct 2025 to today for Asian LNG spot (JKM or equivalent) to chart the trend.
+12. Any commodity news (search for today's commodity news)
+13. ★ USD/BDT BB reference rate, EUR/BDT, GBP/BDT — search "USD BDT exchange rate today {today_search}"
+14. Bangladesh gross forex reserves USD billion (BPM6 basis, BB) — include "forex_reserves_date" with the date of the figure
 15. Monthly exports USD million (EPB, latest month) — total and RMG portion; imports; trade deficit
 16. Any forex/trade news
-17. Monthly remittance inflow USD million (BB, latest month), which month, YoY % change
+17. Monthly remittance inflow USD million (BB, latest month), which month, YoY % change. Also search for partial-month data if available (e.g. "Bangladesh remittance March 2026 first 10 days").
 18. Any remittance news
 19. NPL ratio % (BB), capital adequacy ratio %; any major banking news
-20. Brent crude current spot and latest US-Iran war developments affecting oil markets
+20. ★ Brent crude current spot and latest US-Iran war developments affecting oil markets (search "Iran war oil {today_search}")
 21. Bangladesh domestic food prices (DAM weekly survey, latest week): retail prices in Dhaka markets for rice coarse BDT/kg, rice fine/miniket BDT/kg, red lentil BDT/kg, soybean oil BDT/L, sugar BDT/kg, onion BDT/kg, egg BDT/dozen, broiler chicken BDT/kg, wheat flour BDT/kg; and the week-ending date of the survey. Search "DAM Bangladesh food prices" or "daily star DAM price" or "TBS Bangladesh market price".
 22. Bangladesh RMG/garment export details (EPB, BGMEA latest release): most recent month's RMG exports USD million and YoY%; fiscal-year-to-date cumulative RMG exports USD billion and YoY%; buyer market shares (EU%, USA%, UK%, Canada%, Others%); BGMEA order pipeline assessment; 2-3 key RMG news headlines.
 23. Bangladesh fiscal data (Ministry of Finance, NBR, IMED): NBR revenue collection Jul-to-latest cumulative BDT trillion and full-year target; ADP (Annual Development Programme) utilisation % and BDT crore spent vs target crore; government bank borrowing cumulative BDT trillion vs full-year ceiling; fiscal deficit FY26 target % of GDP; 2 fiscal news headlines.
@@ -378,77 +382,79 @@ WHAT TO SEARCH:
 25. Regional peer economic comparison (latest 2025-26 data): for India, Vietnam, Pakistan, Sri Lanka — GDP growth % (latest annual), CPI inflation % (latest month), gross forex reserves USD billion, current account balance % GDP, sovereign credit rating (S&P or Fitch).
 26. Headlines are pre-scraped — DO NOT search for headlines. They will be injected into your JSON automatically.
 
-Return ONLY this JSON (use null for any value not found):
+Return ONLY this JSON structure. ALL values below are PLACEHOLDERS — replace with actual searched data. Use null for any value not found:
 {{
-  "cpi_headline_pct": "9.94",     "cpi_headline_month": "Jan 2026",
-  "cpi_food_pct": "11.35",        "cpi_food_month": "Jan 2026",
-  "bb_policy_rate_pct": "10.00",  "sdf_rate_pct": "9.00",  "slf_rate_pct": "11.00",
-  "mpc_note": null,
-  "gdp_growth_pct": "5.17",  "gdp_year": "FY2024",
-  "credit_growth_pct": "7.3",
-  "dsex": 5323,  "ds30": 1890,  "cscx": 1100,
-  "dse_turnover_cr": 445,
-  "dse_change_pts": -2,  "dse_change_pct": "-0.03",
-  "dse_52wk_high": 5684,  "dse_52wk_low": 4726,
-  "news_dse": ["headline 1", "headline 2"],
-  "tbill_91d_pct": "9.90",  "tbill_182d_pct": "9.98",  "tbill_364d_pct": "9.93",
-  "tbill_auction_label": "Mar '26",  "tbill_auction_date": "05 Mar 2026",
+  "gather_date": "{today_search}",
+  "cpi_headline_pct": null,     "cpi_headline_month": null,
+  "cpi_food_pct": null,         "cpi_food_month": null,
+  "bb_policy_rate_pct": null,   "sdf_rate_pct": null,  "slf_rate_pct": null,
+  "mpc_note": null,  "mpc_next_date": null,
+  "gdp_growth_pct": null,  "gdp_year": null,
+  "credit_growth_pct": null,
+  "dsex": null,  "dsex_date": null,  "ds30": null,  "cscx": null,
+  "dse_turnover_cr": null,
+  "dse_change_pts": null,  "dse_change_pct": null,
+  "dse_52wk_high": null,  "dse_52wk_low": null,
+  "news_dse": [],
+  "tbill_91d_pct": null,  "tbill_182d_pct": null,  "tbill_364d_pct": null,
+  "tbill_auction_label": null,  "tbill_auction_date": null,
   "tbill_new_auction": false,
-  "bond_10y_pct": "12.50",  "bond_5y_pct": "11.90",
-  "news_tbill": ["headline 1"],
-  "gold_22k_bdt": 144956,
-  "brent_usd": 84.0,  "wti_usd": 80.5,  "natgas_usd": 4.20,  "lng_spot_usd": 15.5,
-  "lng_history": [{{"label": "Oct '25", "value": 12.5}}, {{"label": "Nov '25", "value": 13.0}}, {{"label": "Dec '25", "value": 14.0}}, {{"label": "Jan '26", "value": 14.5}}, {{"label": "Feb '26", "value": 15.0}}, {{"label": "Mar '26", "value": 15.5}}],
-  "news_commodity": ["headline 1", "headline 2"],
-  "usd_bdt": 121.50,  "eur_bdt": 132.00,  "gbp_bdt": 154.00,
-  "forex_reserves_bn": 20.5,
-  "exports_mn": 4200,  "rmg_exports_mn": 3600,  "exports_month": "Jan 2026",
-  "imports_mn": 5500,  "trade_deficit_mn": 1300,  "trade_deficit_yoy_pct": "-5.2",
-  "news_forex": ["headline 1", "headline 2"],
-  "remittance_mn": 2100,  "remittance_month": "February 2026",
-  "remittance_yoy_pct": "+15.2",
-  "news_remittance": ["headline 1", "headline 2"],
-  "npl_ratio_pct": "9.93",  "car_pct": "12.5",
-  "news_banking": ["headline 1", "headline 2", "headline 3"],
-  "brent_spot": 84.0,
-  "news_iranwar": ["headline 1", "headline 2", "headline 3"],
+  "bond_10y_pct": null,  "bond_5y_pct": null,
+  "news_tbill": [],
+  "gold_22k_bdt": null,
+  "brent_usd": null,  "wti_usd": null,  "natgas_usd": null,  "lng_spot_usd": null,
+  "lng_history": [],
+  "news_commodity": [],
+  "usd_bdt": null,  "eur_bdt": null,  "gbp_bdt": null,
+  "forex_reserves_bn": null,  "forex_reserves_date": null,
+  "exports_mn": null,  "rmg_exports_mn": null,  "exports_month": null,
+  "imports_mn": null,  "trade_deficit_mn": null,  "trade_deficit_yoy_pct": null,
+  "news_forex": [],
+  "remittance_mn": null,  "remittance_month": null,
+  "remittance_yoy_pct": null,
+  "remittance_partial_mn": null,  "remittance_partial_period": null,
+  "news_remittance": [],
+  "npl_ratio_pct": null,  "car_pct": null,
+  "news_banking": [],
+  "brent_spot": null,
+  "news_iranwar": [],
 
-  "dam_week_ending": "Mar 6, 2026",
-  "dam_rice_coarse": "42",  "dam_rice_fine": "72",
-  "dam_lentil": "110",      "dam_oil": "155",
-  "dam_sugar": "120",       "dam_onion": "45",
-  "dam_egg": "140",         "dam_chicken": "185",  "dam_flour": "48",
+  "dam_week_ending": null,
+  "dam_rice_coarse": null,  "dam_rice_fine": null,
+  "dam_lentil": null,       "dam_oil": null,
+  "dam_sugar": null,        "dam_onion": null,
+  "dam_egg": null,          "dam_chicken": null,  "dam_flour": null,
 
-  "rmg_exports_latest_mn": 2810,  "rmg_exports_latest_yoy_pct": "-13.21",
-  "rmg_exports_latest_month": "February 2026",
-  "rmg_ytd_bn": "24.1",  "rmg_ytd_yoy_pct": "-4.2",
-  "rmg_eu_pct": 57,  "rmg_us_pct": 18,  "rmg_uk_pct": 9,
-  "rmg_canada_pct": 4,  "rmg_others_pct": 12,
-  "rmg_pipeline": "Softening",
-  "news_rmg": ["headline 1", "headline 2"],
+  "rmg_exports_latest_mn": null,  "rmg_exports_latest_yoy_pct": null,
+  "rmg_exports_latest_month": null,
+  "rmg_ytd_bn": null,  "rmg_ytd_yoy_pct": null,
+  "rmg_eu_pct": null,  "rmg_us_pct": null,  "rmg_uk_pct": null,
+  "rmg_canada_pct": null,  "rmg_others_pct": null,
+  "rmg_pipeline": null,
+  "news_rmg": [],
 
-  "fiscal_period": "Jul–Jan FY26",
-  "nbr_collected_trillion": "2.08",  "nbr_target_trillion": "7.97",
-  "nbr_progress_pct": 26,
-  "adp_pct": "22.5",  "adp_spent_crore": "64440",  "adp_target_crore": "285000",
-  "govt_borrow_trillion": "1.03",  "govt_borrow_pct": 74,
-  "govt_borrow_ceiling_trillion": "1.375",
-  "news_fiscal": ["headline 1", "headline 2"],
+  "fiscal_period": null,
+  "nbr_collected_trillion": null,  "nbr_target_trillion": null,
+  "nbr_progress_pct": null,
+  "adp_pct": null,  "adp_spent_crore": null,  "adp_target_crore": null,
+  "govt_borrow_trillion": null,  "govt_borrow_pct": null,
+  "govt_borrow_ceiling_trillion": null,
+  "news_fiscal": [],
 
-  "nbr_vat_bn": "810",      "nbr_vat_share_pct": 39,   "nbr_vat_yoy_pct": "+12",
-  "nbr_it_bn": "680",       "nbr_it_share_pct": 33,    "nbr_it_yoy_pct": "+8",
-  "nbr_customs_bn": "590",  "nbr_customs_share_pct": 28, "nbr_customs_yoy_pct": "-3",
-  "nbr_shortfall_bn": "380", "nbr_needed_5mo_trillion": "5.89",
+  "nbr_vat_bn": null,      "nbr_vat_share_pct": null,   "nbr_vat_yoy_pct": null,
+  "nbr_it_bn": null,       "nbr_it_share_pct": null,    "nbr_it_yoy_pct": null,
+  "nbr_customs_bn": null,  "nbr_customs_share_pct": null, "nbr_customs_yoy_pct": null,
+  "nbr_shortfall_bn": null, "nbr_needed_5mo_trillion": null,
 
-  "power_gen_mw": 13200,  "power_demand_mw": 15800,  "power_shortage_mw": 2600,
-  "power_shedding_rural": "3-4 hrs",  "power_shedding_urban": "1-2 hrs",
-  "power_lng_mmbtu": "$12-14",
-  "news_power": ["headline 1"],
+  "power_gen_mw": null,  "power_demand_mw": null,  "power_shortage_mw": null,
+  "power_shedding_rural": null,  "power_shedding_urban": null,
+  "power_lng_mmbtu": null,
+  "news_power": [],
 
-  "peers_in_gdp": "6.4",   "peers_in_cpi": "4.3",   "peers_in_fxr": "638",  "peers_in_cab": "-1.0",  "peers_in_rating": "BBB-",
-  "peers_vn_gdp": "6.8",   "peers_vn_cpi": "3.6",   "peers_vn_fxr": "103",  "peers_vn_cab": "+4.2",  "peers_vn_rating": "BB+",
-  "peers_pk_gdp": "2.8",   "peers_pk_cpi": "23.0",  "peers_pk_fxr": "11.7", "peers_pk_cab": "-0.8",  "peers_pk_rating": "CCC+",
-  "peers_lk_gdp": "4.5",   "peers_lk_cpi": "4.1",   "peers_lk_fxr": "6.1",  "peers_lk_cab": "-2.1",  "peers_lk_rating": "B-",
+  "peers_in_gdp": null,   "peers_in_cpi": null,   "peers_in_fxr": null,  "peers_in_cab": null,  "peers_in_rating": null,
+  "peers_vn_gdp": null,   "peers_vn_cpi": null,   "peers_vn_fxr": null,  "peers_vn_cab": null,  "peers_vn_rating": null,
+  "peers_pk_gdp": null,   "peers_pk_cpi": null,   "peers_pk_fxr": null,  "peers_pk_cab": null,  "peers_pk_rating": null,
+  "peers_lk_gdp": null,   "peers_lk_cpi": null,   "peers_lk_fxr": null,  "peers_lk_cab": null,  "peers_lk_rating": null,
 
   "headlines": "PRE_SCRAPED_PLACEHOLDER"
 }}"""
@@ -641,7 +647,7 @@ SectionExec: WRITE 6-8 single-line headlines (max 15 words each). Each object: {
 SectionHeadlines: The template has an EMPTY headline array (const headlines = [];). You MUST populate it EXCLUSIVELY from the gathered data JSON "headlines" array. The OP-ED SECTION IS REMOVED — keep const opeds = [] and do NOT render any op-ed cards or op-ed section header. CRITICAL RULES: (1) ONLY use headlines from the gathered data JSON — do NOT invent, fabricate, or recall headlines from memory or prior knowledge. (2) If the gathered "headlines" array is EMPTY ([]), keep const headlines = [] and show a note "No headlines available for {today}" instead of cards. (3) Every headline `time` field MUST exactly match the `date` field from gathered data — do NOT change dates. (4) Every headline `url` MUST exactly match the `url` from gathered data — do NOT invent URLs. (5) NEVER carry over or preserve old headlines from any previous version — the template arrays are intentionally empty. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, NEWAGE=New Age, FT=Financial Times, BBC=BBC, REUTERS=Reuters, AJ=Al Jazeera, BSS=BSS News, NYT=NY Times, WAPO=Washington Post, PRINT=The Print, STATESMAN=The Statesman. Each headline object: {{title, url, source, time}}. Add sourceColors/sourceNames entries for any new source codes used. BankerRead: summarize what the headlines collectively signal for the bank's risk posture.
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
 NOTE: DSEXChart/SectionRMG/SectionFiscal/SectionNBR/SectionPower/SectionPeers are PLACEHOLDER-restored — do NOT write them; pass their placeholders through EXACTLY as shown above.
-BankerRead: Each section has <BankerRead insight="..." /> — the previous text IS visible. ALWAYS rewrite the insight using today's gathered data, even if numbers haven't changed (the macro environment and urgency level change daily). Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning every day. Format: exactly 4 sentences — (1) what today's data means for the bank's book (2) a specific actionable step with a named exposure type or threshold (3) one forward trigger to watch (4) what business strategy to pursue or focus. Tone: direct, specific, no hedging, in the style of Ray Dalio, Gita Gopinath, or Raghuram Rajan. Cite actual numbers from gathered_data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
+BankerRead: Each section has <BankerRead insight="..." /> — the insight props are BLANK (stripped). Write a PLACEHOLDER insight (1 short sentence is fine) — a post-processing Phase 3 will regenerate all insights with fresh analysis. Do NOT spend tokens writing detailed insights here.
 
 JSX SYNTAX: Use EQUALS for JSX component props: <MetricCard value="10%" label="Rate" /> — NEVER use colons for JSX props. Colons are ONLY for JS object literals inside {{ }}.
 OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
@@ -1185,6 +1191,134 @@ try:
         print("Note: no LNG data in gathered data — LNG chart unchanged.")
 except Exception as _e:
     print(f"Warning: LNGChart post-processing failed ({_e}) — chart unchanged.")
+
+# ── PHASE 3: Regenerate ALL BankerRead insights ──────────────────────────────
+# Slow sections are restored from yesterday's HTML, so their BankerRead insights
+# are stale. Non-slow section insights may also be stale if gathered data hasn't
+# changed much. This phase extracts all insights, sends them to Claude with
+# today's gathered data, and replaces them with fresh analysis.
+print("\nPhase 3: Regenerating all BankerRead insights...")
+
+# Extract all current insights with their section context
+_br_matches = list(re.finditer(
+    r'(<BankerRead\s+insight=")([^"]*?)("\s*/>)',
+    updated_html
+))
+print(f"  Found {len(_br_matches)} BankerRead insights to regenerate.")
+
+if _br_matches:
+    # Find which section each BankerRead belongs to
+    _br_sections = []
+    for _brm in _br_matches:
+        _pos = _brm.start()
+        _fns = list(re.finditer(r'function (Section\w+|App)\s*\(', updated_html[:_pos]))
+        _section_name = _fns[-1].group(1) if _fns else "Unknown"
+        _br_sections.append(_section_name)
+
+    # Build a compact prompt listing each section's BankerRead for regeneration
+    _br_list = "\n".join(
+        f"{i+1}. [{_br_sections[i]}] (old insight omitted — write fresh)"
+        for i in range(len(_br_matches))
+    )
+
+    _P3_PROMPT = f"""Today is {today} (UTC+6 = BDT). Regenerate ALL {len(_br_matches)} BankerRead insights using ONLY the data below.
+
+GATHERED DATA:
+<data>
+{gathered_json}
+</data>
+
+SECTIONS (in order):
+{_br_list}
+
+RULES:
+- Each insight: exactly 4 sentences.
+  (1) What today's data means for the bank's book
+  (2) A specific actionable step with a named exposure type or threshold
+  (3) One forward trigger to watch with a specific metric and threshold
+  (4) What business strategy to pursue or focus
+- Tone: direct, specific, no hedging. Style of Ray Dalio / Gita Gopinath / Raghuram Rajan.
+- Cite actual numbers from the gathered data. Never use generic phrases like "monitor closely" without specifying what metric and what threshold.
+- Target reader: CFO, CRO, SME Banking head, corporate banking head, retail banking head, or treasury head reading at early morning.
+- CRITICAL: Each insight MUST reference today's date context ({today}) — what makes TODAY different from yesterday. Even if the raw numbers are the same, the countdown to key events (MPC meeting, Eid, CPI release, IMF review) changes daily. Frame urgency relative to today.
+- Use different angles for each section — do NOT repeat the same Brent/CPI/remittance framing across sections. Each section's insight should focus on that section's specific domain.
+- Do NOT use double quotes inside the insight text (it breaks JSX). Use single quotes or no quotes.
+
+OUTPUT: Return ONLY a JSON array of {len(_br_matches)} strings, one per BankerRead in order. No markdown, no explanation.
+Example: ["insight 1 text...", "insight 2 text...", ...]"""
+
+    print("  Cooling down 10s before Phase 3...")
+    time.sleep(10)
+
+    _p3_resp = _stream_call(
+        messages=[{"role": "user", "content": _P3_PROMPT}],
+        tools=[],
+        max_tokens=16000,
+        label="Phase 3 (BankerRead regeneration)",
+    )
+
+    # Extract JSON array from response
+    _p3_text = ""
+    for block in _p3_resp.content:
+        if block.type == "text" and block.text.strip():
+            _p3_text = block.text.strip()
+
+    if _p3_text.startswith("```"):
+        _p3_lines = _p3_text.split("\n")
+        _p3_text = "\n".join(_p3_lines[1:-1]) if _p3_lines[-1].strip() == "```" else "\n".join(_p3_lines[1:])
+        _p3_text = _p3_text.strip()
+
+    _j_start = _p3_text.find('[')
+    if _j_start >= 0:
+        _p3_text = _p3_text[_j_start:]
+
+    try:
+        _new_insights = json.loads(_p3_text)
+        if isinstance(_new_insights, list) and len(_new_insights) == len(_br_matches):
+            # Replace insights in reverse order to preserve positions
+            for i in reversed(range(len(_br_matches))):
+                _brm = _br_matches[i]
+                _new_insight = str(_new_insights[i]).replace('"', "'")  # safety: no double quotes in JSX props
+                updated_html = (
+                    updated_html[:_brm.start(2)] +
+                    _new_insight +
+                    updated_html[_brm.end(2):]
+                )
+            print(f"  All {len(_new_insights)} BankerRead insights regenerated successfully.")
+        else:
+            _got = len(_new_insights) if isinstance(_new_insights, list) else "not a list"
+            print(f"  WARNING: Phase 3 returned {_got} insights (expected {len(_br_matches)}) — keeping old insights.")
+    except json.JSONDecodeError as _e:
+        print(f"  WARNING: Phase 3 JSON parse failed ({_e}) — keeping old insights.")
+        # Try to repair truncated JSON
+        _repaired_p3 = False
+        _attempt_p3 = _p3_text
+        for _ in range(100):
+            _last_nl = _attempt_p3.rfind('\n')
+            if _last_nl <= 0:
+                break
+            _attempt_p3 = _attempt_p3[:_last_nl].rstrip().rstrip(',')
+            for _suffix in [']', '"]', '"]']:
+                try:
+                    _new_insights = json.loads(_attempt_p3 + _suffix)
+                    if isinstance(_new_insights, list) and len(_new_insights) == len(_br_matches):
+                        for i in reversed(range(len(_br_matches))):
+                            _brm = _br_matches[i]
+                            _new_insight = str(_new_insights[i]).replace('"', "'")
+                            updated_html = (
+                                updated_html[:_brm.start(2)] +
+                                _new_insight +
+                                updated_html[_brm.end(2):]
+                            )
+                        print(f"  JSON repaired — {len(_new_insights)} BankerRead insights regenerated.")
+                        _repaired_p3 = True
+                        break
+                except json.JSONDecodeError:
+                    continue
+            if _repaired_p3:
+                break
+        if not _repaired_p3:
+            print("  Could not repair Phase 3 JSON — old insights preserved.")
 
 # ── Write updated files ────────────────────────────────────────────────────────
 with open("the-brief.html", "w", encoding="utf-8") as f:
