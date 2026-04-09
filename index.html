@@ -2380,7 +2380,7 @@ function LNGChart() {
     { label: "Dec '25", value: 14.2 },
     { label: "Jan '26", value: 10.4 },
     { label: "Feb '26 early", value: 12.5 },
-    { label: "Feb '26 late", value: 14.0, event: true },
+    { label: "Feb '26 late", value: 14.0 },
     { label: "Mar '26 w1", value: 16.2 },
     { label: "Mar '26 w2", value: 16.2 },
     { label: "Mar 16", value: 16.2, today: true },
@@ -2404,10 +2404,8 @@ function LNGChart() {
   const gridVals = [];
   for (let v = minV + 2; v < maxV; v += 2) gridVals.push(v);
 
-  const eIdx    = data.findIndex(d => d.event);
   const lastIdx = data.length - 1;
   const lastVal = data[lastIdx].value;
-  const annotY  = H - pad.bottom + 30;
 
   const handleMouseMove = (e) => {
     const svg = e.currentTarget;
@@ -2445,15 +2443,6 @@ function LNGChart() {
         {/* Price line */}
         <polyline points={linePoints} fill="none" stroke="var(--bear)" strokeWidth="2.5" strokeLinejoin="round" />
 
-        {/* Hormuz event annotation — below x-axis */}
-        {eIdx >= 0 && (<>
-          <line x1={cx(eIdx)} y1={cy(data[eIdx].value) + 6} x2={cx(eIdx)} y2={annotY}
-            stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
-          <rect x={cx(eIdx) - 100} y={annotY} width={200} height={22} rx={3}
-            fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
-          <text x={cx(eIdx)} y={annotY + 14} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Hormuz Disruption · LNG Surge</text>
-        </>)}
-
         {/* Today label */}
         <text x={cx(lastIdx) + 6} y={cy(lastVal) - 12} fill="var(--bear)" fontSize="10" textAnchor="start" fontWeight="700">${lastVal.toFixed(1)}</text>
         <text x={cx(lastIdx) + 6} y={cy(lastVal) - 1}  fill="var(--bear)" fontSize="9"  textAnchor="start">TODAY</text>
@@ -2461,10 +2450,9 @@ function LNGChart() {
         {/* Dots */}
         {data.map((d, i) => {
           const isToday = i === lastIdx;
-          const isEvent = eIdx >= 0 && i === eIdx;
           return (
             <circle key={i} cx={cx(i)} cy={cy(d.value)}
-              r={hovered === i ? 6 : (isToday || isEvent ? 4.5 : 2.5)}
+              r={hovered === i ? 6 : (isToday ? 4.5 : 2.5)}
               fill="var(--bear)"
               stroke="var(--surface)" strokeWidth="1.5" />
           );
@@ -2498,10 +2486,6 @@ function LNGChart() {
         <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <span style={{ display: "inline-block", width: 20, height: 2.5, background: "var(--bear)", borderRadius: 1 }} />
           Asian LNG Spot ($/MMBtu)
-        </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--bear)" }} />
-          Hormuz Disruption
         </span>
         <span style={{ marginLeft: "auto" }}>Source: Platts JKM / ICIS · Estimates</span>
       </div>
@@ -2603,12 +2587,8 @@ function OilChart() {
   const gridVals = [];
   for (let v = minV + 5; v < maxV; v += 5) gridVals.push(v);
 
-  const eIdx    = Math.max(0, data.findIndex(d => d.event) === -1 ? Math.floor(data.length * 0.7) : data.findIndex(d => d.event));
   const lastIdx = data.length - 1;
   const lastVal = data[lastIdx].value;
-
-  // Annotation box below x-axis labels so it never overlaps chart content
-  const annotY = H - pad.bottom + 30;
 
   const handleMouseMove = (e) => {
     const svg = e.currentTarget;
@@ -2653,11 +2633,10 @@ function OilChart() {
         {/* Dots */}
         {data.map((d, i) => {
           const isToday = i === lastIdx;
-          const isEvent = i === eIdx;
           return (
             <circle key={i} cx={cx(i)} cy={cy(d.value)}
-              r={hovered === i ? 6 : (isToday || isEvent ? 4.5 : 2.5)}
-              fill={isToday ? "var(--warn)" : isEvent ? "var(--bear)" : "var(--warn)"}
+              r={hovered === i ? 6 : (isToday ? 4.5 : 2.5)}
+              fill="var(--warn)"
               stroke="var(--surface)" strokeWidth="1.5" />
           );
         })}
@@ -2665,17 +2644,9 @@ function OilChart() {
         {/* X-axis labels */}
         {data.map((d, i) => (
           <text key={i} x={cx(i)} y={H - pad.bottom + 16}
-            fill={i === lastIdx ? "var(--warn)" : i === eIdx ? "var(--bear)" : "var(--muted)"}
+            fill={i === lastIdx ? "var(--warn)" : "var(--muted)"}
             fontSize="9" textAnchor="middle">{d.label}</text>
         ))}
-
-        {/* Iran War annotation — below x-axis to avoid overlap */}
-        <line x1={cx(eIdx)} y1={cy(data[eIdx].value) + 6} x2={cx(eIdx)} y2={annotY}
-          stroke="var(--bear)" strokeWidth="1" strokeDasharray="3,2" />
-        <rect x={cx(eIdx) - 66} y={annotY} width={132} height={36} rx={3}
-          fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.3)" strokeWidth="1" />
-        <text x={cx(eIdx)} y={annotY + 14} fill="var(--bear)" fontSize="9" textAnchor="middle" fontWeight="700">Iran War Outbreak</text>
-        <text x={cx(eIdx)} y={annotY + 26} fill="var(--bear)" fontSize="9" textAnchor="middle">Hormuz Shock · Feb 28</text>
 
         {/* Hover crosshair + tooltip */}
         {hovered !== null && (<>
@@ -2698,10 +2669,6 @@ function OilChart() {
         <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <span style={{ display: "inline-block", width: 20, height: 2.5, background: "var(--warn)", borderRadius: 1 }} />
           Brent Crude ($/bbl)
-        </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: "var(--bear)" }} />
-          Iran War / Hormuz Shock
         </span>
         {isLive && (
           <span style={{ marginLeft: "auto", color: "var(--bull)", fontWeight: 700 }}>● LIVE (Alpha Vantage)</span>

@@ -642,7 +642,7 @@ SectionComm: gold_22k_bdt brent_usd wti_usd natgas_usd lng_spot_usd news_commodi
 SectionFX: usd/eur/gbp_bdt forex_reserves_bn exports/rmg_exports_mn exports_month imports_mn trade_deficit_mn/_yoy_pct news_forex
 SectionRemittance: remittance_mn/_month/_yoy_pct news_remittance
 SectionBanking: npl_ratio_pct car_pct news_banking
-OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, keep Feb28 event:true, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
+OilChart: remove old today:true, append{{label:"{chart_label}",value:brent_spot,today:true}}, >12→drop oldest. SectionIranWar: brent_spot news_iranwar
 SectionExec: WRITE 6-8 single-line headlines (max 15 words each). Each object: {{type, indicator, text, section}}. Types/indicators: bull="▲", bear="▼", warn="⚠", watch="→". `section` = anchor ID of the relevant section below (bb, macro, dse, tbond, comm, fx, remit, banking, iranwar, headlines, dam). Cover the day's most important signals: reserves, exports, oil/geopolitics, market/rates, policy, outlook. NO paragraphs — each `text` must be one punchy headline sentence, max 15 words. Update events calendar. trafficStatus(bull/bear/warn/neu).
 SectionHeadlines: The template has an EMPTY headline array (const headlines = [];). You MUST populate it EXCLUSIVELY from the gathered data JSON "headlines" array. The OP-ED SECTION IS REMOVED — keep const opeds = [] and do NOT render any op-ed cards or op-ed section header. CRITICAL RULES: (1) ONLY use headlines from the gathered data JSON — do NOT invent, fabricate, or recall headlines from memory or prior knowledge. (2) If the gathered "headlines" array is EMPTY ([]), keep const headlines = [] and show a note "No headlines available for {today}" instead of cards. (3) Every headline `time` field MUST exactly match the `date` field from gathered data — do NOT change dates. (4) Every headline `url` MUST exactly match the `url` from gathered data — do NOT invent URLs. (5) NEVER carry over or preserve old headlines from any previous version — the template arrays are intentionally empty. Source tags: DS=Daily Star, FE=Financial Express BD, TBS=TBS News, NEWAGE=New Age, FT=Financial Times, BBC=BBC, REUTERS=Reuters, AJ=Al Jazeera, BSS=BSS News, NYT=NY Times, WAPO=Washington Post, PRINT=The Print, STATESMAN=The Statesman. Each headline object: {{title, url, source, time}}. Add sourceColors/sourceNames entries for any new source codes used. BankerRead: summarize what the headlines collectively signal for the bank's risk posture.
 SectionDAM: all 9 dam_* prices; MoM bear=up/bull=down/neu=flat; hotspotLabel(rising items)·hotspotStat("N of 9 rising MoM")·hotspotDetail(pct changes); easingLabel/Stat/Detail(falling); freshDate/sourceDate=dam_week_ending; news; trafficStatus(warn≥4rising,bull=majority falling).
@@ -1080,7 +1080,6 @@ try:
                 if _olm: _oe['label'] = _olm.group(1)
                 _ovm = re.search(r'value:\s*([\d.]+)', _oer)
                 if _ovm: _oe['value'] = float(_ovm.group(1))
-                if re.search(r'event:\s*true', _oer): _oe['event'] = True
                 if re.search(r'today:\s*true', _oer): _oe['today'] = True
                 if 'label' in _oe and 'value' in _oe:
                     _oil_parsed.append(_oe)
@@ -1110,7 +1109,6 @@ try:
                 _oil_lines = []
                 for _oe in _oil_parsed:
                     _oparts = [f'label: "{_oe["label"]}"', f'value: {_oe["value"]}']
-                    if _oe.get('event'): _oparts.append('event: true')
                     if _oe.get('today'): _oparts.append('today: true')
                     _oil_lines.append('    { ' + ', '.join(_oparts) + ' }')
                 _new_oil = '\n' + ',\n'.join(_oil_lines) + ',\n  '
@@ -1163,16 +1161,10 @@ try:
                 else:
                     _lng_parsed[-1]['value'] = _lng_val
                     _lng_parsed[-1]['today'] = True
-            # Mark the Hormuz event on the Feb entry if present
-            for _le in _lng_parsed:
-                if 'Feb' in _le.get('label', '') and 'early' not in _le.get('label', '').lower():
-                    _le['event'] = True
-                    break
             # Build new data string
             _lng_lines = []
             for _le in _lng_parsed:
                 _lparts = [f'label: "{_le["label"]}"', f'value: {_le["value"]}']
-                if _le.get('event'): _lparts.append('event: true')
                 if _le.get('today'): _lparts.append('today: true')
                 _lng_lines.append('    { ' + ', '.join(_lparts) + ' }')
             _new_lng = '\n' + ',\n'.join(_lng_lines) + ',\n  '
