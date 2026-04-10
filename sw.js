@@ -1,7 +1,7 @@
 // The Brief — Service Worker
 // Caches the app shell for offline use and fast repeat loads
 
-const CACHE   = "the-brief-v1";
+const CACHE   = "the-brief-v2-2026-04-10";
 const ASSETS  = [
   "./index.html",
   "./manifest.json",
@@ -27,12 +27,16 @@ self.addEventListener("activate", e => {
   self.clients.claim();
 });
 
-// Fetch: network-first for HTML (always fresh), cache-first for assets
+// Fetch: network-first for HTML and CDN scripts, cache-first for local assets
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
 
-  // Always fetch index.html from network (daily updates)
-  if (url.pathname.endsWith("index.html") || url.pathname.endsWith("/")) {
+  // Network-first for HTML (daily updates)
+  const isHTML = url.pathname.endsWith("index.html") || url.pathname.endsWith("/") || url.pathname.endsWith("the-brief.html");
+  // Network-first for CDN scripts (security patches)
+  const isCDN = url.hostname.includes("unpkg.com") || url.hostname.includes("cdn.jsdelivr.net");
+
+  if (isHTML || isCDN) {
     e.respondWith(
       fetch(e.request)
         .then(res => {
@@ -40,12 +44,12 @@ self.addEventListener("fetch", e => {
           caches.open(CACHE).then(c => c.put(e.request, clone));
           return res;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(() => caches.match(isHTML ? "./index.html" : e.request))
     );
     return;
   }
 
-  // Cache-first for everything else (icons, manifest, CDN scripts)
+  // Cache-first for local assets (icons, manifest)
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;

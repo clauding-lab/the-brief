@@ -1,4 +1,5 @@
 import anthropic
+import argparse
 import html as html_mod
 import json
 import os
@@ -7,36 +8,42 @@ import sys
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
-# ── Email config ───────────────────────────────────────────────────────────────
+# ── CLI flags ─────────────────────────────────────────────────────────────────
+parser = argparse.ArgumentParser(description="THE BRIEF daily update pipeline")
+parser.add_argument('--dry-run', action='store_true', help='Skip API calls, use cached data')
+args = parser.parse_args()
+
+# ── Config (env vars with fallbacks) ──────────────────────────────────────────
 BREVO_KEY        = os.environ.get("BREVO_API_KEY", "")
-SUPABASE_URL     = "https://ssbliukchgibjcjohibi.supabase.co"
+SUPABASE_URL     = os.environ.get("SUPABASE_URL", "https://ssbliukchgibjcjohibi.supabase.co")
 SUPABASE_SVC_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
-BRIEF_URL        = "https://clauding-lab.github.io/the-brief/"
-FROM_EMAIL       = "adnan.rshd@gmail.com"
+BRIEF_URL        = os.environ.get("BRIEF_URL", "https://clauding-lab.github.io/the-brief/")
+FROM_EMAIL       = os.environ.get("FROM_EMAIL", "adnan.rshd@gmail.com")
 FROM_NAME        = "THE BRIEF"
 
-# ── Read current file ──────────────────────────────────────────────────────────
-with open("the-brief.html", "r", encoding="utf-8") as f:
-    current_html = f.read()
-
-from datetime import timezone, timedelta
+# ── Date constants (BDT = UTC+6) ─────────────────────────────────────────────
 _BDT = timezone(timedelta(hours=6))
 _now = datetime.now(_BDT)
 today = _now.strftime("%A %d %B %Y").upper()
-today_search = f"{_now.day} {_now.strftime('%B')} {_now.year}"  # e.g. "16 March 2026" — for web search
-today_short = f"{_now.day} {_now.strftime('%b')}"                # e.g. "16 Mar" — for date fields
-chart_label = _now.strftime("%b ") + str(_now.day)   # e.g. "Mar 11" — no leading zero, BDT
+today_search = f"{_now.day} {_now.strftime('%B')} {_now.year}"
+today_short = f"{_now.day} {_now.strftime('%b')}"
+chart_label = _now.strftime("%b ") + str(_now.day)
 
-# ── Scrape latest 4 headlines from each mandatory source ─────────────────────
-# Direct HTTP fetch + regex extraction — no AI involved, deterministic.
+# ── Chart bounds for sanity checking ──────────────────────────────────────────
+CHART_BOUNDS = {
+    'dsex': (1000, 20000),
+    'brent': (10, 300),
+    'lng': (1, 100),
+}
+
+# ── Headline scraping config ─────────────────────────────────────────────────
 _HEADLINE_SOURCES = [
     {
         "url": "https://www.thedailystar.net/business",
         "code": "DS",
         "name": "Daily Star",
-        # DS business page: <h3 class="..."><a href="/business/...">Title</a></h3>
         "pattern": r'<a\s+href="(/business/[^"]+)"[^>]*>\s*([^<]+?)\s*</a>',
         "base": "https://www.thedailystar.net",
     },
@@ -44,7 +51,6 @@ _HEADLINE_SOURCES = [
         "url": "https://www.tbsnews.net/economy",
         "code": "TBS",
         "name": "TBS News",
-        # TBS economy page: <a href="/economy/...">Title</a>
         "pattern": r'<a\s+href="(/economy/[^"]+)"[^>]*>\s*([^<]{15,}?)\s*</a>',
         "base": "https://www.tbsnews.net",
     },
@@ -52,12 +58,23 @@ _HEADLINE_SOURCES = [
         "url": "https://today.thefinancialexpress.com.bd/",
         "code": "FE",
         "name": "Financial Express BD",
-        # FE uses <a href="URL" class="local-news">...<h4>Title</h4>...</a>
         "pattern": r'<a\s+href="(https://today\.thefinancialexpress\.com\.bd/(?:first-page|last-page|economy|stock-corporate|trade-market|trade-commodities|public|national)/[^"]+)"[^>]*>.*?<h4>([^<]+)</h4>',
         "base": "",
         "dotall": True,
     },
 ]
+
+# ── Slow sections (not updated daily — restored from original) ───────────────
+_SLOW_SECTIONS = ['DSEXChart', 'LNGChart', 'SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers', 'SectionIranWar']
+
+# ── API config ────────────────────────────────────────────────────────────────
+WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 25}]
+MAX_RETRIES = 6
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS
+# ══════════════════════════════════════════════════════════════════════════════
 
 def _scrape_headlines(source, count=4):
     """Fetch a news page and extract the first `count` unique article headlines."""
@@ -75,10 +92,8 @@ def _scrape_headlines(source, count=4):
     results = []
     for path, title in matches:
         title = re.sub(r'\s+', ' ', html_mod.unescape(title)).strip()
-        # Skip navigational/generic links
         if len(title) < 20 or title.lower() in ("read more", "see all", "more news"):
             continue
-        # Deduplicate by normalised title
         _norm = re.sub(r'\s+', ' ', title.lower())
         if _norm in seen_titles:
             continue
@@ -88,54 +103,12 @@ def _scrape_headlines(source, count=4):
             "title": title,
             "url": url,
             "source": source["code"],
-            "date": today_short,  # scraped right now, so it's today's page
+            "date": today_short,
         })
         if len(results) >= count:
             break
     return results
 
-print("Scraping headlines from 3 mandatory sources...")
-_scraped_headlines = []
-for _src in _HEADLINE_SOURCES:
-    _hl = _scrape_headlines(_src, count=4)
-    print(f"  {_src['code']}: {len(_hl)} headlines from {_src['url']}")
-    _scraped_headlines.extend(_hl)
-print(f"Total scraped: {len(_scraped_headlines)} headlines")
-
-# ── Strip CSS to stay under rate-limit (Claude is told not to touch CSS anyway) ─
-# ── Strip <head> block (CDN scripts, PWA tags, meta) — Claude never touches these ─
-# Saves ~600 chars and guarantees PWA manifest/SW/apple tags are never lost.
-# The <title> is inside but Claude updates BRIEF_DATE via the JS constant, not <title>.
-_head_match = re.search(r'(<head>)(.*?)(</head>)', current_html, re.DOTALL)
-if _head_match:
-    _head_block   = _head_match.group(0)
-    _head_placeholder = "<head><!-- HEAD_PLACEHOLDER — restored automatically --></head>"
-    prompt_html   = current_html.replace(_head_block, _head_placeholder, 1)
-    print(f"Head stripped: {len(_head_block):,} chars saved (~{len(_head_block)//3:,} tokens).")
-else:
-    prompt_html   = current_html
-    _head_block   = None
-    print("Warning: no <head> block found.")
-
-# Extract and stash the <style>...</style> block; replace with a tiny placeholder.
-# We'll re-inject it into whatever HTML Claude returns.
-_css_match = re.search(r'(<style>)(.*?)(</style>)', prompt_html, re.DOTALL)
-if _css_match:
-    _css_block   = _css_match.group(0)          # full <style>...</style>
-    _css_content = _css_match.group(2)           # just the CSS text
-    _placeholder = "<style>/* CSS_PLACEHOLDER — restored automatically */</style>"
-    prompt_html  = prompt_html.replace(_css_block, _placeholder, 1)
-    print(f"CSS stripped: {len(_css_content):,} chars saved from prompt "
-          f"(~{len(_css_content)//3:,} tokens).")
-else:
-    _css_block   = None
-    print("Warning: no <style> block found — sending full HTML.")
-
-# ── Strip JS render sections to reduce Phase 2 input token count ───────────────
-# Component helpers (Pill, MetricCard, etc.), chart return() JSX, and the App
-# function are rendering-only — Claude never needs to update them.
-# We strip each section, save it, and restore it into Claude's output afterwards.
-# Claude is told to pass the placeholder comments through unchanged.
 
 def _brace_end(text, start):
     """Return index of the } that closes the { at position `start`."""
@@ -161,6 +134,7 @@ def _brace_end(text, start):
                     return i
         i += 1
     return len(text) - 1
+
 
 def strip_js_render(html):
     """Strip render-only JS; return (stripped_html, chars_saved, saved_parts)."""
@@ -209,16 +183,8 @@ def strip_js_render(html):
     for fname, key in (('TBillChart', 'TBILLCHART_RENDER_PLACEHOLDER'),):
         sc = _strip_return(sc, fname, key)
 
-    # 2d. SectionTariff — static US tariff explainer, never updated daily;
-    #     stripping its return() saves ~10k chars from the Phase 2 prompt.
     sc = _strip_return(sc, 'SectionTariff', 'TARIFF_RENDER_PLACEHOLDER')
-
-    # 2e. SectionTrade — static trade deep-dive, not in daily update instructions;
-    #     stripping its return() saves ~5k chars from the Phase 2 prompt.
     sc = _strip_return(sc, 'SectionTrade', 'TRADE_RENDER_PLACEHOLDER')
-
-    # 2b. (All 7 new sections are now live — no longer stripped/protected.
-    #      Claude updates them directly with fresh data each day.)
 
     # 4. OilChart — keep STATIC_DATA array, strip everything else
     op = sc.find('function OilChart()')
@@ -250,102 +216,316 @@ def strip_js_render(html):
           f"(~{chars_saved//3:,} tokens). Sections: {list(saved.keys())}")
     return before + sc + after, chars_saved, saved
 
-prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
 
-# ── Strip long data prop values to stay under 30k input-token rate limit ─────────
-# BankerRead insight= — stripped below (line 274) so Claude writes fresh placeholders.
-#   Claude sees existing analytical commentary and can update it if today's data
-#   changes materially; otherwise it persists unchanged.
-# NewsItem detail=   — Claude writes fresh headlines; old detail values not needed.
-# MetricCard sub=    — Claude updates sub-labels from gathered data in UPDATE instructions.
-# Stripping old values saves tokens; Claude regenerates them from gathered_json + instructions.
-_before_prop = len(prompt_html)
-prompt_html = re.sub(r'\btext="[^"]{30,}"', 'text=""', prompt_html)
-prompt_html = re.sub(r'\bheadline="[^"]{30,}"', 'headline=""', prompt_html)
-prompt_html = re.sub(r'\bdetail="[^"]{20,}"', 'detail=""', prompt_html)
-prompt_html = re.sub(r'\bsub="[^"]{20,}"', 'sub=""', prompt_html)
-# Citation / metadata props — Claude regenerates from gathered_json each run
-prompt_html = re.sub(r'\bsource="[^"]*"', 'source=""', prompt_html)
-prompt_html = re.sub(r'\bsourceUrl="[^"]*"', 'sourceUrl=""', prompt_html)
-prompt_html = re.sub(r'\btime="[^"]*"', 'time=""', prompt_html)
-prompt_html = re.sub(r'\bchange="[^"]*"', 'change=""', prompt_html)
-# BankerRead insight props — stripped so Claude is forced to generate fresh every run
-# (keeping old text visible caused Claude to preserve it despite "ALWAYS rewrite" instruction)
-prompt_html = re.sub(r'\binsight="[^"]*"', 'insight=""', prompt_html)
-# DAM computed label props — Claude rewrites from dam_* data each run
-prompt_html = re.sub(r'\bhotspotLabel="[^"]*"', 'hotspotLabel=""', prompt_html)
-prompt_html = re.sub(r'\bhotspotStat="[^"]*"', 'hotspotStat=""', prompt_html)
-prompt_html = re.sub(r'\bhotspotDetail="[^"]*"', 'hotspotDetail=""', prompt_html)
-prompt_html = re.sub(r'\beasingLabel="[^"]*"', 'easingLabel=""', prompt_html)
-prompt_html = re.sub(r'\beasingStat="[^"]*"', 'easingStat=""', prompt_html)
-prompt_html = re.sub(r'\beasingDetail="[^"]*"', 'easingDetail=""', prompt_html)
-prompt_html = re.sub(r'\bfreshDate="[^"]*"', 'freshDate=""', prompt_html)
-prompt_html = re.sub(r'\bsourceDate="[^"]*"', 'sourceDate=""', prompt_html)
-_prop_saved = _before_prop - len(prompt_html)
-print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} tokens).")
+def _stream_call(client, messages, tools, max_tokens, label):
+    """Stream a Claude call with retry on rate limit. Returns final Message."""
+    t0 = time.time()
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with client.messages.stream(
+                model="claude-opus-4-6",
+                max_tokens=max_tokens,
+                tools=tools,
+                messages=messages,
+            ) as stream:
+                resp = stream.get_final_message()
+            print(f"{label} done in {time.time()-t0:.0f}s. Stop reason: {resp.stop_reason}")
+            return resp
+        except anthropic.RateLimitError as e:
+            wait = 120 * attempt
+            print(f"Rate limit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s... ({e})")
+            if attempt == MAX_RETRIES:
+                print("ERROR: Max retries exceeded.")
+                sys.exit(1)
+            time.sleep(wait)
+        except Exception as e:
+            print(f"ERROR: {label} failed after {time.time()-t0:.0f}s — {type(e).__name__}: {e}")
+            sys.exit(1)
 
-# ── Strip old headline/oped arrays from SectionHeadlines ──────────────────────
-# The old headline and oped JS arrays in the template cause Claude to copy stale
-# news even when gathered_json has an empty array. Replace them with empty arrays
-# so Phase 2 is forced to populate ONLY from gathered data.
-_hl_before = len(prompt_html)
-# Replace headlines array: `const headlines = [ ... ];` → `const headlines = [];`
-prompt_html = re.sub(
-    r'(const headlines\s*=\s*)\[.*?\];',
-    r'\1[];',
-    prompt_html, count=1, flags=re.DOTALL)
-# Replace opeds array: `const opeds = [ ... ];` → `const opeds = [];`
-prompt_html = re.sub(
-    r'(const opeds\s*=\s*)\[.*?\];',
-    r'\1[];',
-    prompt_html, count=1, flags=re.DOTALL)
-_hl_saved = _hl_before - len(prompt_html)
-if _hl_saved > 0:
-    print(f"Old headlines/opeds stripped: {_hl_saved:,} chars saved (~{_hl_saved//3:,} tokens).")
-else:
-    print("Warning: no headline/oped arrays found to strip in SectionHeadlines.")
 
-# ── Strip non-daily section functions to free Phase 2 token budget ─────────────
-# DSEXChart, SectionRMG, SectionFiscal, SectionNBR, SectionPower, SectionPeers
-# are stripped from the Phase 2 prompt. DSEXChart data is updated deterministically
-# via Python post-processing. The others contain monthly/quarterly data that does
-# NOT need daily updates. Their original code is restored unchanged after Phase 2.
-_SLOW_SECTIONS = ['DSEXChart', 'LNGChart', 'SectionRMG', 'SectionFiscal', 'SectionNBR', 'SectionPower', 'SectionPeers', 'SectionIranWar']
-# Save originals from current_html (before ANY stripping/prop-erasure) so restoration
-# always uses the full, unmodified function body regardless of what Claude outputs.
-_slow_originals = {}
-for _sname in _SLOW_SECTIONS:
-    _om = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', current_html)
-    if _om:
-        _ob = current_html.find('{', _om.end())
-        if _ob != -1:
-            _oe = _brace_end(current_html, _ob)
-            _slow_originals[_sname] = current_html[_om.start():_oe + 1]
-_slow_saved = {}
-_slow_chars_saved = 0
-for _sname in _SLOW_SECTIONS:
-    _sm = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', prompt_html)
-    if _sm:
-        _bs = prompt_html.find('{', _sm.end())
-        if _bs != -1:
-            _be = _brace_end(prompt_html, _bs)
-            _full_fn = prompt_html[_sm.start():_be + 1]
-            _sph = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
-            _slow_saved[_sname] = _full_fn
-            prompt_html = prompt_html[:_sm.start()] + _sph + prompt_html[_be + 1:]
-            _slow_chars_saved += len(_full_fn) - len(_sph)
-if _slow_saved:
-    print(f"Slow sections stripped: {_slow_chars_saved:,} chars saved from "
-          f"{len(_slow_saved)} sections: {list(_slow_saved.keys())}")
-else:
-    print("Warning: no slow sections found to strip — check function names.")
+def _extract_html(resp):
+    """Extract HTML from a Claude response."""
+    for block in resp.content:
+        if block.type == "text":
+            text = block.text
+            stripped = text.strip()
+            if stripped.startswith("```"):
+                lines = stripped.split("\n")
+                stripped = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
+                text = stripped
+            for marker in ("<!DOCTYPE", "<!doctype", "<html", "<HTML"):
+                idx = text.find(marker)
+                if idx != -1:
+                    return text[idx:]
+    return None
 
-# ── Two-phase approach: gather data first, then generate HTML ───────────────────
-# Phase 1 prompt: tiny (no HTML in prompt), Claude searches and returns JSON data.
-# Phase 2 prompt: gathered JSON + stripped HTML (~38k tokens), Claude writes HTML.
-# This guarantees Phase 2 has no tool use — Claude's first output IS the HTML.
 
-GATHER_PROMPT = f"""Today is {today}. Search date: {today_search}.
+def fetch_subscribers():
+    """Return list of {name, email} dicts from Supabase using the service key."""
+    if not SUPABASE_SVC_KEY:
+        print("SUPABASE_SERVICE_KEY not set — skipping email send.")
+        return []
+    req = urllib.request.Request(
+        f"{SUPABASE_URL}/rest/v1/subscribers?select=name,email&order=created_at.asc",
+        headers={
+            "apikey":        SUPABASE_SVC_KEY,
+            "Authorization": f"Bearer {SUPABASE_SVC_KEY}",
+        }
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            subs = json.loads(r.read())
+            print(f"Fetched {len(subs)} subscriber(s) from Supabase.")
+            return subs
+    except Exception as e:
+        print(f"Failed to fetch subscribers: {e}")
+        return []
+
+
+def build_email_html(name, date_str):
+    """Return a personalised HTML email string for one subscriber."""
+    safe_name = html_mod.escape(name)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THE BRIEF \u2014 {date_str}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0a0c0f;font-family:'Courier New',Courier,monospace;">
+  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0a0c0f">
+    <tr><td align="center" style="padding:40px 20px;">
+      <table width="540" cellpadding="0" cellspacing="0" style="max-width:540px;width:100%;">
+
+        <!-- Header -->
+        <tr><td bgcolor="#111418" style="background-color:#111418;border:1px solid #1e2329;border-radius:4px 4px 0 0;padding:24px 28px 18px;">
+          <p style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.25em;color:#ffffff;text-transform:uppercase;">
+            THE <span style="color:#3b82f6;">BRIEF</span>
+          </p>
+          <p style="margin:4px 0 0;font-size:9px;letter-spacing:0.2em;color:#64748b;text-transform:uppercase;">
+            Bangladesh Business Intelligence
+          </p>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td bgcolor="#111418" style="background-color:#111418;border:1px solid #1e2329;border-top:none;padding:22px 28px 28px;">
+          <p style="margin:0 0 16px;font-size:10px;letter-spacing:0.12em;color:#64748b;text-transform:uppercase;">
+            {date_str}
+          </p>
+          <p style="margin:0 0 22px;font-size:13px;color:#e2e8f0;line-height:1.75;">
+            Hi {safe_name},<br><br>
+            Today&#39;s edition of THE BRIEF is ready &mdash; your daily snapshot of
+            Bangladesh&#39;s macro economy, capital markets, monetary policy, and trade flows.
+          </p>
+          <table cellpadding="0" cellspacing="0">
+            <tr><td bgcolor="#3b82f6" style="background-color:#3b82f6;border-radius:2px;">
+              <a href="{BRIEF_URL}"
+                 style="display:inline-block;padding:10px 24px;color:#ffffff;text-decoration:none;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">
+                Read Today&#39;s Brief &rarr;
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:18px 0 0;font-size:10px;color:#64748b;letter-spacing:0.06em;font-style:italic;">
+            Human-directed, AI-assisted intelligence.
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td bgcolor="#0f1419" style="background-color:#0f1419;border:1px solid #1e2329;border-top:none;border-radius:0 0 4px 4px;padding:14px 28px;">
+          <p style="margin:0;font-size:9px;color:#475569;letter-spacing:0.08em;text-transform:uppercase;text-align:center;">
+            THE BRIEF &middot; Bangladesh &middot;
+            <a href="mailto:{FROM_EMAIL}?subject=UNSUBSCRIBE"
+               style="color:#475569;text-decoration:underline;">Unsubscribe</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def send_emails(subscribers, date_str):
+    """Send THE BRIEF to all subscribers via Brevo transactional email API."""
+    if not BREVO_KEY:
+        print("BREVO_API_KEY not set — skipping email send.")
+        return 0, 0
+
+    sent, failed = 0, 0
+    for n, sub in enumerate(subscribers, 1):
+        payload = json.dumps({
+            "sender":      {"name": FROM_NAME, "email": FROM_EMAIL},
+            "to":          [{"email": sub["email"], "name": sub["name"]}],
+            "subject":     f"THE BRIEF \u2014 {date_str}",
+            "htmlContent": build_email_html(sub["name"], date_str),
+            "headers": {
+                "List-Unsubscribe": f"<mailto:{FROM_EMAIL}?subject=UNSUBSCRIBE>"
+            },
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={
+                "api-key":      BREVO_KEY,
+                "Content-Type": "application/json",
+                "Accept":       "application/json",
+            }
+        )
+        try:
+            with urllib.request.urlopen(req) as r:
+                sent += 1
+        except urllib.error.HTTPError as e:
+            print(f"  \u2717 subscriber #{n}: {e.code} \u2014 {e.read().decode()}")
+            failed += 1
+        # Rate-limit courtesy delay between sends
+        if n < len(subscribers):
+            time.sleep(0.2)
+
+    print(f"Emails: {sent} sent, {failed} failed out of {len(subscribers)} subscriber(s).")
+    return sent, failed
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PIPELINE FUNCTIONS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def load_and_strip_html(filepath):
+    """Load the-brief.html, strip CSS/head/JS/props for Phase 2 prompt.
+    Returns (current_html, prompt_html, saved_parts).
+    saved_parts is a dict with keys: head_block, css_block, css_placeholder,
+    js_parts, slow_saved, slow_originals.
+    """
+    with open(filepath, "r", encoding="utf-8") as f:
+        current_html = f.read()
+
+    saved_parts = {}
+
+    # ── Strip <head> block ────────────────────────────────────────────────
+    _head_match = re.search(r'(<head>)(.*?)(</head>)', current_html, re.DOTALL)
+    if _head_match:
+        _head_block   = _head_match.group(0)
+        _head_placeholder = "<head><!-- HEAD_PLACEHOLDER — restored automatically --></head>"
+        prompt_html   = current_html.replace(_head_block, _head_placeholder, 1)
+        print(f"Head stripped: {len(_head_block):,} chars saved (~{len(_head_block)//3:,} tokens).")
+    else:
+        prompt_html   = current_html
+        _head_block   = None
+        print("Warning: no <head> block found.")
+    saved_parts['head_block'] = _head_block
+
+    # ── Strip <style> block (only if not already inside stripped head) ────
+    # Note: <style> is typically nested inside <head>, so a successful head
+    # strip already removes it. We only need this path when head stripping
+    # failed or when <style> lives outside <head>.
+    _css_block = None
+    _placeholder = None
+    if _head_block and re.search(r'<style>.*?</style>', _head_block, re.DOTALL):
+        # CSS already captured inside the head block — no extra work.
+        pass
+    else:
+        _css_match = re.search(r'(<style>)(.*?)(</style>)', prompt_html, re.DOTALL)
+        if _css_match:
+            _css_block   = _css_match.group(0)
+            _css_content = _css_match.group(2)
+            _placeholder = "<style>/* CSS_PLACEHOLDER — restored automatically */</style>"
+            prompt_html  = prompt_html.replace(_css_block, _placeholder, 1)
+            print(f"CSS stripped: {len(_css_content):,} chars saved from prompt "
+                  f"(~{len(_css_content)//3:,} tokens).")
+        else:
+            print("Warning: no <style> block found (head strip may have missed it).")
+    saved_parts['css_block'] = _css_block
+    saved_parts['css_placeholder'] = _placeholder
+
+    # ── Strip JS render sections ──────────────────────────────────────────
+    prompt_html, _js_chars_saved, _js_parts = strip_js_render(prompt_html)
+    saved_parts['js_parts'] = _js_parts
+
+    # ── Strip long prop values ────────────────────────────────────────────
+    _before_prop = len(prompt_html)
+    prompt_html = re.sub(r'\btext="[^"]{30,}"', 'text=""', prompt_html)
+    prompt_html = re.sub(r'\bheadline="[^"]{30,}"', 'headline=""', prompt_html)
+    prompt_html = re.sub(r'\bdetail="[^"]{20,}"', 'detail=""', prompt_html)
+    prompt_html = re.sub(r'\bsub="[^"]{20,}"', 'sub=""', prompt_html)
+    prompt_html = re.sub(r'\bsource="[^"]*"', 'source=""', prompt_html)
+    prompt_html = re.sub(r'\bsourceUrl="[^"]*"', 'sourceUrl=""', prompt_html)
+    prompt_html = re.sub(r'\btime="[^"]*"', 'time=""', prompt_html)
+    prompt_html = re.sub(r'\bchange="[^"]*"', 'change=""', prompt_html)
+    prompt_html = re.sub(r'\binsight="[^"]*"', 'insight=""', prompt_html)
+    prompt_html = re.sub(r'\bhotspotLabel="[^"]*"', 'hotspotLabel=""', prompt_html)
+    prompt_html = re.sub(r'\bhotspotStat="[^"]*"', 'hotspotStat=""', prompt_html)
+    prompt_html = re.sub(r'\bhotspotDetail="[^"]*"', 'hotspotDetail=""', prompt_html)
+    prompt_html = re.sub(r'\beasingLabel="[^"]*"', 'easingLabel=""', prompt_html)
+    prompt_html = re.sub(r'\beasingStat="[^"]*"', 'easingStat=""', prompt_html)
+    prompt_html = re.sub(r'\beasingDetail="[^"]*"', 'easingDetail=""', prompt_html)
+    prompt_html = re.sub(r'\bfreshDate="[^"]*"', 'freshDate=""', prompt_html)
+    prompt_html = re.sub(r'\bsourceDate="[^"]*"', 'sourceDate=""', prompt_html)
+    _prop_saved = _before_prop - len(prompt_html)
+    print(f"Prop values stripped: {_prop_saved:,} chars saved (~{_prop_saved//3:,} tokens).")
+
+    # ── Strip old headline/oped arrays ────────────────────────────────────
+    _hl_before = len(prompt_html)
+    prompt_html = re.sub(
+        r'(const headlines\s*=\s*)\[.*?\];',
+        r'\1[];',
+        prompt_html, count=1, flags=re.DOTALL)
+    prompt_html = re.sub(
+        r'(const opeds\s*=\s*)\[.*?\];',
+        r'\1[];',
+        prompt_html, count=1, flags=re.DOTALL)
+    _hl_saved = _hl_before - len(prompt_html)
+    if _hl_saved > 0:
+        print(f"Old headlines/opeds stripped: {_hl_saved:,} chars saved (~{_hl_saved//3:,} tokens).")
+    else:
+        print("Warning: no headline/oped arrays found to strip in SectionHeadlines.")
+
+    # ── Strip non-daily section functions ──────────────────────────────────
+    _slow_originals = {}
+    for _sname in _SLOW_SECTIONS:
+        _om = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', current_html)
+        if _om:
+            _ob = current_html.find('{', _om.end())
+            if _ob != -1:
+                _oe = _brace_end(current_html, _ob)
+                _slow_originals[_sname] = current_html[_om.start():_oe + 1]
+    saved_parts['slow_originals'] = _slow_originals
+
+    _slow_saved = {}
+    _slow_chars_saved = 0
+    for _sname in _SLOW_SECTIONS:
+        _sm = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', prompt_html)
+        if _sm:
+            _bs = prompt_html.find('{', _sm.end())
+            if _bs != -1:
+                _be = _brace_end(prompt_html, _bs)
+                _full_fn = prompt_html[_sm.start():_be + 1]
+                _sph = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
+                _slow_saved[_sname] = _full_fn
+                prompt_html = prompt_html[:_sm.start()] + _sph + prompt_html[_be + 1:]
+                _slow_chars_saved += len(_full_fn) - len(_sph)
+    saved_parts['slow_saved'] = _slow_saved
+
+    if _slow_saved:
+        print(f"Slow sections stripped: {_slow_chars_saved:,} chars saved from "
+              f"{len(_slow_saved)} sections: {list(_slow_saved.keys())}")
+    else:
+        print("Warning: no slow sections found to strip — check function names.")
+
+    return current_html, prompt_html, saved_parts
+
+
+def phase1_gather_data(client, prompt_html):
+    """Phase 1: Web search to gather latest Bangladesh data. Returns gathered_json string."""
+    # Scrape headlines first
+    print("Scraping headlines from 3 mandatory sources...")
+    _scraped_headlines = []
+    for _src in _HEADLINE_SOURCES:
+        _hl = _scrape_headlines(_src, count=4)
+        print(f"  {_src['code']}: {len(_hl)} headlines from {_src['url']}")
+        _scraped_headlines.extend(_hl)
+    print(f"Total scraped: {len(_scraped_headlines)} headlines")
+
+    GATHER_PROMPT = f"""Today is {today}. Search date: {today_search}.
 
 Search for the latest Bangladesh economic and financial data, then return it as JSON.
 Run searches for all categories below. Return ONLY a JSON object — no markdown, no explanation.
@@ -459,152 +639,104 @@ Return ONLY this JSON structure. ALL values below are PLACEHOLDERS — replace w
   "headlines": "PRE_SCRAPED_PLACEHOLDER"
 }}"""
 
-# ── API client (used by both phases) ───────────────────────────────────────────
-client = anthropic.Anthropic(
-    api_key=os.environ["ANTHROPIC_API_KEY"],
-    timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
-)
+    print("Phase 1: Gathering latest Bangladesh data via web search...")
+    gather_resp = _stream_call(
+        client,
+        messages=[{"role": "user", "content": GATHER_PROMPT}],
+        tools=WEB_SEARCH_TOOL,
+        max_tokens=6000,
+        label="Phase 1 (data gather)",
+    )
 
-WEB_SEARCH_TOOL = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 25}]
-MAX_RETRIES = 6   # allows 120+240+360+480+600 = 1,800s total wait across 5 retries
-
-def _stream_call(messages, tools, max_tokens, label):
-    """Stream a Claude call with retry on rate limit. Returns final Message."""
-    t0 = time.time()
-    for attempt in range(1, MAX_RETRIES + 1):
+    gathered_json = "{}"
+    last_text = None
+    for block in gather_resp.content:
+        if block.type == "text" and block.text.strip():
+            last_text = block.text
+    if last_text:
+        text = last_text.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+        text = text.strip()
+        _j_start = text.find('{')
+        if _j_start > 0:
+            text = text[_j_start:]
+        gathered_json = text.strip()
         try:
-            with client.messages.stream(
-                model="claude-opus-4-6",
-                max_tokens=max_tokens,
-                tools=tools,
-                messages=messages,
-            ) as stream:
-                resp = stream.get_final_message()
-            print(f"{label} done in {time.time()-t0:.0f}s. Stop reason: {resp.stop_reason}")
-            return resp
-        except anthropic.RateLimitError as e:
-            wait = 120 * attempt   # 120s, 240s, 360s, 480s, 600s — clears any ≤10-min window
-            print(f"Rate limit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s... ({e})")
-            if attempt == MAX_RETRIES:
-                print("ERROR: Max retries exceeded.")
-                sys.exit(1)
-            time.sleep(wait)
-        except Exception as e:
-            print(f"ERROR: {label} failed after {time.time()-t0:.0f}s — {type(e).__name__}: {e}")
-            sys.exit(1)
-
-# ── PHASE 1: Web search → gathered JSON (tiny prompt, no HTML) ─────────────────
-print("Phase 1: Gathering latest Bangladesh data via web search...")
-gather_resp = _stream_call(
-    messages=[{"role": "user", "content": GATHER_PROMPT}],
-    tools=WEB_SEARCH_TOOL,
-    max_tokens=6000,
-    label="Phase 1 (data gather)",
-)
-
-gathered_json = "{}"
-last_text = None
-for block in gather_resp.content:
-    if block.type == "text" and block.text.strip():
-        last_text = block.text          # keep overwriting — we want the LAST text block
-if last_text:
-    text = last_text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
-    text = text.strip()
-    # Extract JSON object even if wrapped in extra text
-    _j_start = text.find('{')
-    if _j_start > 0:
-        text = text[_j_start:]
-    # If truncated (max_tokens), try to repair the JSON by progressive trimming
-    gathered_json = text.strip()
-    try:
-        json.loads(gathered_json)
-    except json.JSONDecodeError:
-        # Truncated JSON — progressively trim from the end until parseable
-        _repaired = False
-        _attempt = gathered_json
-        for _ in range(200):  # max 200 trim attempts
-            # Remove last partial line and try closing brackets
-            _last_nl = _attempt.rfind('\n')
-            if _last_nl <= 0:
-                break
-            _attempt = _attempt[:_last_nl].rstrip().rstrip(',')
-            # Try closing with various bracket combos
-            for _suffix in ['}', ']}', '"]}', '"}]}', '"}', '"]}']:
-                try:
-                    json.loads(_attempt + _suffix)
-                    gathered_json = _attempt + _suffix
-                    _repaired = True
-                    print(f"  JSON repaired (trimmed {len(text) - len(gathered_json)} chars)")
+            json.loads(gathered_json)
+        except json.JSONDecodeError:
+            _repaired = False
+            _attempt = gathered_json
+            for _ in range(200):
+                _last_nl = _attempt.rfind('\n')
+                if _last_nl <= 0:
                     break
-                except json.JSONDecodeError:
-                    continue
-            if _repaired:
-                break
-        if not _repaired:
-            print("  WARNING: Could not repair truncated JSON — Phase 2 may have incomplete data")
+                _attempt = _attempt[:_last_nl].rstrip().rstrip(',')
+                for _suffix in ['}', ']}', '"]}', '"}]}', '"}', '"]}']:
+                    try:
+                        json.loads(_attempt + _suffix)
+                        gathered_json = _attempt + _suffix
+                        _repaired = True
+                        print(f"  JSON repaired (trimmed {len(text) - len(gathered_json)} chars)")
+                        break
+                    except json.JSONDecodeError:
+                        continue
+                if _repaired:
+                    break
+            if not _repaired:
+                print("  WARNING: Could not repair truncated JSON — Phase 2 may have incomplete data")
 
-# ── Trim gathered_json to fit Phase 2 token budget ───────────────────────────
-# gathered_json size is variable (7k–15k chars depending on Phase 1 verbosity).
-# Cap at 16,500 chars — Phase 2 total ~98k chars (~38k tok), well within 200k context.
-# Tier 2 ITPM is 450k/min so no rate-limit concern at this size.
-# Headline URLs and op-ed data must not be truncated or Claude will hallucinate URLs.
-_MAX_JSON = 16500
-if len(gathered_json) > _MAX_JSON:
-    print(f"Gathered JSON ({len(gathered_json):,} chars) exceeds budget ({_MAX_JSON:,}). Trimming...")
+    # ── Trim gathered_json to fit Phase 2 token budget ────────────────────
+    _MAX_JSON = 16500
+    if len(gathered_json) > _MAX_JSON:
+        print(f"Gathered JSON ({len(gathered_json):,} chars) exceeds budget ({_MAX_JSON:,}). Trimming...")
+        try:
+            _gd = json.loads(gathered_json)
+            for _k, _v in list(_gd.items()):
+                if _k.startswith('news_') and isinstance(_v, list):
+                    _gd[_k] = [str(x)[:100] for x in _v[:2]]
+                elif _k == 'headlines' and isinstance(_v, list):
+                    _gd[_k] = _v[:12]
+                elif _k == 'opeds' and isinstance(_v, list):
+                    for _op in _v:
+                        if isinstance(_op, dict) and 'summary' in _op:
+                            _op['summary'] = _op['summary'][:80]
+                elif isinstance(_v, str) and len(_v) > 100:
+                    _gd[_k] = _v[:100]
+            gathered_json = json.dumps(_gd, ensure_ascii=False)
+            print(f"  Trimmed to {len(gathered_json):,} chars.")
+        except Exception as _e:
+            print(f"  Smart trim failed ({_e}). Hard-capping at {_MAX_JSON:,} chars.")
+            gathered_json = gathered_json[:_MAX_JSON]
+
+    # ── Inject scraped headlines into gathered JSON ───────────────────────
     try:
-        import json as _json
-        _gd = _json.loads(gathered_json)
-        for _k, _v in list(_gd.items()):
-            if _k.startswith('news_') and isinstance(_v, list):
-                _gd[_k] = [str(x)[:100] for x in _v[:2]]  # max 2 headlines, 100 chars each
-            elif _k == 'headlines' and isinstance(_v, list):
-                _gd[_k] = _v[:12]                          # keep max 12 headlines, preserve URLs/dates
-            elif _k == 'opeds' and isinstance(_v, list):
-                for _op in _v:                             # trim op-ed summaries
-                    if isinstance(_op, dict) and 'summary' in _op:
-                        _op['summary'] = _op['summary'][:80]
-            elif isinstance(_v, str) and len(_v) > 100:
-                _gd[_k] = _v[:100]                         # cap other string fields at 100 chars
-        gathered_json = _json.dumps(_gd, ensure_ascii=False)
-        print(f"  Trimmed to {len(gathered_json):,} chars.")
+        _json_start = gathered_json.find('{')
+        _json_end = gathered_json.rfind('}')
+        _parseable = gathered_json[_json_start:_json_end+1] if _json_start >= 0 and _json_end > _json_start else gathered_json
+        _gf = json.loads(_parseable)
+        _gf['headlines'] = _scraped_headlines
+        if 'opeds' in _gf:
+            del _gf['opeds']
+        gathered_json = json.dumps(_gf, ensure_ascii=False)
+        print(f"  Injected {len(_scraped_headlines)} scraped headlines into gathered JSON")
     except Exception as _e:
-        print(f"  Smart trim failed ({_e}). Hard-capping at {_MAX_JSON:,} chars.")
-        gathered_json = gathered_json[:_MAX_JSON]
+        print(f"  Headline injection failed: {_e}")
 
-# ── Inject scraped headlines into gathered JSON ──────────────────────────────
-# Headlines are scraped directly from the 3 source websites (deterministic),
-# not from Claude's web search (which has stale index issues).
-try:
-    _json_start = gathered_json.find('{')
-    _json_end = gathered_json.rfind('}')
-    _parseable = gathered_json[_json_start:_json_end+1] if _json_start >= 0 and _json_end > _json_start else gathered_json
-    _gf = json.loads(_parseable)
-    # Replace whatever Phase 1 returned with our scraped headlines
-    _gf['headlines'] = _scraped_headlines
-    # Remove opeds from gathered data (op-ed section excluded)
-    if 'opeds' in _gf:
-        del _gf['opeds']
-    gathered_json = json.dumps(_gf, ensure_ascii=False)
-    print(f"  Injected {len(_scraped_headlines)} scraped headlines into gathered JSON")
-except Exception as _e:
-    print(f"  Headline injection failed: {_e}")
+    print(f"Gathered data: {len(gathered_json):,} chars")
+    return gathered_json
 
-print(f"Gathered data: {len(gathered_json):,} chars")
-_p2_est = len(prompt_html) + len(gathered_json) + 2500
-print(f"Phase 2 est: {_p2_est:,} chars (~{int(_p2_est/2.6):,} tok @2.6 ch/tok)")
 
-# ── Rate-limit cooldown between Phase 1 and Phase 2 ────────────────────────────
-# Tier 2 Opus 4.x. Phase 1 web_search uses ~30k input
-# tokens across multiple internal calls. A short pause lets the token bucket
-# replenish before Phase 2's ~38k input token request.
-print("Cooling down 10s between phases...")
-time.sleep(10)
+def phase2_generate_html(client, gathered_json, prompt_html, current_html, saved_parts):
+    """Phase 2: Generate updated HTML using gathered data. Returns updated_html."""
+    _p2_est = len(prompt_html) + len(gathered_json) + 2500
+    print(f"Phase 2 est: {_p2_est:,} chars (~{int(_p2_est/2.6):,} tok @2.6 ch/tok)")
 
-# ── PHASE 2: Generate updated HTML (no web search, HTML is direct output) ───────
-UPDATE_PROMPT = f"""THE BRIEF update. Today: {today} (UTC; +6 hrs = BDT).
+    print("Cooling down 10s between phases...")
+    time.sleep(10)
+
+    UPDATE_PROMPT = f"""THE BRIEF update. Today: {today} (UTC; +6 hrs = BDT).
 
 GATHERED DATA:
 <data>
@@ -652,554 +784,200 @@ BankerRead: Each section has <BankerRead insight="..." /> — the insight props 
 JSX SYNTAX: Use EQUALS for JSX component props: <MetricCard value="10%" label="Rate" /> — NEVER use colons for JSX props. Colons are ONLY for JS object literals inside {{ }}.
 OUTPUT: First character must be '<'. Start immediately with <!DOCTYPE html>. No preamble. End with </html>."""
 
-print("Phase 2: Generating updated HTML (no web search)...")
-response = _stream_call(
-    messages=[{"role": "user", "content": UPDATE_PROMPT}],
-    tools=[],
-    max_tokens=64000,
-    label="Phase 2 (HTML generation)",
-)
+    print("Phase 2: Generating updated HTML (no web search)...")
+    response = _stream_call(
+        client,
+        messages=[{"role": "user", "content": UPDATE_PROMPT}],
+        tools=[],
+        max_tokens=64000,
+        label="Phase 2 (HTML generation)",
+    )
 
-# ── Extract the HTML from Phase 2 response ─────────────────────────────────────
-# Phase 2 has no tool use — Claude's output should begin with <!DOCTYPE html>.
-def _extract_html(resp):
-    for block in resp.content:
-        if block.type == "text":
-            text = block.text
-            stripped = text.strip()
-            if stripped.startswith("```"):
-                lines = stripped.split("\n")
-                stripped = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
-                text = stripped
-            for marker in ("<!DOCTYPE", "<!doctype", "<html", "<HTML"):
-                idx = text.find(marker)
-                if idx != -1:
-                    return text[idx:]
-    return None
+    updated_html = _extract_html(response)
 
-updated_html = _extract_html(response)
+    if not updated_html:
+        print("ERROR: Phase 2 did not return valid HTML. Response blocks:")
+        for i, block in enumerate(response.content):
+            btype = getattr(block, "type", "?")
+            btext = getattr(block, "text", "")[:300] if btype == "text" else ""
+            print(f"  [{i}] type={btype} {btext!r}")
+        sys.exit(1)
 
-if not updated_html:
-    print("ERROR: Phase 2 did not return valid HTML. Response blocks:")
-    for i, block in enumerate(response.content):
-        btype = getattr(block, "type", "?")
-        btext = getattr(block, "text", "")[:300] if btype == "text" else ""
-        print(f"  [{i}] type={btype} {btext!r}")
-    sys.exit(1)
+    # ── Restore <head> block ──────────────────────────────────────────────
+    _head_block = saved_parts['head_block']
+    if _head_block and "HEAD_PLACEHOLDER" in updated_html:
+        updated_html = updated_html.replace(
+            "<head><!-- HEAD_PLACEHOLDER — restored automatically --></head>",
+            _head_block, 1)
+        print("Head block restored.")
+    elif _head_block:
+        _hm = re.search(r'<head>.*?</head>', updated_html, re.DOTALL)
+        if _hm:
+            updated_html = updated_html[:_hm.start()] + _head_block + updated_html[_hm.end():]
+            print("Head block fallback-restored (placeholder missing).")
+        else:
+            print("Warning: could not restore <head> block.")
 
-# ── Restore <head> block (PWA tags, CDN scripts, meta) ─────────────────────────
-if _head_block and "HEAD_PLACEHOLDER" in updated_html:
-    updated_html = updated_html.replace(
-        "<head><!-- HEAD_PLACEHOLDER — restored automatically --></head>",
-        _head_block, 1)
-    print("Head block restored.")
-elif _head_block:
-    # Fallback: splice original head into Claude's output
-    _hm = re.search(r'<head>.*?</head>', updated_html, re.DOTALL)
-    if _hm:
-        updated_html = updated_html[:_hm.start()] + _head_block + updated_html[_hm.end():]
-        print("Head block fallback-restored (placeholder missing).")
-    else:
-        print("Warning: could not restore <head> block.")
+    # ── Restore CSS block ─────────────────────────────────────────────────
+    _css_block = saved_parts['css_block']
+    _css_placeholder = saved_parts['css_placeholder']
+    if _css_block and "CSS_PLACEHOLDER" in updated_html:
+        updated_html = updated_html.replace(_css_placeholder, _css_block, 1)
+        print("CSS block restored.")
+    elif _css_block:
+        print("Warning: CSS placeholder not found in Claude's output — CSS may be missing.")
 
-# ── Restore CSS block ──────────────────────────────────────────────────────────
-if _css_block and "CSS_PLACEHOLDER" in updated_html:
-    updated_html = updated_html.replace(_placeholder, _css_block, 1)
-    print("CSS block restored.")
-elif _css_block:
-    print("Warning: CSS placeholder not found in Claude's output — CSS may be missing.")
+    # ── Restore JS render sections ────────────────────────────────────────
+    _js_parts = saved_parts['js_parts']
+    for _js_key, _js_content in _js_parts.items():
+        _js_ph = f'// [{_js_key} — restored automatically]'
+        if _js_ph in updated_html:
+            updated_html = updated_html.replace(_js_ph, _js_content, 1)
+            print(f"  {_js_key} restored.")
+        else:
+            print(f"Warning: {_js_key} placeholder missing from Claude's output — "
+                  f"restoring from original HTML as fallback.")
+            anchor_map = {
+                'COMPONENTS_PLACEHOLDER':       ('// ── Components',      '// ── Sections'),
+                'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
+                'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
+                'TARIFF_RENDER_PLACEHOLDER':     ('function SectionTariff()', 'function SectionTrade()'),
+                'TRADE_RENDER_PLACEHOLDER':      ('function SectionTrade()', 'function SectionIranWar()'),
+                'APP_PLACEHOLDER':               ('// ── Main App',          '</script>'),
+            }
+            if _js_key in anchor_map:
+                a_start, a_end = anchor_map[_js_key]
+                orig_s = current_html.find(a_start)
+                orig_e = current_html.find(a_end, orig_s + len(a_start)) if orig_s != -1 else -1
+                if orig_s != -1 and orig_e != -1:
+                    orig_block = current_html[orig_s:orig_e]
+                    upd_s = updated_html.find(a_start)
+                    upd_e = updated_html.find(a_end, upd_s + len(a_start)) if upd_s != -1 else -1
+                    if upd_s != -1 and upd_e != -1:
+                        updated_html = updated_html[:upd_s] + orig_block + updated_html[upd_e:]
+                        print(f"  {_js_key} fallback-restored from original HTML.")
 
-# ── Restore JS render sections ──────────────────────────────────────────────────
-for _js_key, _js_content in _js_parts.items():
-    _js_ph = f'// [{_js_key} — restored automatically]'
-    if _js_ph in updated_html:
-        updated_html = updated_html.replace(_js_ph, _js_content, 1)
-        print(f"  {_js_key} restored.")
-    else:
-        print(f"Warning: {_js_key} placeholder missing from Claude's output — "
-              f"restoring from original HTML as fallback.")
-        # Fallback: inject the original rendering back at the known anchor point
-        anchor_map = {
-            'COMPONENTS_PLACEHOLDER':       ('// ── Components',      '// ── Sections'),
-            'TBILLCHART_RENDER_PLACEHOLDER': ('function TBillChart()', 'function SectionTBond()'),
-            'OILCHART_RENDER_PLACEHOLDER':   ('function OilChart()',   'function SectionIranWar()'),
-            'TARIFF_RENDER_PLACEHOLDER':     ('function SectionTariff()', 'function SectionTrade()'),
-            'TRADE_RENDER_PLACEHOLDER':      ('function SectionTrade()', 'function SectionIranWar()'),
-            'APP_PLACEHOLDER':               ('// ── Main App',          '</script>'),
-        }
-        # Simple fallback: copy the corresponding block from the original HTML
-        if _js_key in anchor_map:
-            a_start, a_end = anchor_map[_js_key]
-            orig_s = current_html.find(a_start)
-            orig_e = current_html.find(a_end, orig_s + len(a_start)) if orig_s != -1 else -1
-            if orig_s != -1 and orig_e != -1:
-                orig_block = current_html[orig_s:orig_e]
-                upd_s = updated_html.find(a_start)
-                upd_e = updated_html.find(a_end, upd_s + len(a_start)) if upd_s != -1 else -1
-                if upd_s != -1 and upd_e != -1:
-                    updated_html = updated_html[:upd_s] + orig_block + updated_html[upd_e:]
-                    print(f"  {_js_key} fallback-restored from original HTML.")
+    # ── Restore non-daily section functions ────────────────────────────────
+    _slow_saved = saved_parts['slow_saved']
+    _slow_originals = saved_parts['slow_originals']
+    for _sname, _fn_body in _slow_saved.items():
+        _sph = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
+        _restore_body = _slow_originals.get(_sname, _fn_body)
+        if _sph in updated_html:
+            updated_html = updated_html.replace(_sph, _restore_body, 1)
+            print(f"  {_sname} restored.")
+        else:
+            print(f"Warning: {_sname} placeholder missing — restoring from original HTML.")
+            _fm = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', current_html)
+            if _fm:
+                _fb = current_html.find('{', _fm.end())
+                if _fb != -1:
+                    _fbe = _brace_end(current_html, _fb)
+                    _orig_fn = current_html[_fm.start():_fbe + 1]
+                    _um = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html)
+                    if _um:
+                        _ub = updated_html.find('{', _um.end())
+                        if _ub != -1:
+                            _ube = _brace_end(updated_html, _ub)
+                            updated_html = updated_html[:_um.start()] + _orig_fn + updated_html[_ube + 1:]
+                            print(f"  {_sname} fallback-restored from original HTML.")
 
-# ── Restore non-daily section functions ─────────────────────────────────────────
-# Use _slow_originals (saved from current_html before ANY prop stripping) so that
-# insight= props are restored with their previous values, not blanked by the strip.
-for _sname, _fn_body in _slow_saved.items():
-    _sph = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
-    _restore_body = _slow_originals.get(_sname, _fn_body)  # prefer pre-strip original
-    if _sph in updated_html:
-        updated_html = updated_html.replace(_sph, _restore_body, 1)
-        print(f"  {_sname} restored.")
-    else:
-        print(f"Warning: {_sname} placeholder missing — restoring from original HTML.")
-        # Fallback: locate the function in current_html and splice it into updated_html
-        _fm = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', current_html)
-        if _fm:
-            _fb = current_html.find('{', _fm.end())
-            if _fb != -1:
-                _fbe = _brace_end(current_html, _fb)
-                _orig_fn = current_html[_fm.start():_fbe + 1]
-                _um = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html)
-                if _um:
-                    _ub = updated_html.find('{', _um.end())
-                    if _ub != -1:
-                        _ube = _brace_end(updated_html, _ub)
-                        updated_html = updated_html[:_um.start()] + _orig_fn + updated_html[_ube + 1:]
-                        print(f"  {_sname} fallback-restored from original HTML.")
+    # ── Hard-validate slow sections ───────────────────────────────────────
+    for _sname in _SLOW_SECTIONS:
+        _original = _slow_originals.get(_sname) or _slow_saved.get(_sname, '')
+        if not _original:
+            continue
 
-# ── Hard-validate slow sections ─────────────────────────────────────────────────
-# Claude may (a) generate a stub without a return, (b) generate a stub AND pass
-# through the placeholder (causing two defs), or (c) omit the section entirely.
-# This pass handles all three cases using the unstripped originals from current_html.
-for _sname in _SLOW_SECTIONS:
-    _original = _slow_originals.get(_sname) or _slow_saved.get(_sname, '')
-    if not _original:
-        continue
-
-    # (a/b) Remove any stubs Claude generated that lack a return statement
-    _dupes = list(re.finditer(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html))
-    for _dup in reversed(_dupes[:-1]):           # all occurrences except the last
-        _db = updated_html.find('{', _dup.end())
-        if _db != -1:
-            _de = _brace_end(updated_html, _db)
-            if 'return (' not in updated_html[_db:_de + 1]:
-                updated_html = updated_html[:_dup.start()] + updated_html[_de + 1:]
-                print(f"  {_sname}: removed Claude-generated stub.")
-
-    # Force-replace from original if the remaining definition has no return
-    _fm2 = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html)
-    if _fm2:
-        _fb2 = updated_html.find('{', _fm2.end())
-        if _fb2 != -1:
-            _fe2 = _brace_end(updated_html, _fb2)
-            if 'return (' not in updated_html[_fb2:_fe2 + 1]:
-                updated_html = updated_html[:_fm2.start()] + _original + updated_html[_fe2 + 1:]
-                print(f"  {_sname}: force-replaced (no return statement) from original.")
-    else:
-        # (c) Section missing entirely — inject before function App()
-        _app_pos = updated_html.find('function App()')
-        if _app_pos != -1:
-            updated_html = updated_html[:_app_pos] + _original + '\n\n' + updated_html[_app_pos:]
-            print(f"  {_sname}: injected from original (was missing entirely).")
-
-    # Clean up any orphaned placeholder comment left in the output
-    _sph2 = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
-    if _sph2 in updated_html:
-        updated_html = updated_html.replace(_sph2, '', 1)
-        print(f"  {_sname}: removed orphaned placeholder comment.")
-
-# ── Final dedup: remove any function declared more than once ───────────────────
-# Phase 2 sometimes generates full copies of slow sections AND the restore logic
-# also appends them, creating duplicates that crash Babel.  Keep the FIRST
-# occurrence (which is the one defined inside the main script block) and remove
-# later duplicates.
-for _sname in _SLOW_SECTIONS:
-    _dups = list(re.finditer(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html))
-    if len(_dups) > 1:
-        # Remove all but the first occurrence
-        for _dup in reversed(_dups[1:]):
+        _dupes = list(re.finditer(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html))
+        for _dup in reversed(_dupes[:-1]):
             _db = updated_html.find('{', _dup.end())
             if _db != -1:
                 _de = _brace_end(updated_html, _db)
-                if _de != -1:
+                if 'return (' not in updated_html[_db:_de + 1]:
                     updated_html = updated_html[:_dup.start()] + updated_html[_de + 1:]
-                    print(f"  {_sname}: removed duplicate definition (kept first).")
+                    print(f"  {_sname}: removed Claude-generated stub.")
 
-# ── Post-restoration sanity check ──────────────────────────────────────────────
-# Verify the output is a complete, renderable file before writing.
-# If critical pieces are missing or orphaned placeholders remain, fall back to
-# the original for those blocks so the page never goes blank.
-
-_sanity_ok = True
-
-# 1. ReactDOM call must be present (App function wasn't truncated)
-if 'ReactDOM' not in updated_html:
-    print("⚠️  Sanity: ReactDOM missing — App function truncated. Restoring from original.")
-    orig_s = current_html.find('// ── Main App')
-    upd_s  = updated_html.find('// ── Main App')
-    script_end = '</script>'
-    orig_e = current_html.find(script_end, orig_s)
-    upd_e  = updated_html.find(script_end, upd_s) if upd_s != -1 else -1
-    if orig_s != -1 and orig_e != -1 and upd_s != -1 and upd_e != -1:
-        updated_html = updated_html[:upd_s] + current_html[orig_s:orig_e] + updated_html[upd_e:]
-        print("  App block restored from original.")
-    _sanity_ok = False
-
-# 2. No orphaned placeholder comments should remain after restoration
-_orphaned = [k for k in _js_parts if f'// [{k} — restored automatically]' in updated_html]
-for _k in _orphaned:
-    print(f"⚠️  Sanity: orphaned placeholder {_k} still in output — removing stale comment.")
-    updated_html = updated_html.replace(f'  // [{_k} — restored automatically]', '', 1)
-    updated_html = updated_html.replace(f'// [{_k} — restored automatically]', '', 1)
-    _sanity_ok = False
-
-# 3. Fix stray "} />" in JSX self-closing tags (AI sometimes writes =" } />" instead of =" />")
-_stray_count = updated_html.count('" } />')
-if _stray_count:
-    updated_html = updated_html.replace('" } />', '" />')
-    print(f"⚠️  Sanity: fixed {_stray_count} stray '}}' in JSX self-closing tags.")
-    _sanity_ok = False
-
-# 4. Truncate after first </html> — removes any orphaned duplicate closing tags
-_first_html_close = updated_html.find('</html>')
-if _first_html_close != -1:
-    _after = updated_html[_first_html_close + len('</html>'):].strip()
-    if _after:
-        print(f"⚠️  Sanity: {len(_after)} chars of orphaned content after first </html> — truncating.")
-        updated_html = updated_html[:_first_html_close + len('</html>')] + '\n'
-        _sanity_ok = False
-
-# 4b. File must end with </html>
-if not updated_html.rstrip().endswith('</html>'):
-    print("⚠️  Sanity: file does not end with </html> — aborting write, keeping original.")
-    updated_html = current_html   # full rollback
-    _sanity_ok = False
-
-# 5. JSX syntax validation — extract <script type="text/babel"> and check for common errors
-_script_m = re.search(r'<script[^>]*type="text/babel"[^>]*>(.*?)</script>', updated_html, re.DOTALL)
-_jsx_errors = []
-if _script_m:
-    _jsx_src = _script_m.group(1)
-    # 5a. Orphaned closing tags between functions (stray </svg>, </div> etc.)
-    _between_fns = re.findall(r'\)\s*;\s*\n\s*(</(?:svg|div|span|section)>)', _jsx_src)
-    if _between_fns:
-        _jsx_errors.append(f"{len(_between_fns)} orphaned closing tag(s) between functions")
-    # 5b. JSX prop using colon instead of equals — auto-fix line by line
-    #     Only fix on lines that are clearly JSX tags (start with < or are
-    #     continuation lines ending with />), NOT inside JS object literals.
-    _colon_props_re = r'\b(value|label|change|sub|insight|detail|num|title|icon):\s*"'
-    _colon_fix_count = 0
-    _fixed_lines = []
-    for _line in _jsx_src.split('\n'):
-        _stripped = _line.lstrip()
-        # Only fix on lines that look like JSX tags, not JS object literals
-        _is_jsx_tag = ((_stripped.startswith('<') and not _stripped.startswith('</') and not _stripped.startswith('<!--'))
-                       or _stripped.endswith('/>')
-                       or _stripped.endswith('>')) \
-                      and not _stripped.startswith('{') and not _stripped.startswith('//')
-        # Skip lines that are clearly object literals (contain { name: or start with {)
-        _is_obj_literal = '{ name:' in _line or '{ id:' in _line or _stripped.startswith('{') \
-                          or 'const ' in _line or re.match(r'^\s*\{', _line)
-        if _is_jsx_tag and not _is_obj_literal:
-            _new_line, _n = re.subn(_colon_props_re, lambda m: m.group(1) + '="', _line)
-            if _n:
-                _colon_fix_count += _n
-                _line = _new_line
-        _fixed_lines.append(_line)
-    if _colon_fix_count:
-        _jsx_src = '\n'.join(_fixed_lines)
-        _script_start = _script_m.start(1)
-        _script_end = _script_m.end(1)
-        updated_html = updated_html[:_script_start] + _jsx_src + updated_html[_script_end:]
-        print(f"⚠️  Sanity: auto-fixed {_colon_fix_count} colon-instead-of-equals in JSX props.")
-        _sanity_ok = False
-    # 5c. Unclosed JSX fragments: <> without matching </>
-    _frags_open = len(re.findall(r'(?<!\w)<>(?!\s*$)', _jsx_src))
-    _frags_close = len(re.findall(r'</>', _jsx_src))
-    if _frags_open != _frags_close:
-        _jsx_errors.append(f"mismatched JSX fragments: {_frags_open} opens vs {_frags_close} closes")
-if _jsx_errors:
-    print(f"⚠️  Sanity: JSX validation failed — falling back to original HTML:")
-    for _je in _jsx_errors:
-        print(f"    • {_je}")
-    updated_html = current_html
-    _sanity_ok = False
-
-if _sanity_ok:
-    print("Sanity check passed ✅")
-else:
-    print("Sanity check applied fixes — review warnings above.")
-
-# ── HARD ENFORCEMENT: headlines from scraped data only ────────────────────────
-# Overwrites whatever Claude put in const headlines = [...] with the
-# deterministically scraped headlines. No AI involvement in headline selection.
-try:
-    _today_headlines = _scraped_headlines
-
-    # Build JS array literal from gathered (date-filtered) headlines
-    def _js_headline_array(items):
-        if not items:
-            return '[]'
-        parts = []
-        for h in items:
-            t = h.get('title', '').replace('"', '\\"').replace('\n', ' ')
-            u = h.get('url', '').replace('"', '\\"')
-            s = h.get('source', 'NEWS')
-            d = h.get('date', today_short)
-            parts.append(f'    {{ title: "{t}", url: "{u}", source: "{s}", time: "{d}" }}')
-        return '[\n' + ',\n'.join(parts) + '\n  ]'
-
-    # Replace const headlines = [...]; in the output HTML
-    _hl_re = re.sub(
-        r'(const headlines\s*=\s*)\[.*?\];',
-        lambda m: m.group(1) + _js_headline_array(_today_headlines) + ';',
-        updated_html, count=1, flags=re.DOTALL)
-    if _hl_re != updated_html:
-        updated_html = _hl_re
-        print(f"Headlines hard-enforced: {len(_today_headlines)} items from gathered data.")
-    # Force opeds to empty (op-ed section removed)
-    _op_re = re.sub(
-        r'(const opeds\s*=\s*)\[.*?\];',
-        r'\1[];',
-        updated_html, count=1, flags=re.DOTALL)
-    if _op_re != updated_html:
-        updated_html = _op_re
-        print("Op-eds cleared (section removed).")
-except Exception as _e:
-    print(f"Warning: headline hard-enforcement failed: {_e}")
-
-# ══════════════════════════════════════════════════════════════════════════════
-# DETERMINISTIC POST-PROCESSING
-# These updates run AFTER sanity checks / fallback so they always apply,
-# even when the AI output is rolled back to original HTML.
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ── 1. BRIEF_DATE — always set to today ───────────────────────────────────────
-_date_m = re.search(r'const BRIEF_DATE\s*=\s*"[^"]*"', updated_html)
-if _date_m:
-    updated_html = updated_html[:_date_m.start()] + f'const BRIEF_DATE = "{today}"' + updated_html[_date_m.end():]
-    print(f"BRIEF_DATE set to \"{today}\"")
-
-# ── 2. DSEXChart data update ─────────────────────────────────────────────────
-try:
-    _gd = json.loads(gathered_json)
-    _dsex_val = _gd.get("dsex")
-    if _dsex_val is not None:
-        _dsex_val = int(round(float(str(_dsex_val).replace(",", ""))))
-
-        _dm = re.search(
-            r'(function DSEXChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
-            updated_html, re.DOTALL
-        )
-        if _dm:
-            _data_body = _dm.group(2)
-            _entries_raw = re.findall(r'\{([^}]+)\}', _data_body)
-            _parsed_entries = []
-            for _er in _entries_raw:
-                _entry = {}
-                _lm = re.search(r'label:\s*"([^"]+)"', _er)
-                if _lm: _entry['label'] = _lm.group(1)
-                _vm = re.search(r'value:\s*(\d+)', _er)
-                if _vm: _entry['value'] = int(_vm.group(1))
-                if re.search(r'showLabel:\s*true', _er): _entry['showLabel'] = True
-                if re.search(r'today:\s*true', _er): _entry['today'] = True
-                _em = re.search(r'event:\s*"([^"]+)"', _er)
-                if _em: _entry['event'] = _em.group(1)
-                if 'label' in _entry and 'value' in _entry:
-                    _parsed_entries.append(_entry)
-
-            if _parsed_entries:
-                for _pe in _parsed_entries:
-                    _pe.pop('today', None)
-
-                _today_found = False
-                for _pe in _parsed_entries:
-                    if _pe.get('label') == chart_label:
-                        _pe['value'] = _dsex_val
-                        _pe['showLabel'] = True
-                        _pe['today'] = True
-                        _today_found = True
-                        break
-
-                if not _today_found:
-                    _parsed_entries.append({
-                        'label': chart_label,
-                        'value': _dsex_val,
-                        'showLabel': True,
-                        'today': True,
-                    })
-
-                while len(_parsed_entries) > 25:
-                    _parsed_entries.pop(0)
-
-                _lines = []
-                for _pe in _parsed_entries:
-                    _parts = [f'label: "{_pe["label"]}"', f'value: {_pe["value"]}']
-                    if _pe.get('showLabel'): _parts.append('showLabel: true')
-                    if _pe.get('event'): _parts.append(f'event: "{_pe["event"]}"')
-                    if _pe.get('today'): _parts.append('today: true')
-                    _lines.append('    { ' + ', '.join(_parts) + ' }')
-                _new_data = '\n' + ',\n'.join(_lines) + ',\n  '
-
-                updated_html = (
-                    updated_html[:_dm.start(2)] +
-                    _new_data +
-                    updated_html[_dm.end(2):]
-                )
-                print(f"DSEXChart data updated: {len(_parsed_entries)} points, "
-                      f"today={chart_label} DSEX={_dsex_val}")
-            else:
-                print("Warning: could not parse DSEXChart data entries.")
+        _fm2 = re.search(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html)
+        if _fm2:
+            _fb2 = updated_html.find('{', _fm2.end())
+            if _fb2 != -1:
+                _fe2 = _brace_end(updated_html, _fb2)
+                if 'return (' not in updated_html[_fb2:_fe2 + 1]:
+                    updated_html = updated_html[:_fm2.start()] + _original + updated_html[_fe2 + 1:]
+                    print(f"  {_sname}: force-replaced (no return statement) from original.")
         else:
-            print("Warning: DSEXChart data array pattern not found in output.")
-    else:
-        print("Note: no DSEX value in gathered data — chart data unchanged.")
-except Exception as _e:
-    print(f"Warning: DSEXChart post-processing failed ({_e}) — chart data unchanged.")
+            _app_pos = updated_html.find('function App()')
+            if _app_pos != -1:
+                updated_html = updated_html[:_app_pos] + _original + '\n\n' + updated_html[_app_pos:]
+                print(f"  {_sname}: injected from original (was missing entirely).")
 
-# ── 3. OilChart STATIC_DATA update ───────────────────────────────────────────
-try:
+        _sph2 = f'// [{_sname.upper()}_PLACEHOLDER — restored automatically]'
+        if _sph2 in updated_html:
+            updated_html = updated_html.replace(_sph2, '', 1)
+            print(f"  {_sname}: removed orphaned placeholder comment.")
+
+    # ── Final dedup ───────────────────────────────────────────────────────
+    for _sname in _SLOW_SECTIONS:
+        _dups = list(re.finditer(r'function ' + re.escape(_sname) + r'\s*\(\s*\)', updated_html))
+        if len(_dups) > 1:
+            for _dup in reversed(_dups[1:]):
+                _db = updated_html.find('{', _dup.end())
+                if _db != -1:
+                    _de = _brace_end(updated_html, _db)
+                    if _de != -1:
+                        updated_html = updated_html[:_dup.start()] + updated_html[_de + 1:]
+                        print(f"  {_sname}: removed duplicate definition (kept first).")
+
+    # ── Hard enforce headlines ────────────────────────────────────────────
     try:
-        _gd
-    except NameError:
-        _gd = json.loads(gathered_json)
-    _brent_val = _gd.get("brent_spot") or _gd.get("brent_usd")
-    if _brent_val is not None:
-        _brent_val = round(float(str(_brent_val).replace(",", "")), 2)
+        _gf = json.loads(gathered_json)
+        _today_headlines = _gf.get('headlines', [])
 
-        _om = re.search(
-            r'(const STATIC_DATA = \[)(.*?)(\];)',
-            updated_html, re.DOTALL
-        )
-        if _om:
-            _oil_body = _om.group(2)
-            _oil_entries_raw = re.findall(r'\{([^}]+)\}', _oil_body)
-            _oil_parsed = []
-            for _oer in _oil_entries_raw:
-                _oe = {}
-                _olm = re.search(r'label:\s*"([^"]+)"', _oer)
-                if _olm: _oe['label'] = _olm.group(1)
-                _ovm = re.search(r'value:\s*([\d.]+)', _oer)
-                if _ovm: _oe['value'] = float(_ovm.group(1))
-                if re.search(r'today:\s*true', _oer): _oe['today'] = True
-                if 'label' in _oe and 'value' in _oe:
-                    _oil_parsed.append(_oe)
+        def _js_headline_array(items):
+            if not items:
+                return '[]'
+            parts = []
+            for h in items:
+                t = h.get('title', '').replace('"', '\\"').replace('\n', ' ')
+                u = h.get('url', '').replace('"', '\\"')
+                s = h.get('source', 'NEWS')
+                d = h.get('date', today_short)
+                parts.append(f'    {{ title: "{t}", url: "{u}", source: "{s}", time: "{d}" }}')
+            return '[\n' + ',\n'.join(parts) + '\n  ]'
 
-            if _oil_parsed:
-                for _oe in _oil_parsed:
-                    _oe.pop('today', None)
+        _hl_re = re.sub(
+            r'(const headlines\s*=\s*)\[.*?\];',
+            lambda m: m.group(1) + _js_headline_array(_today_headlines) + ';',
+            updated_html, count=1, flags=re.DOTALL)
+        if _hl_re != updated_html:
+            updated_html = _hl_re
+            print(f"Headlines hard-enforced: {len(_today_headlines)} items from gathered data.")
+        _op_re = re.sub(
+            r'(const opeds\s*=\s*)\[.*?\];',
+            r'\1[];',
+            updated_html, count=1, flags=re.DOTALL)
+        if _op_re != updated_html:
+            updated_html = _op_re
+            print("Op-eds cleared (section removed).")
+    except Exception as _e:
+        print(f"Warning: headline hard-enforcement failed: {_e}")
 
-                _oil_today_found = False
-                for _oe in _oil_parsed:
-                    if _oe.get('label') == chart_label:
-                        _oe['value'] = _brent_val
-                        _oe['today'] = True
-                        _oil_today_found = True
-                        break
+    return updated_html
 
-                if not _oil_today_found:
-                    _oil_parsed.append({
-                        'label': chart_label,
-                        'value': _brent_val,
-                        'today': True,
-                    })
 
-                while len(_oil_parsed) > 12:
-                    _oil_parsed.pop(0)
+def phase3_regenerate_insights(client, updated_html, gathered_json):
+    """Phase 3: Regenerate all BankerRead insights. Returns final_html."""
+    print("\nPhase 3: Regenerating all BankerRead insights...")
 
-                _oil_lines = []
-                for _oe in _oil_parsed:
-                    _oparts = [f'label: "{_oe["label"]}"', f'value: {_oe["value"]}']
-                    if _oe.get('today'): _oparts.append('today: true')
-                    _oil_lines.append('    { ' + ', '.join(_oparts) + ' }')
-                _new_oil = '\n' + ',\n'.join(_oil_lines) + ',\n  '
+    _br_matches = list(re.finditer(
+        r'(<BankerRead\s+insight=")([^"]*?)("\s*/>)',
+        updated_html
+    ))
+    print(f"  Found {len(_br_matches)} BankerRead insights to regenerate.")
 
-                updated_html = (
-                    updated_html[:_om.start(2)] +
-                    _new_oil +
-                    updated_html[_om.end(2):]
-                )
-                print(f"OilChart data updated: {len(_oil_parsed)} points, "
-                      f"today={chart_label} Brent=${_brent_val}")
-            else:
-                print("Warning: could not parse OilChart STATIC_DATA entries.")
-        else:
-            print("Warning: OilChart STATIC_DATA pattern not found in output.")
-    else:
-        print("Note: no Brent value in gathered data — oil chart unchanged.")
-except Exception as _e:
-    print(f"Warning: OilChart post-processing failed ({_e}) — oil chart unchanged.")
+    if not _br_matches:
+        return updated_html
 
-# ── 4. LNGChart data update ──────────────────────────────────────────────────
-try:
-    try:
-        _gd
-    except NameError:
-        _gd = json.loads(gathered_json)
-    _lng_val = _gd.get("lng_spot_usd")
-    _lng_hist = _gd.get("lng_history")
-    if _lng_val is not None:
-        _lng_val = round(float(str(_lng_val).replace(",", "")), 1)
-    if _lng_hist and isinstance(_lng_hist, list) and len(_lng_hist) >= 4:
-        # Replace entire LNGChart data array with gathered history
-        _lm = re.search(
-            r'(function LNGChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
-            updated_html, re.DOTALL
-        )
-        if _lm:
-            _lng_parsed = []
-            for _lh in _lng_hist:
-                if isinstance(_lh, dict) and 'label' in _lh and 'value' in _lh:
-                    _lng_parsed.append({
-                        'label': str(_lh['label']),
-                        'value': round(float(_lh['value']), 1),
-                    })
-            # Append today's value if not already present
-            if _lng_val and _lng_parsed:
-                _lng_parsed[-1].pop('today', None)
-                if _lng_parsed[-1].get('label') != chart_label:
-                    _lng_parsed.append({'label': chart_label, 'value': _lng_val, 'today': True})
-                else:
-                    _lng_parsed[-1]['value'] = _lng_val
-                    _lng_parsed[-1]['today'] = True
-            # Build new data string
-            _lng_lines = []
-            for _le in _lng_parsed:
-                _lparts = [f'label: "{_le["label"]}"', f'value: {_le["value"]}']
-                if _le.get('today'): _lparts.append('today: true')
-                _lng_lines.append('    { ' + ', '.join(_lparts) + ' }')
-            _new_lng = '\n' + ',\n'.join(_lng_lines) + ',\n  '
-            updated_html = (
-                updated_html[:_lm.start(2)] +
-                _new_lng +
-                updated_html[_lm.end(2):]
-            )
-            print(f"LNGChart data updated: {len(_lng_parsed)} points, "
-                  f"today={chart_label} LNG=${_lng_val}")
-        else:
-            print("Warning: LNGChart data pattern not found.")
-    elif _lng_val:
-        print(f"Note: LNG spot ${_lng_val} but no history — chart unchanged.")
-    else:
-        print("Note: no LNG data in gathered data — LNG chart unchanged.")
-except Exception as _e:
-    print(f"Warning: LNGChart post-processing failed ({_e}) — chart unchanged.")
-
-# ── PHASE 3: Regenerate ALL BankerRead insights ──────────────────────────────
-# Slow sections are restored from yesterday's HTML, so their BankerRead insights
-# are stale. Non-slow section insights may also be stale if gathered data hasn't
-# changed much. This phase extracts all insights, sends them to Claude with
-# today's gathered data, and replaces them with fresh analysis.
-print("\nPhase 3: Regenerating all BankerRead insights...")
-
-# Extract all current insights with their section context
-_br_matches = list(re.finditer(
-    r'(<BankerRead\s+insight=")([^"]*?)("\s*/>)',
-    updated_html
-))
-print(f"  Found {len(_br_matches)} BankerRead insights to regenerate.")
-
-if _br_matches:
-    # Find which section each BankerRead belongs to
     _br_sections = []
     for _brm in _br_matches:
         _pos = _brm.start()
@@ -1207,7 +985,6 @@ if _br_matches:
         _section_name = _fns[-1].group(1) if _fns else "Unknown"
         _br_sections.append(_section_name)
 
-    # Build a compact prompt listing each section's BankerRead for regeneration
     _br_list = "\n".join(
         f"{i+1}. [{_br_sections[i]}] (old insight omitted — write fresh)"
         for i in range(len(_br_matches))
@@ -1243,13 +1020,13 @@ Example: ["insight 1 text...", "insight 2 text...", ...]"""
     time.sleep(10)
 
     _p3_resp = _stream_call(
+        client,
         messages=[{"role": "user", "content": _P3_PROMPT}],
         tools=[],
         max_tokens=16000,
         label="Phase 3 (BankerRead regeneration)",
     )
 
-    # Extract JSON array from response
     _p3_text = ""
     for block in _p3_resp.content:
         if block.type == "text" and block.text.strip():
@@ -1267,10 +1044,9 @@ Example: ["insight 1 text...", "insight 2 text...", ...]"""
     try:
         _new_insights = json.loads(_p3_text)
         if isinstance(_new_insights, list) and len(_new_insights) == len(_br_matches):
-            # Replace insights in reverse order to preserve positions
             for i in reversed(range(len(_br_matches))):
                 _brm = _br_matches[i]
-                _new_insight = str(_new_insights[i]).replace('"', "'")  # safety: no double quotes in JSX props
+                _new_insight = str(_new_insights[i]).replace('"', "'")
                 updated_html = (
                     updated_html[:_brm.start(2)] +
                     _new_insight +
@@ -1282,7 +1058,6 @@ Example: ["insight 1 text...", "insight 2 text...", ...]"""
             print(f"  WARNING: Phase 3 returned {_got} insights (expected {len(_br_matches)}) — keeping old insights.")
     except json.JSONDecodeError as _e:
         print(f"  WARNING: Phase 3 JSON parse failed ({_e}) — keeping old insights.")
-        # Try to repair truncated JSON
         _repaired_p3 = False
         _attempt_p3 = _p3_text
         for _ in range(100):
@@ -1312,142 +1087,511 @@ Example: ["insight 1 text...", "insight 2 text...", ...]"""
         if not _repaired_p3:
             print("  Could not repair Phase 3 JSON — old insights preserved.")
 
-# ── Write updated files ────────────────────────────────────────────────────────
-with open("the-brief.html", "w", encoding="utf-8") as f:
-    f.write(updated_html)
+    return updated_html
 
-with open("index.html", "w", encoding="utf-8") as f:
-    f.write(updated_html)
 
-print(f"Done. Updated the-brief.html and index.html for {today}.")
+def run_sanity_checks(updated_html, current_html, saved_parts):
+    """Run post-restoration sanity checks. Returns validated html (may roll back)."""
+    _js_parts = saved_parts['js_parts']
+    _sanity_ok = True
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SUBSCRIBER EMAIL
-# ══════════════════════════════════════════════════════════════════════════════
+    # 1. ReactDOM call must be present
+    if 'ReactDOM' not in updated_html:
+        print("⚠️  Sanity: ReactDOM missing — App function truncated. Restoring from original.")
+        orig_s = current_html.find('// ── Main App')
+        upd_s  = updated_html.find('// ── Main App')
+        script_end = '</script>'
+        orig_e = current_html.find(script_end, orig_s)
+        upd_e  = updated_html.find(script_end, upd_s) if upd_s != -1 else -1
+        if orig_s != -1 and orig_e != -1 and upd_s != -1 and upd_e != -1:
+            updated_html = updated_html[:upd_s] + current_html[orig_s:orig_e] + updated_html[upd_e:]
+            print("  App block restored from original.")
+        _sanity_ok = False
 
-def fetch_subscribers():
-    """Return list of {name, email} dicts from Supabase using the service key."""
-    if not SUPABASE_SVC_KEY:
-        print("SUPABASE_SERVICE_KEY not set — skipping email send.")
-        return []
-    req = urllib.request.Request(
-        f"{SUPABASE_URL}/rest/v1/subscribers?select=name,email&order=created_at.asc",
-        headers={
-            "apikey":        SUPABASE_SVC_KEY,
-            "Authorization": f"Bearer {SUPABASE_SVC_KEY}",
+    # 2. No orphaned placeholder comments
+    _orphaned = [k for k in _js_parts if f'// [{k} — restored automatically]' in updated_html]
+    for _k in _orphaned:
+        print(f"⚠️  Sanity: orphaned placeholder {_k} still in output — removing stale comment.")
+        updated_html = updated_html.replace(f'  // [{_k} — restored automatically]', '', 1)
+        updated_html = updated_html.replace(f'// [{_k} — restored automatically]', '', 1)
+        _sanity_ok = False
+
+    # 3. Fix stray "} />" in JSX self-closing tags
+    _stray_count = updated_html.count('" } />')
+    if _stray_count:
+        updated_html = updated_html.replace('" } />', '" />')
+        print(f"⚠️  Sanity: fixed {_stray_count} stray '}}' in JSX self-closing tags.")
+        _sanity_ok = False
+
+    # 4. Truncate after first </html>
+    _first_html_close = updated_html.find('</html>')
+    if _first_html_close != -1:
+        _after = updated_html[_first_html_close + len('</html>'):].strip()
+        if _after:
+            print(f"⚠️  Sanity: {len(_after)} chars of orphaned content after first </html> — truncating.")
+            updated_html = updated_html[:_first_html_close + len('</html>')] + '\n'
+            _sanity_ok = False
+
+    # 4b. File must end with </html>
+    if not updated_html.rstrip().endswith('</html>'):
+        print("⚠️  Sanity: file does not end with </html> — aborting write, keeping original.")
+        updated_html = current_html
+        _sanity_ok = False
+
+    # 5. JSX syntax validation
+    _script_m = re.search(r'<script[^>]*type="text/babel"[^>]*>(.*?)</script>', updated_html, re.DOTALL)
+    _jsx_errors = []
+    if _script_m:
+        _jsx_src = _script_m.group(1)
+        _between_fns = re.findall(r'\)\s*;\s*\n\s*(</(?:svg|div|span|section)>)', _jsx_src)
+        if _between_fns:
+            _jsx_errors.append(f"{len(_between_fns)} orphaned closing tag(s) between functions")
+        _colon_props_re = r'\b(value|label|change|sub|insight|detail|num|title|icon):\s*"'
+        _colon_fix_count = 0
+        _fixed_lines = []
+        for _line in _jsx_src.split('\n'):
+            _stripped = _line.lstrip()
+            _is_jsx_tag = ((_stripped.startswith('<') and not _stripped.startswith('</') and not _stripped.startswith('<!--'))
+                           or _stripped.endswith('/>')
+                           or _stripped.endswith('>')) \
+                          and not _stripped.startswith('{') and not _stripped.startswith('//')
+            _is_obj_literal = '{ name:' in _line or '{ id:' in _line or _stripped.startswith('{') \
+                              or 'const ' in _line or re.match(r'^\s*\{', _line)
+            if _is_jsx_tag and not _is_obj_literal:
+                _new_line, _n = re.subn(_colon_props_re, lambda m: m.group(1) + '="', _line)
+                if _n:
+                    _colon_fix_count += _n
+                    _line = _new_line
+            _fixed_lines.append(_line)
+        if _colon_fix_count:
+            _jsx_src = '\n'.join(_fixed_lines)
+            _script_start = _script_m.start(1)
+            _script_end = _script_m.end(1)
+            updated_html = updated_html[:_script_start] + _jsx_src + updated_html[_script_end:]
+            print(f"⚠️  Sanity: auto-fixed {_colon_fix_count} colon-instead-of-equals in JSX props.")
+            _sanity_ok = False
+        _frags_open = len(re.findall(r'(?<!\w)<>(?!\s*$)', _jsx_src))
+        _frags_close = len(re.findall(r'</>', _jsx_src))
+        if _frags_open != _frags_close:
+            _jsx_errors.append(f"mismatched JSX fragments: {_frags_open} opens vs {_frags_close} closes")
+    if _jsx_errors:
+        print(f"⚠️  Sanity: JSX validation failed — falling back to original HTML:")
+        for _je in _jsx_errors:
+            print(f"    • {_je}")
+        updated_html = current_html
+        _sanity_ok = False
+
+    # 6. File size sanity check
+    input_size = len(current_html)
+    output_size = len(updated_html)
+    if input_size > 0:
+        ratio = output_size / input_size
+        if ratio < 0.5:
+            print(f"⚠️  Sanity: output HTML is {ratio:.0%} of input size — too small, rolling back.")
+            updated_html = current_html
+            _sanity_ok = False
+        elif ratio > 1.5:
+            print(f"⚠️  Sanity: output HTML is {ratio:.0%} of input size — too large, rolling back.")
+            updated_html = current_html
+            _sanity_ok = False
+
+    if _sanity_ok:
+        print("Sanity check passed ✅")
+    else:
+        print("Sanity check applied fixes — review warnings above.")
+
+    return updated_html
+
+
+def update_chart_data(html, pattern, chart_label_str, new_value, max_entries, value_fmt='.2f', chart_name='chart', bounds_key=None, warnings=None):
+    """Generic chart data updater. Returns updated html.
+
+    Args:
+        html: the full HTML string
+        pattern: regex pattern with 3 groups: (prefix)(data_body)(suffix like '];')
+        chart_label_str: label for today's entry (e.g. "Apr 10")
+        new_value: numeric value for today
+        max_entries: max data points to keep
+        value_fmt: format spec for value (e.g. '.2f', 'd')
+        chart_name: display name for logging
+        bounds_key: key into CHART_BOUNDS for range check, or None
+        warnings: list to append warning strings to
+    """
+    if warnings is None:
+        warnings = []
+
+    # Bounds check
+    if bounds_key and bounds_key in CHART_BOUNDS:
+        lo, hi = CHART_BOUNDS[bounds_key]
+        if not (lo <= new_value <= hi):
+            msg = f"Warning: {chart_name} value {new_value} out of bounds ({lo}-{hi}) — skipping update."
+            print(msg)
+            warnings.append(msg)
+            return html
+
+    _dm = re.search(pattern, html, re.DOTALL)
+    if not _dm:
+        print(f"Warning: {chart_name} data array pattern not found in output.")
+        return html
+
+    _data_body = _dm.group(2)
+    _entries_raw = re.findall(r'\{([^}]+)\}', _data_body)
+    _parsed_entries = []
+    for _er in _entries_raw:
+        _entry = {}
+        _lm = re.search(r'label:\s*"([^"]+)"', _er)
+        if _lm: _entry['label'] = _lm.group(1)
+        _vm = re.search(r'value:\s*([\d.]+)', _er)
+        if _vm:
+            raw_val = _vm.group(1)
+            _entry['value'] = int(raw_val) if '.' not in raw_val and value_fmt == 'd' else float(raw_val)
+        if re.search(r'showLabel:\s*true', _er): _entry['showLabel'] = True
+        if re.search(r'today:\s*true', _er): _entry['today'] = True
+        _em = re.search(r'event:\s*"([^"]+)"', _er)
+        if _em: _entry['event'] = _em.group(1)
+        if 'label' in _entry and 'value' in _entry:
+            _parsed_entries.append(_entry)
+
+    if not _parsed_entries:
+        print(f"Warning: could not parse {chart_name} data entries.")
+        return html
+
+    # Remove old today markers
+    for _pe in _parsed_entries:
+        _pe.pop('today', None)
+
+    # Update or append today's value
+    _today_found = False
+    for _pe in _parsed_entries:
+        if _pe.get('label') == chart_label_str:
+            if value_fmt == 'd':
+                _pe['value'] = int(round(new_value))
+            else:
+                _pe['value'] = new_value
+            _pe['showLabel'] = True
+            _pe['today'] = True
+            _today_found = True
+            break
+
+    if not _today_found:
+        entry = {
+            'label': chart_label_str,
+            'value': int(round(new_value)) if value_fmt == 'd' else new_value,
+            'showLabel': True,
+            'today': True,
         }
+        _parsed_entries.append(entry)
+
+    while len(_parsed_entries) > max_entries:
+        _parsed_entries.pop(0)
+
+    # Rebuild data string
+    _lines = []
+    for _pe in _parsed_entries:
+        if value_fmt == 'd':
+            _parts = [f'label: "{_pe["label"]}"', f'value: {int(_pe["value"])}']
+        else:
+            _parts = [f'label: "{_pe["label"]}"', f'value: {_pe["value"]}']
+        if _pe.get('showLabel'): _parts.append('showLabel: true')
+        if _pe.get('event'): _parts.append(f'event: "{_pe["event"]}"')
+        if _pe.get('today'): _parts.append('today: true')
+        _lines.append('    { ' + ', '.join(_parts) + ' }')
+    _new_data = '\n' + ',\n'.join(_lines) + ',\n  '
+
+    html = (
+        html[:_dm.start(2)] +
+        _new_data +
+        html[_dm.end(2):]
     )
+    if value_fmt == 'd':
+        print(f"{chart_name} data updated: {len(_parsed_entries)} points, "
+              f"today={chart_label_str} value={int(round(new_value))}")
+    else:
+        print(f"{chart_name} data updated: {len(_parsed_entries)} points, "
+              f"today={chart_label_str} value={new_value}")
+
+    return html
+
+
+def update_charts_deterministic(html, gathered_json, warnings=None):
+    """Deterministic post-processing: BRIEF_DATE, DSEX, Oil, LNG charts.
+    Returns updated html and list of charts updated.
+    """
+    if warnings is None:
+        warnings = []
+    charts_updated = []
+
+    # ── 1. BRIEF_DATE — always set to today ───────────────────────────────
+    _date_m = re.search(r'const BRIEF_DATE\s*=\s*"[^"]*"', html)
+    if _date_m:
+        html = html[:_date_m.start()] + f'const BRIEF_DATE = "{today}"' + html[_date_m.end():]
+        print(f"BRIEF_DATE set to \"{today}\"")
+
     try:
-        with urllib.request.urlopen(req) as r:
-            subs = json.loads(r.read())
-            print(f"Fetched {len(subs)} subscriber(s) from Supabase.")
-            return subs
-    except Exception as e:
-        print(f"Failed to fetch subscribers: {e}")
-        return []
+        _gd = json.loads(gathered_json)
+    except Exception:
+        print("Warning: could not parse gathered_json for chart updates.")
+        return html, charts_updated
 
-
-def build_email_html(name, date_str):
-    """Return a personalised HTML email string for one subscriber."""
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>THE BRIEF \u2014 {date_str}</title>
-</head>
-<body style="margin:0;padding:0;background-color:#0a0c0f;font-family:'Courier New',Courier,monospace;">
-  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0a0c0f">
-    <tr><td align="center" style="padding:40px 20px;">
-      <table width="540" cellpadding="0" cellspacing="0" style="max-width:540px;width:100%;">
-
-        <!-- Header -->
-        <tr><td bgcolor="#111418" style="background-color:#111418;border:1px solid #1e2329;border-radius:4px 4px 0 0;padding:24px 28px 18px;">
-          <p style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.25em;color:#ffffff;text-transform:uppercase;">
-            THE <span style="color:#3b82f6;">BRIEF</span>
-          </p>
-          <p style="margin:4px 0 0;font-size:9px;letter-spacing:0.2em;color:#64748b;text-transform:uppercase;">
-            Bangladesh Business Intelligence
-          </p>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td bgcolor="#111418" style="background-color:#111418;border:1px solid #1e2329;border-top:none;padding:22px 28px 28px;">
-          <p style="margin:0 0 16px;font-size:10px;letter-spacing:0.12em;color:#64748b;text-transform:uppercase;">
-            {date_str}
-          </p>
-          <p style="margin:0 0 22px;font-size:13px;color:#e2e8f0;line-height:1.75;">
-            Hi {name},<br><br>
-            Today&#39;s edition of THE BRIEF is ready &mdash; your daily snapshot of
-            Bangladesh&#39;s macro economy, capital markets, monetary policy, and trade flows.
-          </p>
-          <table cellpadding="0" cellspacing="0">
-            <tr><td bgcolor="#3b82f6" style="background-color:#3b82f6;border-radius:2px;">
-              <a href="{BRIEF_URL}"
-                 style="display:inline-block;padding:10px 24px;color:#ffffff;text-decoration:none;font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">
-                Read Today&#39;s Brief &rarr;
-              </a>
-            </td></tr>
-          </table>
-          <p style="margin:18px 0 0;font-size:10px;color:#64748b;letter-spacing:0.06em;font-style:italic;">
-            Human-directed, AI-assisted intelligence.
-          </p>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td bgcolor="#0f1419" style="background-color:#0f1419;border:1px solid #1e2329;border-top:none;border-radius:0 0 4px 4px;padding:14px 28px;">
-          <p style="margin:0;font-size:9px;color:#475569;letter-spacing:0.08em;text-transform:uppercase;text-align:center;">
-            THE BRIEF &middot; Bangladesh &middot;
-            <a href="mailto:{FROM_EMAIL}?subject=UNSUBSCRIBE"
-               style="color:#475569;text-decoration:underline;">Unsubscribe</a>
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
-
-def send_emails(subscribers, date_str):
-    """Send THE BRIEF to all subscribers via Brevo transactional email API."""
-    if not BREVO_KEY:
-        print("BREVO_API_KEY not set — skipping email send.")
-        return
-
-    sent, failed = 0, 0
-    for sub in subscribers:
-        payload = json.dumps({
-            "sender":      {"name": FROM_NAME, "email": FROM_EMAIL},
-            "to":          [{"email": sub["email"], "name": sub["name"]}],
-            "subject":     f"THE BRIEF \u2014 {date_str}",
-            "htmlContent": build_email_html(sub["name"], date_str),
-        }).encode()
-        req = urllib.request.Request(
-            "https://api.brevo.com/v3/smtp/email",
-            data=payload,
-            headers={
-                "api-key":      BREVO_KEY,
-                "Content-Type": "application/json",
-                "Accept":       "application/json",
-            }
-        )
+    # ── 2. DSEXChart data update ──────────────────────────────────────────
+    _dsex_val = _gd.get("dsex")
+    if _dsex_val is not None:
         try:
-            with urllib.request.urlopen(req) as r:
-                sent += 1
-        except urllib.error.HTTPError as e:
-            print(f"  \u2717 {sub['email']}: {e.code} \u2014 {e.read().decode()}")
-            failed += 1
+            _dsex_val = int(round(float(str(_dsex_val).replace(",", ""))))
+            html = update_chart_data(
+                html,
+                r'(function DSEXChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
+                chart_label,
+                _dsex_val,
+                max_entries=25,
+                value_fmt='d',
+                chart_name='DSEXChart',
+                bounds_key='dsex',
+                warnings=warnings,
+            )
+            charts_updated.append('dsex')
+        except Exception as _e:
+            print(f"Warning: DSEXChart post-processing failed ({_e}) — chart data unchanged.")
+    else:
+        print("Note: no DSEX value in gathered data — chart data unchanged.")
 
-    print(f"Emails: {sent} sent, {failed} failed out of {len(subscribers)} subscriber(s).")
+    # ── 3. OilChart STATIC_DATA update ────────────────────────────────────
+    _brent_val = _gd.get("brent_spot") or _gd.get("brent_usd")
+    if _brent_val is not None:
+        try:
+            _brent_val = round(float(str(_brent_val).replace(",", "")), 2)
+            html = update_chart_data(
+                html,
+                r'(const STATIC_DATA = \[)(.*?)(\];)',
+                chart_label,
+                _brent_val,
+                max_entries=12,
+                value_fmt='.2f',
+                chart_name='OilChart',
+                bounds_key='brent',
+                warnings=warnings,
+            )
+            charts_updated.append('oil')
+        except Exception as _e:
+            print(f"Warning: OilChart post-processing failed ({_e}) — oil chart unchanged.")
+    else:
+        print("Note: no Brent value in gathered data — oil chart unchanged.")
+
+    # ── 4. LNGChart data update ───────────────────────────────────────────
+    _lng_val = _gd.get("lng_spot_usd")
+    _lng_hist = _gd.get("lng_history")
+    if _lng_val is not None:
+        _lng_val = round(float(str(_lng_val).replace(",", "")), 1)
+
+    if _lng_hist and isinstance(_lng_hist, list) and len(_lng_hist) >= 4:
+        # Bounds check on lng_val
+        if _lng_val is not None:
+            lo, hi = CHART_BOUNDS.get('lng', (1, 100))
+            if not (lo <= _lng_val <= hi):
+                msg = f"Warning: LNG value {_lng_val} out of bounds ({lo}-{hi}) — skipping LNG chart update."
+                print(msg)
+                warnings.append(msg)
+                _lng_val = None
+
+        try:
+            _lm = re.search(
+                r'(function LNGChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
+                html, re.DOTALL
+            )
+            if _lm:
+                _lng_parsed = []
+                for _lh in _lng_hist:
+                    if isinstance(_lh, dict) and 'label' in _lh and 'value' in _lh:
+                        _lng_parsed.append({
+                            'label': str(_lh['label']),
+                            'value': round(float(_lh['value']), 1),
+                        })
+                if _lng_val and _lng_parsed:
+                    _lng_parsed[-1].pop('today', None)
+                    if _lng_parsed[-1].get('label') != chart_label:
+                        _lng_parsed.append({'label': chart_label, 'value': _lng_val, 'today': True})
+                    else:
+                        _lng_parsed[-1]['value'] = _lng_val
+                        _lng_parsed[-1]['today'] = True
+                _lng_lines = []
+                for _le in _lng_parsed:
+                    _lparts = [f'label: "{_le["label"]}"', f'value: {_le["value"]}']
+                    if _le.get('today'): _lparts.append('today: true')
+                    _lng_lines.append('    { ' + ', '.join(_lparts) + ' }')
+                _new_lng = '\n' + ',\n'.join(_lng_lines) + ',\n  '
+                html = (
+                    html[:_lm.start(2)] +
+                    _new_lng +
+                    html[_lm.end(2):]
+                )
+                print(f"LNGChart data updated: {len(_lng_parsed)} points, "
+                      f"today={chart_label} LNG=${_lng_val}")
+                charts_updated.append('lng')
+            else:
+                print("Warning: LNGChart data pattern not found.")
+        except Exception as _e:
+            print(f"Warning: LNGChart post-processing failed ({_e}) — chart unchanged.")
+    elif _lng_val:
+        print(f"Note: LNG spot ${_lng_val} but no history — chart unchanged.")
+    else:
+        print("Note: no LNG data in gathered data — LNG chart unchanged.")
+
+    return html, charts_updated
 
 
-# ── Run email step ─────────────────────────────────────────────────────────────
-print("Fetching subscribers...")
-subscribers = fetch_subscribers()
-if subscribers:
-    print(f"Sending to {len(subscribers)} subscriber(s)...")
-    send_emails(subscribers, today)
-else:
-    print("No subscribers found — email step skipped.")
+def compile_and_write(html):
+    """Write final HTML to the-brief.html and index.html."""
+    with open("the-brief.html", "w", encoding="utf-8") as f:
+        f.write(html)
+
+    # Inject Alpha Vantage key into index.html if env var is set
+    index_html = html
+    av_key = os.environ.get("ALPHA_VANTAGE_KEY", "")
+    if av_key and "__AV_KEY__" in index_html:
+        index_html = index_html.replace("__AV_KEY__", av_key)
+        print(f"Alpha Vantage key injected into index.html.")
+
+    with open("index.html", "w", encoding="utf-8") as f:
+        f.write(index_html)
+
+    print(f"Done. Updated the-brief.html and index.html for {today}.")
+
+
+def main():
+    """Orchestrate the full update pipeline."""
+    summary = {
+        "date": today,
+        "phase1": "skipped",
+        "phase2": "skipped",
+        "phase3": "skipped",
+        "charts_updated": [],
+        "emails_sent": 0,
+        "emails_failed": 0,
+        "warnings": [],
+        "stale": False,
+    }
+
+    # ── Load and strip HTML ───────────────────────────────────────────────
+    current_html, prompt_html, saved_parts = load_and_strip_html("the-brief.html")
+
+    # ── API client ────────────────────────────────────────────────────────
+    client = None
+    if not args.dry_run:
+        client = anthropic.Anthropic(
+            api_key=os.environ["ANTHROPIC_API_KEY"],
+            timeout=anthropic.Timeout(connect=10.0, read=1800.0, write=600.0, pool=1800.0),
+        )
+
+    # ── Phase 1: Gather data ──────────────────────────────────────────────
+    gathered_json = "{}"
+    _cache_file = "gathered_data.json"
+    _cache_fresh = False
+
+    if os.path.exists(_cache_file):
+        _cache_age = time.time() - os.path.getmtime(_cache_file)
+        if _cache_age < 3600:  # less than 1 hour old
+            _cache_fresh = True
+            print(f"Phase 1 cache found ({_cache_age:.0f}s old, <1hr).")
+
+    if args.dry_run:
+        if os.path.exists(_cache_file):
+            with open(_cache_file, "r") as f:
+                gathered_json = f.read()
+            print(f"[DRY-RUN] Phase 1 skipped — loaded cached data from {_cache_file}")
+            summary["phase1"] = "skipped"
+        else:
+            print("[DRY-RUN] Phase 1 skipped — no cached data available, using empty JSON.")
+            summary["phase1"] = "skipped"
+    elif _cache_fresh:
+        with open(_cache_file, "r") as f:
+            gathered_json = f.read()
+        print(f"Phase 1 skipped — using fresh cache ({_cache_age:.0f}s old).")
+        summary["phase1"] = "skipped"
+    else:
+        try:
+            gathered_json = phase1_gather_data(client, prompt_html)
+            summary["phase1"] = "ok"
+            # Checkpoint: save gathered data
+            with open(_cache_file, "w") as f:
+                f.write(gathered_json)
+            print(f"Phase 1 checkpoint saved to {_cache_file}")
+        except Exception as e:
+            print(f"ERROR: Phase 1 failed — {e}")
+            summary["phase1"] = "failed"
+            summary["warnings"].append(f"Phase 1 failed: {e}")
+            print(json.dumps(summary, indent=2))
+            sys.exit(1)
+
+    # ── Phase 2: Generate updated HTML ────────────────────────────────────
+    if args.dry_run:
+        updated_html = current_html
+        print("[DRY-RUN] Phase 2 skipped — using current HTML as-is.")
+        summary["phase2"] = "skipped"
+    else:
+        try:
+            updated_html = phase2_generate_html(client, gathered_json, prompt_html, current_html, saved_parts)
+            summary["phase2"] = "ok"
+        except Exception as e:
+            print(f"ERROR: Phase 2 failed — {e}")
+            summary["phase2"] = "failed"
+            summary["warnings"].append(f"Phase 2 failed: {e}")
+            print(json.dumps(summary, indent=2))
+            sys.exit(1)
+
+    # ── Sanity checks ─────────────────────────────────────────────────────
+    updated_html = run_sanity_checks(updated_html, current_html, saved_parts)
+
+    # ── Deterministic chart updates ───────────────────────────────────────
+    updated_html, charts_updated = update_charts_deterministic(updated_html, gathered_json, summary["warnings"])
+    summary["charts_updated"] = charts_updated
+
+    # ── Stale data detection ──────────────────────────────────────────────
+    is_stale = (updated_html == current_html)
+    summary["stale"] = is_stale
+    if is_stale:
+        print("[STALE] No changes detected")
+
+    # ── Phase 3: Regenerate insights ──────────────────────────────────────
+    if args.dry_run:
+        print("[DRY-RUN] Phase 3 skipped.")
+        summary["phase3"] = "skipped"
+    elif is_stale:
+        print("Phase 3 skipped — content is stale/unchanged.")
+        summary["phase3"] = "skipped"
+    else:
+        try:
+            updated_html = phase3_regenerate_insights(client, updated_html, gathered_json)
+            summary["phase3"] = "ok"
+        except Exception as e:
+            print(f"ERROR: Phase 3 failed — {e}")
+            summary["phase3"] = "failed"
+            summary["warnings"].append(f"Phase 3 failed: {e}")
+
+    # ── Write output files ────────────────────────────────────────────────
+    compile_and_write(updated_html)
+
+    # ── Email subscribers ─────────────────────────────────────────────────
+    if args.dry_run:
+        print("[DRY-RUN] Email sending skipped.")
+    elif is_stale:
+        print("Email sending skipped — content is stale/unchanged.")
+    else:
+        print("Fetching subscribers...")
+        subscribers = fetch_subscribers()
+        if subscribers:
+            print(f"Sending to {len(subscribers)} subscriber(s)...")
+            sent, failed = send_emails(subscribers, today)
+            summary["emails_sent"] = sent
+            summary["emails_failed"] = failed
+        else:
+            print("No subscribers found — email step skipped.")
+
+    # ── Execution summary ─────────────────────────────────────────────────
+    print("\n" + "=" * 60)
+    print("EXECUTION SUMMARY")
+    print("=" * 60)
+    print(json.dumps(summary, indent=2))
+
+
+if __name__ == "__main__":
+    main()

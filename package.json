@@ -1,0 +1,12 @@
+{
+  "name": "the-brief",
+  "private": true,
+  "description": "Daily AI-generated Bangladesh financial intelligence dashboard",
+  "scripts": {
+    "build": "bash build.sh",
+    "serve": "python3 -m http.server 3000"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

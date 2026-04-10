@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
   <title>THE BRIEF — Bangladesh Business Intelligence</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0d0d0f" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co https://www.alphavantage.co; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none';" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="The Brief" />
@@ -17,10 +20,19 @@
       });
     }
   </script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (function(){
+      try {
+        var d = localStorage.getItem('the-brief-dark');
+        if (d === null) d = 'false';
+        document.documentElement.classList.toggle('light', d === 'false');
+      } catch(e) {}
+    })();
+  </script>
+  <script crossorigin="anonymous" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.9/babel.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js" integrity="sha384-2zrRDgDHSYB/GN3nFW3fsZXoxEhKIr3N2h63Tc6DEOB9JJdFIu8xMJT2Cph/gBil"></script>
   <style>
     :root {
       --bg:        #0a0c0f;
@@ -64,8 +76,16 @@
       --brand-color: #0f172a;
     }
 
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html, body {
+      overflow-x: clip;
+    }
     body {
       background: var(--bg);
       color: var(--text);
@@ -381,10 +401,13 @@
       font-size: 12px;
       padding: 7px 10px;
       border-radius: 2px;
-      outline: none;
       transition: border-color .15s;
     }
-    .form-input:focus { border-color: var(--accent); }
+    .form-input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-color: var(--accent);
+    }
     .form-input::placeholder { color: var(--muted); opacity: 0.55; }
     .submit-btn {
       width: 100%;
@@ -563,6 +586,11 @@
       .header { padding: 16px; }
       .nav-group-btn { padding: 10px 4px; font-size: 8px; letter-spacing: 0.04em; }
       .nav-dropdown { min-width: 140px; }
+    }
+
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .ticker-strip { font-size: 11px; }
     }
 
     /* ── Context box ── */
@@ -1049,7 +1077,17 @@
   </style>
 </head>
 <body>
-<div id="root"></div>
+<a href="#main-content" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;" onfocus="this.style.position='fixed';this.style.left='16px';this.style.top='16px';this.style.width='auto';this.style.height='auto';this.style.overflow='visible';this.style.background='var(--accent)';this.style.color='white';this.style.padding='12px 20px';this.style.borderRadius='8px';this.style.fontSize='14px';this.style.fontWeight='bold';this.style.textDecoration='none';" onblur="this.style.position='absolute';this.style.left='-9999px';this.style.width='1px';this.style.height='1px';this.style.overflow='hidden';">Skip to content</a>
+<div id="root">
+  <div style="max-width:1280px;margin:0 auto;padding:80px 20px;text-align:center;">
+    <div style="font-family:monospace;font-size:18px;color:#666;animation:pulse 1.5s ease-in-out infinite;">Loading The Brief...</div>
+  </div>
+</div>
+<noscript>
+  <div style="max-width:600px;margin:100px auto;padding:20px;font-family:monospace;text-align:center;color:#666;">
+    The Brief requires JavaScript to render. Please enable JavaScript in your browser.
+  </div>
+</noscript>
 
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
@@ -1104,14 +1142,20 @@ function Pill({ type, children }) {
 
 function SentDot({ type }) {
   const colors = { bull: "var(--bull)", bear: "var(--bear)", warn: "var(--warn)", neu: "var(--neutral)" };
+  const symbols = { bull: "+", bear: "-", warn: "!", neu: "~" };
   return (
     <span style={{
-      display: "inline-block",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
       width: 8, height: 8,
       borderRadius: "50%",
       background: colors[type] || colors.neu,
-      flexShrink: 0
-    }} />
+      flexShrink: 0,
+      position: "relative"
+    }}>
+      <span style={{ fontSize: 8, color: colors[type] || colors.neu, position: "absolute", left: 12, fontWeight: 700, lineHeight: 1 }}>{symbols[type] || symbols.neu}</span>
+    </span>
   );
 }
 
@@ -1160,7 +1204,7 @@ function SectionHeader({ num, title, icon }) {
   return (
     <div className="section-header">
       <span className="section-num">{num}</span>
-      <span className="section-title">{title}</span>
+      <h2 className="section-title" style={{ margin: 0 }}>{title}</h2>
       {icon && <span className="section-icon">{icon}</span>}
     </div>
   );
@@ -1231,7 +1275,7 @@ function CollapsibleNews({ items, defaultShow = 2 }) {
         <NewsItem key={i} {...item} />
       ))}
       {hidden > 0 && (
-        <button className="collapsible-toggle" onClick={() => setExpanded(e => !e)}>
+        <button className="collapsible-toggle" onClick={() => setExpanded(e => !e)} aria-expanded={expanded}>
           <span className="collapsible-toggle-line" />
           {expanded ? `▴ Hide` : `▾ Show ${hidden} more`}
           <span className="collapsible-toggle-line" />
@@ -1284,7 +1328,7 @@ function ProgressBar({ pct, type, label, subLabel }) {
 
 // ── Sections ─────────────────────────────────────────────────────────────────
 
-function SectionBB() {
+const SectionBB = React.memo(function SectionBB() {
   return (
     <div className="section scroll-target" id="bb">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -1340,9 +1384,9 @@ function SectionBB() {
       <BankerRead insight="As of Friday 10 April 2026, BB's 10% policy rate stands firm since the 9 February MPC, but the 50bps SDF cut to 7.5% is actively discouraging banks from parking excess liquidity — meaning your treasury desk must redeploy idle balances into earning assets or face negative real returns against 8.71% CPI. Reallocate at least 60% of SDF-parked funds into short-duration government securities or high-grade corporate paper within the next two weeks. Watch for the next MPC announcement date: if BB signals any rate adjustment ahead of LDC graduation in November 2026, reprice your entire floating-rate loan book within 48 hours. Strategy: lock in fixed-rate funding now at sub-10% while the corridor allows it, because any Hormuz escalation could force BB into an emergency tightening cycle that pushes SLF borrowing to 12%+." />
     </div>
   );
-}
+});
 
-function SectionMacro() {
+const SectionMacro = React.memo(function SectionMacro() {
   return (
     <div className="section scroll-target" id="macro">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -1428,10 +1472,88 @@ function SectionMacro() {
       <BankerRead insight="GDP growth printed at just 3.49% for FY2024-25 while March 2026 CPI remains elevated at 8.71%, confirming Bangladesh is stuck in a stagflationary trap as of this Friday morning. Stress-test your entire commercial loan portfolio assuming GDP falls another 1.2 percentage points as SANEM warns — that means modelling for sub-2.3% growth and 12%+ inflation scenarios. The critical forward trigger is whether April 2026 CPI, due in early May, breaches 9.5% on the back of Brent at $95.92 and Ramadan food demand residuals. Pivot lending strategy toward import-substitution sectors and export-oriented SMEs that benefit from taka weakness rather than domestic consumption plays that are being crushed by negative real wage growth." />
     </div>
   );
+});
+
+// ── Shared Chart Hover Hook ──────────────────────────────────────────────────
+function useChartHover(dataLength, cx) {
+  const [hovered, setHovered] = React.useState(null);
+  const handleMouseMove = React.useCallback((e) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const W = parseFloat(svg.getAttribute('viewBox').split(' ')[2]);
+    const mouseX = (e.clientX - rect.left) / rect.width * W;
+    let closest = 0, closestDist = Infinity;
+    for (let i = 0; i < dataLength; i++) {
+      const dist = Math.abs(mouseX - cx(i));
+      if (dist < closestDist) { closestDist = dist; closest = i; }
+    }
+    setHovered(closest);
+  }, [dataLength, cx]);
+  const handleMouseLeave = React.useCallback(() => setHovered(null), []);
+  return { hovered, handleMouseMove, handleMouseLeave };
 }
 
-function YieldCurveChart() {
-  const [hovered, setHovered] = React.useState(null);
+// ── Chart Data Constants ─────────────────────────────────────────────────────
+const DSEX_CHART_DATA = [
+  { label: "Feb 10", value: 5399 },
+  { label: "Feb 11", value: 5400 },
+  { label: "Feb 15", value: 5600, showLabel: true, event: "bnp" },
+  { label: "Feb 16", value: 5570 },
+  { label: "Feb 17", value: 5570 },
+  { label: "Feb 18", value: 5519 },
+  { label: "Feb 19", value: 5465, showLabel: true },
+  { label: "Feb 22", value: 5467 },
+  { label: "Feb 23", value: 5553 },
+  { label: "Feb 24", value: 5542 },
+  { label: "Feb 25", value: 5554 },
+  { label: "Feb 26", value: 5600, showLabel: true },
+  { label: "Mar 1", value: 5462, showLabel: true },
+  { label: "Mar 2", value: 5534 },
+  { label: "Mar 3", value: 5325 },
+  { label: "Mar 4", value: 5323 },
+  { label: "Mar 5", value: 5241 },
+  { label: "Mar 8", value: 5009, showLabel: true, event: "crash" },
+  { label: "Mar 9", value: 5141 },
+  { label: "Mar 10", value: 5290, showLabel: true },
+  { label: "Mar 11", value: 5292 },
+  { label: "Mar 12", value: 5368, showLabel: true },
+  { label: "Mar 14", value: 5323, showLabel: true },
+  { label: "Mar 16", value: 5368, showLabel: true, today: true },
+];
+
+const OIL_CHART_STATIC_DATA = [
+  { label: "Mar 29", value: 112.57 },
+  { label: "Mar 30", value: 112.78 },
+  { label: "Mar 31", value: 118.35 },
+  { label: "Apr 1", value: 118.35 },
+  { label: "Apr 2", value: 101.97 },
+  { label: "Apr 3", value: 108.95 },
+  { label: "Apr 5", value: 109.03 },
+  { label: "Apr 6", value: 109.03 },
+  { label: "Apr 7", value: 110.05 },
+  { label: "Apr 8", value: 109.62 },
+  { label: "Apr 9", value: 97.39 },
+  { label: "Apr 10", value: 95.92, today: true },
+];
+
+const LNG_CHART_DATA = [
+  { label: "Oct '25", value: 13.0 },
+  { label: "Nov '25", value: 13.5 },
+  { label: "Dec '25", value: 14.2 },
+  { label: "Jan '26", value: 10.4 },
+  { label: "Feb '26 early", value: 12.5 },
+  { label: "Feb '26 late", value: 14.0 },
+  { label: "Mar '26 w1", value: 16.2 },
+  { label: "Mar '26 w2", value: 16.2 },
+  { label: "Mar 16", value: 16.2, today: true },
+];
+
+const TBILL_CHART_LABELS = ["Feb '26", "Mar '26", "Apr 2 (Spl)", "Apr 8 (Spl)"];
+const TBILL_CHART_D91  = [10.02, 10.02, 9.88, 9.88];
+const TBILL_CHART_D182 = [10.11, 10.11, 9.88, 9.98];
+const TBILL_CHART_D364 = [10.07, 10.07, 9.88, 9.93];
+
+const YieldCurveChart = React.memo(function YieldCurveChart() {
   const W = 680, H = 240;
   const pad = { top: 36, right: 50, bottom: 44, left: 52 };
   const iW = W - pad.left - pad.right;
@@ -1454,22 +1576,14 @@ function YieldCurveChart() {
     yields.map((v, i) => `L ${cx(i).toFixed(1)},${cy(v).toFixed(1)}`).join(" ") +
     ` L ${cx(n - 1).toFixed(1)},${cy(yMin).toFixed(1)} L ${cx(0).toFixed(1)},${cy(yMin).toFixed(1)} Z`;
 
-  const handleMouseMove = (e) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / rect.width * W;
-    let closest = 0, closestDist = Infinity;
-    for (let i = 0; i < n; i++) {
-      const dist = Math.abs(mouseX - cx(i));
-      if (dist < closestDist) { closestDist = dist; closest = i; }
-    }
-    setHovered(closest);
-  };
+  const { hovered, handleMouseMove, handleMouseLeave } = useChartHover(n, cx);
 
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
-        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
+        onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+        role="img" aria-label="Bangladesh government bond yield curve">
+        <title>Bangladesh government bond yield curve</title>
 
         {yTicks.map(v => (
           <g key={v}>
@@ -1509,7 +1623,7 @@ function YieldCurveChart() {
           <foreignObject
             x={Math.min(cx(hovered) + 10, W - 140)} y={Math.max(cy(yields[hovered]) - 40, pad.top)}
             width="130" height="44" style={{ pointerEvents: "none" }}>
-            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "var(--text)" }}>
               <strong>{maturities[hovered]}</strong>: {yields[hovered].toFixed(2)}%
             </div>
           </foreignObject>
@@ -1522,36 +1636,10 @@ function YieldCurveChart() {
       </div>
     </div>
   );
-}
+});
 
-function DSEXChart() {
-  const [hovered, setHovered] = React.useState(null);
-  const data = [
-    { label: "Feb 10", value: 5399 },
-    { label: "Feb 11", value: 5400 },
-    { label: "Feb 15", value: 5600, showLabel: true, event: "bnp" },
-    { label: "Feb 16", value: 5570 },
-    { label: "Feb 17", value: 5570 },
-    { label: "Feb 18", value: 5519 },
-    { label: "Feb 19", value: 5465, showLabel: true },
-    { label: "Feb 22", value: 5467 },
-    { label: "Feb 23", value: 5553 },
-    { label: "Feb 24", value: 5542 },
-    { label: "Feb 25", value: 5554 },
-    { label: "Feb 26", value: 5600, showLabel: true },
-    { label: "Mar 1", value: 5462, showLabel: true },
-    { label: "Mar 2", value: 5534 },
-    { label: "Mar 3", value: 5325 },
-    { label: "Mar 4", value: 5323 },
-    { label: "Mar 5", value: 5241 },
-    { label: "Mar 8", value: 5009, showLabel: true, event: "crash" },
-    { label: "Mar 9", value: 5141 },
-    { label: "Mar 10", value: 5290, showLabel: true },
-    { label: "Mar 11", value: 5292 },
-    { label: "Mar 12", value: 5368, showLabel: true },
-    { label: "Mar 14", value: 5323, showLabel: true },
-    { label: "Mar 16", value: 5368, showLabel: true, today: true },
-  ];
+const DSEXChart = React.memo(function DSEXChart() {
+  const data = DSEX_CHART_DATA;
 
   const W = 720, H = 270;
   const pad = { top: 46, right: 110, bottom: 62, left: 62 };
@@ -1583,22 +1671,14 @@ function DSEXChart() {
   const _todayUp = _pct >= 0;
   const _todayColor = _todayUp ? "var(--bull)" : "var(--bear)";
 
-  const handleMouseMove = (e) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / rect.width * W;
-    let closest = 0, closestDist = Infinity;
-    for (let i = 0; i < data.length; i++) {
-      const dist = Math.abs(mouseX - cx(i));
-      if (dist < closestDist) { closestDist = dist; closest = i; }
-    }
-    setHovered(closest);
-  };
+  const { hovered, handleMouseMove, handleMouseLeave } = useChartHover(data.length, cx);
 
     return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
-        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
+        onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+        role="img" aria-label="DSEX index performance over the past 25 trading days">
+        <title>DSEX index performance over the past 25 trading days</title>
 
         {/* Y-axis title */}
         <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
@@ -1690,7 +1770,7 @@ function DSEXChart() {
           <foreignObject
             x={Math.min(cx(hovered) + 10, W - 160)} y={Math.max(cy(data[hovered].value) - 48, pad.top)}
             width="150" height="50" style={{ pointerEvents: "none" }}>
-            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "var(--text)" }}>
               <strong>{data[hovered].label}</strong><br/>
               DSEX: {data[hovered].value.toLocaleString()}
             </div>
@@ -1717,9 +1797,9 @@ function DSEXChart() {
       </div>
     </div>
   );
-}
+});
 
-function SectionDSE() {
+const SectionDSE = React.memo(function SectionDSE() {
   return (
     <div className="section scroll-target" id="dse">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -1755,20 +1835,19 @@ function SectionDSE() {
       <BankerRead insight="DSEX shed 60 points to 5,257 on Wednesday 9 April after the Iran ceasefire optimism of 8 April evaporated — turnover collapsed 22% to just Tk776 crore, and DSE has now cut trading hours by 30 minutes due to the fuel crisis. If your bank holds proprietary equity positions, reduce mark-to-market exposure to below 5% of Tier-1 capital while DSEX trades in the volatile 5,000-5,300 band. The key trigger is whether DSEX retests the 52-week low of 4,588; a break below 5,100 on rising volume should prompt full liquidation of discretionary equity holdings. Margin lending books need immediate review — call in top-ups on any accounts where collateral coverage has fallen below 150% after this week's 1.13% single-day drop." />
     </div>
   );
-}
+});
 
-function TBillChart() {
-  const [hovered, setHovered] = React.useState(null);
+const TBillChart = React.memo(function TBillChart() {
   const W = 680, H = 230;
   const pad = { top: 50, right: 62, bottom: 44, left: 52 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
 
   const yMin = 9.40, yMax = 10.85;
-  const labels = ["Feb '26", "Mar '26", "Apr 2 (Spl)", "Apr 8 (Spl)"];
-  const d91  = [10.02, 10.02, 9.88, 9.88];
-  const d182 = [10.11, 10.11, 9.88, 9.98];
-  const d364 = [10.07, 10.07, 9.88, 9.93];
+  const labels = TBILL_CHART_LABELS;
+  const d91  = TBILL_CHART_D91;
+  const d182 = TBILL_CHART_D182;
+  const d364 = TBILL_CHART_D364;
   const n = labels.length;
 
   const cx = i => pad.left + (i / (n - 1)) * iW;
@@ -1778,22 +1857,14 @@ function TBillChart() {
   const policyY = cy(10.00);
   const yTicks  = [9.50, 9.75, 10.00, 10.25, 10.50, 10.75];
 
-  const handleMouseMove = (e) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / rect.width * W;
-    let closest = 0, closestDist = Infinity;
-    for (let i = 0; i < n; i++) {
-      const dist = Math.abs(mouseX - cx(i));
-      if (dist < closestDist) { closestDist = dist; closest = i; }
-    }
-    setHovered(closest);
-  };
+  const { hovered, handleMouseMove, handleMouseLeave } = useChartHover(n, cx);
 
     return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
       <svg viewBox={`0 0 ${W} ${H + 28}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
-        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
+        onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+        role="img" aria-label="Bangladesh treasury bill yield curve for 91, 182, and 364 day maturities">
+        <title>Bangladesh treasury bill yield curve for 91, 182, and 364 day maturities</title>
 
         {yTicks.map(v => (
           <g key={v}>
@@ -1844,7 +1915,7 @@ function TBillChart() {
           <foreignObject
             x={Math.min(cx(hovered) + 10, W - 180)} y={Math.max(Math.min(cy(d91[hovered]), cy(d182[hovered]), cy(d364[hovered])) - 60, pad.top)}
             width="170" height="70" style={{ pointerEvents: "none" }}>
-            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "var(--text)" }}>
               <strong>{labels[hovered]}</strong><br/>
               91d: {d91[hovered].toFixed(2)}% · 182d: {d182[hovered].toFixed(2)}%<br/>
               364d: {d364[hovered].toFixed(2)}%
@@ -1858,10 +1929,10 @@ function TBillChart() {
       </div>
     </div>
   );
-}
+});
 
 
-function SectionTBond() {
+const SectionTBond = React.memo(function SectionTBond() {
   return (
     <div className="section scroll-target" id="tbond">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -1937,9 +2008,9 @@ function SectionTBond() {
       <BankerRead insight="The special 91-day T-bill auction on 8 April cleared at 9.88%, marking the first time yields have fallen below 10% — a direct signal that bank liquidity is abundant and the government is exploiting it with Tk5,000 crore single-day auctions. Treasury desks should aggressively bid in upcoming Q4 FY26 auctions given the government's Tk1.10 lakh crore borrowing target, targeting 91-day paper at 9.75-9.90% for risk-free carry against 7.5% SDF. Watch if the 91-day yield breaches 10.25% on the upside in the next auction — that would signal liquidity tightening from war-driven import payments and warrant shifting to shorter tenors. Build a barbell strategy: lock 40% in 91-day paper for liquidity and seek 364-day issuances when they appear for yield pickup ahead of potential rate cuts in H1 FY27." />
     </div>
   );
-}
+});
 
-function SectionComm() {
+const SectionComm = React.memo(function SectionComm() {
   return (
     <div className="section scroll-target" id="comm">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -2003,9 +2074,9 @@ function SectionComm() {
       <BankerRead insight="Brent at $95.92 and Asian LNG spot at $19.87/MMBtu as of this Friday are squeezing Bangladesh from two sides — petroleum import bills had already surged 52% before the Iran war, and LNG suppliers have suspended long-term contracts forcing reliance on the volatile spot market. Reprice all commodity-linked trade finance facilities by adding a minimum 200bps war risk premium to energy import LCs effective Monday. The critical trigger is Brent crossing $105 or JKM LNG breaching $25/MMBtu — either event should activate contingency credit limits for fuel importers while tightening exposure caps on energy-intensive borrowers. Gold at Tk247,977 per bhori despite the Tk4,432 drop signals persistent safe-haven demand; explore gold-backed retail lending products to capture this Ramadan-season liquidity." />
     </div>
   );
-}
+});
 
-function SectionFX() {
+const SectionFX = React.memo(function SectionFX() {
   return (
     <div className="section scroll-target" id="fx">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -2076,9 +2147,9 @@ function SectionFX() {
       <BankerRead insight="The taka closed at Tk122.85 interbank on 9 April but the kerb market is quoting Tk125.50 — that Tk2.65 spread is a red flag for informal market pressure despite BB's dismissal of devaluation rumours. Gross reserves at $34.65 billion (BPM6: ~$29.81 billion) provide roughly 4.5 months of import cover, but this deteriorates fast if Brent stays above $95. The trigger to watch is whether the kerb rate breaches Tk128 or gross reserves drop below $33 billion — either event signals imminent formal devaluation of 3-5%. Hedge all USD-denominated liabilities maturing within 90 days using forward contracts today; the cost of hedging is cheaper than a sudden 5% taka adjustment that BB may be forced into by June." />
     </div>
   );
-}
+});
 
-function SectionRemittance() {
+const SectionRemittance = React.memo(function SectionRemittance() {
   return (
     <div className="section scroll-target" id="remit">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -2151,9 +2222,9 @@ function SectionRemittance() {
       <BankerRead insight="March 2026 remittance hit an all-time record $3.75 billion — up 14% YoY — with Jul-Mar FY26 cumulative flows at $26.20 billion, up 20% YoY, providing critical BOP support this Friday. However, over 70% originated from Gulf nations now directly affected by the Iran-Hormuz conflict, making this lifeline fragile. The trigger is whether April 2026 remittance, trackable via the 1-6 April partial data showing $660 million (+20.5% YoY), sustains above $3 billion monthly — any drop below $2.5 billion signals Gulf worker displacement. Aggressively expand digital remittance corridors in Malaysia, South Korea, and Japan to diversify away from Gulf dependency; offer Tk0.50/USD bonus on non-Gulf corridor transfers to shift the mix within 90 days." />
     </div>
   );
-}
+});
 
-function SectionBanking() {
+const SectionBanking = React.memo(function SectionBanking() {
   return (
     <div className="section scroll-target" id="banking">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -2216,9 +2287,9 @@ function SectionBanking() {
       <BankerRead insight="With NPLs at 35.73% of total loans as of September 2025 — the highest ratio globally — and capital shortfall in 23 banks reaching Tk2.82 lakh crore, the Bangladesh banking sector is in a systemic stress zone this Friday morning. Private credit growth at a record-low 6.03% in February 2026 confirms banks are rationing credit, which will deepen the GDP slowdown. The trigger is whether BB releases updated December 2025 NPL data in the coming weeks — if the ratio exceeds 38%, expect regulatory intervention including forced mergers. Immediately reclassify all watch-list accounts using Basel III standards, provision aggressively at 5% for substandard and 20% for doubtful, and halt new unsecured lending to sectors with >25% historical default rates." />
     </div>
   );
-}
+});
 
-function SectionTariff() {
+const SectionTariff = React.memo(function SectionTariff() {
  
  
  
@@ -2287,9 +2358,9 @@ function SectionTariff() {
 <BankerRead insight="Bangladesh's November 2026 LDC graduation deadline is now just 7 months away as of this Friday, and with it the loss of trade preferences covering approximately 70% of global exports — this is the single biggest structural risk to your trade finance book. Review all export credit facilities to EU, UK, and Canadian buyers and model the tariff impact: RMG exporters shipping to the EU face potential 12% duty jumps post-graduation. The trigger is the June 2026 WTO General Council meeting where any graduation timeline extension would be discussed — absence of a deferral confirmation by July should activate portfolio de-risking. Prioritize financing exporters who have already secured bilateral FTA-equivalent access or are diversifying into US markets where Bangladesh GSP was already revoked." />
     </div>
   );
-}
+});
 
-function SectionTrade() {
+const SectionTrade = React.memo(function SectionTrade() {
  
  
  
@@ -2368,23 +2439,12 @@ function SectionTrade() {
       <BankerRead insight="February 2026 total exports fell 12% YoY to $3.49 billion, with Jul-Feb FY26 cumulative exports at $31.91 billion, down 3.15% YoY — this Friday the trade picture is worsening against a backdrop of global demand slowdown and Middle East shipping disruptions. Tighten export bill discounting limits for sectors showing >10% YoY decline and require confirmed LCs rather than DA terms for new export finance. The forward trigger is March 2026 export data due in mid-April — if monthly exports fail to recover above $3.8 billion, downgrade your FY26 export growth assumption to -5% and adjust fee income projections accordingly. Pursue supply chain finance programs targeting Tier-2 RMG suppliers who are being squeezed by delayed payments from Western buyers citing demand uncertainty." />
     </div>
   );
-}
+});
 
 // ── LNG Chart ────────────────────────────────────────────────────────────────
 
-function LNGChart() {
-  const [hovered, setHovered] = React.useState(null);
-  const data = [
-    { label: "Oct '25", value: 13.0 },
-    { label: "Nov '25", value: 13.5 },
-    { label: "Dec '25", value: 14.2 },
-    { label: "Jan '26", value: 10.4 },
-    { label: "Feb '26 early", value: 12.5 },
-    { label: "Feb '26 late", value: 14.0 },
-    { label: "Mar '26 w1", value: 16.2 },
-    { label: "Mar '26 w2", value: 16.2 },
-    { label: "Mar 16", value: 16.2, today: true },
-  ];
+const LNGChart = React.memo(function LNGChart() {
+  const data = LNG_CHART_DATA;
 
   const W = 720, H = 250;
   const pad = { top: 40, right: 58, bottom: 80, left: 54 };
@@ -2407,22 +2467,14 @@ function LNGChart() {
   const lastIdx = data.length - 1;
   const lastVal = data[lastIdx].value;
 
-  const handleMouseMove = (e) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / rect.width * W;
-    let closest = 0, closestDist = Infinity;
-    for (let i = 0; i < data.length; i++) {
-      const dist = Math.abs(mouseX - cx(i));
-      if (dist < closestDist) { closestDist = dist; closest = i; }
-    }
-    setHovered(closest);
-  };
+  const { hovered, handleMouseMove, handleMouseLeave } = useChartHover(data.length, cx);
 
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
-        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
+        onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+        role="img" aria-label="Asian LNG spot price (JKM) trend">
+        <title>Asian LNG spot price (JKM) trend</title>
 
         {/* Y-axis title */}
         <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
@@ -2472,7 +2524,7 @@ function LNGChart() {
           <foreignObject
             x={Math.min(cx(hovered) + 10, W - 160)} y={Math.max(cy(data[hovered].value) - 48, pad.top)}
             width="150" height="50" style={{ pointerEvents: "none" }}>
-            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "var(--text)" }}>
               <strong>{data[hovered].label}</strong><br/>
               ${data[hovered].value.toFixed(1)}/MMBtu
             </div>
@@ -2491,30 +2543,16 @@ function LNGChart() {
       </div>
     </div>
   );
-}
+});
 
 // ── Oil Chart ────────────────────────────────────────────────────────────────
 
-function OilChart() {
+const OilChart = React.memo(function OilChart() {
   const { useState, useEffect } = React;
-  const [hovered, setHovered] = React.useState(null);
 
-  const AV_KEY = "T294W0RCT1U6OOPE";
+  const AV_KEY = "__AV_KEY__";
 
-  const STATIC_DATA = [
-    { label: "Mar 29", value: 112.57 },
-    { label: "Mar 30", value: 112.78 },
-    { label: "Mar 31", value: 118.35 },
-    { label: "Apr 1", value: 118.35 },
-    { label: "Apr 2", value: 101.97 },
-    { label: "Apr 3", value: 108.95 },
-    { label: "Apr 5", value: 109.03 },
-    { label: "Apr 6", value: 109.03 },
-    { label: "Apr 7", value: 110.05 },
-    { label: "Apr 8", value: 109.62 },
-    { label: "Apr 9", value: 97.39 },
-    { label: "Apr 10", value: 95.92, today: true },
-  ];
+  const STATIC_DATA = OIL_CHART_STATIC_DATA;
 
   
   
@@ -2590,22 +2628,14 @@ function OilChart() {
   const lastIdx = data.length - 1;
   const lastVal = data[lastIdx].value;
 
-  const handleMouseMove = (e) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const mouseX = (e.clientX - rect.left) / rect.width * W;
-    let closest = 0, closestDist = Infinity;
-    for (let i = 0; i < data.length; i++) {
-      const dist = Math.abs(mouseX - cx(i));
-      if (dist < closestDist) { closestDist = dist; closest = i; }
-    }
-    setHovered(closest);
-  };
+  const { hovered, handleMouseMove, handleMouseLeave } = useChartHover(data.length, cx);
 
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 0" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }}
-        onMouseMove={handleMouseMove} onMouseLeave={() => setHovered(null)}>
+        onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+        role="img" aria-label="Brent crude oil price over the past 12 data points">
+        <title>Brent crude oil price over the past 12 data points</title>
 
         {/* Y-axis title */}
         <text x={0} y={0} fill="var(--muted)" fontSize="9.5" textAnchor="middle"
@@ -2655,7 +2685,7 @@ function OilChart() {
           <foreignObject
             x={Math.min(cx(hovered) + 10, W - 160)} y={Math.max(cy(data[hovered].value) - 48, pad.top)}
             width="150" height="50" style={{ pointerEvents: "none" }}>
-            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "white", border: "1px solid #ccc", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "#222" }}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "var(--text)" }}>
               <strong>{data[hovered].label}</strong><br/>
               ${data[hovered].value.toFixed(2)}/bbl
             </div>
@@ -2679,9 +2709,9 @@ function OilChart() {
       </div>
     </div>
   );
-}
+});
 
-function SectionExec() {
+const SectionExec = React.memo(function SectionExec() {
   const bullets = [
     { type: "bull", indicator: "▲", text: "BREAKING: Trump agrees to 2-week ceasefire; oil plunges 8% to ~$103.", section: "iranwar" },
     { type: "bull", indicator: "▲", text: "Record $3.75B remittance in March; Apr 1-6 at $660M (+20.5% YoY).", section: "remit" },
@@ -2731,9 +2761,9 @@ function SectionExec() {
       <BankerRead insight="This Friday's executive landscape features new BB Governor Md Mostaqur Rahman navigating a post-election monetary policy with a held 10% rate, the repeal of three interim ordinances signaling political normalization, and CCCI lobbying for a Tk5 lakh tax-free threshold in the FY27 budget. The BB Export Facilitation Fund extension to 2030 and planned fully automated tax refund system are positive structural reforms — position your trade finance desk to capture EFF-linked business by onboarding 50 new export clients by June. Watch the FY2026-27 budget announcement expected in June: any corporate tax cut below 25% or VAT simplification would be a trigger to expand SME lending targets by 15%. Strategy: engage the new BB leadership proactively on digital banking licenses and credit guarantee schemes that could de-risk your SME portfolio." />
     </div>
   );
-}
+});
 
-function SectionHeadlines() {
+const SectionHeadlines = React.memo(function SectionHeadlines() {
   const headlines = [
     { title: "War exposes critical gaps in Bangladesh’s energy sector", url: "https://www.thedailystar.net/business/economy/news/war-exposes-critical-gaps-bangladeshs-energy-sector-4147956", source: "DS", time: "10 Apr" },
     { title: "Fully automated tax refunds to launch next year", url: "https://www.thedailystar.net/business/economy/news/fully-automated-tax-refunds-launch-next-year-4147951", source: "DS", time: "10 Apr" },
@@ -2811,9 +2841,9 @@ function SectionHeadlines() {
       <BankerRead insight="Friday 10 April 2026 headlines are dominated by energy vulnerability — The Daily Star leads with critical gaps in Bangladesh's energy sector exposed by war, while The Financial Express warns the Middle East crisis threatens energy security and economic stability. Petroleum import bills surging 52% before the Iran war and Tk1.07 lakh crore in FY23 tax exemptions signal both cost-push inflation pressure and fiscal weakness simultaneously. The automated tax refund announcement and CCCI's Tk5 lakh tax-free income proposal point toward FY27 budget season — position relationship managers to brief corporate clients on potential tax changes by end of April. Today's actionable edge: the gold price drop of Tk4,432 per bhori creates a retail lending opportunity; launch a gold loan promotional rate at 12% before competitors react to the price correction." />
     </div>
   );
-}
+});
 
-function SectionDAM() {
+const SectionDAM = React.memo(function SectionDAM() {
   const items = [
     { name: "Rice (coarse)",        unit: "BDT/kg",  price: "51",   mom: "Stable", type: "neu" },
     { name: "Rice (fine/aromatic)",  unit: "BDT/kg",  price: "n/a",  mom: "No data this week", type: "neu" },
@@ -2883,9 +2913,9 @@ function SectionDAM() {
       <BankerRead insight="DAM commodity price data is unavailable this Friday, but the CPI food component at 8.24% for March 2026 confirms persistent food inflation pressure even as Ramadan demand subsides. Without granular rice, lentil, and onion price data, use the food CPI as a proxy — any reading above 9% in April should trigger a 10% increase in agricultural credit line provisioning. The forward trigger is the April 2026 DAM weekly price bulletin: if coarse rice exceeds Tk55/kg or onion breaches Tk80/kg, expect government intervention via open market sales that could temporarily suppress margins for agri-traders. Expand warehouse receipt financing to farmers and millers who benefit from elevated food prices — target Tk500 crore in new agri-lending commitments this quarter." />
     </div>
   );
-}
+});
 
-function SectionIranWar() {
+const SectionIranWar = React.memo(function SectionIranWar() {
     return (
     <div className="section scroll-target" id="iranwar">
       <div style={{ display:"flex", alignItems:"center" }}>
@@ -2994,10 +3024,10 @@ function SectionIranWar() {
       <BankerRead insight="The Iran-US-Israel conflict is the dominant risk driver this Friday: Trump's 2-week attack suspension on 8 April is already fraying with 3 of 10 ceasefire conditions reportedly breached, and EIA estimates 9.1 million barrels/day shut-in from Hormuz disruptions in April alone. This is not a drill — your bank's energy import LC exposure needs a hard cap at 15% of total trade finance outstanding, effective immediately. The binary trigger is whether the Strait of Hormuz reopening holds beyond the 2-week window ending ~22 April — a resumption of hostilities would send Brent above $110 and force BB to impose import rationing. War contingency strategy: pre-approve emergency working capital lines for essential goods importers (pharmaceuticals, food, fertilizer) while freezing new exposure to discretionary import sectors until ceasefire clarity emerges." />
     </div>
   );
-}
+});
 
 
-function SectionRMG() {
+const SectionRMG = React.memo(function SectionRMG() {
   const markets = [
     { country: "EU", pct: 57, color: "var(--accent)" },
     { country: "USA", pct: 18, color: "var(--bull)" },
@@ -3040,9 +3070,9 @@ function SectionRMG() {
       <BankerRead insight="RMG exports through Jul-Feb FY26 totaled $25.80 billion, down 3.73% YoY, with February shipments dragged down by 12% YoY decline in total exports — this Friday the sector faces a triple threat of weak demand, LDC graduation tariff risk, and Middle East shipping disruptions. Cap new RMG buyer credit exposure to brands with confirmed FY27 order pipelines and require 20% cash margin on back-to-back LCs for first-time buyers. The trigger to watch is whether Mar-Apr combined RMG exports recover above $5.5 billion — failure signals structural demand destruction warranting a 10% reduction in sector exposure limits. Strategically, finance factories investing in green certification and automation — these are the units that will retain EU GSP+ access post-LDC graduation and represent lower long-term credit risk." />
     </div>
   );
-}
+});
 
-function SectionFiscal() {
+const SectionFiscal = React.memo(function SectionFiscal() {
   const adpPct = 22.5;
   const nbrPct = 26;
   const borrowPct = Math.round(102500 / 137500 * 100);
@@ -3082,9 +3112,9 @@ function SectionFiscal() {
       <BankerRead insight="Government fiscal data shows Feb 2026 revenue at Tk30,559 crore, up 8.15% YoY, but Q4 FY26 borrowing plans of Tk1.10 lakh crore via T-bills confirm a widening deficit that the banking system will be forced to finance. Your bank's SLR portfolio will grow involuntarily — model for a 15-20% increase in government securities holdings by June 2026 and adjust ALM accordingly. The trigger is whether Q4 FY26 actual borrowing exceeds Tk1.10 lakh crore — any overshoot above Tk1.25 lakh crore would crowd out private credit further, pushing credit growth below 5%. Position treasury to front-run the borrowing calendar by accumulating 91-day paper at 9.85-9.95% today, as yields will compress further when banks have no alternative deployment for excess liquidity." />
     </div>
   );
-}
+});
 
-function SectionNBR() {
+const SectionNBR = React.memo(function SectionNBR() {
   const components = [
     { label: "VAT", val: "৳810B", pct: 39, yoy: "+12%", color: "var(--accent)" },
     { label: "Income Tax", val: "৳680B", pct: 33, yoy: "+8%", color: "var(--bull)" },
@@ -3125,9 +3155,9 @@ function SectionNBR() {
       <BankerRead insight="NBR detailed revenue breakdown data is not available this Friday, but with total revenue growing just 8.15% YoY in February while nominal GDP inflation runs near 9%, real revenue collection is effectively flat or negative. The Tk1.07 lakh crore in FY23 tax exemptions highlighted today suggests massive potential for base broadening — banks should prepare for possible withdrawal of corporate tax exemptions in the FY27 budget. The trigger is the FY2026-27 budget in June: any announcement of minimum corporate tax above 15% on turnover or VAT rate unification at 15% should prompt immediate repricing of corporate loan covenants. Proactively model how a 2 percentage point effective tax rate increase on your top 50 corporate borrowers impacts their debt service coverage ratios and flag accounts dropping below 1.3x." />
     </div>
   );
-}
+});
 
-function SectionPower() {
+const SectionPower = React.memo(function SectionPower() {
   return (
     <div id="power" style={{ marginBottom: 48 }}>
       <SectionHeader num="17" title="Power & Energy" icon="⚡" status="warn" label="Strained" />
@@ -3164,10 +3194,10 @@ function SectionPower() {
       <BankerRead insight="DSE has cut trading hours by 30 minutes due to the fuel crisis, LNG suppliers have suspended long-term contracts to Bangladesh, and the spot LNG price has nearly doubled from $10.75 in February to $19.87/MMBtu — this Friday the power sector is in acute stress. Immediately classify all power sector loans as high-watch and require monthly cash flow certifications from IPP borrowers whose fuel cost assumptions were built on $12-14/MMBtu LNG. The trigger is whether load shedding exceeds 2,000 MW nationally — at that point, industrial production disruptions will cascade into manufacturing NPLs within 60-90 days. Prioritize financing for captive solar and battery storage installations — every MW of distributed generation you finance reduces your portfolio's exposure to the LNG supply chain that is now fundamentally broken." />
     </div>
   );
-}
+});
 
 
-function SectionPeers() {
+const SectionPeers = React.memo(function SectionPeers() {
   const peers = [
     { country: "Bangladesh", flag: "🇧🇩", gdp: "5.17%", cpi: "9.94%", fxr: "$30.3B", cab: "-0.7%", rating: "B+/BB-", highlight: true },
     { country: "India",      flag: "🇮🇳", gdp: "6.4%",  cpi: "4.3%",  fxr: "$638B",  cab: "-1.0%", rating: "BBB-",   highlight: false },
@@ -3204,12 +3234,19 @@ function SectionPeers() {
       <BankerRead insight="Peer country comparison data is unavailable this Friday, but Bangladesh's 8.71% CPI, 35.73% NPL ratio, and 3.49% GDP growth position it as a clear outlier among frontier market peers — likely worse than Vietnam, Sri Lanka post-restructuring, and Pakistan on banking sector health metrics. Without specific peer data, benchmark internally: if your bank's own NPL ratio exceeds 15%, you are performing better than the system average but still dangerously above the 5% international threshold. The trigger to watch is sovereign rating agency actions — if Moody's or S&P downgrades Bangladesh below B- in the next 90 days citing the Iran war impact and banking fragility, foreign correspondent banking lines will tighten immediately. Preemptively secure 12-month committed credit lines from international correspondents this week before any rating action; the cost of waiting is losing trade finance capacity at the worst possible time." />
     </div>
   );
-}
+});
 
 
 function App() {
   const [activeSection, setActiveSection] = useState("bb");
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => {
+    try { return localStorage.getItem('the-brief-dark') === 'true'; } catch(e) { return false; }
+  });
+  const toggleDark = () => setDark(prev => {
+    const next = !prev;
+    try { localStorage.setItem('the-brief-dark', String(next)); } catch(e) {}
+    return next;
+  });
   const [openGroup, setOpenGroup] = useState(null);
 
   // ── Subscribe modal state ─────────────────────────────────────────────────
@@ -3279,6 +3316,42 @@ function App() {
     document.documentElement.classList.toggle("light", !dark);
   }, [dark]);
 
+  // ── Subscribe modal: Escape to close + focus trap ─────────────────────────
+  useEffect(() => {
+    if (!showSubscribe) return;
+    const prevFocus = document.activeElement;
+    function onKey(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeModal();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const overlay = document.querySelector('.modal-overlay');
+      if (!overlay) return;
+      const focusables = Array.from(overlay.querySelectorAll(
+        'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])'
+      ));
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (prevFocus && typeof prevFocus.focus === "function") {
+        try { prevFocus.focus(); } catch {}
+      }
+    };
+  }, [showSubscribe]);
+
   useEffect(() => {
     function positionNav() {
       const hdr = document.querySelector('.header');
@@ -3335,7 +3408,7 @@ function App() {
       {/* Header */}
       <header className="header">
         <div className="header-left">
-          <div className="brand">THE <span>BRIEF</span></div>
+          <h1 className="brand" style={{ margin: 0 }}>THE <span>BRIEF</span></h1>
           <div className="tagline">Bangladesh Business Intelligence</div>
         </div>
         <div className="header-right">
@@ -3344,7 +3417,7 @@ function App() {
             <button className="subscribe-btn" onClick={() => setShowSubscribe(true)}>
               ✉ Subscribe
             </button>
-            <button className="theme-toggle" onClick={() => setDark(d => !d)}>
+            <button className="theme-toggle" onClick={toggleDark} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
               {dark ? "☀ Light" : "☾ Dark"}
             </button>
           </div>
@@ -3361,6 +3434,8 @@ function App() {
               <button
                 className={`nav-group-btn${isActiveGroup ? " active" : ""}${isOpen ? " open" : ""}`}
                 onClick={() => setOpenGroup(isOpen ? null : g.key)}
+                aria-expanded={isOpen}
+                aria-haspopup="true"
               >
                 {g.label}
                 <span className="nav-chevron">&#9662;</span>
@@ -3383,7 +3458,7 @@ function App() {
       </nav>
 
       {/* Body */}
-      <main className="main">
+      <main className="main" id="main-content">
         <SectionExec />
         <hr className="divider" />
         <SectionHeadlines />
@@ -3500,7 +3575,7 @@ function App() {
       </footer>
 
       {showSubscribe && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Subscribe to The Brief" onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
           <div className="modal-card">
             <button className="modal-close" onClick={closeModal}>×</button>
             {subSubmitted ? (
