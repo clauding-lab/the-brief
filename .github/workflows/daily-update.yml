@@ -72,5 +72,23 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add the-brief.html index.html sw.js
-          git diff --staged --quiet || git commit -m "Daily update $(date +%Y-%m-%d)"
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Daily update $(date +%Y-%m-%d)"
+          # Rebase-and-push retry loop — handles the edge case where someone
+          # pushes to main while this workflow is running (the Claude call
+          # takes ~2 minutes, so the window is non-trivial).
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Push succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "Push rejected; rebasing on origin/main (attempt $attempt)..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            sleep 2
+          done
+          echo "Push still failing after 5 attempts — giving up"
+          exit 1
