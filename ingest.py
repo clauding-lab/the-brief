@@ -40,7 +40,12 @@ from typing import Any
 # Config
 # ============================================================================
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+# Default to the-brief's project ref so a missing SUPABASE_URL env var
+# doesn't break the daily cron. The service role key must still be provided.
+SUPABASE_URL = os.environ.get(
+    "SUPABASE_URL",
+    "https://ssbliukchgibjcjohibi.supabase.co",
+).rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 YAHOO_BRENT_URL = (
@@ -141,12 +146,13 @@ def ingest_brent() -> int:
 # ============================================================================
 
 def main() -> int:
-    if not SUPABASE_URL or not SUPABASE_KEY:
+    if not SUPABASE_KEY:
         print(
-            "ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set",
+            "ERROR: SUPABASE_SERVICE_ROLE_KEY must be set",
             file=sys.stderr,
         )
         return 1
+    print(f"Supabase target: {SUPABASE_URL}")
 
     print(f"=== the-brief ingest at {datetime.now(timezone.utc).isoformat()} ===")
 
