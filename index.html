@@ -7,7 +7,7 @@
   <title>THE BRIEF — Bangladesh Business Intelligence</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0d0d0f" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co https://www.alphavantage.co; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none';" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -1096,6 +1096,27 @@ const _sb = window.supabase.createClient(
   "https://ssbliukchgibjcjohibi.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzYmxpdWtjaGdpYmpjam9oaWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NTIxNDUsImV4cCI6MjA4ODQyODE0NX0.qxWsfU-Pz-USnOBgIb-JvyV3pIS0fN9igwzSEvQcdmM"
 );
+const _MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtMonthDay(iso) {
+  if (!iso) return "";
+  const parts = iso.split("-");
+  if (parts.length < 3) return iso;
+  return `${_MONTH_SHORT[parseInt(parts[1], 10) - 1]} ${parseInt(parts[2], 10)}`;
+}
+function useSupabaseChart(fallback, fetchFn) {
+  const [data, setData] = React.useState(fallback);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchFn().then((fresh) => {
+      if (!cancelled && fresh != null) setData(fresh);
+    }).catch(() => {
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return data;
+}
 const BRIEF_DATE = "FRIDAY 10 APRIL 2026";
 const BRIEF_EDITION = "VOL. 1 \xB7 ISSUE 82";
 const SECTIONS = [
@@ -1390,8 +1411,23 @@ const YieldCurveChart = React.memo(function YieldCurveChart2() {
   const pad = { top: 36, right: 50, bottom: 44, left: 52 };
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
-  const maturities = ["3M", "6M", "1Y", "2Y", "5Y", "10Y", "15Y", "20Y"];
-  const yields = [9.88, 9.98, 9.93, 9.77, 9, 10.39, 10.37, 10.47];
+  const fallback = {
+    maturities: ["3M", "6M", "1Y", "2Y", "5Y", "10Y", "15Y", "20Y"],
+    yields: [9.88, 9.98, 9.93, 9.77, 9, 10.39, 10.37, 10.47]
+  };
+  const yc = useSupabaseChart(fallback, async () => {
+    const { data: latest, error: e1 } = await _sb.from("tb_yield_curve").select("snapshot_date").order("snapshot_date", { ascending: false }).limit(1);
+    if (e1 || !latest || latest.length === 0) return null;
+    const snapshotDate = latest[0].snapshot_date;
+    const { data: rows, error: e2 } = await _sb.from("tb_yield_curve").select("tenor, tenor_months, yield_pct").eq("snapshot_date", snapshotDate).order("tenor_months", { ascending: true });
+    if (e2 || !rows || rows.length === 0) return null;
+    return {
+      maturities: rows.map((r) => r.tenor),
+      yields: rows.map((r) => parseFloat(r.yield_pct))
+    };
+  });
+  const maturities = yc.maturities;
+  const yields = yc.yields;
   const n = maturities.length;
   const yMin = 8.6, yMax = 10.8;
   const cx = (i) => pad.left + i / (n - 1) * iW;
@@ -1470,7 +1506,17 @@ const YieldCurveChart = React.memo(function YieldCurveChart2() {
   ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 14px 4px", fontSize: 10, color: "var(--muted)" } }, /* @__PURE__ */ React.createElement("span", null, "Last update: 8 Apr 2026 \xB7 91d from 2 Apr special: 9.88% \xB7 5Y: 9.00% \xB7 10Y: 10.39%"), /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, "Source: Bangladesh Bank / World Government Bonds")));
 });
 const DSEXChart = React.memo(function DSEXChart2() {
-  const data = DSEX_CHART_DATA;
+  const data = useSupabaseChart(DSEX_CHART_DATA, async () => {
+    const { data: rows, error } = await _sb.from("tb_dsex_daily").select("date, close, event, show_label").order("date", { ascending: true });
+    if (error || !rows || rows.length === 0) return null;
+    return rows.map((r, i, arr) => ({
+      label: fmtMonthDay(r.date),
+      value: parseFloat(r.close),
+      event: r.event || void 0,
+      showLabel: !!r.show_label,
+      today: i === arr.length - 1
+    }));
+  });
   const W = 720, H = 270;
   const pad = { top: 46, right: 110, bottom: 62, left: 62 };
   const iW = W - pad.left - pad.right;
@@ -1658,10 +1704,37 @@ const TBillChart = React.memo(function TBillChart2() {
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
   const yMin = 9.4, yMax = 10.85;
-  const labels = TBILL_CHART_LABELS;
-  const d91 = TBILL_CHART_D91;
-  const d182 = TBILL_CHART_D182;
-  const d364 = TBILL_CHART_D364;
+  const fallback = {
+    labels: TBILL_CHART_LABELS,
+    d91: TBILL_CHART_D91,
+    d182: TBILL_CHART_D182,
+    d364: TBILL_CHART_D364
+  };
+  const tbill = useSupabaseChart(fallback, async () => {
+    const { data: rows, error } = await _sb.from("tb_tbill_auctions").select("auction_date, tenor_days, yield_pct, special").order("auction_date", { ascending: true });
+    if (error || !rows || rows.length === 0) return null;
+    const byDate = {};
+    for (const r of rows) {
+      const d = r.auction_date;
+      if (!byDate[d]) byDate[d] = { date: d, special: false };
+      byDate[d][`d${r.tenor_days}`] = parseFloat(r.yield_pct);
+      if (r.special) byDate[d].special = true;
+    }
+    const dates = Object.keys(byDate).sort();
+    return {
+      labels: dates.map((d) => {
+        const ld = fmtMonthDay(d);
+        return byDate[d].special ? `${ld} (Spl)` : ld;
+      }),
+      d91: dates.map((d) => byDate[d].d91 || null).filter((v) => v != null),
+      d182: dates.map((d) => byDate[d].d182 || null).filter((v) => v != null),
+      d364: dates.map((d) => byDate[d].d364 || null).filter((v) => v != null)
+    };
+  });
+  const labels = tbill.labels;
+  const d91 = tbill.d91;
+  const d182 = tbill.d182;
+  const d364 = tbill.d364;
   const n = labels.length;
   const cx = (i) => pad.left + i / (n - 1) * iW;
   const cy = (v) => pad.top + (yMax - v) / (yMax - yMin) * iH;
@@ -2125,7 +2198,15 @@ const SectionTrade = React.memo(function SectionTrade2() {
   ] }), /* @__PURE__ */ React.createElement(BankerRead, { insight: "February 2026 total exports fell 12% YoY to $3.49 billion, with Jul-Feb FY26 cumulative exports at $31.91 billion, down 3.15% YoY \u2014 this Friday the trade picture is worsening against a backdrop of global demand slowdown and Middle East shipping disruptions. Tighten export bill discounting limits for sectors showing >10% YoY decline and require confirmed LCs rather than DA terms for new export finance. The forward trigger is March 2026 export data due in mid-April \u2014 if monthly exports fail to recover above $3.8 billion, downgrade your FY26 export growth assumption to -5% and adjust fee income projections accordingly. Pursue supply chain finance programs targeting Tier-2 RMG suppliers who are being squeezed by delayed payments from Western buyers citing demand uncertainty." }));
 });
 const LNGChart = React.memo(function LNGChart2() {
-  const data = LNG_CHART_DATA;
+  const data = useSupabaseChart(LNG_CHART_DATA, async () => {
+    const { data: rows, error } = await _sb.from("tb_lng_jkm_weekly").select("week_start, label, price_usd_mmbtu").order("week_start", { ascending: true });
+    if (error || !rows || rows.length === 0) return null;
+    return rows.map((r, i, arr) => ({
+      label: r.label,
+      value: parseFloat(r.price_usd_mmbtu),
+      today: i === arr.length - 1
+    }));
+  });
   const W = 720, H = 250;
   const pad = { top: 40, right: 58, bottom: 80, left: 54 };
   const iW = W - pad.left - pad.right;
@@ -2234,33 +2315,16 @@ const LNGChart = React.memo(function LNGChart2() {
   ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "10px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", width: 20, height: 2.5, background: "var(--bear)", borderRadius: 1 } }), "Asian LNG Spot ($/MMBtu)"), /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, "Source: Platts JKM / ICIS \xB7 Estimates")));
 });
 const OilChart = React.memo(function OilChart2() {
-  const { useState: useState2, useEffect: useEffect2 } = React;
-  const AV_KEY = "__AV_KEY__";
-  const STATIC_DATA = OIL_CHART_STATIC_DATA;
-  const [data, setData] = useState2(STATIC_DATA);
-  const [isLive, setIsLive] = useState2(false);
-  const [liveAsOf, setLiveAsOf] = useState2(null);
-  useEffect2(() => {
-    fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`).then((r) => r.json()).then((json) => {
-      if (!json.data || json.data.length === 0) return;
-      const valid = json.data.filter((d) => parseFloat(d.value) > 0);
-      if (valid.length < 6) return;
-      const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const fmt = (iso) => {
-        const [, mm, dd] = iso.split("-");
-        return `${MONTHS[parseInt(mm, 10) - 1]} ${parseInt(dd, 10)}`;
-      };
-      const points = valid.slice(0, 12).reverse().map((d, i, arr) => ({
-        label: fmt(d.date),
-        value: parseFloat(d.value),
-        today: i === arr.length - 1
-      }));
-      setData(points);
-      setLiveAsOf(valid[0].date);
-      setIsLive(true);
-    }).catch(() => {
-    });
-  }, []);
+  const data = useSupabaseChart(OIL_CHART_STATIC_DATA, async () => {
+    const { data: rows, error } = await _sb.from("tb_brent_daily").select("date, price_usd").order("date", { ascending: false }).limit(12);
+    if (error || !rows || rows.length === 0) return null;
+    const chronological = [...rows].reverse();
+    return chronological.map((r, i, arr) => ({
+      label: fmtMonthDay(r.date),
+      value: parseFloat(r.price_usd),
+      today: i === arr.length - 1
+    }));
+  });
   const W = 720, H = 270;
   const pad = { top: 46, right: 58, bottom: 100, left: 54 };
   const iW = W - pad.left - pad.right;
@@ -2366,7 +2430,7 @@ const OilChart = React.memo(function OilChart2() {
       },
       /* @__PURE__ */ React.createElement("div", { xmlns: "http://www.w3.org/1999/xhtml", style: { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "var(--text)" } }, /* @__PURE__ */ React.createElement("strong", null, data[hovered].label), /* @__PURE__ */ React.createElement("br", null), "$", data[hovered].value.toFixed(2), "/bbl")
     ))
-  ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "10px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", width: 20, height: 2.5, background: "var(--warn)", borderRadius: 1 } }), "Brent Crude ($/bbl)"), isLive && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto", color: "var(--bull)", fontWeight: 700 } }, "\u25CF LIVE (Alpha Vantage", liveAsOf ? `, as of ${liveAsOf}` : "", ")"), !isLive && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, "Source: EIA / Alpha Vantage")));
+  ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "10px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", width: 20, height: 2.5, background: "var(--warn)", borderRadius: 1 } }), "Brent Crude ($/bbl)"), /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto", color: "var(--bull)", fontWeight: 700 } }, "\u25CF Source: Yahoo Finance (ICE)")));
 });
 const SectionExec = React.memo(function SectionExec2() {
   const bullets = [

@@ -7,7 +7,7 @@
   <title>THE BRIEF — Bangladesh Business Intelligence</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0d0d0f" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co https://www.alphavantage.co; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none';" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -1101,6 +1101,36 @@ const _sb = window.supabase.createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzYmxpdWtjaGdpYmpjam9oaWJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NTIxNDUsImV4cCI6MjA4ODQyODE0NX0.qxWsfU-Pz-USnOBgIb-JvyV3pIS0fN9igwzSEvQcdmM"
 );
 
+// ── Chart data helpers ───────────────────────────────────────────────────────
+const _MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtMonthDay(iso) {
+  // "2026-04-10" → "Apr 10"
+  if (!iso) return "";
+  const parts = iso.split("-");
+  if (parts.length < 3) return iso;
+  return `${_MONTH_SHORT[parseInt(parts[1], 10) - 1]} ${parseInt(parts[2], 10)}`;
+}
+
+// Shared hook: start with hardcoded fallback data, then replace when Supabase
+// fetch resolves. If the fetch fails the chart keeps showing the fallback.
+// Pass an async fetch function that returns the ready-to-render shape OR null
+// (null = keep the fallback).
+function useSupabaseChart(fallback, fetchFn) {
+  const [data, setData] = React.useState(fallback);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchFn()
+      .then((fresh) => {
+        if (!cancelled && fresh != null) setData(fresh);
+      })
+      .catch(() => {
+        // network / RLS / CSP errors silently fall through to fallback
+      });
+    return () => { cancelled = true; };
+  }, []);
+  return data;
+}
+
 // ── Data ────────────────────────────────────────────────────────────────────
 
 const BRIEF_DATE = "FRIDAY 10 APRIL 2026";
@@ -1562,8 +1592,33 @@ const YieldCurveChart = React.memo(function YieldCurveChart() {
   const iW = W - pad.left - pad.right;
   const iH = H - pad.top - pad.bottom;
 
-  const maturities = ["3M", "6M", "1Y", "2Y", "5Y", "10Y", "15Y", "20Y"];
-  const yields =     [9.88, 9.98, 9.93, 9.77, 9.00, 10.39, 10.37, 10.47];
+  // Point-in-time snapshot: fetch the latest snapshot_date, then all
+  // (tenor, yield_pct) rows for that date sorted by tenor_months.
+  const fallback = {
+    maturities: ["3M", "6M", "1Y", "2Y", "5Y", "10Y", "15Y", "20Y"],
+    yields:     [9.88, 9.98, 9.93, 9.77, 9.00, 10.39, 10.37, 10.47],
+  };
+  const yc = useSupabaseChart(fallback, async () => {
+    const { data: latest, error: e1 } = await _sb
+      .from("tb_yield_curve")
+      .select("snapshot_date")
+      .order("snapshot_date", { ascending: false })
+      .limit(1);
+    if (e1 || !latest || latest.length === 0) return null;
+    const snapshotDate = latest[0].snapshot_date;
+    const { data: rows, error: e2 } = await _sb
+      .from("tb_yield_curve")
+      .select("tenor, tenor_months, yield_pct")
+      .eq("snapshot_date", snapshotDate)
+      .order("tenor_months", { ascending: true });
+    if (e2 || !rows || rows.length === 0) return null;
+    return {
+      maturities: rows.map((r) => r.tenor),
+      yields:     rows.map((r) => parseFloat(r.yield_pct)),
+    };
+  });
+  const maturities = yc.maturities;
+  const yields     = yc.yields;
   const n = maturities.length;
 
   const yMin = 8.6, yMax = 10.8;
@@ -1642,7 +1697,21 @@ const YieldCurveChart = React.memo(function YieldCurveChart() {
 });
 
 const DSEXChart = React.memo(function DSEXChart() {
-  const data = DSEX_CHART_DATA;
+  // Daily DSEX close from Supabase tb_dsex_daily. Fallback = inline array.
+  const data = useSupabaseChart(DSEX_CHART_DATA, async () => {
+    const { data: rows, error } = await _sb
+      .from("tb_dsex_daily")
+      .select("date, close, event, show_label")
+      .order("date", { ascending: true });
+    if (error || !rows || rows.length === 0) return null;
+    return rows.map((r, i, arr) => ({
+      label: fmtMonthDay(r.date),
+      value: parseFloat(r.close),
+      event: r.event || undefined,
+      showLabel: !!r.show_label,
+      today: i === arr.length - 1,
+    }));
+  });
 
   const W = 720, H = 270;
   const pad = { top: 46, right: 110, bottom: 62, left: 62 };
@@ -1847,10 +1916,43 @@ const TBillChart = React.memo(function TBillChart() {
   const iH = H - pad.top - pad.bottom;
 
   const yMin = 9.40, yMax = 10.85;
-  const labels = TBILL_CHART_LABELS;
-  const d91  = TBILL_CHART_D91;
-  const d182 = TBILL_CHART_D182;
-  const d364 = TBILL_CHART_D364;
+
+  // 3 series × N auction dates. Supabase returns one row per (date, tenor).
+  // Group into labels/d91/d182/d364 arrays for the render code below.
+  const fallback = {
+    labels: TBILL_CHART_LABELS,
+    d91:    TBILL_CHART_D91,
+    d182:   TBILL_CHART_D182,
+    d364:   TBILL_CHART_D364,
+  };
+  const tbill = useSupabaseChart(fallback, async () => {
+    const { data: rows, error } = await _sb
+      .from("tb_tbill_auctions")
+      .select("auction_date, tenor_days, yield_pct, special")
+      .order("auction_date", { ascending: true });
+    if (error || !rows || rows.length === 0) return null;
+    const byDate = {};
+    for (const r of rows) {
+      const d = r.auction_date;
+      if (!byDate[d]) byDate[d] = { date: d, special: false };
+      byDate[d][`d${r.tenor_days}`] = parseFloat(r.yield_pct);
+      if (r.special) byDate[d].special = true;
+    }
+    const dates = Object.keys(byDate).sort();
+    return {
+      labels: dates.map((d) => {
+        const ld = fmtMonthDay(d);
+        return byDate[d].special ? `${ld} (Spl)` : ld;
+      }),
+      d91:  dates.map((d) => byDate[d].d91  || null).filter((v) => v != null),
+      d182: dates.map((d) => byDate[d].d182 || null).filter((v) => v != null),
+      d364: dates.map((d) => byDate[d].d364 || null).filter((v) => v != null),
+    };
+  });
+  const labels = tbill.labels;
+  const d91    = tbill.d91;
+  const d182   = tbill.d182;
+  const d364   = tbill.d364;
   const n = labels.length;
 
   const cx = i => pad.left + (i / (n - 1)) * iW;
@@ -2447,7 +2549,19 @@ const SectionTrade = React.memo(function SectionTrade() {
 // ── LNG Chart ────────────────────────────────────────────────────────────────
 
 const LNGChart = React.memo(function LNGChart() {
-  const data = LNG_CHART_DATA;
+  // JKM LNG spot from Supabase tb_lng_jkm_weekly. Fallback = inline array.
+  const data = useSupabaseChart(LNG_CHART_DATA, async () => {
+    const { data: rows, error } = await _sb
+      .from("tb_lng_jkm_weekly")
+      .select("week_start, label, price_usd_mmbtu")
+      .order("week_start", { ascending: true });
+    if (error || !rows || rows.length === 0) return null;
+    return rows.map((r, i, arr) => ({
+      label: r.label,
+      value: parseFloat(r.price_usd_mmbtu),
+      today: i === arr.length - 1,
+    }));
+  });
 
   const W = 720, H = 250;
   const pad = { top: 40, right: 58, bottom: 80, left: 54 };
@@ -2551,75 +2665,23 @@ const LNGChart = React.memo(function LNGChart() {
 // ── Oil Chart ────────────────────────────────────────────────────────────────
 
 const OilChart = React.memo(function OilChart() {
-  const { useState, useEffect } = React;
-
-  const AV_KEY = "__AV_KEY__";
-
-  const STATIC_DATA = OIL_CHART_STATIC_DATA;
-
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  const [data, setData]         = useState(STATIC_DATA);
-  const [isLive, setIsLive]     = useState(false);
-  const [liveAsOf, setLiveAsOf] = useState(null); // ISO date of latest AV point
-
-  useEffect(() => {
-    // Note: do not compare AV_KEY against the "__AV_KEY__" placeholder here —
-    // build.sh sed-replaces the placeholder globally, including inside this
-    // check, so the comparison would self-equal after injection and always
-    // return early. If the key is missing the fetch simply fails and falls
-    // through to STATIC_DATA via the catch/guards below.
-    fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`)
-      .then(r => r.json())
-      .then(json => {
-        if (!json.data || json.data.length === 0) return;
-        // Take the most recent 12 non-zero points and rebuild the chart
-        // from AV data end-to-end. This keeps the chart internally consistent
-        // (labels match values) — the previous approach of grafting AV's latest
-        // price onto static labels caused a false spike when AV lagged by days.
-        const valid = json.data.filter(d => parseFloat(d.value) > 0);
-        if (valid.length < 6) return;
-        const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-        const fmt = (iso) => {
-          const [, mm, dd] = iso.split("-");
-          return `${MONTHS[parseInt(mm, 10) - 1]} ${parseInt(dd, 10)}`;
-        };
-        // AV returns newest-first — slice the first 12 then reverse to chronological.
-        const points = valid.slice(0, 12).reverse().map((d, i, arr) => ({
-          label: fmt(d.date),
-          value: parseFloat(d.value),
-          today: i === arr.length - 1,
-        }));
-        setData(points);
-        setLiveAsOf(valid[0].date);
-        setIsLive(true);
-      })
-      .catch(() => {});
-  }, []);
+  // Chart data comes from Supabase tb_brent_daily (refreshed daily by
+  // ingest.py pulling real ICE Brent futures from Yahoo Finance BZ=F).
+  // OIL_CHART_STATIC_DATA is only a fallback if the query fails.
+  const data = useSupabaseChart(OIL_CHART_STATIC_DATA, async () => {
+    const { data: rows, error } = await _sb
+      .from("tb_brent_daily")
+      .select("date, price_usd")
+      .order("date", { ascending: false })
+      .limit(12);
+    if (error || !rows || rows.length === 0) return null;
+    const chronological = [...rows].reverse();
+    return chronological.map((r, i, arr) => ({
+      label: fmtMonthDay(r.date),
+      value: parseFloat(r.price_usd),
+      today: i === arr.length - 1,
+    }));
+  });
 
   const W = 720, H = 270;
   const pad = { top: 46, right: 58, bottom: 100, left: 54 };
@@ -2714,14 +2776,9 @@ const OilChart = React.memo(function OilChart() {
           <span style={{ display: "inline-block", width: 20, height: 2.5, background: "var(--warn)", borderRadius: 1 }} />
           Brent Crude ($/bbl)
         </span>
-        {isLive && (
-          <span style={{ marginLeft: "auto", color: "var(--bull)", fontWeight: 700 }}>
-            ● LIVE (Alpha Vantage{liveAsOf ? `, as of ${liveAsOf}` : ""})
-          </span>
-        )}
-        {!isLive && (
-          <span style={{ marginLeft: "auto" }}>Source: EIA / Alpha Vantage</span>
-        )}
+        <span style={{ marginLeft: "auto", color: "var(--bull)", fontWeight: 700 }}>
+          ● Source: Yahoo Finance (ICE)
+        </span>
       </div>
     </div>
   );

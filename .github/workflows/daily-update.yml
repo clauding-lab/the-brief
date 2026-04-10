@@ -37,19 +37,23 @@ jobs:
           pip install "anthropic>=0.84"
           npm ci
 
+      - name: Ingest market data into Supabase
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python ingest.py
+
       - name: Run update script
         env:
-          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
-          BREVO_API_KEY:        ${{ secrets.BREVO_API_KEY }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          ALPHA_VANTAGE_KEY:    ${{ secrets.ALPHA_VANTAGE_KEY }}
-          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
-          FROM_EMAIL:           ${{ secrets.FROM_EMAIL }}
+          ANTHROPIC_API_KEY:         ${{ secrets.ANTHROPIC_API_KEY }}
+          BREVO_API_KEY:             ${{ secrets.BREVO_API_KEY }}
+          SUPABASE_SERVICE_KEY:      ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          FROM_EMAIL:                ${{ secrets.FROM_EMAIL }}
         run: python update.py
 
       - name: Build production HTML
-        env:
-          ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
         run: bash build.sh
 
       - name: Upload artifacts on failure

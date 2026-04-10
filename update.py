@@ -27,6 +27,7 @@ FROM_NAME        = "THE BRIEF"
 _BDT = timezone(timedelta(hours=6))
 _now = datetime.now(_BDT)
 today = _now.strftime("%A %d %B %Y").upper()
+today_iso = _now.strftime("%Y-%m-%d")
 today_search = f"{_now.day} {_now.strftime('%B')} {_now.year}"
 today_short = f"{_now.day} {_now.strftime('%b')}"
 chart_label = _now.strftime("%b ") + str(_now.day)
@@ -1313,8 +1314,51 @@ def update_chart_data(html, pattern, chart_label_str, new_value, max_entries, va
     return html
 
 
+def _supabase_upsert(table, rows, on_conflict):
+    """POST an array of rows to PostgREST as an upsert.
+    Uses SUPABASE_SERVICE_ROLE_KEY (preferred) or falls back to SUPABASE_SERVICE_KEY.
+    Returns True on success, False on failure (logged, non-fatal).
+    """
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_SVC_KEY
+    if not key or not rows:
+        return False
+    import urllib.error, urllib.request as _ur
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}?on_conflict={on_conflict}"
+    data = json.dumps(rows).encode("utf-8")
+    req = _ur.Request(
+        url,
+        data=data,
+        method="POST",
+        headers={
+            "apikey":        key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type":  "application/json",
+            "Prefer":        "resolution=merge-duplicates,return=minimal",
+        },
+    )
+    try:
+        with _ur.urlopen(req, timeout=20) as resp:
+            return resp.status in (200, 201, 204)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:200]
+        print(f"Warning: Supabase upsert {table} HTTP {e.code}: {body}")
+        return False
+    except Exception as e:
+        print(f"Warning: Supabase upsert {table} failed: {e}")
+        return False
+
+
 def update_charts_deterministic(html, gathered_json, warnings=None):
-    """Deterministic post-processing: BRIEF_DATE, DSEX, Oil, LNG charts.
+    """Deterministic post-processing: BRIEF_DATE + Supabase chart upserts.
+
+    Chart data now lives in Supabase (tb_* tables), not inline HTML arrays.
+    This function:
+      - Updates BRIEF_DATE in the HTML (still inline text)
+      - Writes today's DSEX / LNG values (from Claude's gathered_json) to
+        Supabase, so the Supabase-backed chart components pick them up
+        on the next page load.
+      - Skips Brent entirely — ingest.py pulls real Brent futures from
+        Yahoo Finance before this runs, which is authoritative.
     Returns updated html and list of charts updated.
     """
     if warnings is None:
@@ -1333,127 +1377,71 @@ def update_charts_deterministic(html, gathered_json, warnings=None):
         print("Warning: could not parse gathered_json for chart updates.")
         return html, charts_updated
 
-    # ── 2. DSEXChart data update ──────────────────────────────────────────
+    # ── 2. Write DSEX close to Supabase ───────────────────────────────────
     _dsex_val = _gd.get("dsex")
     if _dsex_val is not None:
         try:
             _dsex_val = int(round(float(str(_dsex_val).replace(",", ""))))
-            html = update_chart_data(
-                html,
-                r'(function DSEXChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
-                chart_label,
-                _dsex_val,
-                max_entries=25,
-                value_fmt='d',
-                chart_name='DSEXChart',
-                bounds_key='dsex',
-                warnings=warnings,
-            )
-            charts_updated.append('dsex')
-        except Exception as _e:
-            print(f"Warning: DSEXChart post-processing failed ({_e}) — chart data unchanged.")
-    else:
-        print("Note: no DSEX value in gathered data — chart data unchanged.")
-
-    # ── 3. OilChart STATIC_DATA update ────────────────────────────────────
-    _brent_val = _gd.get("brent_spot") or _gd.get("brent_usd")
-    if _brent_val is not None:
-        try:
-            _brent_val = round(float(str(_brent_val).replace(",", "")), 2)
-            html = update_chart_data(
-                html,
-                r'(const STATIC_DATA = \[)(.*?)(\];)',
-                chart_label,
-                _brent_val,
-                max_entries=12,
-                value_fmt='.2f',
-                chart_name='OilChart',
-                bounds_key='brent',
-                warnings=warnings,
-            )
-            charts_updated.append('oil')
-        except Exception as _e:
-            print(f"Warning: OilChart post-processing failed ({_e}) — oil chart unchanged.")
-    else:
-        print("Note: no Brent value in gathered data — oil chart unchanged.")
-
-    # ── 4. LNGChart data update ───────────────────────────────────────────
-    _lng_val = _gd.get("lng_spot_usd")
-    _lng_hist = _gd.get("lng_history")
-    if _lng_val is not None:
-        _lng_val = round(float(str(_lng_val).replace(",", "")), 1)
-
-    if _lng_hist and isinstance(_lng_hist, list) and len(_lng_hist) >= 4:
-        # Bounds check on lng_val
-        if _lng_val is not None:
-            lo, hi = CHART_BOUNDS.get('lng', (1, 100))
-            if not (lo <= _lng_val <= hi):
-                msg = f"Warning: LNG value {_lng_val} out of bounds ({lo}-{hi}) — skipping LNG chart update."
+            lo, hi = CHART_BOUNDS.get("dsex", (1000, 10000))
+            if lo <= _dsex_val <= hi:
+                if _supabase_upsert(
+                    "tb_dsex_daily",
+                    [{"date": today_iso, "close": _dsex_val, "source": "claude-daily"}],
+                    on_conflict="date",
+                ):
+                    print(f"DSEX upserted to Supabase: {today_iso}={_dsex_val}")
+                    charts_updated.append("dsex")
+            else:
+                msg = f"Warning: DSEX {_dsex_val} out of bounds ({lo}-{hi}) — skipped."
                 print(msg)
                 warnings.append(msg)
-                _lng_val = None
-
-        try:
-            _lm = re.search(
-                r'(function LNGChart\(\)\s*\{\s*const data = \[)(.*?)(\];)',
-                html, re.DOTALL
-            )
-            if _lm:
-                _lng_parsed = []
-                for _lh in _lng_hist:
-                    if isinstance(_lh, dict) and 'label' in _lh and 'value' in _lh:
-                        _lng_parsed.append({
-                            'label': str(_lh['label']),
-                            'value': round(float(_lh['value']), 1),
-                        })
-                if _lng_val and _lng_parsed:
-                    _lng_parsed[-1].pop('today', None)
-                    if _lng_parsed[-1].get('label') != chart_label:
-                        _lng_parsed.append({'label': chart_label, 'value': _lng_val, 'today': True})
-                    else:
-                        _lng_parsed[-1]['value'] = _lng_val
-                        _lng_parsed[-1]['today'] = True
-                _lng_lines = []
-                for _le in _lng_parsed:
-                    _lparts = [f'label: "{_le["label"]}"', f'value: {_le["value"]}']
-                    if _le.get('today'): _lparts.append('today: true')
-                    _lng_lines.append('    { ' + ', '.join(_lparts) + ' }')
-                _new_lng = '\n' + ',\n'.join(_lng_lines) + ',\n  '
-                html = (
-                    html[:_lm.start(2)] +
-                    _new_lng +
-                    html[_lm.end(2):]
-                )
-                print(f"LNGChart data updated: {len(_lng_parsed)} points, "
-                      f"today={chart_label} LNG=${_lng_val}")
-                charts_updated.append('lng')
-            else:
-                print("Warning: LNGChart data pattern not found.")
         except Exception as _e:
-            print(f"Warning: LNGChart post-processing failed ({_e}) — chart unchanged.")
-    elif _lng_val:
-        print(f"Note: LNG spot ${_lng_val} but no history — chart unchanged.")
-    else:
-        print("Note: no LNG data in gathered data — LNG chart unchanged.")
+            print(f"Warning: DSEX upsert failed ({_e}).")
+
+    # ── 3. Write LNG JKM spot to Supabase ─────────────────────────────────
+    _lng_val = _gd.get("lng_spot_usd")
+    if _lng_val is not None:
+        try:
+            _lng_val = round(float(str(_lng_val).replace(",", "")), 2)
+            lo, hi = CHART_BOUNDS.get("lng", (1, 100))
+            if lo <= _lng_val <= hi:
+                # Use the Monday of the current week as week_start
+                from datetime import datetime as _dt, timedelta as _td
+                _d = _dt.fromisoformat(today_iso)
+                _monday = (_d - _td(days=_d.weekday())).date().isoformat()
+                _label = _d.strftime("%b %-d")
+                if _supabase_upsert(
+                    "tb_lng_jkm_weekly",
+                    [{
+                        "week_start": _monday,
+                        "label": _label,
+                        "price_usd_mmbtu": _lng_val,
+                        "source": "claude-daily",
+                    }],
+                    on_conflict="week_start",
+                ):
+                    print(f"LNG upserted to Supabase: {_monday}={_lng_val}")
+                    charts_updated.append("lng")
+            else:
+                msg = f"Warning: LNG {_lng_val} out of bounds ({lo}-{hi}) — skipped."
+                print(msg)
+                warnings.append(msg)
+        except Exception as _e:
+            print(f"Warning: LNG upsert failed ({_e}).")
 
     return html, charts_updated
 
 
 def compile_and_write(html):
-    """Write final HTML to the-brief.html and index.html."""
+    """Write final HTML to the-brief.html and index.html.
+
+    Chart data lives in Supabase (tb_* tables) so there's nothing to
+    inject here — chart components fetch their data on page load.
+    """
     with open("the-brief.html", "w", encoding="utf-8") as f:
         f.write(html)
-
-    # Inject Alpha Vantage key into index.html if env var is set
-    index_html = html
-    av_key = os.environ.get("ALPHA_VANTAGE_KEY", "")
-    if av_key and "__AV_KEY__" in index_html:
-        index_html = index_html.replace("__AV_KEY__", av_key)
-        print(f"Alpha Vantage key injected into index.html.")
-
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(index_html)
-
+        f.write(html)
     print(f"Done. Updated the-brief.html and index.html for {today}.")
 
 

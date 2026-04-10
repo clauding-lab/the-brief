@@ -9,8 +9,9 @@ set -euo pipefail
 # 4. Replace the babel script block with compiled JS in index.html
 # 5. Remove the Babel Standalone <script> tag (no longer needed)
 # 6. Remove 'unsafe-eval' from CSP (Babel required it, compiled JS doesn't)
-# 7. Inject environment variables (Alpha Vantage key)
-# 8. Update service worker cache version with today's date
+# 7. Update service worker cache version with today's date
+#
+# Chart data comes from Supabase (tb_* tables) now; no API keys to inject.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -89,16 +90,7 @@ with open('index.html', 'w') as f:
 print('Removed unsafe-eval from CSP')
 "
 
-# Step 7: Inject Alpha Vantage key from environment
-AV_KEY="${ALPHA_VANTAGE_KEY:-}"
-if [ -n "$AV_KEY" ]; then
-  sed -i.bak "s/__AV_KEY__/$AV_KEY/g" index.html && rm -f index.html.bak
-  echo "Injected Alpha Vantage API key"
-else
-  echo "WARNING: ALPHA_VANTAGE_KEY not set, placeholder remains in index.html"
-fi
-
-# Step 8: Update service worker cache version
+# Step 7: Update service worker cache version
 TODAY=$(date +%Y-%m-%d)
 sed -i.bak "s/the-brief-v[0-9a-z-]*/the-brief-v2-$TODAY/g" sw.js && rm -f sw.js.bak
 echo "Updated SW cache version to the-brief-v2-$TODAY"
