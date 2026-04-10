@@ -5,3 +5,4 @@ __pycache__/
 .env
 gathered_data.json
 .update-failed
+.vercel
