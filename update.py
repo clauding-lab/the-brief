@@ -20,7 +20,7 @@ BREVO_KEY        = os.environ.get("BREVO_API_KEY", "")
 SUPABASE_URL     = (os.environ.get("SUPABASE_URL") or "https://ssbliukchgibjcjohibi.supabase.co").rstrip("/")
 SUPABASE_SVC_KEY = os.environ.get("SUPABASE_SERVICE_KEY") or ""
 BRIEF_URL        = os.environ.get("BRIEF_URL", "https://clauding-lab.github.io/the-brief/")
-FROM_EMAIL       = os.environ.get("FROM_EMAIL", "adnan.rshd@gmail.com")
+FROM_EMAIL       = os.environ.get("FROM_EMAIL") or "adnan.rshd@gmail.com"
 FROM_NAME        = "THE BRIEF"
 
 # ── Date constants (BDT = UTC+6) ─────────────────────────────────────────────
