@@ -2583,28 +2583,35 @@ const OilChart = React.memo(function OilChart() {
   
   
   
-  const [data, setData]     = useState(STATIC_DATA);
-  const [isLive, setIsLive] = useState(false);
+  const [data, setData]         = useState(STATIC_DATA);
+  const [isLive, setIsLive]     = useState(false);
+  const [liveAsOf, setLiveAsOf] = useState(null); // ISO date of latest AV point
 
   useEffect(() => {
+    if (!AV_KEY || AV_KEY === "__AV_KEY__") return; // no key → static only
     fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`)
       .then(r => r.json())
       .then(json => {
         if (!json.data || json.data.length === 0) return;
-        // Take only the most recent valid price — update the last data point live
-        // Chart structure stays locked to STATIC_DATA; only the current price refreshes
-        const latest = json.data.find(d => parseFloat(d.value) > 0);
-        if (!latest) return;
-        const liveVal = parseFloat(latest.value);
-        // Guard: AV free tier has 1-3 day lag — reject stale data if it
-        // deviates more than 15% below the static value (e.g. post-spike events)
-        const staticVal = STATIC_DATA[STATIC_DATA.length - 1].value;
-        if (liveVal < staticVal * 0.85) return;
-        setData(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { ...updated[updated.length - 1], value: liveVal };
-          return updated;
-        });
+        // Take the most recent 12 non-zero points and rebuild the chart
+        // from AV data end-to-end. This keeps the chart internally consistent
+        // (labels match values) — the previous approach of grafting AV's latest
+        // price onto static labels caused a false spike when AV lagged by days.
+        const valid = json.data.filter(d => parseFloat(d.value) > 0);
+        if (valid.length < 6) return;
+        const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const fmt = (iso) => {
+          const [, mm, dd] = iso.split("-");
+          return `${MONTHS[parseInt(mm, 10) - 1]} ${parseInt(dd, 10)}`;
+        };
+        // AV returns newest-first — slice the first 12 then reverse to chronological.
+        const points = valid.slice(0, 12).reverse().map((d, i, arr) => ({
+          label: fmt(d.date),
+          value: parseFloat(d.value),
+          today: i === arr.length - 1,
+        }));
+        setData(points);
+        setLiveAsOf(valid[0].date);
         setIsLive(true);
       })
       .catch(() => {});
@@ -2704,7 +2711,9 @@ const OilChart = React.memo(function OilChart() {
           Brent Crude ($/bbl)
         </span>
         {isLive && (
-          <span style={{ marginLeft: "auto", color: "var(--bull)", fontWeight: 700 }}>● LIVE (Alpha Vantage)</span>
+          <span style={{ marginLeft: "auto", color: "var(--bull)", fontWeight: 700 }}>
+            ● LIVE (Alpha Vantage{liveAsOf ? `, as of ${liveAsOf}` : ""})
+          </span>
         )}
         {!isLive && (
           <span style={{ marginLeft: "auto" }}>Source: EIA / Alpha Vantage</span>

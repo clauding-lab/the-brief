@@ -2239,19 +2239,25 @@ const OilChart = React.memo(function OilChart2() {
   const STATIC_DATA = OIL_CHART_STATIC_DATA;
   const [data, setData] = useState2(STATIC_DATA);
   const [isLive, setIsLive] = useState2(false);
+  const [liveAsOf, setLiveAsOf] = useState2(null);
   useEffect2(() => {
+    if (!AV_KEY || AV_KEY === "__AV_KEY__") return;
     fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`).then((r) => r.json()).then((json) => {
       if (!json.data || json.data.length === 0) return;
-      const latest = json.data.find((d) => parseFloat(d.value) > 0);
-      if (!latest) return;
-      const liveVal = parseFloat(latest.value);
-      const staticVal = STATIC_DATA[STATIC_DATA.length - 1].value;
-      if (liveVal < staticVal * 0.85) return;
-      setData((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { ...updated[updated.length - 1], value: liveVal };
-        return updated;
-      });
+      const valid = json.data.filter((d) => parseFloat(d.value) > 0);
+      if (valid.length < 6) return;
+      const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const fmt = (iso) => {
+        const [, mm, dd] = iso.split("-");
+        return `${MONTHS[parseInt(mm, 10) - 1]} ${parseInt(dd, 10)}`;
+      };
+      const points = valid.slice(0, 12).reverse().map((d, i, arr) => ({
+        label: fmt(d.date),
+        value: parseFloat(d.value),
+        today: i === arr.length - 1
+      }));
+      setData(points);
+      setLiveAsOf(valid[0].date);
       setIsLive(true);
     }).catch(() => {
     });
@@ -2361,7 +2367,7 @@ const OilChart = React.memo(function OilChart2() {
       },
       /* @__PURE__ */ React.createElement("div", { xmlns: "http://www.w3.org/1999/xhtml", style: { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 10px", fontSize: 11, boxShadow: "0 2px 8px rgba(0,0,0,0.12)", pointerEvents: "none", color: "var(--text)" } }, /* @__PURE__ */ React.createElement("strong", null, data[hovered].label), /* @__PURE__ */ React.createElement("br", null), "$", data[hovered].value.toFixed(2), "/bbl")
     ))
-  ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "10px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", width: 20, height: 2.5, background: "var(--warn)", borderRadius: 1 } }), "Brent Crude ($/bbl)"), isLive && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto", color: "var(--bull)", fontWeight: 700 } }, "\u25CF LIVE (Alpha Vantage)"), !isLive && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, "Source: EIA / Alpha Vantage")));
+  ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "10px 20px", padding: "4px 16px 12px", fontSize: 10, color: "var(--muted)", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", width: 20, height: 2.5, background: "var(--warn)", borderRadius: 1 } }), "Brent Crude ($/bbl)"), isLive && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto", color: "var(--bull)", fontWeight: 700 } }, "\u25CF LIVE (Alpha Vantage", liveAsOf ? `, as of ${liveAsOf}` : "", ")"), !isLive && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, "Source: EIA / Alpha Vantage")));
 });
 const SectionExec = React.memo(function SectionExec2() {
   const bullets = [
