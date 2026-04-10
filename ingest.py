@@ -41,12 +41,14 @@ from typing import Any
 # ============================================================================
 
 # Default to the-brief's project ref so a missing SUPABASE_URL env var
-# doesn't break the daily cron. The service role key must still be provided.
-SUPABASE_URL = os.environ.get(
-    "SUPABASE_URL",
-    "https://ssbliukchgibjcjohibi.supabase.co",
+# doesn't break the daily cron. Use `or` instead of the dict default
+# because GitHub Actions sets env vars to the empty string (not unset)
+# when the referenced secret doesn't exist, which bypasses dict defaults.
+SUPABASE_URL = (
+    os.environ.get("SUPABASE_URL")
+    or "https://ssbliukchgibjcjohibi.supabase.co"
 ).rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
 
 YAHOO_BRENT_URL = (
     "https://query1.finance.yahoo.com/v7/finance/chart/BZ=F"
