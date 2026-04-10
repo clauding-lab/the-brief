@@ -34,7 +34,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install "anthropic>=0.84"
+          pip install -r requirements.txt
           npm ci
 
       - name: Ingest market data into Supabase
