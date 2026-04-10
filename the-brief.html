@@ -2588,7 +2588,11 @@ const OilChart = React.memo(function OilChart() {
   const [liveAsOf, setLiveAsOf] = useState(null); // ISO date of latest AV point
 
   useEffect(() => {
-    if (!AV_KEY || AV_KEY === "__AV_KEY__") return; // no key → static only
+    // Note: do not compare AV_KEY against the "__AV_KEY__" placeholder here —
+    // build.sh sed-replaces the placeholder globally, including inside this
+    // check, so the comparison would self-equal after injection and always
+    // return early. If the key is missing the fetch simply fails and falls
+    // through to STATIC_DATA via the catch/guards below.
     fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`)
       .then(r => r.json())
       .then(json => {

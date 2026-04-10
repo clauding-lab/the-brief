@@ -2241,7 +2241,6 @@ const OilChart = React.memo(function OilChart2() {
   const [isLive, setIsLive] = useState2(false);
   const [liveAsOf, setLiveAsOf] = useState2(null);
   useEffect2(() => {
-    if (!AV_KEY || AV_KEY === "__AV_KEY__") return;
     fetch(`https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`).then((r) => r.json()).then((json) => {
       if (!json.data || json.data.length === 0) return;
       const valid = json.data.filter((d) => parseFloat(d.value) > 0);
