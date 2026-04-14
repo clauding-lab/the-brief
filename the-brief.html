@@ -1126,8 +1126,8 @@ function useSupabaseChart(fallback, fetchFn) {
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
-const BRIEF_DATE = "MONDAY 13 APRIL 2026";
-const BRIEF_EDITION = "VOL. 1 · ISSUE 85";
+const BRIEF_DATE = "TUESDAY 14 APRIL 2026";
+const BRIEF_EDITION = "VOL. 1 · ISSUE 86";
 
 const SECTIONS = [
   { id: "exec",    label: "Exec Summary",   short: "Summary" },
@@ -1367,13 +1367,13 @@ const SectionBB = React.memo(function SectionBB() {
         { name: "SDF Rate", value: "7.50%", change: "▼ −50bps (eff. 10 Feb 2026)", chgType: "bull" },
         { name: "SLF Rate", value: "11.50%", change: "Ceiling unchanged", chgType: "neu" },
         { name: "CPI (Feb 2026)", value: "9.13%", change: "Persistent — above BB 7% target", chgType: "bear" },
-        { name: "Pvt Credit Growth", value: "6.03%", change: "BB targets 8.5% for FY26 H2", chgType: "warn" },
+        { name: "Pvt Credit Growth", value: "6.03%", change: "BB targets 8.5% for FY26 H2", chgType: "bear" },
       ]} />
 
       <div className="cards-grid" style={{ marginBottom: 16 }}>
         <div className="card card-accent-warn">
-          <div className="card-label">Policy Rate (13 Apr 2026)</div>
-          <div className="card-value card-value-sm">10.00% <FreshTag date="13 Apr" /></div>
+          <div className="card-label">Policy Rate (14 Apr 2026)</div>
+          <div className="card-value card-value-sm">10.00% <FreshTag date="14 Apr" /></div>
           <div className="card-change warn">HOLD — H2 FY26 MPS (9 Feb); SDF cut 50bps to 7.5%; BB cites persistent inflation risks from elections, Ramadan, new pay scale; new Governor Md Mostaqur Rahman signals gradual rate support but no action yet due to Middle East crisis</div>
           <Sparkline data={[8.5, 9.0, 9.5, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]} color="var(--warn)" />
           <div className="sparkline-label">Mar'25 → Apr'26</div>
@@ -1381,14 +1381,14 @@ const SectionBB = React.memo(function SectionBB() {
         <div className="card card-accent-bear">
           <div className="card-label">CPI Inflation Trend <FreshTag date="Feb 2026" /></div>
           <div className="card-value card-value-sm">9.13%</div>
-          <div className="card-change bear">Feb 2026 headline; food CPI 9.30%; still well above BB's 7% target; Brent surges to $101.82 on 13 Apr after Hormuz blockade announcement — pass-through risk elevated</div>
+          <div className="card-change bear">Feb 2026 headline; food CPI 9.30%; still well above BB's 7% target; Brent at $102.47 after Hormuz blockade — pass-through risk elevated</div>
           <Sparkline data={[12.0, 11.5, 10.9, 10.4, 9.94, 9.5, 9.2, 8.9, 8.72, 8.65, 9.13, 9.13]} color="var(--bear)" />
           <div className="sparkline-label">Apr'25 → Feb'26</div>
         </div>
         <div className="card card-accent-warn">
           <div className="card-label">Gross Reserves <FreshTag date="9 Apr 2026" /></div>
           <div className="card-value card-value-sm">$34.65B (Gross)</div>
-          <div className="card-change warn">BPM6 net ~$30.36B (Feb 2026); declined from $35.11B after ACU/debt payments; BB dismisses taka devaluation speculation</div>
+          <div className="card-change warn">BPM6 net ~$29.81B (6 Apr 2026); BB dismisses taka devaluation speculation; energy costs straining reserves</div>
           <Sparkline data={[18.5, 19.2, 20.1, 21.3, 22.8, 24.2, 25.6, 27.1, 28.0, 29.0, 33.0, 34.65]} color="var(--bull)" />
           <div className="sparkline-label">Mar'25 → Apr'26</div>
         </div>
@@ -1397,17 +1397,17 @@ const SectionBB = React.memo(function SectionBB() {
       <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
         <span className="impact-icon">⚑</span>
         <div className="impact-text">
-          <strong>MPC & Policy Update (13 Apr 2026):</strong> BB unveiled H2 FY26 monetary policy on <strong>9 Feb 2026</strong>, keeping the policy rate at <strong>10%</strong> and SLF at <strong>11.5%</strong>, but cutting SDF by 50bps to <strong>7.5%</strong> to discourage excess bank liquidity parking. New BB Governor <strong>Md Mostaqur Rahman</strong> signals gradual lending rate cuts but no action yet due to Middle East crisis. BB cites persistent inflation risks from elections, Ramadan, and potential new pay scale. Next MPS expected <strong>Jul 2026</strong> for H1 FY27. Inflation target: <strong>7.0%</strong> for FY26. CPI Feb 2026: <strong>9.13%</strong>; food CPI: <strong>9.30%</strong>. Private sector credit growth at <strong>6.03%</strong> — record low; BB H2 FY26 target: <strong>8.5%</strong>. Brent surges to <strong>$101.82/bbl</strong> on 13 Apr after Trump announces Hormuz blockade. Gross reserves: <strong>$34.65B</strong> (9 Apr); BPM6 net <strong>~$30.36B</strong> (Feb 2026). GDP growth FY2024-25 (provisional): <strong>3.97%</strong>. NPL ratio: <strong>35.73%</strong> (Sep 2025 — world highest). BB conducts off-calendar Tk10,000cr special T-bill auctions in April.
+          <strong>MPC & Policy Update (14 Apr 2026):</strong> BB unveiled H2 FY26 monetary policy on <strong>9 Feb 2026</strong>, keeping the policy rate at <strong>10%</strong> and SLF at <strong>11.5%</strong>, but cutting SDF by 50bps to <strong>7.5%</strong> to discourage excess bank liquidity parking. New BB Governor <strong>Md Mostaqur Rahman</strong> (appointed after 12 Feb election) signals gradual lending rate cuts but no action yet due to Middle East crisis. BB cites persistent inflation risks from elections, Ramadan, and potential new pay scale. Next MPS expected <strong>Jul 2026</strong> for H1 FY27. Inflation target: <strong>7.0%</strong> for FY26. CPI Feb 2026: <strong>9.13%</strong>; food CPI: <strong>9.30%</strong>. Private sector credit growth at <strong>6.03%</strong> — record low; BB H2 FY26 target: <strong>8.5%</strong>. Brent at <strong>$102.47/bbl</strong> amid Hormuz blockade. Gross reserves: <strong>$34.65B</strong> (9 Apr); BPM6 net <strong>~$29.81B</strong> (6 Apr). GDP growth FY2024-25 (final BBS): <strong>3.49%</strong>; Q2 FY26: <strong>3.03%</strong>; FY26 projected <strong>4.8-5.1%</strong> (WB/ADB). NPL ratio: <strong>35.73%</strong> (Sep 2025 — world highest). BB introduces transaction-based benchmark for interbank lending today. BB conducts off-calendar special T-bill auctions in April.
         </div>
       </div>
 
       <CollapsibleNews defaultShow={2} items={[
-        { sentiment: "bear", headline: "NPL ratio surged to 35.73% by Sep 2025; defaulted loans at record Tk6.44 lakh crore (~1/3 of total)", detail: "NPL ratio surged to 35.73% of total loans as of September 2025, the highest in the world, after BB adopted Basel III classification and exposed hidden bad loans. BB targets reduction to below 8% by Jun 2026.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "13 Apr 2026" },
-        { sentiment: "bear", headline: "Private sector credit growth at record low 6.03% in Feb 2026 amid tight policy, weak demand, and Middle East uncertainty", detail: "Private sector credit growth remains stuck at a record low of 6.03% in February 2026 — well below BB's H2 FY26 target of 8.5%. The Middle East crisis further dampens investment demand.", source: "TBS", sourceUrl: "https://www.tbsnews.net", time: "13 Apr 2026" },
-        { sentiment: "bull", headline: "New BB Governor Md Mostaqur Rahman signals gradual rate support but no action yet due to Middle East crisis", detail: "The newly appointed BB Governor signals willingness to gradually support lending rates to revive investment, though no action taken yet as Middle East crisis clouds outlook.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" },
-        { sentiment: "warn", headline: "BB conducts off-calendar Tk10,000cr special T-bill auctions in April to meet govt funding needs", detail: "Bangladesh Bank is conducting off-calendar special T-bill auctions totalling Tk10,000 crore in April to meet government funding needs amid weak revenue collection.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "13 Apr 2026" }
+        { sentiment: "bear", headline: "NPL ratio surged to 35.73% by Sep 2025; defaulted loans at record Tk5.44 lakh crore", detail: "NPL ratio surged to 35.73% of total loans as of September 2025, the highest in the world. Top 20 loan defaulters revealed in parliament; bad loans at Tk5.44 lakh crore.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "14 Apr 2026" },
+        { sentiment: "bear", headline: "Private sector credit growth at record low 6.03% pushes banks into govt securities", detail: "Private sector credit growth remains stuck at a record low of 6.03% — well below BB's H2 FY26 target of 8.5%. Banks are parking excess funds in government T-bills.", source: "TBS", sourceUrl: "https://www.tbsnews.net", time: "14 Apr 2026" },
+        { sentiment: "bull", headline: "BB introduces transaction-based reference rate in money market (14 Apr)", detail: "Bangladesh Bank introduces a transaction-based benchmark for interbank lending to improve transparency and efficiency in the money market.", source: "DS / TBS", sourceUrl: "https://www.thedailystar.net/business/economy/news/transaction-based-benchmark-introduced-interbank-lending-4151101", time: "14 Apr 2026" },
+        { sentiment: "warn", headline: "New BB Governor signals gradual lending rate cuts to revive investment; NPL in business/trade at 42% by Dec 2025", detail: "New Governor Md Mostaqur Rahman signals willingness to gradually support lending rates, though no action taken yet as Middle East crisis clouds outlook.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" }
       ]} />
-      <BankerRead insight="With the policy rate held at 10% and the SDF cut 50bps to 7.5% since February, Bangladesh Bank is quietly nudging banks to deploy idle liquidity rather than park it overnight — a signal that matters for your ALM desk this Monday morning. Reduce excess SDF placements immediately and redeploy into 91-day T-bills yielding 10.16%, which now offer 266bps over the SDF floor. Watch for any emergency MPC call if Brent sustains above $100 for two consecutive weeks, as the new Governor has explicitly tied rate decisions to the Middle East crisis. Position the treasury book for a potential 50-75bps policy rate hike in H1 FY27 by laddering fixed-rate asset duration to under 18 months." />
+      <BankerRead insight="With the policy rate held at 10% and the SDF cut 50bps to 7.5% since 9 February, Bangladesh Bank is actively penalizing banks that park excess liquidity rather than lend — yet private credit growth languishes at a record-low 6.03%, meaning the transmission mechanism is broken as of today 14 April. Treasury desks should immediately reprice term deposit offerings downward by 25-50bps on tenors under one year, capturing the widening 250bp corridor between SDF and SLF before the next MPC meeting, whose date remains unannounced but could come within weeks under new Governor Mostaqur Rahman. Watch for any BB circular narrowing the interest rate corridor below the current 400bp spread or signaling a policy rate cut — either would compress NIMs by 30-50bps overnight. The strategic play is to aggressively redeploy excess reserves into high-quality corporate lending at 12-13% rather than accepting 7.5% at the SDF window, targeting sectors with tangible export receivables as collateral." />
     </div>
   );
 });
@@ -1423,7 +1423,7 @@ const SectionMacro = React.memo(function SectionMacro() {
       <div className="impact-banner" style={{ borderColor: "rgba(234,179,8,0.3)", background: "rgba(234,179,8,0.06)" }}>
         <span className="impact-icon">⚑</span>
         <div className="impact-text">
-          <strong>Macro Snapshot (13 Apr 2026):</strong> BB H2 FY26 monetary policy (9 Feb) held policy rate at <strong>10%</strong>, SDF cut to <strong>7.50%</strong>, SLF <strong>11.50%</strong>. New Governor Md Mostaqur Rahman appointed post-election. CPI Feb 2026: <strong>9.13%</strong> headline / <strong>9.30%</strong> food — still well above BB's 7% target. Private sector credit growth: <strong>6.03%</strong> — record low, below BB's 8.5% H2 target. GDP growth FY2024-25 (provisional): <strong>3.97%</strong>; FY2026 projected <strong>5.5%</strong>. Brent surges ~7% to <strong>$101.82/bbl</strong> on 13 Apr after Trump announces Hormuz blockade; WTI jumps ~8% to <strong>$104.23</strong>. Gross reserves: <strong>$34.65B</strong> (9 Apr); BPM6 net <strong>~$30.36B</strong> (Feb). DSEX: <strong>5,271</strong> (12 Apr close) — gained 13 pts (+0.25%) as insurance stocks shine. Record remittance: <strong>$3.75B</strong> in March 2026. Exports Feb 2026: <strong>$3.49B</strong>. NPL: <strong>35.73%</strong> (Sep 2025). Inflation outpacing wages for <strong>50 months straight</strong>.
+          <strong>Macro Snapshot (14 Apr 2026):</strong> BB H2 FY26 monetary policy (9 Feb) held policy rate at <strong>10%</strong>, SDF cut to <strong>7.50%</strong>, SLF <strong>11.50%</strong>. New Governor Md Mostaqur Rahman appointed after Feb 12 election. CPI Feb 2026: <strong>9.13%</strong> headline / <strong>9.30%</strong> food — still well above BB's 7% target. Private sector credit growth: <strong>6.03%</strong> — record low, below BB's 8.5% H2 target. GDP growth FY2024-25 (final BBS): <strong>3.49%</strong>; Q2 FY26 (Oct-Dec 2025): <strong>3.03%</strong>; FY2026 projected <strong>4.8-5.1%</strong> (WB/ADB). Brent at <strong>$102.47/bbl</strong> amid US blockade of Strait of Hormuz. Gross reserves: <strong>$34.65B</strong> (9 Apr); BPM6 net <strong>~$29.81B</strong> (6 Apr). DSEX: <strong>5,219.74</strong> (13 Apr close) — fell 51 pts (−0.97%). Record remittance: <strong>$3.75B</strong> in March 2026. NPL: <strong>35.73%</strong> (Sep 2025). Govt plans big-spend budget for jobs amid revenue doubts. Interest payments, subsidies swallow big pies.
         </div>
       </div>
 
@@ -1449,23 +1449,23 @@ const SectionMacro = React.memo(function SectionMacro() {
           pillType="bear"
         />
         <MetricCard
-          label="GDP Growth (FY25 provisional)"
-          value="3.97%"
+          label="GDP Growth (FY25 final BBS)"
+          value="3.49%"
           change=""
-          changeType="warn"
-          sub="FY26 projected 5.5%"
-          accent="warn"
+          changeType="bear"
+          sub="Q2 FY26: 3.03%; FY26 proj: 4.8-5.1%"
+          accent="bear"
           pill="BELOW TREND"
-          pillType="warn"
+          pillType="bear"
         />
         <MetricCard
           label="Gross Forex Reserves (9 Apr 2026)"
           value="$34.65B"
           change=""
           changeType="warn"
-          sub="BPM6 net: ~$30.36B"
+          sub="BPM6 net: ~$29.81B (6 Apr)"
           accent="warn"
-          pill="STABLE"
+          pill="UNDER PRESSURE"
           pillType="warn"
         />
         <MetricCard
@@ -1493,9 +1493,9 @@ const SectionMacro = React.memo(function SectionMacro() {
       <YieldCurveChart />
 
       <div className="context-box">
-        <strong>Macro Outlook (13 Apr 2026):</strong> Bangladesh's macro picture shows mixed signals: (1) CPI inflation at <strong>9.13% headline / 9.30% food</strong> (Feb 2026) — still well above BB's 7% target. Inflation has outpaced wages for <strong>50 consecutive months</strong>. Brent surges ~7% to <strong>$101.82/bbl</strong> on 13 Apr after Trump announces Hormuz blockade — pass-through risk elevated. (2) GDP growth FY2024-25 (provisional BBS): <strong>3.97%</strong>; FY2026 projected at <strong>5.5%</strong>. Private credit growth at <strong>6.03%</strong> — record low. (3) Gross reserves at <strong>$34.65B</strong> (9 Apr); BPM6 net <strong>~$30.36B</strong> (Feb 2026); declined from $35.11B after ACU/debt payments. BB dismisses taka devaluation speculation. (4) DSEX: <strong>5,271</strong> (12 Apr) — gained 13 pts (+0.25%) on insurance stock strength; but lost 488 pts (9.7%) since Middle East conflict began. (5) Record remittance <strong>$3.75B</strong> in March 2026; Jul-Mar FY26 cumulative $26.20B (+20% YoY). First 11 days of April: $1.21B (+18.4% YoY). NPL: <strong>35.73%</strong> (Sep 2025). T-bill yields rise 31-33bps in one week as govt ramps up bank borrowing. US-Iran talks collapsed; Hormuz blockade announced.
+        <strong>Macro Outlook (14 Apr 2026):</strong> Bangladesh's macro picture shows mixed signals: (1) CPI inflation at <strong>9.13% headline / 9.30% food</strong> (Feb 2026) — still well above BB's 7% target. (2) GDP growth FY2024-25 (final BBS): <strong>3.49%</strong> — sharply lower than earlier provisional estimates; Q2 FY26 at <strong>3.03%</strong>; FY2026 projected at <strong>4.8-5.1%</strong> (WB/ADB). Private credit growth at <strong>6.03%</strong> — record low. (3) Gross reserves at <strong>$34.65B</strong> (9 Apr); BPM6 net <strong>~$29.81B</strong> (6 Apr). BB dismisses taka devaluation speculation but moves for gradual devaluation to manage fuel shock. (4) DSEX: <strong>5,219.74</strong> (13 Apr) — fell 51 pts (−0.97%); DSE cuts trading hours by 30 minutes amid fuel crisis. (5) Record remittance <strong>$3.75B</strong> in March; first 11 days of April: $1.21B (+18.4% YoY). NPL: <strong>35.73%</strong> (Sep 2025). Brent at <strong>$102.47</strong>; OPEC+ output plunged 7.9mn bpd in March. Govt plans big-spend budget for jobs and growth amid revenue doubts. Rising debt pressure a concern.
       </div>
-      <BankerRead insight="February 2026 CPI at 9.13% with food inflation at 9.3% means real deposit rates remain deeply negative — a toxic combination now in its 50th consecutive month of wages trailing inflation, per today's Daily Star reporting. Reprice all fixed deposits maturing in Q4 FY26 to at least 10.5% to stem deposit attrition and fund the loan book without relying on call money. The critical trigger is March 2026 CPI, expected mid-April: if headline breaches 9.5%, anticipate BB intervention on administered rates within days. Pivot retail liability strategy toward Shariah-compliant deposits, which grew 9.4% in December — Islamic deposit products are your fastest-growing funding channel right now." />
+      <BankerRead insight="Headline CPI at 9.13% for February 2026 against GDP growth of just 3.03% in Q2 FY26 confirms Bangladesh is stuck in a stagflationary pocket — and as of today 14 April, the Hormuz crisis and Brent above $102 guarantee the March-April CPI prints will be worse. Immediately stress-test the entire loan book under a scenario where CPI reaches 10.5% by June 2026 and GDP growth for FY26 lands at the low end of the 4.8% World Bank projection rather than the 5.1% ADB figure. The critical trigger is the March 2026 CPI release, expected in the next 7-10 days — if food inflation exceeds 10% on that print, provision coverage ratios on SME and retail portfolios must be raised by at least 100bps. Pivot lending strategy toward import-substitution manufacturers and essential goods distributors who benefit from inflation pass-through rather than discretionary consumer finance." />
     </div>
   );
 });
@@ -1548,7 +1548,8 @@ const DSEX_CHART_DATA = [
   { label: "Apr 5", value: 5160, showLabel: true },
   { label: "Apr 6", value: 5122 },
   { label: "Apr 10", value: 5220 },
-  { label: "Apr 12", value: 5271, showLabel: true, today: true },
+  { label: "Apr 12", value: 5271, showLabel: true },
+  { label: "Apr 13", value: 5219.74, showLabel: true, today: true },
 ];
 
 const OIL_CHART_STATIC_DATA = [
@@ -1563,17 +1564,17 @@ const OIL_CHART_STATIC_DATA = [
   { label: "Apr 10", value: 95.92 },
   { label: "Apr 11", value: 95.50 },
   { label: "Apr 12", value: 95.20 },
-  { label: "Apr 13", value: 95.2, today: true },
+  { label: "Apr 14", value: 102.47, today: true },
 ];
 
 const LNG_CHART_DATA = [
   { label: "Oct '25", value: 12.5 },
-  { label: "Nov '25", value: 13.0 },
-  { label: "Dec '25", value: 13.5 },
-  { label: "Jan '26", value: 12.8 },
+  { label: "Nov '25", value: 13.2 },
+  { label: "Dec '25", value: 14.1 },
+  { label: "Jan '26", value: 14.8 },
   { label: "Feb '26", value: 10.75 },
-  { label: "Mar '26 early", value: 15.0 },
-  { label: "Mar '26 late", value: 20.0 },
+  { label: "Mar '26 early", value: 16.5 },
+  { label: "Mar '26 late", value: 19.0 },
   { label: "Apr '26", value: 19.42, today: true },
 ];
 
@@ -1590,7 +1591,7 @@ const YieldCurveChart = React.memo(function YieldCurveChart() {
 
   const fallback = {
     maturities: ["3M", "6M", "1Y", "2Y", "5Y", "10Y", "15Y", "20Y"],
-    yields:     [10.16, 10.33, 10.39, 9.77, 9.00, 10.39, 10.37, 10.47],
+    yields:     [10.16, 10.33, 10.39, 9.77, 9.00, 10.32, 10.37, 10.47],
   };
   const yc = useSupabaseChart(fallback, async () => {
     const { data: latest, error: e1 } = await _sb
@@ -1661,7 +1662,7 @@ const YieldCurveChart = React.memo(function YieldCurveChart() {
         ))}
 
         <text x={cx(4)} y={cy(yields[4]) + 16} fill="var(--bear)" fontSize="8" textAnchor="middle" fontWeight="600">▼ 5Y dip 9.00%</text>
-        <text x={cx(5)} y={cy(yields[5]) + 16} fill="var(--bear)" fontSize="8" textAnchor="middle" fontWeight="600">10Y 10.39%</text>
+        <text x={cx(5)} y={cy(yields[5]) + 16} fill="var(--bear)" fontSize="8" textAnchor="middle" fontWeight="600">10Y {yields[5].toFixed(2)}%</text>
 
         {maturities.map((m, i) => (
           <text key={i} x={cx(i)} y={H - pad.bottom + 16} fill="var(--muted)" fontSize="10" textAnchor="middle">{m}</text>
@@ -1683,7 +1684,7 @@ const YieldCurveChart = React.memo(function YieldCurveChart() {
 
       </svg>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 14px 4px", fontSize: 10, color: "var(--muted)" }}>
-        <span>Last update: 13 Apr 2026 · 91d Auction #45: 10.16% · 5Y: 9.00% · 10Y: 10.39%</span>
+        <span>Last update: 14 Apr 2026 · 91d: 10.02% (22 Feb) · 5Y: 9.00% · 10Y: 10.32%</span>
         <span style={{ marginLeft: "auto" }}>Source: Bangladesh Bank / World Government Bonds</span>
       </div>
     </div>
@@ -1870,22 +1871,21 @@ const SectionDSE = React.memo(function SectionDSE() {
     <div className="section scroll-target" id="dse">
       <div style={{ display:"flex", alignItems:"center" }}>
         <SectionHeader num="04" title="Dhaka Stock Exchange" icon="📈" />
-        <TrafficLight status="warn" label="RECOVERING" />
+        <TrafficLight status="bear" label="SELLING PRESSURE" />
       </div>
 
       <TickerStrip items={[
-        { name: "DSEX (12 Apr close)", value: "5,271", change: "▲ +13 pts (+0.25%) — insurance stocks shine", chgType: "bull" },
+        { name: "DSEX (13 Apr close)", value: "5,219.74", change: "▼ −51.26 pts (−0.97%)", chgType: "bear" },
         { name: "52-wk High", value: "5,674.51", change: "52-wk Low: 4,588.44", chgType: "neu" },
-        { name: "Turnover", value: "Tk 837 Cr", change: "Improved", chgType: "neu" },
+        { name: "Turnover", value: "Tk 837 Cr", change: "Trading hours cut 30 min amid fuel crisis", chgType: "warn" },
         { name: "DS30", value: "2,002", change: "Blue-chip gauge", chgType: "neu" },
-        { name: "CSCX", value: "9,048", change: "Shariah index", chgType: "neu" },
-        { name: "Since War Began", value: "−488 pts", change: "−9.7% since conflict started", chgType: "bear" },
+        { name: "CSCX", value: "8,854", change: "Shariah index", chgType: "neu" },
       ]} />
 
-      <div className="impact-banner" style={{ borderColor: "rgba(234,179,8,0.3)", background: "rgba(234,179,8,0.06)" }}>
+      <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
         <span className="impact-icon">📊</span>
         <div className="impact-text">
-          <strong>DSE UPDATE — 13 APRIL 2026 (MONDAY):</strong> Last trading day <strong>12 April (Saturday)</strong>: Insurance stocks shine as DSE opens week on a positive note. DSEX gained <strong>13 points (+0.25%)</strong> to close at <strong>5,271</strong>. DS30: <strong>2,002</strong>. CSCX: <strong>9,048</strong>. Turnover: <strong>Tk 837 crore</strong>. However, DSEX has shed <strong>488 points (−9.7%)</strong> since the Middle East conflict began. Earlier, DSEX plunged over <strong>100 points on 5 April</strong> as investor panic deepened amid Middle East war. DSEX hit one-month low on 6 April as geopolitical tensions weighed on market. 52-wk range: <strong>4,588.44–5,674.51</strong>. Trump's Hormuz blockade announcement on 13 Apr (today) could trigger fresh selling pressure.
+          <strong>DSE UPDATE — 14 APRIL 2026 (TUESDAY):</strong> Last trading day <strong>13 April (Sunday)</strong>: DSEX fell <strong>51.26 points (−0.97%)</strong> to close at <strong>5,219.74</strong>. DS30: <strong>2,002</strong>. CSCX: <strong>8,854</strong>. Turnover: <strong>Tk 837 crore</strong>. DSE has cut trading hours by <strong>30 minutes</strong> amid the ongoing fuel crisis. Earlier, DSEX plunged over <strong>100 points on 5 April</strong> as investor panic deepened amid Middle East tensions. Insurance stocks briefly shone on 12 Apr (+13 pts) but selling pressure resumed. 52-wk range: <strong>4,588.44–5,674.51</strong>. Brent surging above $102 on Hormuz blockade news could trigger further selling.
         </div>
       </div>
 
@@ -1893,12 +1893,12 @@ const SectionDSE = React.memo(function SectionDSE() {
 
       <div style={{ marginTop: 12 }}>
         <CollapsibleNews defaultShow={3} items={[
-          { sentiment: "bull", headline: "Insurance stocks shine as DSE opens week on a positive note; DSEX gains 13 pts to 5,271 (12 Apr)", detail: "Insurance sector led gains as DSEX added 13 points (+0.25%) to close at 5,271 on 12 April. DS30 at 2,002. Turnover improved to Tk 837 crore.", source: "DS / TBS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" },
-          { sentiment: "bear", headline: "DSEX plunges over 100 points on 5 April as investor panic deepens amid Middle East war", detail: "DSEX plummeted over 100 points on 5 April as investor panic deepened amid the ongoing Middle East crisis and Hormuz closure.", source: "DS / TBS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" },
-          { sentiment: "bear", headline: "DSEX hits one-month low as geopolitical tensions weigh; index shed 488 pts (9.7%) since conflict began", detail: "DSEX hit a one-month low on 6 April as geopolitical tensions weighed on the market. The index has shed 488 points (9.7%) since the Middle East conflict began.", source: "DS / TBS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" }
+          { sentiment: "bear", headline: "DSEX falls 51 pts (−0.97%) to 5,219.74 on 13 Apr; selling pressure resumes after brief recovery", detail: "DSEX shed 51.26 points to close at 5,219.74 on 13 April as selling pressure returned after a brief recovery on 12 April when insurance stocks shone.", source: "DSE / TBS", sourceUrl: "https://www.tbsnews.net", time: "14 Apr 2026" },
+          { sentiment: "bear", headline: "DSEX plunges over 100 points on 5 Apr as investor panic deepens amid Middle East tensions", detail: "DSEX plummeted over 100 points on 5 April as investor panic deepened amid the ongoing Middle East crisis and Hormuz closure.", source: "DS / TBS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" },
+          { sentiment: "warn", headline: "DSE cuts trading hours by 30 minutes amid fuel crisis — energy conservation mandate", detail: "DSE has reduced trading hours by 30 minutes as part of the government's energy conservation strategy amid the fuel crisis caused by Hormuz disruption.", source: "DS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" }
         ]} />
       </div>
-      <BankerRead insight="DSEX clawed back 13 points to 5,271 on Sunday but remains 488 points or 9.7% below its level before the Middle East conflict erupted, with turnover at a thin Tk837 crore signaling fragile conviction. Mark your equity portfolio to today's close and stress-test margin loan exposures against a retest of the 52-week low at 4,588 — that is only 13% below current levels. The trigger to watch is whether the US Hormuz blockade announced on 12 April escalates this week; if DSEX breaches 5,000, forced margin calls will cascade. Instruct your brokerage subsidiary to tighten new margin lending to stocks with daily turnover above Tk5 crore and limit single-stock concentration to 15% of any margin portfolio." />
+      <BankerRead insight="DSEX closed at 5,219.74 on 13 April, down 51 points or 0.97% in a single session, with daily turnover at only Tk837 crore — this is dangerously thin liquidity sitting 8% below the 52-week high of 5,674.51 and the index opened today 14 April facing continued Middle East panic. Any bank with margin lending exposure above 3% of total advances should immediately trigger collateral top-up calls on accounts where portfolio value has dropped below 130% of outstanding, especially in insurance and fuel-sensitive sectors. If DSEX breaches the 5,100 support level this week, expect forced selling to cascade turnover temporarily but compress valuations to levels where proprietary book accumulation in banking and pharma blue-chips becomes attractive. The tactical move is to keep proprietary equity allocation at no more than 15% of investment portfolio and shift the remainder into government securities where yields remain above 10%." />
     </div>
   );
 });
@@ -1957,6 +1957,7 @@ const TBillChart = React.memo(function TBillChart() {
   const { hovered, handleMouseMove, handleMouseLeave } = useChartHover(n, cx);
 
   
+ 
  
    return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "12px 0 4px", marginTop: 12 }}>
@@ -2040,44 +2041,44 @@ const SectionTBond = React.memo(function SectionTBond() {
       </div>
 
       <TickerStrip items={[
-        { name: "91d T-Bill (#45, 12 Apr)", value: "10.16%", change: "▲ +31bps in one week — above policy rate", chgType: "bear" },
-        { name: "182d T-Bill (#45)", value: "10.33%", change: "▲ +33bps in one week", chgType: "bear" },
-        { name: "364d T-Bill (#45)", value: "10.39%", change: "▲ +33bps in one week", chgType: "bear" },
-        { name: "10Y BGTB", value: "10.39%", change: "Long-end anchor", chgType: "neu" },
+        { name: "91d T-Bill (22 Feb)", value: "10.02%", change: "Regular auction; special auctions in Apr at lower rates", chgType: "warn" },
+        { name: "182d T-Bill (22 Feb)", value: "10.11%", change: "Regular auction", chgType: "warn" },
+        { name: "364d T-Bill (22 Feb)", value: "10.07%", change: "Regular auction", chgType: "warn" },
+        { name: "10Y BGTB", value: "10.32%", change: "Long-end anchor", chgType: "neu" },
         { name: "5Y BGTB", value: "9.00%", change: "5Y dip below policy rate", chgType: "bull" },
-        { name: "Off-Calendar", value: "Tk10,000cr", change: "BB special auctions in April", chgType: "warn" },
+        { name: "Off-Calendar", value: "Tk5,000cr", change: "Special auction 8 Apr; yields dipping below 10%", chgType: "warn" },
       ]} />
 
       <div className="cards-grid" style={{ marginBottom: 16 }}>
         <MetricCard
-          label="91-Day T-Bill (Auction #45, 12 Apr)"
-          value="10.16%"
-          change="▲ +31bps in one week"
-          changeType="bear"
-          sub="Back above policy rate"
-          accent="bear"
-          pill="RISING"
-          pillType="bear"
+          label="91-Day T-Bill (22 Feb Regular)"
+          value="10.02%"
+          change=""
+          changeType="warn"
+          sub="T-bill yields dropping amid rising bank liquidity"
+          accent="warn"
+          pill="SOFTENING"
+          pillType="warn"
         />
         <MetricCard
-          label="182-Day T-Bill (#45)"
-          value="10.33%"
-          change="▲ +33bps in one week"
-          changeType="bear"
-          sub=""
-          accent="bear"
-          pill="RISING"
-          pillType="bear"
+          label="182-Day T-Bill (22 Feb)"
+          value="10.11%"
+          change=""
+          changeType="warn"
+          sub="Fell 40-59 bps vs January"
+          accent="warn"
+          pill="SOFTENING"
+          pillType="warn"
         />
         <MetricCard
-          label="364-Day T-Bill (#45)"
-          value="10.39%"
-          change="▲ +33bps in one week"
-          changeType="bear"
+          label="364-Day T-Bill (22 Feb)"
+          value="10.07%"
+          change=""
+          changeType="warn"
           sub=""
-          accent="bear"
-          pill="RISING"
-          pillType="bear"
+          accent="warn"
+          pill="SOFTENING"
+          pillType="warn"
         />
         <MetricCard
           label="5Y BGTB Yield"
@@ -2091,7 +2092,7 @@ const SectionTBond = React.memo(function SectionTBond() {
         />
         <MetricCard
           label="10Y BGTB Yield"
-          value="10.39%"
+          value="10.32%"
           change=""
           changeType="neu"
           sub="Long-end anchor"
@@ -2101,20 +2102,20 @@ const SectionTBond = React.memo(function SectionTBond() {
         />
       </div>
 
-      <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
+      <div className="impact-banner" style={{ borderColor: "rgba(234,179,8,0.3)", background: "rgba(234,179,8,0.06)" }}>
         <span className="impact-icon">📌</span>
         <div className="impact-text">
-          <strong>Key Developments (13 Apr 2026):</strong> T-bill yields <strong>surged 31-33bps in one week</strong> as government ramps up bank borrowing amid weak revenue. Auction #45 (12 Apr): 91-day at <strong>10.16%</strong>, 182-day at <strong>10.33%</strong>, 364-day at <strong>10.39%</strong> — all now above or at the 10% policy rate, reversing the sub-policy pricing seen in early April specials. BB conducts <strong>off-calendar Tk10,000cr special T-bill auctions</strong> in April to meet govt funding needs. Net credit to govt from banking system reached <strong>Tk50,782 crore in Jul-Dec FY26</strong> (43% of revised annual target of Tk 1.18 lakh crore) — govt borrowing crowding out private sector credit. 5Y BGTB at <strong>9.00%</strong>; 10Y at <strong>10.39%</strong>.
+          <strong>Key Developments (14 Apr 2026):</strong> T-bill yields <strong>dropped 40-59 bps</strong> compared to January as rising bank liquidity (driven by record-low private credit growth of 6.03%) pushes banks into govt securities. Regular auction (22 Feb): 91d at <strong>10.02%</strong>, 182d at <strong>10.11%</strong>, 364d at <strong>10.07%</strong>. Special Tk5,000 crore T-bill auction on <strong>8 Apr</strong> as govt borrowing intensifies; yields dipping below 10% on surplus liquidity. 5Y BGTB at <strong>9.00%</strong>; 10Y at <strong>10.32%</strong>. Govt borrowing ceiling: <strong>Tk1.18 lakh crore</strong> for FY26. Interest payments, subsidies, and incentives swallowing large budget pies.
         </div>
       </div>
 
       <CollapsibleNews defaultShow={3} items={[
-        { sentiment: "bear", headline: "Treasury bill yields rise 31-33bps in one week as govt ramps up bank borrowing amid weak revenue (12 Apr)", detail: "T-bill yields surged 31-33 basis points in a single week at Auction #45 (12 April). 91-day yield jumped to 10.16% from 9.88% just days earlier, reflecting increased government borrowing pressure.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "13 Apr 2026" },
-        { sentiment: "warn", headline: "BB conducts off-calendar Tk10,000cr special T-bill auctions in April to meet govt funding needs", detail: "Bangladesh Bank is conducting off-calendar special T-bill auctions totalling Tk10,000 crore in April to meet government funding needs amid weak NBR revenue collection.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "13 Apr 2026" },
-        { sentiment: "warn", headline: "Govt borrows Tk10,000cr off-calendar; central bank monitors liquidity impact", detail: "Government has borrowed Tk10,000 crore through off-calendar T-bill auctions. Bangladesh Bank is monitoring the liquidity impact on the banking system.", source: "BB", sourceUrl: "https://www.bb.org.bd", time: "13 Apr 2026" }
+        { sentiment: "warn", headline: "T-bill yields drop again amid rising bank liquidity; rates fell 40-59 bps compared to January", detail: "T-bill yields continue to soften amid rising bank liquidity. Rates fell 40-59 basis points compared to January auctions as banks park excess funds in government securities.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "14 Apr 2026" },
+        { sentiment: "warn", headline: "Special Tk5,000 crore T-bill auction on 8 Apr as govt borrowing intensifies; yields dipping below 10%", detail: "Bangladesh Bank conducted a special Tk5,000 crore T-bill auction on 8 April to meet government funding needs. Yields are dipping below 10% on surplus liquidity.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "14 Apr 2026" },
+        { sentiment: "bear", headline: "Private sector credit growth at record low 6.03% pushes banks into govt securities", detail: "With private sector credit growth stuck at a record low of 6.03%, banks are increasingly parking excess funds in government T-bills and bonds, driving yields lower.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "14 Apr 2026" }
       ]} />
       <TBillChart />
-      <BankerRead insight="Treasury bill yields jumped 31-33bps in a single week to 10.16-10.39% across the curve as of yesterday's Auction #45, while BB conducted off-calendar Tk10,000 crore special auctions — the government is crowding out private credit in real time. Lock in 364-day T-bills at 10.39% for at least 20% of your SLR portfolio today because yields may climb further if the fiscal deficit widens. Monitor net government credit to the banking system: it hit Tk50,782 crore in H1 FY26 and is on track to breach the Tk1.18 lakh crore revised ceiling by August if revenue stays weak. Use this yield spike to rebalance your HTM-to-HFT ratio — shift 10% of new purchases to HFT to capture mark-to-market gains when the rate cycle eventually turns." />
+      <BankerRead insight="T-bill yields have dropped 40-59bps since January, with the 91-day at 10.02%, 182-day at 10.11%, and 364-day at 10.07% as of the 22 February auction, and the special Tk5,000 crore auction on 8 April confirms yields are dipping below 10% on surplus liquidity — today 14 April marks the window to lock in duration before rates compress further. Extend the government securities portfolio duration by shifting at least 20% of holdings from 91-day bills into the 5-year bond at 9.0% or the 10-year at 10.32%, capturing the 130bp term premium while it persists. Watch the next regular T-bill auction results — if 91-day yields fall below 9.5%, it signals the market expects a policy rate cut within two quarters and your ALM committee must reprice the entire HTM book. The revenue strategy is to front-run the rate decline cycle by building a Tk2,000-3,000 crore position in 10-year bonds now, booking capital gains when BB inevitably cuts the policy rate." />
     </div>
   );
 });
@@ -2128,37 +2129,37 @@ const SectionComm = React.memo(function SectionComm() {
       </div>
 
       <TickerStrip items={[
-        { name: "Brent Crude", value: "$95.20/bbl", change: "Surges ~7% to $101.82 on 13 Apr after Hormuz blockade", chgType: "bear" },
-        { name: "WTI Crude", value: "$104.23/bbl", change: "▲ Jumps ~8% as US-Iran talks collapse", chgType: "bear" },
-        { name: "Natural Gas (HH)", value: "$2.64/MMBtu", change: "Stable", chgType: "neu" },
+        { name: "Brent Crude", value: "$102.47/bbl", change: "Surges above $100 on Hormuz blockade", chgType: "bear" },
+        { name: "WTI Crude", value: "$98.08/bbl", change: "Elevated amid supply disruption", chgType: "bear" },
+        { name: "Natural Gas (HH)", value: "$3.04/MMBtu", change: "Elevated", chgType: "warn" },
         { name: "LNG Spot (JKM)", value: "$19.42/MMBtu", change: "▲ Surged from $10.75 in Feb amid Hormuz closure", chgType: "bear" },
         { name: "Gold (22K BDT)", value: "BDT 2,47,977/bhori", change: "Safe-haven demand elevated", chgType: "bull" },
       ]} />
 
       <div className="cards-grid" style={{ marginBottom: 16 }}>
         <div className="card card-accent-bear">
-          <div className="card-label">Brent Crude <FreshTag date="13 Apr 2026" /></div>
-          <div className="card-value card-value-sm">$95.20/bbl → $101.82</div>
-          <div className="card-change bear">Brent surges ~7% to $101.82 on 13 Apr after Trump announces US blockade of Strait of Hormuz following failed Iran peace talks. Strait largely closed since 28 Feb; EIA estimates 9.1mn bpd of Middle East production shut-ins in April.</div>
-          <Sparkline data={[68, 72, 82, 92.69, 98.98, 100.11, 103.14, 106.86, 112.19, 109.62, 95.20, 101.82]} color="var(--bear)" />
-          <div className="sparkline-label">Oct'25 → 13 Apr'26</div>
+          <div className="card-label">Brent Crude <FreshTag date="14 Apr 2026" /></div>
+          <div className="card-value card-value-sm">$102.47/bbl</div>
+          <div className="card-change bear">Brent surges above $100 as US announces blockade of Strait of Hormuz after collapse of Iran talks in Pakistan. OPEC+ output plunged 7.9 million bpd in March due to Hormuz closure. Saudi restores East-West pipeline but production still down 600k bpd from attacks.</div>
+          <Sparkline data={[68, 72, 82, 92.69, 98.98, 100.11, 103.14, 106.86, 112.19, 109.62, 95.20, 102.47]} color="var(--bear)" />
+          <div className="sparkline-label">Oct'25 → 14 Apr'26</div>
         </div>
         <div className="card card-accent-bear">
-          <div className="card-label">WTI Crude <FreshTag date="13 Apr 2026" /></div>
-          <div className="card-value card-value-sm">$104.23/bbl</div>
-          <div className="card-change bear">WTI jumps ~8% as US-Iran talks collapse; Hormuz remains largely closed since 28 Feb; ~600 vessels stranded; only single-digit daily transits</div>
-          <Sparkline data={[65, 69, 79, 89, 95, 95.5, 96.06, 97, 102.85, 111.54, 95.63, 104.23]} color="var(--bear)" />
-          <div className="sparkline-label">Oct'25 → 13 Apr'26</div>
+          <div className="card-label">WTI Crude <FreshTag date="14 Apr 2026" /></div>
+          <div className="card-value card-value-sm">$98.08/bbl</div>
+          <div className="card-change bear">Elevated amid ongoing Strait of Hormuz disruption; OPEC+ output severely curtailed; ~600 vessels stranded</div>
+          <Sparkline data={[65, 69, 79, 89, 95, 95.5, 96.06, 97, 102.85, 111.54, 95.63, 98.08]} color="var(--bear)" />
+          <div className="sparkline-label">Oct'25 → 14 Apr'26</div>
         </div>
         <div className="card card-accent-bear">
           <div className="card-label">Asian LNG Spot (JKM) <FreshTag date="Apr 2026" /></div>
           <div className="card-value card-value-sm">$19.42/MMBtu</div>
-          <div className="card-change bear">▲ Surged from $10.75 in Feb to near $19-20 range as Qatari LNG capacity hit by Hormuz closure; ~20% of global LNG flows disrupted; LNG suppliers suspend long-term contracts</div>
-          <Sparkline data={[12.5, 13.0, 13.5, 12.8, 10.75, 15.0, 20.0, 19.42]} color="var(--bear)" />
+          <div className="card-change bear">▲ Surged from $10.75 in Feb to near $19-20 range as Qatari LNG capacity hit by Hormuz closure; ~20% of global LNG flows disrupted</div>
+          <Sparkline data={[12.5, 13.2, 14.1, 14.8, 10.75, 16.5, 19.0, 19.42]} color="var(--bear)" />
           <div className="sparkline-label">Oct'25 → Apr'26</div>
         </div>
         <div className="card card-accent-bull">
-          <div className="card-label">Gold (22K BDT) <FreshTag date="13 Apr 2026" /></div>
+          <div className="card-label">Gold (22K BDT) <FreshTag date="14 Apr 2026" /></div>
           <div className="card-value card-value-sm">BDT 2,47,977/bhori</div>
           <div className="card-change bull">Safe-haven demand remains elevated amid Hormuz crisis and global uncertainty</div>
           <Sparkline data={[210000, 215000, 220000, 228000, 235000, 248000, 260000, 270000, 277000, 254625, 247977, 247977]} color="var(--warn)" />
@@ -2169,18 +2170,18 @@ const SectionComm = React.memo(function SectionComm() {
       <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
         <span className="impact-icon">🛢️</span>
         <div className="impact-text">
-          <strong>Oil & LNG Shock Impact on Bangladesh (13 Apr 2026):</strong> Brent surges <strong>~7% to $101.82/bbl</strong> on 13 Apr after Trump announces US blockade of Strait of Hormuz following failed Iran peace talks in Pakistan. WTI jumps <strong>~8% to $104.23</strong>. Strait of Hormuz <strong>largely closed since 28 Feb</strong> US-Israel air war on Iran; ~600 vessels stranded; only single-digit daily transits. EIA estimates <strong>9.1mn bpd</strong> of Middle East production shut-ins in April. US Navy began mine-clearing operation on <strong>11 Apr</strong>; three oil supertankers transit strait. JKM Asian LNG at <strong>$19.42/MMBtu</strong> — surged from $10.75 in Feb; LNG suppliers suspend long-term contracts pushing Bangladesh to volatile spot market. <strong>Furnace oil price ramped up by Tk24.59/litre</strong> domestically. DSE trading hours cut by 30 minutes as part of govt energy conservation strategy.
+          <strong>Oil & LNG Shock Impact on Bangladesh (14 Apr 2026):</strong> Brent surges above <strong>$100/bbl to $102.47</strong> as US announces blockade of Strait of Hormuz after collapse of Iran talks in Pakistan. OPEC+ output plunged <strong>7.9 million bpd</strong> in March due to Hormuz closure. Saudi Arabia restores East-West pipeline capacity but production still down <strong>600k bpd</strong> from attacks on facilities. JKM Asian LNG at <strong>$19.42/MMBtu</strong> — surged from $10.75 in Feb; LNG suppliers suspend long-term contracts pushing Bangladesh to volatile spot market. Natural gas (HH) at <strong>$3.04/MMBtu</strong>. Bangladesh races for urea supply bypassing Hormuz. Iran approves safe passage for 6 Bangladesh fuel ships through Hormuz. DSE trading hours cut by 30 minutes amid fuel crisis. Gold at <strong>BDT 2,47,977/bhori</strong>.
         </div>
       </div>
 
       <CollapsibleNews defaultShow={3} items={[
-        { sentiment: "bear", headline: "Brent surges ~7% to $101.82 on 13 Apr after Trump announces US blockade of Strait of Hormuz", detail: "Brent crude surged approximately 7% to $101.82 per barrel on 13 April after Trump announced a US blockade of the Strait of Hormuz following failed Iran peace talks in Pakistan.", source: "Reuters / FE", sourceUrl: "https://www.reuters.com", time: "13 Apr 2026" },
-        { sentiment: "bear", headline: "WTI crude jumps ~8% to $104.23 as US-Iran talks collapse; Hormuz remains largely closed since 28 Feb", detail: "WTI crude jumped approximately 8% to $104.23 as US-Iran peace talks collapsed. The Strait of Hormuz has been largely closed since the 28 Feb US-Israel air war on Iran, with approximately 600 vessels stranded.", source: "Reuters", sourceUrl: "https://www.reuters.com", time: "13 Apr 2026" },
-        { sentiment: "warn", headline: "US Navy begins operation to clear Iranian naval mines in Strait of Hormuz (11 Apr); three supertankers transit", detail: "US Navy began mine-clearing operations in the Strait of Hormuz on 11 April. Three oil supertankers managed to transit the strait, but overall access remains severely restricted.", source: "Reuters / FE", sourceUrl: "https://www.reuters.com", time: "13 Apr 2026" }
+        { sentiment: "bear", headline: "Brent crude surges above $100 as US announces blockade of Strait of Hormuz after collapse of Iran talks", detail: "Brent crude surged above $100 per barrel as the US announced a blockade of the Strait of Hormuz following the collapse of Iran peace talks in Pakistan.", source: "Reuters / FE", sourceUrl: "https://www.reuters.com", time: "14 Apr 2026" },
+        { sentiment: "bear", headline: "OPEC+ output plunged 7.9 million bpd in March due to Hormuz closure", detail: "OPEC+ output plunged 7.9 million barrels per day in March as the Strait of Hormuz remained largely closed, severely disrupting Middle East oil exports.", source: "Reuters", sourceUrl: "https://www.reuters.com", time: "14 Apr 2026" },
+        { sentiment: "warn", headline: "Saudi Arabia restores East-West pipeline capacity but production still down 600k bpd from attacks", detail: "Saudi Arabia has restored East-West pipeline capacity but production remains down 600,000 bpd from earlier attacks on facilities.", source: "Reuters", sourceUrl: "https://www.reuters.com", time: "14 Apr 2026" }
       ]} />
 
       <LNGChart />
-      <BankerRead insight="Brent spiked to $101.82 on 13 April after Trump announced the Hormuz blockade, WTI hit $104.23, and JKM LNG spot sits at $19.42/MMBtu — up 55% from $12.50 in October 2025 — making today's energy import bill the single largest macro risk for Bangladesh. Immediately stress-test all trade finance exposures to fuel importers assuming Brent at $110 and LNG at $22/MMBtu for the next 90 days. The forward trigger is the EIA estimate of 9.1 million bpd of shut-in Middle East production: if even 20% is restored via the US mine-clearing operation, Brent could retreat to $85 within weeks. Offer structured commodity hedging facilities to your top 20 industrial borrowers — they need diesel and furnace oil price locks, and the Tk24.59/litre furnace oil hike announced today proves the pass-through is accelerating." />
+      <BankerRead insight="Brent crude at $102.47 and WTI at $98.08 as of today 14 April reflect the Strait of Hormuz blockade impact, while spot LNG has surged from $10.75 in February to $19.42 — a near-doubling that will hit Bangladesh's fuel import bill by an estimated $1.5-2.0 billion over the next quarter. Immediately review and stress-test all loan exposures to energy-intensive sectors — textiles, ceramics, steel, and cold storage — under a scenario where fuel costs remain 80% above pre-crisis levels through September 2026. The key trigger is whether Saudi Arabia's East-West pipeline restores full capacity and OPEC+ recovers the 7.9 million bpd lost in March — any weekly output report showing recovery below 3 million bpd means prices stay elevated. Position the trade finance desk to capture LC margins on emergency fuel imports, which are running 14% higher in volume and 29% higher in cost, offering fee income upside of 20-30bps on each transaction." />
     </div>
   );
 });
@@ -2190,32 +2191,31 @@ const SectionFX = React.memo(function SectionFX() {
     <div className="section scroll-target" id="fx">
       <div style={{ display:"flex", alignItems:"center" }}>
         <SectionHeader num="06" title="BDT/USD FX & Forex Reserves" icon="💱" />
-        <TrafficLight status="warn" label="STABLE BUT WATCHFUL" />
+        <TrafficLight status="warn" label="GRADUAL DEVALUATION" />
       </div>
 
       <TickerStrip items={[
-        { name: "USD/BDT", value: "122.85", change: "BB dismisses devaluation speculation", chgType: "neu" },
-        { name: "BPM6 Reserves (Feb 2026)", value: "~$30.36B", change: "Under pressure from energy costs", chgType: "warn" },
-        { name: "Gross Reserves (9 Apr)", value: "$34.65B", change: "Declined from $35.11B — ACU/debt payments", chgType: "warn" },
-        { name: "Feb 2026 Exports", value: "$3.49B", change: "Feb 2026", chgType: "bear" },
-        { name: "Mar 2026 Remittance", value: "$3.75B", change: "Record — cushioning pressure", chgType: "bull" },
+        { name: "USD/BDT", value: "122.70", change: "BB moves for gradual devaluation to manage fuel shock", chgType: "warn" },
+        { name: "BPM6 Reserves (6 Apr)", value: "~$29.81B", change: "Under pressure from energy costs", chgType: "warn" },
+        { name: "Gross Reserves (9 Apr)", value: "$34.65B", change: "BB dismisses devaluation speculation", chgType: "warn" },
         { name: "Trade Gap", value: "$3B", change: "Widening amid surging imports", chgType: "bear" },
+        { name: "Mar 2026 Remittance", value: "$3.75B", change: "Record — cushioning pressure", chgType: "bull" },
       ]} />
 
       <div className="cards-grid" style={{ marginBottom: 16 }}>
         <MetricCard
-          label="USD/BDT (13 Apr 2026)"
-          value="122.85"
+          label="USD/BDT (14 Apr 2026)"
+          value="122.70"
           change=""
-          changeType="neu"
-          sub="BB: forex market stable"
+          changeType="warn"
+          sub="Gradual devaluation underway"
           accent="warn"
-          pill="STABLE"
-          pillType="neu"
+          pill="MANAGED"
+          pillType="warn"
         />
         <MetricCard
-          label="BPM6 Net Reserves (Feb 2026)"
-          value="~$30.36B"
+          label="BPM6 Net Reserves (6 Apr 2026)"
+          value="~$29.81B"
           change=""
           changeType="warn"
           sub="Gross: $34.65B (9 Apr)"
@@ -2224,13 +2224,13 @@ const SectionFX = React.memo(function SectionFX() {
           pillType="warn"
         />
         <MetricCard
-          label="Feb 2026 Total Exports"
-          value="$3.49B"
+          label="Trade Gap"
+          value="$3B"
           change=""
           changeType="bear"
-          sub="Jul-Feb FY26: $31.91B (−3.15% YoY)"
+          sub="Surging imports, declining exports"
           accent="bear"
-          pill="DECLINING"
+          pill="WIDENING"
           pillType="bear"
         />
         <MetricCard
@@ -2238,7 +2238,7 @@ const SectionFX = React.memo(function SectionFX() {
           value="$3.75B"
           change=""
           changeType="bull"
-          sub="Historic record"
+          sub="Historic record — key buffer"
           accent="bull"
           pill="RECORD"
           pillType="bull"
@@ -2246,15 +2246,15 @@ const SectionFX = React.memo(function SectionFX() {
       </div>
 
       <div className="context-box">
-        <strong>FX Outlook (13 Apr 2026):</strong> USD/BDT at <strong>122.85</strong>; BB dismisses speculation of taka devaluation, saying forex market is stable. Gross reserves: <strong>$34.65B</strong> (9 Apr); declined from $35.11B in Feb after ACU/debt payments. BPM6 net reserves: <strong>~$30.36B</strong> (Feb 2026). Trade gap widened to <strong>$3B</strong> amid surging imports and declining exports. February 2026 exports: <strong>$3.49B</strong>; Jul-Feb cumulative $31.91B (−3.15% YoY). March 2026 remittance: <strong>$3.75B</strong> — highest monthly figure ever (+14% YoY); Jul-Mar FY26 cumulative: <strong>$26.20B</strong> (+20% YoY). First 11 days of April: <strong>$1.21B</strong> (+18.4% YoY). Record remittances are the key buffer against energy-driven reserve erosion. However, Brent surging to $101.82 on 13 Apr after Hormuz blockade announcement significantly increases the energy import bill outlook. Furnace oil price raised by Tk24.59/litre.
+        <strong>FX Outlook (14 Apr 2026):</strong> USD/BDT at <strong>122.70</strong>; BB dismisses devaluation speculation but separately moves for <strong>gradual devaluation</strong> to manage fuel shock from Middle East crisis. Gross reserves: <strong>$34.65B</strong> (9 Apr); BPM6 net reserves: <strong>~$29.81B</strong> (6 Apr). Trade gap widened to <strong>$3B</strong> amid surging imports and declining exports. March 2026 remittance: <strong>$3.75B</strong> — highest monthly figure ever (+14% YoY); Jul-Mar FY26 cumulative: <strong>$26.20B</strong> (+20% YoY). First 11 days of April: <strong>$1.21B</strong> (+18.4% YoY). Record remittances are the key buffer against energy-driven reserve erosion. However, Brent at $102.47 and LNG at $19.42/MMBtu significantly increase the energy import bill outlook. Iran approves safe passage for 6 Bangladesh fuel ships through Hormuz.
       </div>
 
       <CollapsibleNews defaultShow={2} items={[
-        { sentiment: "neu", headline: "Bangladesh Bank dismisses Taka devaluation speculation; forex market stable (7 Apr)", detail: "Bangladesh Bank has firmly dismissed speculation about taka devaluation, stating the forex market remains stable.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" },
-        { sentiment: "warn", headline: "Forex reserves at $34.65bn (9 Apr gross); declined from $35.11bn in Feb after ACU/debt payments", detail: "Gross reserves stand at $34.65 billion as of 9 April, declining from $35.11 billion in February after ACU and debt payments. BPM6 net reserves approximately $30.36 billion as of February 2026.", source: "BB", sourceUrl: "https://www.bb.org.bd", time: "13 Apr 2026" },
-        { sentiment: "bear", headline: "Trade gap widens to $3B amid surging imports, declining exports", detail: "Bangladesh's trade gap has widened to $3 billion amid surging imports (driven by energy costs) and declining exports.", source: "BB / FE", sourceUrl: "https://today.thefinancialexpress.com.bd", time: "13 Apr 2026" }
+        { sentiment: "neu", headline: "BB dismisses devaluation speculation; forex market robustly stable with $34.35bn reserves (6 Apr)", detail: "Bangladesh Bank has firmly dismissed speculation about taka devaluation, stating the forex market is robustly stable.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" },
+        { sentiment: "warn", headline: "Cenbank moves for gradual devaluation to manage fuel shock from Middle East crisis", detail: "Bangladesh Bank is moving for a gradual, managed devaluation of the taka to help absorb the fuel shock from the ongoing Middle East crisis and Hormuz disruption.", source: "DS / FE", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" },
+        { sentiment: "bear", headline: "Trade gap widens to $3B amid surging imports, declining exports", detail: "Bangladesh's trade gap has widened to $3 billion amid surging imports (driven by energy costs) and declining exports.", source: "BB / FE", sourceUrl: "https://today.thefinancialexpress.com.bd", time: "14 Apr 2026" }
       ]} />
-      <BankerRead insight="The Taka held at 122.85/USD as of today despite BB publicly dismissing devaluation speculation on 7 April, but gross reserves declined to $34.65 billion from $35.11 billion in February after ACU and debt service payments. Hedge all USD payable exposures beyond 90 days at current spot — the BPM6-adjusted reserve of ~$30.36 billion covers barely 4.5 months of imports, and Hormuz disruptions will inflate the fuel import bill. Watch reserves weekly: a breach below $33 billion gross or $29 billion BPM6 would likely force BB to allow a 3-5% managed depreciation. Prioritize export-bill discounting in USD to build a natural long-dollar position in the trade finance book, capturing the 122.85 spread while backstopping against Taka weakness." />
+      <BankerRead insight="The taka at 122.7/USD with gross reserves at $34.65 billion as of 9 April — but only $29.81 billion on a BPM6 basis — means the real import cover is approximately 4.5 months, and today 14 April the central bank is signaling gradual devaluation to absorb the fuel shock from Hormuz. Revalue all USD-denominated asset and liability exposures assuming the taka weakens to 126-128 by June 2026; any unhedged import LC book above $50 million needs immediate forward cover. The trigger to watch is the weekly BB intervention data — if net sales exceed $300 million in any single week, expect an accelerated slide toward 125 and tighten FX stop-losses on the NOSTRO book. The opportunity is in structuring forward contracts for RMG exporters at 124-125 for 90-day tenors, locking in fee income while exporters are desperate for certainty amid the $3 billion trade gap." />
     </div>
   );
 });
@@ -2271,13 +2271,13 @@ const SectionRemittance = React.memo(function SectionRemittance() {
         { name: "Mar 2026 Remittance", value: "$3.75B", change: "▲ Highest monthly figure ever — +14% YoY", chgType: "bull" },
         { name: "Apr 1-11 Partial", value: "$1.21B", change: "▲ +18.4% YoY — strong start", chgType: "bull" },
         { name: "FY26 Jul–Mar Cumulative", value: "$26.20B", change: "+20% YoY — exceptional trajectory", chgType: "bull" },
-        { name: "Gulf Corridor Risk", value: "ELEVATED", change: "Experts warn ME crisis may slow future flows", chgType: "warn" },
+        { name: "Gulf Corridor Risk", value: "ELEVATED", change: "ME crisis may slow future flows", chgType: "warn" },
       ]} />
 
       <div className="impact-banner" style={{ borderColor: "rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.06)" }}>
         <span className="impact-icon">💰</span>
         <div className="impact-text" style={{ color: "var(--bull)" }}>
-          <strong>REMITTANCE — HISTORIC RECORD (13 Apr 2026):</strong> March 2026: <strong>$3.75 billion</strong> — the highest monthly remittance figure in Bangladesh's history (+14% YoY). FY26 cumulative (Jul–Mar): <strong>$26.20B</strong> (+20% YoY). First 11 days of April: <strong>$1.21B</strong> (+18.4% YoY) — robust start. First 6 days of April received <strong>$660M</strong> (+20.5% YoY). Iran conflict appears to be prompting early/accelerated remittances from Gulf workers combined with post-Eid transfers. <strong>Critical tail risk:</strong> Economists warn Middle East crisis may slow future remittance flows as Gulf economies face disruption from prolonged Hormuz closure. Hormuz blockade announced by Trump on 13 Apr escalates this risk further.
+          <strong>REMITTANCE — HISTORIC RECORD (14 Apr 2026):</strong> March 2026: <strong>$3.75 billion</strong> — the highest monthly remittance figure in Bangladesh's history (+14% YoY). FY26 cumulative (Jul–Mar): <strong>$26.20B</strong> (+20% YoY). First 11 days of April: <strong>$1.21B</strong> (+18.4% YoY) — robust start. First 6 days of April received <strong>$660M</strong> (+20.5% YoY). Iran conflict appears to be prompting early/accelerated remittances from Gulf workers combined with post-Eid transfers. <strong>Critical tail risk:</strong> Economists warn Middle East crisis may slow future remittance flows as Gulf economies face disruption from prolonged Hormuz closure.
         </div>
       </div>
 
@@ -2285,9 +2285,9 @@ const SectionRemittance = React.memo(function SectionRemittance() {
         <MetricCard
           label="Mar 2026 Remittance"
           value="$3.75B"
-          change="+14% YoY"
+          change="▲ +14% YoY"
           changeType="bull"
-          sub="Highest ever single month"
+          sub="Highest monthly figure ever"
           accent="bull"
           pill="HISTORIC RECORD"
           pillType="bull"
@@ -2295,7 +2295,7 @@ const SectionRemittance = React.memo(function SectionRemittance() {
         <MetricCard
           label="Apr 1-11 Partial"
           value="$1.21B"
-          change="+18.4% YoY"
+          change="▲ +18.4% YoY"
           changeType="bull"
           sub="Strong April start"
           accent="bull"
@@ -2305,7 +2305,7 @@ const SectionRemittance = React.memo(function SectionRemittance() {
         <MetricCard
           label="FY26 Jul–Mar Cumulative"
           value="$26.20B"
-          change="+20% YoY"
+          change="▲ +20% YoY"
           changeType="bull"
           sub="Record pace"
           accent="bull"
@@ -2317,7 +2317,7 @@ const SectionRemittance = React.memo(function SectionRemittance() {
           value="ELEVATED"
           change=""
           changeType="warn"
-          sub="Hormuz blockade escalation"
+          sub="ME crisis poses medium-term risk"
           accent="warn"
           pill="TAIL RISK"
           pillType="warn"
@@ -2325,11 +2325,11 @@ const SectionRemittance = React.memo(function SectionRemittance() {
       </div>
 
       <CollapsibleNews defaultShow={3} items={[
-        { sentiment: "bull", headline: "Bangladesh records historic $3.75bn remittance inflow in March 2026, highest monthly figure ever", detail: "Bangladesh received a record $3.75 billion in remittances in March 2026, the highest monthly figure in the country's history, up 14% YoY.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" },
-        { sentiment: "bull", headline: "Cumulative Jul-Mar FY26 remittance $26.20bn, up 20% YoY — exceptional trajectory", detail: "Bangladesh received $26.20 billion in remittances during Jul–Mar FY26, a 20% YoY increase, maintaining an exceptional trajectory.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" },
-        { sentiment: "warn", headline: "First 6 days of April received $660mn (+20.5% YoY); experts warn ME crisis may slow future flows", detail: "April started strongly with $660 million in the first 6 days (+20.5% YoY) and $1.21 billion in the first 11 days (+18.4% YoY). However, economists caution that the ongoing Middle East crisis and Hormuz blockade could slow future remittance inflows from Gulf states.", source: "DS / FE", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" }
+        { sentiment: "bull", headline: "Bangladesh records historic $3.75b remittance inflow in March 2026, highest ever single month", detail: "Bangladesh received a record $3.75 billion in remittances in March 2026, the highest monthly figure in the country's history, up 14% YoY.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" },
+        { sentiment: "bull", headline: "FY26 cumulative remittance (Jul-Mar) at $26.20 billion, up 20% YoY", detail: "Bangladesh received $26.20 billion in remittances during Jul–Mar FY26, a 20% YoY increase, maintaining an exceptional trajectory.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" },
+        { sentiment: "warn", headline: "First 6 days of April received $660mn (+20.5% YoY); Middle East crisis poses risk to future flows", detail: "April started strongly with $660 million in the first 6 days (+20.5% YoY) and $1.21 billion in the first 11 days (+18.4% YoY). However, economists caution that the ongoing Middle East crisis could slow future remittance inflows from Gulf states.", source: "DS / FE", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" }
       ]} />
-      <BankerRead insight="March 2026 remittance hit a historic $3.75 billion and the first 11 days of April already logged $1.21 billion — an 18.4% YoY surge — making diaspora flows Bangladesh's most reliable FX lifeline this Monday. Channel this into a dedicated NRB fixed deposit product priced at 10.25% for 1-year tenor to lock in sticky funding before the Middle East crisis potentially disrupts worker deployments. The trigger to watch: if April full-month remittance falls below $3.2 billion, it signals that ME conflict is finally choking worker transfers — model this scenario in your FX liquidity contingency plan. Launch a digital remittance wallet partnership with at least two Gulf-based exchange houses by end-April to capture share of the $26.2 billion cumulative Jul-Mar flow." />
+      <BankerRead insight="March 2026 remittance hit a historic $3.75 billion, FY26 cumulative stands at $26.20 billion up 20% YoY, and the first 11 days of April already show $1.21 billion at an 18.4% YoY growth clip — as of today 14 April, this is the strongest external buffer Bangladesh has against the oil shock. Retail banking heads should immediately deploy dedicated remittance conversion products offering 50-75bps premium on spot rate for savings deposits above Tk5 lakh, targeting the diaspora corridor that delivered $660 million in just the first 6 days of April. The risk trigger is the Middle East crisis itself — if the Hormuz situation escalates and Gulf employers begin workforce reductions, the April full-month number dropping below $3.2 billion would signal a structural break in the remittance trend. Build a remittance-linked SME lending product targeting families of overseas workers, collateralized by recurring inflow history of 12+ months, at rates of 12-13% — this is the lowest-risk retail segment in the current environment." />
     </div>
   );
 });
@@ -2343,16 +2343,16 @@ const SectionBanking = React.memo(function SectionBanking() {
       </div>
 
       <TickerStrip items={[
-        { name: "NPL Ratio (Sep 2025)", value: "35.73%", change: "▲ Highest in the world — Tk6.44L Cr defaulted", chgType: "bear" },
+        { name: "NPL Ratio (Sep 2025)", value: "35.73%", change: "▲ Highest in the world — Tk5.44L Cr defaulted", chgType: "bear" },
         { name: "Pvt Credit Growth", value: "6.03%", change: "Record low — ME crisis dampens recovery", chgType: "bear" },
-        { name: "BB NPL Target", value: "<8% by Jun 2026", change: "State banks must hit 10%, private <5%", chgType: "warn" },
-        { name: "New BB Governor", value: "Md Mostaqur Rahman", change: "Signals gradual rate support", chgType: "bull" },
+        { name: "NPL in Business/Trade", value: "42%", change: "By Dec 2025 — critical sectoral stress", chgType: "bear" },
+        { name: "New BB Governor", value: "Md Mostaqur Rahman", change: "Signals gradual rate cuts", chgType: "bull" },
       ]} />
 
       <div className="impact-banner" style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)" }}>
         <span className="impact-icon">⚠️</span>
         <div className="impact-text" style={{ color: "var(--bear)" }}>
-          <strong>SYSTEMIC RISK (13 Apr 2026):</strong> Bangladesh's NPL ratio: <strong>35.73%</strong> (Sep 2025) — highest in the world. Defaulted loans at record <strong>Tk6.44 lakh crore</strong> (~1/3 of total lending). BB targets reduction to below <strong>8%</strong> by Jun 2026; state banks must hit 10%, private banks below 5%. Private sector credit growth stuck at record low <strong>6.03%</strong> in Feb 2026 amid tight policy, weak demand, and Middle East uncertainty. New BB Governor <strong>Md Mostaqur Rahman</strong> signals gradual rate support but no action yet due to ME crisis. Law change paves way for former owners to reclaim distressed banks. Islamic banks' deposits rise 9.4% in Dec 2025.
+          <strong>SYSTEMIC RISK (14 Apr 2026):</strong> Bangladesh's NPL ratio: <strong>35.73%</strong> (Sep 2025) — highest in the world. Top 20 loan defaulters revealed in parliament; bad loans at <strong>Tk5.44 lakh crore</strong>. NPL in business/trade sector at <strong>42%</strong> by Dec 2025. Private sector credit growth stuck at record low <strong>6.03%</strong> in Feb 2026 amid tight policy, weak demand, and Middle East uncertainty. New BB Governor <strong>Md Mostaqur Rahman</strong> signals gradual lending rate cuts to revive investment. BB introduces <strong>transaction-based reference rate</strong> in money market (14 Apr) to improve interbank lending transparency. Banks to face action for refusing torn, soiled notes. Rising debt pressure on Bangladesh.
         </div>
       </div>
 
@@ -2362,7 +2362,7 @@ const SectionBanking = React.memo(function SectionBanking() {
           value="35.73%"
           change=""
           changeType="bear"
-          sub="BB target: <8% by Jun 2026"
+          sub="Tk5.44 lakh crore defaulted"
           accent="bear"
           pill="HISTORIC HIGH"
           pillType="bear"
@@ -2378,28 +2378,29 @@ const SectionBanking = React.memo(function SectionBanking() {
           pillType="bear"
         />
         <MetricCard
-          label="New BB Governor"
-          value="Md Mostaqur Rahman"
+          label="NPL in Business/Trade (Dec 2025)"
+          value="42%"
           change=""
-          changeType="bull"
-          sub="Gradual rate support signalled"
-          accent="bull"
-          pill="REFORM SIGNAL"
-          pillType="bull"
+          changeType="bear"
+          sub="Sectoral stress critical"
+          accent="bear"
+          pill="CRITICAL"
+          pillType="bear"
         />
       </div>
 
       <CollapsibleNews defaultShow={3} items={[
-        { sentiment: "bear", headline: "Bangladesh NPL ratio surged to 35.73% as of Sep 2025, highest in the world — reflects reclassification under Basel III", detail: "Bangladesh's NPL ratio surged to 35.73% of total loans as of September 2025, the highest in the world, reflecting reclassification under Basel III standards. Defaulted loans reached a record Tk6.44 lakh crore.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "13 Apr 2026" },
-        { sentiment: "bear", headline: "Private sector credit growth stuck at record low 6.03% in Feb 2026 amid tight policy, weak demand, and ME uncertainty", detail: "Private sector credit growth remains stuck at a record low of 6.03% in February 2026. The Middle East crisis further dampens investment demand and banking sector recovery prospects.", source: "TBS", sourceUrl: "https://www.tbsnews.net", time: "13 Apr 2026" },
-        { sentiment: "warn", headline: "Record NPLs of Tk6.44 lakh crore; BB targets reduction to below 8% by Jun 2026", detail: "BB has set ambitious targets to reduce NPLs below 8% by June 2026: state banks must achieve 10%, private banks must hit below 5%. Current levels remain far from these targets.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "13 Apr 2026" }
+        { sentiment: "bear", headline: "Bangladesh NPL ratio surged to 35.73% by Sep 2025 — highest in the world per analysis", detail: "Bangladesh's NPL ratio surged to 35.73% of total loans as of September 2025, the highest in the world. Reflects reclassification under Basel III standards.", source: "BB / TBS", sourceUrl: "https://www.tbsnews.net", time: "14 Apr 2026" },
+        { sentiment: "bear", headline: "Top 20 loan defaulters revealed in parliament; bad loans at Tk5.44 lakh crore", detail: "Top 20 loan defaulters were revealed in parliament, with bad loans totalling Tk5.44 lakh crore across the banking system.", source: "DS / TBS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" },
+        { sentiment: "bull", headline: "New BB Governor signals gradual lending rate cuts to revive investment; NPL in business/trade at 42% by Dec 2025", detail: "New Governor Md Mostaqur Rahman signals willingness to gradually cut lending rates. However, NPL in the business/trade sector has risen to 42% by December 2025.", source: "BB / DS", sourceUrl: "https://www.thedailystar.net", time: "14 Apr 2026" }
       ]} />
-      <BankerRead insight="Bangladesh's NPL ratio at 35.73% as of September 2025 — the highest globally — with Tk6.44 lakh crore in classified loans means your provision expense is the single largest drag on FY26 profitability. Run a name-by-name review of your top 50 classified accounts this week and identify which ones qualify for BB's restructuring window before the June 2026 deadline to hit the sub-8% target. The critical metric is private bank NPL versus the mandated sub-5% target: if your bank's ratio exceeds 8% by the March 2026 reporting date, expect BB to restrict dividend declarations. Aggressively pursue cash recoveries on accounts classified before July 2024, offering up to 20% haircuts on principal for immediate settlement — recovery today is worth far more than provisioned hope tomorrow." />
+      <BankerRead insight="Bangladesh's NPL ratio at 35.73% as of September 2025 — the highest in the world — with business and trade sector NPLs at 42% by December 2025 and total bad loans at Tk5.44 lakh crore, means that as of today 14 April every bank's capital adequacy is being eroded faster than provisions can cover. CROs must immediately reclassify all substandard loans in the top-50 exposure list that have missed even one installment since January 2026, and raise specific provisions to at least 50% on any account showing cash flow deterioration linked to the energy crisis. Watch the new BB Governor's signals on regulatory forbearance — if Mostaqur Rahman extends any blanket rescheduling window beyond June 2026, it delays recognition but doubles the eventual write-off burden. The only viable strategy is aggressive NPL resolution through haircut-based settlements at 40-50 cents on the taka for exposures above Tk100 crore, freeing capital for new lending before the next BB inspection cycle." />
     </div>
   );
 });
 
 const SectionTariff = React.memo(function SectionTariff() {
+ 
  
  
  
@@ -2467,12 +2468,13 @@ const SectionTariff = React.memo(function SectionTariff() {
         { sentiment: "bull", headline: "Bangladesh apparel sector targets additional $5B in US exports — industry sees competitive edge over India via zero-duty US-cotton channel", detail: "Mohiuddin Rubel (Denim Expert): zero-duty upside larger than the tariff cut itself. Kutubuddin Ahmed (Envoy Textiles): US cotton slightly more expensive but trade benefits compensate. Former BGMEA President Faruque Hassan: 'Modest but significant.'", source: "Apparel Resources / MKMA", sourceUrl: "https://apparelresources.com/business-news/trade-business-news/bangladesh-apparel-sector-aims-additional-us-5-billion-us-exports-following-us-deal/", time: "Feb 25, 2026" },
         { sentiment: "warn", headline: "BGMEA warns double squeeze: fuel cost inflation from Iran war compounds US ART input-sourcing burden — RMG margins at risk", detail: "RMG sector accounts for 85%+ of total exports and employs ~4M workers. Higher energy costs inflate electricity tariffs, transport, and factory operations. BGMEA flagged the combination of fuel cost inflation, US-cotton sourcing requirements for ART zero-duty channel, and EU FTA preference erosion as compounding pressures.", source: "BGMEA / Pressenza", sourceUrl: "https://www.pressenza.com/2026/03/middle-east-war-could-disrupt-bangladeshs-energy-exports-and-worker-incomes/", time: "Mar 2026" }
       ]} />
-<BankerRead insight="The US 37% reciprocal tariff on Bangladesh announced in recent weeks is a structural threat that compounds the Middle East supply chain disruption — as of this Monday, no exemption negotiations have been confirmed. Immediately classify all export-finance exposures to US-market-dependent manufacturers as elevated risk and require updated order-book confirmations before any new disbursement. Watch for a US Trade Representative review or exclusion announcement; if no relief comes by June 2026, model a 15-20% decline in US-bound shipments for FY27 budgeting. Actively market trade finance facilities to non-garment exporters — engineering exports are up 23% and pharma up 6% YoY — as diversification is no longer optional." />
+<BankerRead insight="The US tariff pressure on Bangladesh RMG exports and the broader Hormuz-driven supply chain disruption create a dual threat — as of today 14 April, the Japan-Bangladesh EPA signed 6 February is the only new market access positive on the table. Trade finance desks should immediately offer preferential LC pricing at 15-20bps below standard rates for any RMG exporter with confirmed Japanese buyer orders, building first-mover advantage in a market that could absorb $2-3 billion in additional RMG imports over three years. The trigger is any concrete US tariff announcement exceeding 10% on Bangladesh garments — at that threshold, expect 15-20% of US-destined orders to be redirected to Vietnam and Cambodia within two quarters. Diversify the trade finance portfolio so that no more than 35% of export LC exposure is concentrated in US-bound shipments, rebalancing toward EU, Japan, and emerging market corridors." />
     </div>
   );
 });
 
 const SectionTrade = React.memo(function SectionTrade() {
+ 
  
  
  
@@ -2550,7 +2552,7 @@ const SectionTrade = React.memo(function SectionTrade() {
         { sentiment: "bear", headline: "Iran war: Maersk, MSC suspend Bangladesh-Gulf cargo bookings; LNG suppliers suspend long-term contracts; import costs surging; emergency diesel from India", detail: "The US-Iran war and Strait of Hormuz disruption has critically disrupted Gulf trade routes. Maersk and MSC have suspended new Bangladesh-Gulf cargo bookings; LNG suppliers have suspended long-term contracts with Bangladesh, forcing reliance on spot market at $18–22/MMBtu. Bangladesh plans emergency diesel imports via India's Numaligarh pipeline; government limits vehicle fuel purchases; schools shut to conserve energy. Trade deficit widening: Brent at $100.50/bbl means import costs will rise significantly in March–April data.", source: "TBS / LankaBD", sourceUrl: "https://www.tbsnews.net", time: "Mar 2026" },
         { sentiment: "warn", headline: "Bangladesh strikes US reciprocal trade deal; CPD warns Tk1,327cr revenue loss; Jul-Feb FY26 exports fell 3.15% YoY as seventh consecutive monthly decline", detail: "Bangladesh signed an 'Agreement on Reciprocal Trade' with the US granting duty-free access to 4,500 US products. CPD warns this will cost Tk1,327 crore in customs revenue in FY26 alone, and may violate WTO rules. The US Ambassador visited BGMEA to discuss trade and investment. Total exports in July–February FY26 fell 3.15% YoY. NBR customs revenue already down 4% YoY in Jul–Jan FY26 — the revenue loss compounds the fiscal shortfall where NBR has collected only 27% of annual target.", source: "TBS / CPD", sourceUrl: "https://www.tbsnews.net/bangladesh/us-trade-deal-may-lose-bangladesh-tk1327-crore-revenue-cpd-1382601", time: "10 Mar 2026" }
       ]} />
-      <BankerRead insight="Exports fell 12% YoY to $3.49 billion in February while the trade gap widened to $3 billion, and cumulative Jul-Feb exports of $31.91 billion are down 3.15% YoY — the external sector is contracting on both the Hormuz shock and tariff overhang. Cap new import LC issuance for non-essential goods at 90% of the borrower's trailing 6-month average and prioritize essential commodity LCs. The trigger is March trade data due in late April: if the monthly deficit exceeds $3.5 billion, expect BB to impose informal import controls. Build a dedicated trade advisory team to help exporters pivot shipments from the US to EU and UK markets ahead of LDC graduation in November 2026 — the transition timeline is now barely seven months away." />
+      <BankerRead insight="The trade deficit has widened to $3 billion amid surging fuel imports and declining exports, and today 14 April the Hormuz blockade is compounding import costs with fuel spending up 29% even as volumes rose only 14%. Corporate banking must immediately tighten LC approval criteria for non-essential imports — set a minimum margin requirement of 25% for all discretionary consumer goods LCs and 15% for industrial raw materials. If the monthly trade deficit exceeds $3.5 billion in April data, expect BB to impose informal import curbs similar to 2022, which would strand LCs already opened — audit the pipeline now. The strategic response is to aggressively grow export pre-shipment finance to RMG and pharma exporters at 10-11%, which carries lower risk than import finance in a devaluation-prone environment." />
     </div>
   );
 });
@@ -2783,22 +2785,22 @@ const OilChart = React.memo(function OilChart() {
 
 const SectionExec = React.memo(function SectionExec() {
   const bullets = [
-    { type: "bear", indicator: "▼", text: "Brent surges ~7% to $101.82; Trump announces Hormuz blockade after talks collapse.", section: "iranwar" },
+    { type: "bear", indicator: "▼", text: "Brent surges to $102.47; US blockade of Hormuz after Iran talks collapse.", section: "iranwar" },
+    { type: "bear", indicator: "▼", text: "DSEX falls 51 pts (−0.97%) to 5,220; DSE cuts trading hours amid fuel crisis.", section: "dse" },
     { type: "bull", indicator: "▲", text: "Record $3.75B remittance in March; Apr 1-11 at $1.21B (+18.4% YoY).", section: "remit" },
-    { type: "bear", indicator: "▼", text: "T-bill yields spike 31-33bps in one week; govt ramps bank borrowing.", section: "tbond" },
-    { type: "bull", indicator: "▲", text: "DSEX gains 13 pts to 5,271; insurance stocks shine on positive open.", section: "dse" },
+    { type: "bear", indicator: "▼", text: "GDP growth revised sharply down to 3.49% (FY25 final BBS estimate).", section: "macro" },
+    { type: "warn", indicator: "⚠", text: "BB introduces transaction-based interbank benchmark; gradual FX devaluation underway.", section: "bb" },
     { type: "bear", indicator: "▼", text: "NPL 35.73% — world's highest; credit growth stuck at 6.03% record low.", section: "banking" },
-    { type: "warn", indicator: "⚠", text: "Furnace oil price hiked Tk24.59/litre; inflation outpaces wages for 50 months.", section: "comm" },
-    { type: "warn", indicator: "⚠", text: "LNG suppliers suspend long-term contracts; Bangladesh pushed to spot market.", section: "comm" },
-    { type: "watch", indicator: "→", text: "Reserves at $34.65B (gross); BB dismisses taka devaluation speculation.", section: "fx" },
+    { type: "warn", indicator: "⚠", text: "Govt plans big-spend budget amid revenue doubts; NBR may miss target by Tk1T.", section: "fiscal" },
+    { type: "watch", indicator: "→", text: "Reserves at $34.65B gross; BPM6 net ~$29.81B; energy costs straining buffer.", section: "fx" },
   ];
 
   const events = [
-    { date: "13 Apr (Mon)", event: "Brent surges to $101.82 after Trump Hormuz blockade announcement. Market reaction critical." },
-    { date: "~Mid Apr", event: "March 2026 export data from EPB. Feb: exports −12% YoY; RMG −3.73% Jul-Feb." },
+    { date: "14 Apr (Tue)", event: "BB transaction-based interbank reference rate takes effect. Market adaptation critical." },
+    { date: "~Mid Apr", event: "March 2026 export data from EPB. Watch for trade gap widening." },
     { date: "22 Apr (Wed)", event: "2-week ceasefire expiration date. If not extended, oil could spike further." },
-    { date: "May 2026", event: "Additional fuel price hike decision likely after Tk24.59/L furnace oil increase." },
-    { date: "Jun 2", event: "National Budget FY2026-27. Big budget flagged to finance important sectors." },
+    { date: "May 2026", event: "Cabinet body to recommend power tariff adjustment amid fuel crisis." },
+    { date: "Jun 2", event: "National Budget FY2026-27. Govt plans big-spend budget for jobs & growth." },
     { date: "Jul 2026", event: "Next BB MPS for H1 FY27. Rate cut depends on CPI moderation and oil outlook." },
     { date: "Nov 2026", event: "LDC graduation — trade preference implications for RMG sector." },
   ];
@@ -2828,25 +2830,25 @@ const SectionExec = React.memo(function SectionExec() {
           ))}
         </div>
       </div>
-      <BankerRead insight="This Monday marks a convergence of risks that demands C-suite alignment: Hormuz blockade escalation, T-bill yields spiking, NPLs at 35.73%, and the tariff shock hitting export clients simultaneously. The CFO should convene a joint Treasury-Credit-Risk committee by Wednesday to stress-test the balance sheet under a combined scenario of Brent at $110, Taka at 128, and 200bps higher funding costs. The executive trigger is whether BB issues any emergency circular this week in response to the Hormuz blockade — past crises show BB acts within 5-7 business days of an oil shock exceeding 10%. Reallocate capital from growth-oriented lending to defensive positions: increase liquid asset buffers to 25% of total assets and pause all unsecured retail lending above Tk10 lakh until geopolitical clarity emerges." />
+      <BankerRead insight="Today 14 April marks roughly two months since the 12 February election and the appointment of new BB Governor Md Mostaqur Rahman, with the government now planning a big-spend budget for jobs and growth amid a revenue shortfall of potentially Tk1.0 trillion — this is the week to position for the policy pivot. Senior management should prepare board-level scenario analysis for three outcomes: expansionary budget with 15%+ spending growth funded by bank borrowing, a moderate budget with 8-10% growth, or a constrained budget forced by IMF conditionality. The trigger is the FY27 budget announcement expected in June — if the government borrowing ceiling exceeds the current Tk1.18 trillion, yields will spike and the SLR portfolio must be repositioned. Engage the government relations team now to participate in pre-budget consultations, advocating for tax incentives on digital banking and SME lending that directly benefit the bank's growth verticals." />
     </div>
   );
 });
 
 const SectionHeadlines = React.memo(function SectionHeadlines() {
   const headlines = [
-    { title: "Islamic banks’ deposits rise 9.4% in Dec", url: "https://www.thedailystar.net/business/economy/news/islamic-banks-deposits-rise-94-dec-4150156", source: "DS", time: "13 Apr" },
-    { title: "Spend more, spend better on social sectors", url: "https://www.thedailystar.net/business/economy/news/spend-more-spend-better-social-sectors-4150151", source: "DS", time: "13 Apr" },
-    { title: "Inflation outpaces wages for 50 months", url: "https://www.thedailystar.net/business/economy/news/inflation-outpaces-wages-50-months-4150166", source: "DS", time: "13 Apr" },
-    { title: "Pahela Baishakh sales bounce back after two lean years", url: "https://www.thedailystar.net/business/economy/news/pahela-baishakh-sales-bounce-back-after-two-lean-years-4150171", source: "DS", time: "13 Apr" },
-    { title: "Treasury bill yields rise as govt ramps up bank borrowing", url: "https://www.tbsnews.net/economy/treasury-bill-yields-rise-govt-ramps-bank-borrowing-1409996", source: "TBS", time: "13 Apr" },
-    { title: "Riyadh Air eyes Dhaka route, Saudi envoy says", url: "https://www.tbsnews.net/economy/aviation/riyadh-air-eyes-dhaka-route-saudi-envoy-says-1409541", source: "TBS", time: "13 Apr" },
-    { title: "Middle East ceasefire brings partial normalcy to Ctg airport, flight disruptions persist", url: "https://www.tbsnews.net/economy/aviation/middle-east-ceasefire-brings-partial-normalcy-ctg-airport-flight-disruptions", source: "TBS", time: "13 Apr" },
-    { title: "Law change paves way for former owners to reclaim distressed banks", url: "https://www.tbsnews.net/economy/law-change-paves-way-former-owners-reclaim-distressed-banks-1409111", source: "TBS", time: "13 Apr" },
-    { title: "US Vice President JD Vance (L) talks to Pakistan's Chief of Defence Forces and Chief of Army Staff Field Marshall Asim Munir (R)", url: "https://today.thefinancialexpress.com.bd/first-page/us-vice-president-jd-vance-l-talks-to-pakistans-chief-of-defence-forces-and-chief-of-army-staff-field-marshall-asim-munir-r-1776017991", source: "FE", time: "13 Apr" },
-    { title: "Next budget to tighten VAT compliance of businesses", url: "https://today.thefinancialexpress.com.bd/first-page/next-budget-to-tighten-vat-compliance-of-businesses-1776018036", source: "FE", time: "13 Apr" },
-    { title: "Big nat’l budget coming to finance important sectors", url: "https://today.thefinancialexpress.com.bd/first-page/big-natl-budget-coming-to-finance-important-sectors-1776018105", source: "FE", time: "13 Apr" },
-    { title: "Furnace oil price ramped up by Tk24.59 a litre", url: "https://today.thefinancialexpress.com.bd/first-page/furnace-oil-price-ramped-up-by-tk2459-a-litre-1776018145", source: "FE", time: "13 Apr" }
+    { title: "Transaction-based benchmark introduced for interbank lending", url: "https://www.thedailystar.net/business/economy/news/transaction-based-benchmark-introduced-interbank-lending-4151101", source: "DS", time: "14 Apr" },
+    { title: "Banks to face action for refusing torn, soiled notes", url: "https://www.thedailystar.net/business/economy/news/banks-face-action-refusing-torn-soiled-notes-4151091", source: "DS", time: "14 Apr" },
+    { title: "Bangladesh races for urea supply bypassing Hormuz", url: "https://www.thedailystar.net/business/economy/news/bangladesh-races-urea-supply-bypassing-hormuz-4151121", source: "DS", time: "14 Apr" },
+    { title: "Starlink in Bangladesh: Blazing fast, but few can afford", url: "https://www.thedailystar.net/business/economy/news/starlink-bangladesh-blazing-fast-few-can-afford-4151116", source: "DS", time: "14 Apr" },
+    { title: "Govt plans big-spend budget for jobs, growth amid revenue doubts", url: "https://www.tbsnews.net/economy/govt-plans-big-spend-budget-jobs-growth-amid-revenue-doubts-1411001", source: "TBS", time: "14 Apr" },
+    { title: "Nilphamari textile mill likely to reopen within 3 months: State minister", url: "https://www.tbsnews.net/economy/nilphamari-textile-mill-likely-reopen-within-3-months-state-minister-1410966", source: "TBS", time: "14 Apr" },
+    { title: "BB introduces transaction-based reference rate in money market", url: "https://www.tbsnews.net/economy/banking/bb-introduces-transaction-based-reference-rate-money-market-1410681", source: "TBS", time: "14 Apr" },
+    { title: "Why is Bangladesh facing rising debt pressure", url: "https://www.tbsnews.net/economy/why-bangladesh-facing-rising-debt-pressure-1410536", source: "TBS", time: "14 Apr" },
+    { title: "Economic strain dims New Year celebrations", url: "https://today.thefinancialexpress.com.bd/first-page/economic-strain-dims-new-year-celebrations-1776104256", source: "FE", time: "14 Apr" },
+    { title: "Interest payments, subsidies, incentives to swallow big pies", url: "https://today.thefinancialexpress.com.bd/first-page/interest-payments-subsidies-incentives-to-swallow-big-pies-1776104336", source: "FE", time: "14 Apr" },
+    { title: "Deadline passes for US blockade of Iran's ports", url: "https://today.thefinancialexpress.com.bd/first-page/deadline-passes-for-us-blockade-of-irans-ports-1776104411", source: "FE", time: "14 Apr" },
+    { title: "Cabinet body formed to suggest power tariff adjustment", url: "https://today.thefinancialexpress.com.bd/first-page/cabinet-body-formed-to-suggest-power-tariff-adjustment-1776104457", source: "FE", time: "14 Apr" }
   ];
   const opeds = [];
   const sourceColors = {
@@ -2908,18 +2910,18 @@ const SectionHeadlines = React.memo(function SectionHeadlines() {
           </a>
         ))}
       </div>
-      <BankerRead insight="Today's headlines paint a dual narrative — furnace oil up Tk24.59/litre signals immediate cost-push inflation, while the law change enabling former owners to reclaim distressed banks could reshape the competitive landscape. Quantify the furnace oil price hike's impact on your industrial borrowers' operating margins within 48 hours; any client spending above 8% of revenue on fuel needs a covenant review. Watch for follow-up BERC orders on diesel and electricity tariffs within 2-3 weeks — if diesel rises above Tk130/litre, transport-dependent SME portfolios will see stress. The Pahela Baishakh retail sales bounce signals consumer resilience — fast-track Baishakh-themed digital lending campaigns for retail and SME segments before the festival on 14 April tomorrow." />
+      <BankerRead insight="Today's 14 April headlines cluster around three systemic risks: the Hormuz blockade deadline passing with no resolution, BB introducing a transaction-based reference rate for interbank lending, and the government forming a cabinet body for power tariff adjustment. The new interbank reference rate is the most operationally urgent — treasury must immediately map all floating-rate loan and derivative contracts to determine which reference the new benchmark replaces, and estimate NIM impact if the new rate settles 20-30bps below the current overnight call rate. Watch for the cabinet body's power tariff recommendation within 2-3 weeks — any increase above 15% will cascade into SME borrower cash flows and trigger covenant breaches on energy-intensive sector loans. Use today's Pahela Baishakh holiday lull to convene an emergency ALCO meeting focused on the triple shock of fuel prices, new benchmark rates, and potential tariff hikes hitting simultaneously." />
     </div>
   );
 });
 
 const SectionDAM = React.memo(function SectionDAM() {
   const items = [
-    { name: "Rice (coarse)",        unit: "BDT/kg",  price: "51",    mom: "Mid-March survey", type: "neu" },
+    { name: "Rice (coarse)",        unit: "BDT/kg",  price: "n/a",    mom: "No fresh DAM data this week", type: "neu" },
     { name: "Rice (fine/aromatic)",  unit: "BDT/kg",  price: "n/a",   mom: "No DAM data", type: "neu" },
-    { name: "Lentil (Masoor)",      unit: "BDT/kg",  price: "105",   mom: "Gulf supply route risk — Hormuz disrupted", type: "warn" },
-    { name: "Onion (local)",        unit: "BDT/kg",  price: "35",    mom: "Mid-March survey", type: "neu" },
-    { name: "Broiler Chicken",      unit: "BDT/kg",  price: "220",   mom: "Mid-March survey", type: "neu" },
+    { name: "Lentil (Masoor)",      unit: "BDT/kg",  price: "n/a",   mom: "Gulf supply route risk — Hormuz disrupted", type: "warn" },
+    { name: "Onion (local)",        unit: "BDT/kg",  price: "n/a",    mom: "No DAM data", type: "neu" },
+    { name: "Broiler Chicken",      unit: "BDT/kg",  price: "n/a",   mom: "No DAM data", type: "neu" },
     { name: "Edible Oil",           unit: "BDT/L",   price: "n/a",   mom: "Rising on war shocks", type: "bear" },
     { name: "Sugar",                unit: "BDT/kg",  price: "n/a",   mom: "Rising on war shocks", type: "bear" },
     { name: "Egg",                  unit: "BDT/4pc", price: "n/a",   mom: "No DAM data", type: "neu" },
@@ -2936,27 +2938,26 @@ const SectionDAM = React.memo(function SectionDAM() {
         { name: "Food CPI (Feb 2026)", value: "9.30%", change: "Persistent — above BB target", chgType: "bear" },
         { name: "Headline CPI (Feb 2026)", value: "9.13%", change: "BB target: 7%", chgType: "bear" },
         { name: "Furnace Oil Hike", value: "+Tk24.59/L", change: "Pass-through to transport & food costs", chgType: "bear" },
-        { name: "Wages vs Inflation", value: "50 MONTHS", change: "Inflation outpacing wages — DS", chgType: "bear" },
-        { name: "Pahela Baishakh Sales", value: "BOUNCE BACK", change: "After two lean years — DS", chgType: "bull" },
+        { name: "Economic Strain", value: "DIMS NEW YEAR", change: "Celebrations dampened — FE", chgType: "bear" },
       ]} />
       <div className="cards-grid" style={{ marginBottom: 16 }}>
         <div className="card card-accent-bear">
           <div className="card-label">CPI Pressure <FreshTag date="Feb 2026" /></div>
           <div className="card-value card-value-sm">Food CPI: 9.30%</div>
-          <div className="card-change bear">Feb 2026 headline CPI: 9.13%; food CPI: 9.30% — both well above BB's 7% target. Inflation has outpaced wages for 50 consecutive months (DS). Furnace oil price hiked by Tk24.59/L — will pass through to transport and food costs. Brent surging to $101.82 on 13 Apr adds further pressure.</div>
+          <div className="card-change bear">Feb 2026 headline CPI: 9.13%; food CPI: 9.30% — both well above BB's 7% target. Economic strain dims New Year celebrations (FE). Furnace oil price hiked by Tk24.59/L — will pass through to transport and food costs. Brent at $102.47 adds further pressure.</div>
           <div className="card-sub">BB target: 7% — still far above</div>
         </div>
         <div className="card card-accent-warn">
-          <div className="card-label">Supply Route Risk <FreshTag date="13 Apr 2026" /></div>
+          <div className="card-label">Supply Route Risk <FreshTag date="14 Apr 2026" /></div>
           <div className="card-value card-value-sm">Gulf Import Routes Disrupted</div>
-          <div className="card-change warn">Hormuz remains largely closed; Trump announces blockade on 13 Apr. Edible oil, lentil, and fertiliser import routes under stress; LNG spot at $19.42/MMBtu; LNG suppliers suspend long-term contracts pushing Bangladesh to volatile spot market</div>
+          <div className="card-change warn">Hormuz remains largely closed; Bangladesh races for urea supply bypassing Hormuz. Edible oil, lentil, and fertiliser import routes under stress; LNG spot at $19.42/MMBtu; cabinet body formed to suggest power tariff adjustment</div>
           <div className="card-sub">Bangladesh heavily reliant on Gulf shipping routes</div>
         </div>
-        <div className="card card-accent-bull">
-          <div className="card-label">Seasonal Positive <FreshTag date="13 Apr 2026" /></div>
-          <div className="card-value card-value-sm">Pahela Baishakh Sales Bounce</div>
-          <div className="card-change bull">Pahela Baishakh (Bengali New Year) sales bounce back after two lean years (DS). Retail activity improving. However, real purchasing power eroded after 50 months of inflation outpacing wages.</div>
-          <div className="card-sub">Consumer sentiment partially recovering</div>
+        <div className="card card-accent-warn">
+          <div className="card-label">Debt & Fiscal Pressure <FreshTag date="14 Apr 2026" /></div>
+          <div className="card-value card-value-sm">Interest + Subsidies Swallow Budget</div>
+          <div className="card-change warn">Interest payments, subsidies, and incentives to swallow big pies of upcoming budget (FE). Govt plans big-spend budget for jobs & growth amid revenue doubts (TBS). Rising debt pressure on Bangladesh.</div>
+          <div className="card-sub">Fiscal space constrained</div>
         </div>
       </div>
       <table className="dam-table">
@@ -2980,9 +2981,9 @@ const SectionDAM = React.memo(function SectionDAM() {
         </tbody>
       </table>
       <div className="context-box" style={{ marginTop: 12 }}>
-        <strong>Note (13 Apr 2026):</strong> Limited DAM data available — mid-March Ramadan survey shows coarse rice at <strong>Tk51/kg</strong>, lentils at <strong>Tk105/kg</strong>, onion at <strong>Tk35/kg</strong>, chicken at <strong>Tk220/kg</strong>. Food CPI (BBS Feb 2026): <strong>9.30%</strong>. Inflation has outpaced wages for <strong>50 consecutive months</strong>. Key risks: furnace oil price hiked <strong>Tk24.59/litre</strong> — pass-through to transport and food imminent; Hormuz blockade announcement escalates energy import cost; LNG at <strong>$19.42/MMBtu</strong>. Pahela Baishakh sales bounce back after two lean years, signaling some consumer resilience.
+        <strong>Note (14 Apr 2026):</strong> No fresh DAM weekly data available for this edition. Food CPI (BBS Feb 2026): <strong>9.30%</strong>; headline CPI: <strong>9.13%</strong>. Key risks: furnace oil price hiked <strong>Tk24.59/litre</strong> — pass-through to transport and food imminent; Hormuz blockade escalates energy import costs; LNG at <strong>$19.42/MMBtu</strong>. Bangladesh races for urea supply bypassing Hormuz. Cabinet body formed to suggest power tariff adjustment. Economic strain dims New Year celebrations. Interest payments and subsidies swallowing large budget pies.
       </div>
-      <BankerRead insight="Coarse rice at Tk51/kg, lentils at Tk105/kg, and chicken at Tk220/kg during Ramadan reflect food inflation running at 9.3% — these are the prices your retail borrowers pay daily and they erode repayment capacity in real time. Recalibrate retail credit scoring models to deduct at least 12% more from disposable income estimates for borrowers earning below Tk40,000/month. If post-Eid rice prices do not fall below Tk48/kg by early May, flag the entire agricultural value chain book for enhanced monitoring. Offer working capital top-ups to poultry and essential food retailers ahead of Eid-ul-Fitr — they need inventory financing now and will generate fee income plus deposit float through the festival cycle." />
+      <BankerRead insight="DAM weekly price data is unavailable as of today 14 April, but with food CPI at 9.3% in February and Ramadan demand patterns still echoing through supply chains, the absence of granular commodity data itself is a risk signal — banks cannot properly assess agricultural and FMCG borrower margins without it. Instruct the credit risk team to use wholesale market spot checks from Karwan Bazar and Chattogram as proxy data, specifically tracking coarse rice above Tk55/kg and soybean oil above Tk190/liter as stress thresholds. The trigger is the next BBS monthly price bulletin — if any of the five staple items shows month-on-month inflation above 3%, immediately downgrade risk ratings on retail distribution and restaurant chain borrowers. Proactively offer working capital limit enhancements of 15-20% to essential food distributors and cold storage operators who are the transmission backbone and will need liquidity as Ramadan-related receivables settle." />
     </div>
   );
 });
@@ -3093,7 +3094,7 @@ const SectionIranWar = React.memo(function SectionIranWar() {
 
       <OilChart />
 
-      <BankerRead insight="The US announced a Hormuz blockade on 12 April after Pakistan-mediated peace talks collapsed, with EIA estimating 9.1 million bpd of production shut-ins and only single-digit vessel transits daily through the strait. This is not a drill — model an immediate 25% increase in Bangladesh's energy import bill for Q4 FY26 and adjust all related credit limits by tomorrow. The binary trigger is whether the US mine-clearing operation succeeds this week: three supertankers transited on 11 April, and if daily transits reach double digits, oil could correct 10-15%. Prepare contingency credit lines for Petrobangla and BPC-linked entities — government fuel importers will need emergency bank funding within 2-3 weeks if Hormuz stays restricted." />
+      <BankerRead insight="The Strait of Hormuz remains effectively closed as of today 14 April with the US blockade deadline passing, OPEC+ output down 7.9 million bpd in March, and Brent above $102 — this is not a temporary disruption but a structural supply shock that Bangladesh must plan around for at least 90 days. Immediately classify all exposures to fuel importers, power generators, and transport companies as heightened-risk and require monthly cash flow certifications rather than quarterly for any facility above Tk50 crore. The de-escalation trigger is any credible ceasefire framework or Iran's agreement to IAEA inspection terms — until then, model Brent at $95-110 through September 2026 for all stress tests. The strategic opportunity is financing Bangladesh's emergency fuel diversification — the 6 Iranian-approved safe-passage ships and potential Russian fuel imports represent trade finance mandates worth $200-400 million that first-mover banks will capture." />
     </div>
   );
 });
@@ -3139,7 +3140,7 @@ const SectionRMG = React.memo(function SectionRMG() {
       <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: "var(--text)", marginBottom: 12 }}>
         <strong style={{ color: "var(--warn)" }}>⚠ Order pipeline: SOFTENING</strong> — EU buyers cautious on LDC graduation tariff risk; US buyers diversifying sourcing to Vietnam post-tariff uncertainty.
       </div>
-      <BankerRead insight="RMG exports of $25.80 billion in Jul-Feb FY26, down 3.73% YoY, combined with the US 37% tariff threat and Hormuz shipping disruptions, make this the most challenging environment for garment financing since COVID. Freeze new term loan approvals for any RMG client with more than 40% US revenue concentration until tariff clarity emerges. Monitor knitwear versus woven performance weekly — knitwear is outperforming and deserves preferential credit allocation. Push RMG clients toward EU and UK buyer diversification aggressively; with LDC graduation in November 2026, the GSP preference window is closing and clients who have not diversified by Q1 FY27 are structurally uninvestable." />
+      <BankerRead insight="RMG exports at approximately $38.48 billion for FY25 and representing 83-85% of total exports remain Bangladesh's economic backbone, and today 14 April the Japan EPA signed 6 February is the single brightest market diversification development in two years. Increase the RMG export finance book by 10-15% this quarter, specifically targeting factories with Japanese buyer relationships and OEKO-TEX or LEED certifications that command 8-12% price premiums. The risk trigger is US tariff action — if any surcharge above 7.5% is imposed on Bangladesh garments, reallocate 20% of US-corridor trade finance limits to Japan and EU corridors within 30 days. Build a specialized RMG advisory desk offering supply chain finance, EPA utilization support, and FX hedging as a bundled product — this is where the next $5 billion in export growth will originate." />
     </div>
   );
 });
@@ -3181,7 +3182,7 @@ const SectionFiscal = React.memo(function SectionFiscal() {
           <div style={{ fontSize: 10, color: "var(--muted)" }}>{b.note}</div>
         </div>
       ))}
-      <BankerRead insight="February 2026 total revenue of Tk30,559 crore — up just 8.15% YoY against an inflation rate of 9.13% — means real revenue growth is effectively zero, and the government has already consumed 43% of its Tk1.18 lakh crore revised borrowing ceiling in just H1. Increase your SLR portfolio allocation by 5 percentage points this quarter because government paper supply will keep rising and yields are attractive. The fiscal trigger is whether the FY27 budget, flagged in today's headlines as a big national budget, sets an NBR target above Tk5.5 lakh crore — if so, expect aggressive VAT enforcement that will squeeze your SME clients' cash flows. Position the corporate banking desk to offer tax-planning advisory services alongside lending — the upcoming VAT compliance tightening creates both risk and fee-income opportunity." />
+      <BankerRead insight="NBR collected Tk2.23 trillion through January against a Tk4.99 trillion FY26 target — just 44.7% with five months remaining — meaning Tk2.76 trillion must be collected at a 36% YoY growth rate when actual growth is only 13%, confirming a shortfall of at least Tk600 billion to potentially Tk1.0 trillion as of today 14 April. This guarantees the government will intensify bank borrowing in Q4 FY26, crowding out private credit further and keeping government security yields elevated near 10%. Watch for any emergency revenue measures — a VAT rate increase above 15% or new withholding tax surcharges would immediately hit bank customers' disposable income and compress retail loan demand by 5-8%. Position the government securities book to absorb an additional Tk3,000-5,000 crore in T-bills at current yields before the fiscal year-end borrowing rush compresses available supply." />
     </div>
   );
 });
@@ -3224,7 +3225,7 @@ const SectionNBR = React.memo(function SectionNBR() {
           </div>
         ))}
       </div>
-      <BankerRead insight="With NBR data gaps for April, the key fiscal signal today is the announced plan to tighten VAT compliance in the next budget and the off-calendar T-bill issuance indicating revenue shortfalls. Assume NBR will miss its FY26 target by at least 15% and price that fiscal stress into all government-linked counterparty exposures. If NBR announces any emergency revenue measures — such as advance tax on imports or withholding tax hikes — before the budget in June, immediately reassess trade finance pricing. Build a dedicated tax advisory capability within corporate banking: clients who can demonstrate clean VAT filings will get preferential bank credit terms under the new regime, and your bank should be the one offering that differentiation." />
+      <BankerRead insight="VAT collections grew 16.45% YoY, income tax 13.29%, and customs only 7.96% — the customs weakness directly reflects the trade disruption from the Hormuz crisis and import slowdown, and today 14 April this gap is widening as fuel import costs rise but dutiable goods volumes stagnate. The revenue mix shift toward VAT means banks should expect intensified VAT audit activity on corporate borrowers in Q4 FY26, which will create unexpected cash flow drains — flag any borrower with VAT arrears above Tk5 crore for enhanced monitoring. If customs revenue growth falls below 5% in the February-March data, expect the government to impose regulatory duties on 50-100 additional HS codes to bridge the gap, disrupting import-dependent borrowers. Proactively advise corporate clients to accelerate customs duty payments and clear bonded warehouse inventories before any mid-year tariff revision, positioning the bank as a trusted advisory partner." />
     </div>
   );
 });
@@ -3263,7 +3264,7 @@ const SectionPower = React.memo(function SectionPower() {
       <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: "var(--text)", marginBottom: 12 }}>
         <strong style={{ color: "var(--warn)" }}>Iran-war oil spike compounds the crisis</strong> — LNG and fuel oil import costs rising sharply, widening BPDB's deficit and threatening industrial load-shedding schedules that manufacturers rely on for production planning.
       </div>
-      <BankerRead insight="DSE trading hours have been cut 30 minutes as part of energy conservation, LNG suppliers have suspended long-term contracts pushing Bangladesh onto the $19.42/MMBtu spot market, and furnace oil just rose Tk24.59/litre — the power sector is in crisis mode this Monday. Stress-test all lending to power-intensive industries — textiles, steel, ceramics, cold storage — assuming 4-6 hours of daily load-shedding and a 20% increase in per-unit energy costs through Q1 FY27. The trigger is whether LNG spot breaks $22/MMBtu: at that level, Bangladesh's gas-fired generation becomes uneconomic and load-shedding will exceed 2,000 MW. Offer energy-efficiency capex loans at competitive rates to manufacturing clients — every Tk1 crore invested in captive solar saves roughly Tk35 lakh annually at current grid prices and reduces your client's operational risk." />
+      <BankerRead insight="DSE has cut trading hours by 30 minutes amid the fuel crisis, fuel imports are up 14% but costs up 29%, and Bangladesh is seeking a US waiver for Russian fuel while Iran approved safe passage for 6 fuel ships — as of today 14 April the power sector is in crisis management mode. Any bank with exposure above Tk500 crore to independent power producers or the Bangladesh Power Development Board should demand updated fuel procurement contracts and reassess debt service coverage ratios under a scenario where gas costs $19-22/MMBtu versus the $10-12 budgeted. The trigger is the cabinet body's power tariff recommendation — if tariffs rise above 20%, IPP cash flows improve but industrial borrower electricity costs spike, creating a sectoral risk rotation that the credit committee must model. Pursue financing mandates for emergency LNG terminal capacity expansion and renewable energy projects, which will receive priority government support and concessional co-financing from multilateral lenders." />
     </div>
   );
 });
@@ -3303,7 +3304,7 @@ const SectionPeers = React.memo(function SectionPeers() {
         </table>
       </div>
       <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 12 }}>Sources: IMF WEO, World Bank, central bank data. GDP growth = latest full-year estimate. CPI = latest YoY. FX Reserves = latest reported. CAB = current account balance % GDP.</div>
-      <BankerRead insight="India's projected 6.5% GDP growth and BBB- rating versus Bangladesh's 3.97% FY25 outturn and absence of an investment-grade rating underscores the competitiveness gap widening this year, while Pakistan at CCC+ and Sri Lanka at SD remind us that the neighborhood remains fragile. Benchmark your cross-border trade finance pricing to Vietnam — at BB+ and 5.6% growth, Vietnamese counterparties are now a safer correspondent banking bet than most South Asian peers. Watch for any S&P or Moody's review of Bangladesh triggered by the Hormuz crisis and reserve depletion — a downgrade watch would immediately raise your FCNB funding costs by 50-75bps. Diversify correspondent banking relationships toward Gulf and East Asian banks now — with LDC graduation in November 2026, your institution needs investment-grade-adjacent partners to maintain trade finance access." />
+      <BankerRead insight="India's GDP growth at 6.16% against Bangladesh's 3.03% in Q2 FY26, and Vietnam at 5.6%, highlights that Bangladesh is the regional laggard — compounded by the world's highest NPL ratio at 35.73% and CPI at 9.13%, the country's sovereign risk premium is widening even as India holds BBB- stable from S&P. Today 14 April, any cross-border correspondent banking relationship should be stress-tested for counterparty perception risk — if Bangladesh's sovereign rating faces downgrade review, LC confirmation costs from international banks will spike 30-50bps. The trigger to watch is the next IMF Article IV or program review — any flag on fiscal slippage given the Tk600 billion+ revenue shortfall could precipitate a rating outlook change from stable to negative. Differentiate the bank by maintaining capital buffers 200bps above the regulatory minimum CAR and publishing quarterly asset quality transparency reports, which will preserve correspondent banking lines when peers lose access." />
     </div>
   );
 });
@@ -3700,3 +3701,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
