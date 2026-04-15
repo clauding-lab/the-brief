@@ -1,7 +1,7 @@
 // The Brief — Service Worker
 // Caches the app shell for offline use and fast repeat loads
 
-const CACHE   = "the-brief-v2-2026-04-14";
+const CACHE   = "the-brief-v2-2026-04-15";
 const ASSETS  = [
   "./index.html",
   "./manifest.json",
