@@ -23,7 +23,7 @@ def build(ctx: BuilderContext) -> SectionData:
             value=ctx.snapshot.get(src_key),
             unit=unit,
             as_of=ctx.today,
-            source="BB (via EconDelta)",
+            source="BB",
             source_url="https://www.bb.org.bd/en/index.php/econdata/exchangerate",
             cadence="daily",
         )

@@ -27,9 +27,16 @@ def test_fx_fresh_populates_five_metrics():
     assert ids == {"fx_usd_bdt_mid", "fx_usd_bdt_buy", "fx_usd_bdt_sell",
                    "fx_eur_bdt", "fx_gbp_bdt"}
     assert s.freshness == "fresh"
+    # Guards against positional swap in _SPEC (template concern)
+    by_id = {m.id: m for m in s.metrics}
+    assert by_id["fx_usd_bdt_mid"].value == 122.70
+    assert by_id["fx_usd_bdt_buy"].value == 122.60
+    assert by_id["fx_usd_bdt_sell"].value == 122.80
+    assert by_id["fx_eur_bdt"].value == 144.34
+    assert by_id["fx_gbp_bdt"].value == 165.85
 
 
-def test_fx_unavailable_when_bb_forex_stale():
+def test_fx_unavailable_when_all_values_none():
     snap = EconDeltaSnapshot(
         updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
         sources_status={"bb_forex": {"status": "error", "age_hours": 72.0}},
