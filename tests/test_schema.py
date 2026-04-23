@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 import pytest
 from pydantic import ValidationError
 
@@ -51,3 +51,53 @@ def test_delta_requires_direction_literal():
     assert d.direction == "up"
     with pytest.raises(ValidationError):
         Delta(value=0.3, direction="north", window="wow")
+
+
+from brief.schema import (
+    BankerReadInsight,
+    ExecSignal,
+    NewsItem,
+    SectionData,
+)
+
+
+def test_section_data_defaults():
+    s = SectionData(id="bb", title="Policy & Rates", freshness="fresh")
+    assert s.metrics == []
+    assert s.news == []
+    assert s.bankerread is None
+    assert s.exec_signals is None
+
+
+def test_bankerread_full_variant():
+    br = BankerReadInsight(
+        sentences=["a", "b", "c", "d"],
+        generated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+    )
+    assert br.variant == "full"
+
+
+def test_bankerread_stale_variant():
+    br = BankerReadInsight(
+        sentences=["no fresh data; headlines suggest x"],
+        generated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+        variant="stale_micro",
+    )
+    assert br.variant == "stale_micro"
+    assert len(br.sentences) == 1
+
+
+def test_exec_signal_shape():
+    e = ExecSignal(direction="bull", text="Reserves up 0.3 bn WoW", section_anchor="bb")
+    assert e.direction == "bull"
+    assert e.section_anchor == "bb"
+
+
+def test_news_item_parses_isoformat():
+    n = NewsItem(
+        title="x",
+        url="https://example.com/x",
+        source="DS",
+        published=datetime(2026, 4, 21, 6, 0, tzinfo=timezone.utc),
+    )
+    assert n.source == "DS"
