@@ -78,3 +78,14 @@ def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessK
 
     # Unknown cadence — conservative
     return "unavailable"
+
+
+def section_freshness(
+    metrics: Iterable[Metric], *, today: date | None = None
+) -> FreshnessKind:
+    """Section freshness = worst metric freshness (spec §4)."""
+    states = [metric_freshness(m, today=today) for m in metrics]
+    for worst in ("unavailable", "stale", "pending", "warning"):
+        if worst in states:
+            return worst  # type: ignore[return-value]
+    return "fresh"

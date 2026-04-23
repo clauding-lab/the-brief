@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone, timedelta
 
-from brief.cadence import is_bd_trading_day, metric_freshness, trading_days_between
+from brief.cadence import is_bd_trading_day, metric_freshness, section_freshness, trading_days_between
 from brief.schema import CadenceKind, Metric
 
 
@@ -110,3 +110,35 @@ def test_metric_with_none_value_is_unavailable():
     today = date(2026, 4, 21)
     m = _m("x", date(2026, 4, 20), "daily", value=None)
     assert metric_freshness(m, today=today) == "unavailable"
+
+
+def test_section_freshness_empty_is_fresh():
+    assert section_freshness([]) == "fresh"
+
+
+def test_section_freshness_worst_unavailable_wins():
+    today = date(2026, 4, 21)
+    metrics = [
+        _m("a", date(2026, 4, 20), "daily"),                      # fresh
+        _m("b", date(2026, 4, 20), "daily", value=None),          # unavailable
+        _m("c", date(2026, 3, 1), "monthly"),                     # warning/stale
+    ]
+    assert section_freshness(metrics, today=today) == "unavailable"
+
+
+def test_section_freshness_stale_beats_warning():
+    today = date(2026, 4, 21)
+    metrics = [
+        _m("a", date(2026, 2, 20), "monthly"),  # stale
+        _m("b", date(2026, 3, 20), "monthly"),  # fresh
+    ]
+    assert section_freshness(metrics, today=today) == "stale"
+
+
+def test_section_freshness_all_fresh():
+    today = date(2026, 4, 21)
+    metrics = [
+        _m("a", date(2026, 4, 20), "daily"),
+        _m("b", date(2026, 4, 15), "weekly"),
+    ]
+    assert section_freshness(metrics, today=today) == "fresh"
