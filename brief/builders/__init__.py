@@ -16,7 +16,7 @@ ALL_BUILDER_IDS: tuple[str, ...] = SPINE_BUILDER_IDS + KEEP_BUILDER_IDS
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 if TYPE_CHECKING:
     from brief.econdelta import EconDeltaSnapshot
@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class BuilderContext:
-    snapshot: "EconDeltaSnapshot"
-    history: Optional["MetricHistoryClient"]
+    snapshot: EconDeltaSnapshot
+    history: MetricHistoryClient | None
     today: date
-    headlines: Sequence["Headline"] = ()
-    claude_outputs: dict[str, Any] = field(default_factory=dict)
+    headlines: Sequence[Headline] = ()
+    claude_outputs: Mapping[str, Any] = field(default_factory=dict)
