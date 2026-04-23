@@ -52,6 +52,7 @@ def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessK
     if today is None:
         today = now_bdt().date()
 
+    # None check runs before event: an unset event metric is "unavailable", not "fresh"
     if metric.value is None:
         return "unavailable"
 

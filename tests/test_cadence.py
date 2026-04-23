@@ -45,8 +45,15 @@ def test_daily_fresh_within_one_trading_day():
 
 def test_daily_warning_at_two_trading_days():
     today = date(2026, 4, 22)  # Wednesday
+    m = _m("x", date(2026, 4, 20), "daily")  # Monday
+    # Trading days between Mon 04-20 and Wed 04-22 = Tue,Wed = 2 → warning
+    assert metric_freshness(m, today=today) == "warning"
+
+
+def test_daily_stale_at_three_trading_days():
+    today = date(2026, 4, 22)  # Wednesday
     m = _m("x", date(2026, 4, 19), "daily")  # Sunday
-    # Trading days between Sun 04-19 and Wed 04-22 = Mon,Tue,Wed = 3 → stale? spec says >2 trading days
+    # Trading days between Sun 04-19 and Wed 04-22 = Mon,Tue,Wed = 3 → stale (>2 trading days)
     assert metric_freshness(m, today=today) == "stale"
 
 
@@ -69,6 +76,12 @@ def test_weekly_stale_over_10_days():
     assert metric_freshness(m, today=today) == "stale"
 
 
+def test_weekly_warning_at_9_days():
+    today = date(2026, 4, 21)
+    m = _m("x", date(2026, 4, 12), "weekly")  # 9 days → warning (weekly: ≤7 fresh, ≤10 warning, >10 stale)
+    assert metric_freshness(m, today=today) == "warning"
+
+
 def test_monthly_fresh_under_35_days():
     today = date(2026, 4, 21)
     m = _m("x", date(2026, 3, 20), "monthly")
@@ -79,6 +92,12 @@ def test_monthly_stale_over_45_days():
     today = date(2026, 4, 21)
     m = _m("x", date(2026, 2, 20), "monthly")
     assert metric_freshness(m, today=today) == "stale"
+
+
+def test_monthly_warning_at_40_days():
+    today = date(2026, 4, 21)
+    m = _m("x", date(2026, 3, 12), "monthly")  # 40 days → warning (monthly: ≤35 fresh, ≤45 warning, >45 stale)
+    assert metric_freshness(m, today=today) == "warning"
 
 
 def test_event_always_fresh():
