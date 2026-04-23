@@ -36,3 +36,44 @@ def trading_days_between(start: date, end: date) -> int:
             count += 1
         cur += timedelta(days=1)
     return count
+
+
+# ── cadence thresholds (spec §6) ──────────────────────────────────────────────
+_THRESHOLDS = {
+    # cadence: (fresh_max, warning_max)   # stale if > warning_max
+    "weekly":    (7, 10),
+    "monthly":   (35, 45),
+    "quarterly": (95, 120),
+}
+
+
+def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessKind:
+    """Freshness per spec §6. Trading-day-aware for daily cadence only."""
+    if today is None:
+        today = now_bdt().date()
+
+    if metric.value is None:
+        return "unavailable"
+
+    if metric.cadence == "event":
+        return "fresh"
+
+    if metric.cadence == "daily":
+        gap = trading_days_between(metric.as_of, today)
+        if gap <= 1:
+            return "fresh"
+        if gap <= 2:
+            return "warning"
+        return "stale"
+
+    if metric.cadence in _THRESHOLDS:
+        days = (today - metric.as_of).days
+        fresh_max, warn_max = _THRESHOLDS[metric.cadence]
+        if days <= fresh_max:
+            return "fresh"
+        if days <= warn_max:
+            return "warning"
+        return "stale"
+
+    # Unknown cadence — conservative
+    return "unavailable"
