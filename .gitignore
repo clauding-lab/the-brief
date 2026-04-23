@@ -8,3 +8,13 @@ gathered_data.json
 .vercel
 .venv/
 venv/
+
+# test + build artifacts
+.coverage
+.pytest_cache/
+htmlcov/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
