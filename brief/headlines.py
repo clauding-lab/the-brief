@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import html as _html
 import re
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -46,14 +47,14 @@ class Headline:
     published: datetime
 
 
-def _fetch_page(url: str, timeout: int = 15) -> str:
+def _fetch_page(url: str, timeout: int = 15) -> str:  # pragma: no cover
     req = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 (compatible; TheBrief/1.0)"
     })
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
-    except Exception:
+    except (urllib.error.URLError, OSError):
         return ""
 
 
