@@ -15,3 +15,8 @@ def test_keep_ids_are_5():
 def test_all_union_is_disjoint():
     assert set(SPINE_BUILDER_IDS).isdisjoint(KEEP_BUILDER_IDS)
     assert set(ALL_BUILDER_IDS) == set(SPINE_BUILDER_IDS) | set(KEEP_BUILDER_IDS)
+
+
+def test_no_duplicate_ids():
+    """Catches within-list duplicates (e.g. 'bb' appearing twice in SPINE)."""
+    assert len(ALL_BUILDER_IDS) == len(set(ALL_BUILDER_IDS))
