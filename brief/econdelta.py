@@ -57,5 +57,5 @@ def load_snapshot(path: Path | str = DEFAULT_PATH) -> EconDeltaSnapshot:
             sources_status=payload.get("sources_status", {}),
             data=payload.get("data", {}),
         )
-    except (KeyError, ValueError) as e:
+    except (KeyError, ValueError, AttributeError) as e:
         raise EconDeltaUnavailable(f"EconDelta snapshot malformed: {e}") from e
