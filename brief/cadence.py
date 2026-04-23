@@ -6,7 +6,7 @@ trading-day awareness applies only to `daily`.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-from typing import Iterable
+from typing import Iterable, cast
 
 from brief.schema import CadenceKind, FreshnessKind, Metric
 
@@ -85,7 +85,10 @@ def section_freshness(
 ) -> FreshnessKind:
     """Section freshness = worst metric freshness (spec §4)."""
     states = [metric_freshness(m, today=today) for m in metrics]
+    # "pending" is reserved for externally-set overrides (e.g. a metric whose
+    # next-release window has not passed yet); metric_freshness does not emit
+    # it today but the priority tuple retains the slot for future/upstream use.
     for worst in ("unavailable", "stale", "pending", "warning"):
         if worst in states:
-            return worst  # type: ignore[return-value]
+            return cast(FreshnessKind, worst)
     return "fresh"

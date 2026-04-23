@@ -142,3 +142,12 @@ def test_section_freshness_all_fresh():
         _m("b", date(2026, 4, 15), "weekly"),
     ]
     assert section_freshness(metrics, today=today) == "fresh"
+
+
+def test_section_freshness_warning_only():
+    today = date(2026, 4, 21)
+    metrics = [
+        _m("a", date(2026, 4, 20), "daily"),     # fresh (1 trading day)
+        _m("b", date(2026, 3, 12), "monthly"),   # warning (40 days; monthly: ≤35 fresh, ≤45 warning)
+    ]
+    assert section_freshness(metrics, today=today) == "warning"
