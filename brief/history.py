@@ -28,12 +28,12 @@ class HttpClient(Protocol):
 
 
 class UrllibHttp:
-    def get(self, url: str, *, headers: dict[str, str]) -> tuple[int, Any]:
+    def get(self, url: str, *, headers: dict[str, str]) -> tuple[int, Any]:  # pragma: no cover
         req = urllib.request.Request(url, headers=headers, method="GET")
         with urllib.request.urlopen(req, timeout=20) as resp:
             return resp.status, _json.loads(resp.read() or b"null")
 
-    def post(self, url: str, *, headers: dict[str, str], json: Any) -> tuple[int, Any]:
+    def post(self, url: str, *, headers: dict[str, str], json: Any) -> tuple[int, Any]:  # pragma: no cover
         req = urllib.request.Request(
             url,
             data=_json.dumps(json).encode("utf-8"),

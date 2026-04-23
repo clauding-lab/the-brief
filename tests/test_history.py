@@ -12,7 +12,7 @@ def _client(mock_http):
     )
 
 
-def test_get_latest_returns_row(monkeypatch):
+def test_get_latest_returns_row():
     mock = MagicMock()
     mock.get.return_value = (200, [{"metric_id": "x", "as_of": "2026-04-20",
                                     "value": 10.0, "source": "BB",
@@ -36,10 +36,11 @@ def test_upsert_many_calls_post():
     mock = MagicMock()
     mock.post.return_value = (201, None)
     c = _client(mock)
-    c.upsert_many([
+    result = c.upsert_many([
         HistoryRow("a", date(2026, 4, 20), 1, "BB"),
         HistoryRow("b", date(2026, 4, 20), 2, "BB"),
     ])
+    assert result is True
     mock.post.assert_called_once()
     args, kwargs = mock.post.call_args
     body = kwargs["json"]
