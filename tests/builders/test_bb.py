@@ -42,6 +42,9 @@ def test_bb_fresh_with_reserves_and_event_rates():
     assert reserves.delta is not None
     assert reserves.delta.direction == "up"
     assert reserves.delta.window == "wow"
+    history.upsert_many.assert_called_once_with([
+        HistoryRow("bb_gross_reserves", date(2026, 4, 14), 34.1166, "BB"),
+    ])
 
 
 def test_bb_handles_missing_reserves():
@@ -55,3 +58,29 @@ def test_bb_handles_missing_reserves():
     assert reserves is not None
     assert reserves.value is None
     assert s.freshness in ("unavailable", "warning", "stale")
+
+
+def test_bb_falls_back_to_today_on_malformed_reserves_date():
+    ctx = BuilderContext(
+        snapshot=_snap(reserves_date="2026-04-XX"),
+        history=None,
+        today=date(2026, 4, 21),
+    )
+    s = build(ctx)
+    reserves = next(m for m in s.metrics if m.id == "bb_gross_reserves")
+    assert reserves.as_of == date(2026, 4, 21)  # fell back to today
+
+
+def test_bb_reserves_delta_handles_bad_prev_value():
+    history = MagicMock()
+    history.get_latest.return_value = HistoryRow(
+        "bb_gross_reserves", date(2026, 4, 13), "not-a-number", "BB"
+    )
+    ctx = BuilderContext(
+        snapshot=_snap(),
+        history=history,
+        today=date(2026, 4, 21),
+    )
+    s = build(ctx)
+    reserves = next(m for m in s.metrics if m.id == "bb_gross_reserves")
+    assert reserves.delta is None  # bad prev value → no delta

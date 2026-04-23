@@ -39,16 +39,21 @@ def build(ctx: BuilderContext) -> SectionData:
                unit="%", as_of=_RATES_AS_OF, source="BB",
                source_url="https://www.bb.org.bd/", cadence="event"),
         Metric(id="bb_sdf", label="SDF", value=_SDF_PCT,
-               unit="%", as_of=_RATES_AS_OF, source="BB", cadence="event"),
+               unit="%", as_of=_RATES_AS_OF, source="BB",
+               source_url="https://www.bb.org.bd/", cadence="event"),
         Metric(id="bb_slf", label="SLF", value=_SLF_PCT,
-               unit="%", as_of=_RATES_AS_OF, source="BB", cadence="event"),
+               unit="%", as_of=_RATES_AS_OF, source="BB",
+               source_url="https://www.bb.org.bd/", cadence="event"),
     ]
 
     reserves_val = ctx.snapshot.get("gross_reserves_usd_bn")
     reserves_as_of_str = ctx.snapshot.get("reserves_date")
-    reserves_as_of = (
-        date.fromisoformat(reserves_as_of_str) if reserves_as_of_str else ctx.today
-    )
+    try:
+        reserves_as_of = (
+            date.fromisoformat(reserves_as_of_str) if reserves_as_of_str else ctx.today
+        )
+    except ValueError:
+        reserves_as_of = ctx.today
 
     prev = (
         ctx.history.get_latest("bb_gross_reserves")
