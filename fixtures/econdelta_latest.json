@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-04-21T00:20:19.710498Z",
+  "sources_status": {
+    "bb_forex":         {"status": "ok", "last_success": "2026-04-21T00:15:00Z", "age_hours": 0.08, "url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate", "error": null},
+    "dse_market":       {"status": "ok", "last_success": "2026-04-20T10:30:00Z", "age_hours": 6.94, "url": "https://www.dse.com.bd/market-statistics.php", "error": null},
+    "commodity_prices": {"status": "ok", "last_success": "2026-04-21T00:08:40Z", "age_hours": 0.19, "url": null, "error": null}
+  },
+  "data": {
+    "usd_bdt_mid": 122.70,
+    "usd_bdt_buy": 122.60,
+    "usd_bdt_sell": 122.80,
+    "eur_bdt": 144.34,
+    "gbp_bdt": 165.85,
+    "gross_reserves_usd_bn": 34.1166,
+    "import_cover_months": null,
+    "reserves_date": "2026-03-01",
+    "trading_day": true,
+    "dsex": 5232.49,
+    "dsex_change": -15.05,
+    "dsex_change_pct": -0.29,
+    "ds30": 1980.01,
+    "dses": 1059.70,
+    "turnover_crore": 824.76,
+    "total_trades": 223903,
+    "advancing": 120,
+    "declining": 207,
+    "unchanged": 62,
+    "brent_crude_usd_barrel": 95.23,
+    "wti_crude_usd_barrel": 87.05,
+    "gold_usd_oz": 4820.90,
+    "commodity_change_pct": {
+      "brent_crude": 0.0537,
+      "wti_crude": 0.0540,
+      "gold": 0.0016
+    }
+  }
+}
