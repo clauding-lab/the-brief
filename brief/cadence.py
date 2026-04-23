@@ -1,0 +1,38 @@
+"""Cadence + freshness computation for The Brief.
+
+BD trading week is Sun–Thu. `fresh` thresholds are cadence-specific;
+trading-day awareness applies only to `daily`.
+"""
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta, timezone
+from typing import Iterable
+
+from brief.schema import CadenceKind, FreshnessKind, Metric
+
+_BDT = timezone(timedelta(hours=6))
+
+# Sun=6, Mon=0, Tue=1, Wed=2, Thu=3 → BD trading days
+_BD_TRADING_WEEKDAYS = {6, 0, 1, 2, 3}
+
+
+def now_bdt() -> datetime:
+    """Clock seam for tests — replace via monkeypatch."""
+    return datetime.now(_BDT)
+
+
+def is_bd_trading_day(d: date) -> bool:
+    return d.weekday() in _BD_TRADING_WEEKDAYS
+
+
+def trading_days_between(start: date, end: date) -> int:
+    """Count BD trading days strictly between start and end (inclusive of end, excluding start)."""
+    if end <= start:
+        return 0
+    count = 0
+    cur = start + timedelta(days=1)
+    while cur <= end:
+        if is_bd_trading_day(cur):
+            count += 1
+        cur += timedelta(days=1)
+    return count
