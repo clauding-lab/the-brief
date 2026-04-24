@@ -26,7 +26,7 @@ def build(ctx: BuilderContext) -> SectionData:
             value=ctx.snapshot.get(src_key),
             unit=unit,
             as_of=ctx.today,
-            source="DSE (via EconDelta)",
+            source="DSE",
             source_url="https://www.dse.com.bd/market-statistics.php",
             cadence="daily",
         )

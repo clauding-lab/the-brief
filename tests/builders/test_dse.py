@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from brief.builders import BuilderContext
 from brief.builders.dse import build
 from brief.econdelta import EconDeltaSnapshot
+from brief.history import HistoryRow
 
 
 def _snap():
@@ -21,17 +22,19 @@ def _snap():
 def test_dse_fresh_has_seven_metrics():
     ctx = BuilderContext(snapshot=_snap(), history=MagicMock(),
                          today=date(2026, 4, 21))
-    ctx.history.get_latest.return_value = None
     s = build(ctx)
     assert s.id == "dse"
     ids = {m.id for m in s.metrics}
     assert {"dse_dsex_close", "dse_dsex_change_pct", "dse_ds30",
             "dse_dses", "dse_turnover_crore", "dse_advancing",
             "dse_declining"}.issubset(ids)
+    ctx.history.upsert_many.assert_called_once_with([
+        HistoryRow("dse_dsex_close", date(2026, 4, 21), 5232.49, "DSE"),
+    ])
 
 
-def test_dse_thursday_value_fresh_on_saturday():
-    # Trading day closure on Thursday; Saturday run should still show fresh.
+def test_dse_saturday_run_with_same_day_data_is_fresh():
+    # Same-day Saturday data should show fresh under daily cadence.
     ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 4, 18))
     s = build(ctx)
     dsex = next(m for m in s.metrics if m.id == "dse_dsex_close")
