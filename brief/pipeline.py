@@ -99,7 +99,7 @@ from brief.claude.validators import (
     validate_insights,
     validate_signals,
 )
-from brief.schema import BankerReadInsight
+from brief.schema import BankerReadFreeform, BankerReadInsight, BankerReadStructured, MapCoord, TodaysCall
 
 
 def _load_prompt(name: str) -> str:
@@ -229,14 +229,19 @@ def run_pipeline(
     for s in sections_v2:
         full_sentences = insights_full.get(s.id)
         if full_sentences:
-            s.bankerread = BankerReadInsight(
-                sentences=full_sentences, generated_at=now, variant="full",
+            s.bankerread = BankerReadStructured(
+                meaning=full_sentences[0],
+                action=full_sentences[1],
+                trigger=full_sentences[2],
+                focus=full_sentences[3],
+                pull=full_sentences[0],
             )
             continue
         stale_sentences = insights_stale.get(s.id)
         if stale_sentences:
-            s.bankerread = BankerReadInsight(
-                sentences=stale_sentences, generated_at=now, variant="stale_micro",
+            s.bankerread = BankerReadFreeform(
+                text=stale_sentences[0],
+                pull=None,
             )
 
     return PipelineResult(
@@ -257,6 +262,9 @@ class RunResult:
     html: str
     claude_outputs: dict
     call_reports: list[dict]
+    map_coords: list[MapCoord] = field(default_factory=list)
+    todays_call: TodaysCall | None = None
+    read_order: list[str] = field(default_factory=list)
 
 
 def run(

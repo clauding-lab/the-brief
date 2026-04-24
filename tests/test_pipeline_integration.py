@@ -88,15 +88,15 @@ def test_run_pipeline_injects_claude_outputs(fixture_snapshot, today):
     assert len(exec_section.exec_signals) >= 1
 
     # bb is stale in the canonical fixture (reserves_date 51 days old) so it
-    # should receive the stale_micro variant from the bankerread_stale call.
+    # should receive the freeform (stale_micro) variant from the bankerread_stale call.
     bb = next(s for s in result.sections if s.id == "bb")
     assert bb.bankerread is not None
-    assert bb.bankerread.variant == "stale_micro"
+    assert bb.bankerread.kind == "freeform"
 
-    # fx is fresh in the fixture and should receive the full bankerread variant.
+    # fx is fresh in the fixture and should receive the structured (full) variant.
     fx = next(s for s in result.sections if s.id == "fx")
     assert fx.bankerread is not None
-    assert fx.bankerread.variant == "full"
+    assert fx.bankerread.kind == "structured"
 
 
 from pathlib import Path

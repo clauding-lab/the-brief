@@ -53,8 +53,12 @@ def freshness_pill(kind: FreshnessKind) -> str:
     return f'<span className="{cls}">{label}</span>'
 
 
-def bankerread_tag(br: Optional[BankerReadInsight]) -> str:
+def bankerread_tag(br: BankerReadInsight | None) -> str:
     if br is None:
         return ""
-    joined = " ".join(br.sentences).replace('"', "'").replace("\n", " ")
+    if br.kind == "structured":
+        joined = f"{br.meaning} {br.action} {br.trigger} {br.focus}"
+    else:
+        joined = br.text
+    joined = joined.replace('"', "'").replace("\n", " ")
     return f'<BankerRead insight="{_esc(joined)}" />'

@@ -54,10 +54,14 @@ def test_delta_requires_direction_literal():
 
 
 from brief.schema import (
+    BankerReadFreeform,
     BankerReadInsight,
+    BankerReadStructured,
     ExecSignal,
+    MapCoord,
     NewsItem,
     SectionData,
+    TodaysCall,
 )
 
 
@@ -67,24 +71,70 @@ def test_section_data_defaults():
     assert s.news == []
     assert s.bankerread is None
     assert s.exec_signals is None
+    assert s.pull is None
+    assert s.degraded_breadth is False
+    assert s.degraded_sector_heat is False
+    assert s.extras == {}
 
 
-def test_bankerread_full_variant():
-    br = BankerReadInsight(
-        sentences=["a", "b", "c", "d"],
-        generated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+def test_bankerread_structured_validates_when_all_5_fields_present():
+    br = BankerReadStructured(
+        meaning="Policy rate holds.",
+        action="Hold duration short.",
+        trigger="Inflation stays above 9%.",
+        focus="BB rate decision.",
+        pull="Policy rate holds.",
     )
-    assert br.variant == "full"
+    assert br.kind == "structured"
+    assert br.meaning == "Policy rate holds."
+    assert br.pull == "Policy rate holds."
 
 
-def test_bankerread_stale_variant():
-    br = BankerReadInsight(
-        sentences=["no fresh data; headlines suggest x"],
-        generated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
-        variant="stale_micro",
-    )
-    assert br.variant == "stale_micro"
-    assert len(br.sentences) == 1
+def test_bankerread_freeform_validates_with_only_text():
+    br = BankerReadFreeform(text="No fresh data; headlines suggest pressure.")
+    assert br.kind == "freeform"
+    assert br.pull is None
+
+
+def test_discriminator_routes_correctly_on_kind_field():
+    from pydantic import TypeAdapter
+    ta = TypeAdapter(BankerReadInsight)
+    structured = ta.validate_python({"kind": "structured", "meaning": "a", "action": "b",
+                                     "trigger": "c", "focus": "d", "pull": "a"})
+    assert isinstance(structured, BankerReadStructured)
+    freeform = ta.validate_python({"kind": "freeform", "text": "x"})
+    assert isinstance(freeform, BankerReadFreeform)
+
+
+def test_mapcoord_rejects_x_11():
+    with pytest.raises(ValidationError):
+        MapCoord(section_id="bb", x=11, y=5, r=30, type="event")
+
+
+def test_mapcoord_rejects_r_10():
+    with pytest.raises(ValidationError):
+        MapCoord(section_id="bb", x=5, y=5, r=10, type="event")
+
+
+def test_mapcoord_rejects_invalid_type():
+    with pytest.raises(ValidationError):
+        MapCoord(section_id="bb", x=5, y=5, r=30, type="invalid")
+
+
+def test_todays_call_rejects_text_over_400_chars():
+    with pytest.raises(ValidationError):
+        TodaysCall(text="x" * 401)
+
+
+def test_todays_call_accepts_text_at_400_chars():
+    tc = TodaysCall(text="x" * 400)
+    assert tc.byline == "Desk Editor · The Brief"
+
+
+def test_mapcoord_valid_with_hero_metric_id():
+    mc = MapCoord(section_id="fx", x=3.5, y=7.0, r=25, type="fresh", hero_metric_id="fx_usd_bdt")
+    assert mc.hero_metric_id == "fx_usd_bdt"
+    assert mc.section_id == "fx"
 
 
 def test_exec_signal_shape():

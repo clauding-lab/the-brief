@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import date, datetime, timezone
+from datetime import date
 
 from brief.render.assemble import replace_function_body, remove_function, Shell
 
@@ -39,13 +39,13 @@ def test_shell_roundtrip():
 
 
 from brief.render.assemble import assemble_brief
-from brief.schema import BankerReadInsight, Metric, SectionData
+from brief.schema import BankerReadStructured, Metric, SectionData
 
 
 def _section(sid: str, title: str, *, with_br=True) -> SectionData:
-    br = BankerReadInsight(
-        sentences=[f"{sid} one.", "two.", "three.", "four."],
-        generated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+    br = BankerReadStructured(
+        meaning=f"{sid} one.", action=f"{sid} two.", trigger=f"{sid} three.",
+        focus=f"{sid} four.", pull=f"{sid} one.",
     ) if with_br else None
     return SectionData(
         id=sid, title=title, freshness="fresh",

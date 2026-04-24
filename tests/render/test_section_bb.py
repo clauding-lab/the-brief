@@ -1,13 +1,12 @@
-from datetime import date, datetime, timezone
+from datetime import date
 
 from brief.render.templates.section_bb import render
-from brief.schema import BankerReadInsight, Delta, Metric, SectionData
+from brief.schema import BankerReadStructured, Delta, Metric, SectionData
 
 
 def _section(freshness="fresh", with_bankerread=True):
-    br = BankerReadInsight(
-        sentences=["one.", "two.", "three.", "four."],
-        generated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+    br = BankerReadStructured(
+        meaning="one.", action="two.", trigger="three.", focus="four.", pull="one.",
     ) if with_bankerread else None
     return SectionData(
         id="bb", title="Policy & Rates",

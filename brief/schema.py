@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,7 @@ class Metric(BaseModel):
     source_url: Optional[str] = None
     cadence: CadenceKind
     delta: Optional[Delta] = None
+    hero: bool = False
 
 
 class NewsItem(BaseModel):
@@ -38,10 +39,39 @@ class NewsItem(BaseModel):
     published: datetime
 
 
-class BankerReadInsight(BaseModel):
-    sentences: list[str]
-    generated_at: datetime
-    variant: Literal["full", "stale_micro"] = "full"
+class BankerReadStructured(BaseModel):
+    kind: Literal["structured"] = "structured"
+    meaning: str
+    action: str
+    trigger: str
+    focus: str
+    pull: str
+
+
+class BankerReadFreeform(BaseModel):
+    kind: Literal["freeform"] = "freeform"
+    text: str
+    pull: str | None = None
+
+
+BankerReadInsight = Annotated[
+    Union[BankerReadStructured, BankerReadFreeform],
+    Field(discriminator="kind"),
+]
+
+
+class MapCoord(BaseModel):
+    section_id: str
+    x: float = Field(ge=0, le=10)
+    y: float = Field(ge=0, le=10)
+    r: int = Field(ge=20, le=50)
+    type: Literal["event", "fresh", "slow", "anchor"]
+    hero_metric_id: str | None = None
+
+
+class TodaysCall(BaseModel):
+    text: str = Field(max_length=400)
+    byline: str = "Desk Editor · The Brief"
 
 
 class ExecSignal(BaseModel):
@@ -59,3 +89,7 @@ class SectionData(BaseModel):
     freshness_reason: Optional[str] = None
     bankerread: Optional[BankerReadInsight] = None
     exec_signals: Optional[list[ExecSignal]] = None
+    pull: str | None = None
+    degraded_breadth: bool = False
+    degraded_sector_heat: bool = False
+    extras: dict = Field(default_factory=dict)
