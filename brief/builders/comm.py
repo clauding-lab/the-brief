@@ -9,8 +9,8 @@ from . import BuilderContext
 def build(ctx: BuilderContext) -> SectionData:
     gold_oz = ctx.snapshot.get("gold_usd_oz")
 
-    last_lng = ctx.history.get_latest("comm_lng_jkm") if ctx.history else None
-    last_gold_bdt = ctx.history.get_latest("comm_gold_22k_bdt") if ctx.history else None
+    last_lng = ctx.history.get_latest("comm_lng_jkm") if ctx.history is not None else None
+    last_gold_bdt = ctx.history.get_latest("comm_gold_22k_bdt") if ctx.history is not None else None
 
     metrics = [
         Metric(id="comm_gold_usd_oz", label="Gold", value=gold_oz,

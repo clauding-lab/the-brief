@@ -7,7 +7,7 @@ from . import BuilderContext
 
 
 def build(ctx: BuilderContext) -> SectionData:
-    src = "EconDelta commodity_prices"
+    src = "EconDelta"
     metrics = [
         Metric(id="iranwar_brent_spot", label="Brent spot",
                value=ctx.snapshot.get("brent_crude_usd_barrel"),

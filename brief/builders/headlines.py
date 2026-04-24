@@ -15,7 +15,7 @@ def _news_items(ctx: BuilderContext) -> list[NewsItem]:
         NewsItem(title=h.title, url=h.url, source=h.source, published=h.published)
         for h in ctx.headlines
     ]
-    curation = ctx.claude_outputs.get("headlines_curation") if ctx.claude_outputs else None
+    curation = ctx.claude_outputs.get("headlines_curation")
     if not curation or not isinstance(curation, dict):
         return items
     selected_urls = [s.get("url") for s in curation.get("selected", []) if s.get("url")]

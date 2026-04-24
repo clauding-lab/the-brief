@@ -7,8 +7,8 @@ from . import BuilderContext
 
 
 def build(ctx: BuilderContext) -> SectionData:
-    last_npl = ctx.history.get_latest("banking_npl_pct") if ctx.history else None
-    last_car = ctx.history.get_latest("banking_car_pct") if ctx.history else None
+    last_npl = ctx.history.get_latest("banking_npl_pct") if ctx.history is not None else None
+    last_car = ctx.history.get_latest("banking_car_pct") if ctx.history is not None else None
     metrics = [
         Metric(id="banking_npl_pct", label="NPL Ratio",
                value=(last_npl.value if last_npl else None), unit="%",

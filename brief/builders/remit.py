@@ -7,8 +7,8 @@ from . import BuilderContext
 
 
 def build(ctx: BuilderContext) -> SectionData:
-    last_mn = ctx.history.get_latest("remit_monthly_mn") if ctx.history else None
-    last_yoy = ctx.history.get_latest("remit_yoy_pct") if ctx.history else None
+    last_mn = ctx.history.get_latest("remit_monthly_mn") if ctx.history is not None else None
+    last_yoy = ctx.history.get_latest("remit_yoy_pct") if ctx.history is not None else None
 
     metrics = [
         Metric(

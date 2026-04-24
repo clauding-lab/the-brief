@@ -17,7 +17,7 @@ _SPEC = (
 def build(ctx: BuilderContext) -> SectionData:
     metrics: list[Metric] = []
     for mid, label, unit, source in _SPEC:
-        last = ctx.history.get_latest(mid) if ctx.history else None
+        last = ctx.history.get_latest(mid) if ctx.history is not None else None
         metrics.append(Metric(
             id=mid, label=label,
             value=(last.value if last else None), unit=unit,
