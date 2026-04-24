@@ -17,7 +17,19 @@ _log = logging.getLogger(__name__)
 
 
 def _brace_end(text: str, start: int) -> int:
-    """Return index of the `}` closing the `{` at `start`. Ported from update.py."""
+    """Return index of the `}` closing the `{` at `start`.
+
+    KNOWN LIMITATION: this lexer treats `'`, `"`, `` ` `` as string delimiters
+    in all contexts. JSX text content like `Rahman's promised...` inside a
+    `<BankerRead insight="..." />` value can trip the algorithm — the `'` inside
+    the double-quoted JSX attribute is consumed as part of the attribute's
+    string content (correct), but if the surrounding JS context has already
+    mis-tracked an earlier quote, the apostrophe in JSX text becomes a stray
+    string opener that never closes, causing _brace_end to walk past the real
+    closing brace by hundreds of lines. Tested against the production
+    `the-brief.html` shell (~190KB), SectionMacro and SectionBanking trip this.
+    A real JS+JSX lexer (acorn-style) is needed for full correctness.
+    """
     depth = 0
     in_str: str | None = None
     i = start
