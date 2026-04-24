@@ -1,0 +1,30 @@
+"""Smoke test: every builder produces a valid SectionData from the fixture."""
+from __future__ import annotations
+
+import importlib
+import pytest
+
+from brief.builders import ALL_BUILDER_IDS
+from brief.schema import SectionData
+
+
+@pytest.mark.parametrize("bid", ALL_BUILDER_IDS)
+def test_builder_smokes(bid, ctx):
+    # Late-phase builders (headlines, exec) skip in Phase 2; they light up in Phase 3.
+    try:
+        mod = importlib.import_module(f"brief.builders.{bid}")
+    except ModuleNotFoundError:
+        pytest.skip(f"builder {bid} not yet implemented")
+
+    section = mod.build(ctx)
+    assert isinstance(section, SectionData)
+    assert section.id == {
+        "bb": "bb", "macro": "macro", "fx": "fx", "remit": "remit",
+        "dse": "dse", "tbond": "tbond", "iranwar": "iranwar",
+        "headlines": "headlines", "exec": "exec",
+        "comm": "comm", "banking": "banking",
+        "dam": "dam", "fiscal": "fiscal", "nbr": "nbr",
+    }[bid]
+    assert section.freshness in (
+        "fresh", "warning", "stale", "pending", "unavailable"
+    )
