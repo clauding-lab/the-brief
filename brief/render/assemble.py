@@ -6,10 +6,14 @@ balanced `{...}` body, and substitute a freshly-rendered full function.
 """
 from __future__ import annotations
 
+import importlib
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+_log = logging.getLogger(__name__)
 
 
 def _brace_end(text: str, start: int) -> int:
@@ -97,9 +101,6 @@ class Shell:
         Path(path).write_text(self.text, encoding="utf-8")
 
 
-import importlib as _importlib
-from typing import Iterable as _Iterable
-
 from brief.schema import SectionData as _SectionData
 
 
@@ -126,15 +127,16 @@ CUT_SECTIONS = ("SectionRMG", "SectionPower", "SectionPeers")
 
 def assemble_brief(
     shell_path: Path | str,
-    sections: _Iterable[_SectionData],
+    sections: Iterable[_SectionData],
 ) -> str:
     shell = Shell.load(shell_path)
     for section in sections:
         mapping = _SECTION_TO_TEMPLATE.get(section.id)
         if mapping is None:
+            _log.warning("section %r has no template registered; skipping", section.id)
             continue
         mod_name, component_name = mapping
-        mod = _importlib.import_module(mod_name)
+        mod = importlib.import_module(mod_name)
         new_body = mod.render(section)
         shell.replace(component_name, new_body)
     shell.remove_cut_sections(CUT_SECTIONS)

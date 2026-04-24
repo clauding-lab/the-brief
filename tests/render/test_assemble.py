@@ -38,8 +38,6 @@ def test_shell_roundtrip():
     assert "SectionRMG" not in shell.text
 
 
-import importlib
-
 from brief.render.assemble import assemble_brief
 from brief.schema import BankerReadInsight, Metric, SectionData
 
