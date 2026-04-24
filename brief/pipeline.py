@@ -99,6 +99,7 @@ from brief.claude.validators import (
     validate_insights,
     validate_signals,
 )
+from brief.claude.validators import validate_risk_map_layout, validate_todays_call
 from brief.schema import BankerReadFreeform, BankerReadInsight, BankerReadStructured, MapCoord, TodaysCall
 
 
@@ -117,6 +118,229 @@ def _fill(template: str, replacements: dict[str, str]) -> str:
 
 def _section_to_json(s) -> dict:
     return s.model_dump(mode="json")
+
+
+_Y_BASELINE: dict[str, float] = {
+    "bb": 8.0, "macro": 7.0, "fx": 7.0, "remit": 6.0,
+    "dse": 6.0, "tbond": 5.0, "iranwar": 7.0, "headlines": 5.0,
+    "exec": 6.0, "comm": 5.0, "banking": 6.0, "dam": 4.0,
+    "fiscal": 5.0, "nbr": 4.0,
+}
+
+
+def _build_risk_map_input(
+    sections_v2: list,
+    exec_signals: dict,
+    bankerread_insights: dict,
+    today_iso: str,
+) -> dict:
+    """Produce the payload shape defined by fixtures/sample_risk_map_input.json."""
+    import json as _json
+
+    section_entries = []
+    for s in sections_v2:
+        # kicker: pull > freshness_reason[:140] > ""
+        kicker = ""
+        if s.pull:
+            kicker = s.pull
+        elif s.freshness_reason:
+            kicker = s.freshness_reason[:140]
+
+        # top 3 metrics by abs(delta.value); flat/None delta ranks last
+        def _delta_sort_key(m):
+            if m.delta is None or m.delta.direction == "flat":
+                return 0.0
+            return abs(m.delta.value)
+
+        sorted_metrics = sorted(s.metrics, key=_delta_sort_key, reverse=True)
+        top3 = sorted_metrics[:3]
+
+        top_metrics_out = []
+        for m in top3:
+            entry = {
+                "id": m.id,
+                "label": m.label,
+                "value": m.value,
+                "unit": m.unit,
+                "delta": None,
+            }
+            if m.delta is not None:
+                entry["delta"] = {
+                    "value": m.delta.value,
+                    "direction": m.delta.direction,
+                    "window": m.delta.window,
+                }
+            top_metrics_out.append(entry)
+
+        section_entries.append({
+            "section_id": s.id,
+            "title": s.title,
+            "kicker": kicker,
+            "freshness": s.freshness,
+            "top_metrics": top_metrics_out,
+        })
+
+    # Serialize bankerread_insights (dict[section_id, BankerReadStructured|Freeform])
+    br_serialized: dict[str, Any] = {}
+    for sid, br in bankerread_insights.items():
+        if br is None:
+            br_serialized[sid] = None
+        elif hasattr(br, "model_dump"):
+            br_serialized[sid] = br.model_dump()
+        else:
+            br_serialized[sid] = br
+
+    return {
+        "today_iso": today_iso,
+        "sections": section_entries,
+        "exec_signals": exec_signals,
+        "bankerread_insights": br_serialized,
+    }
+
+
+def call_risk_map_layout(
+    sections_v2: list,
+    claude_outputs: dict,
+    today_iso: str,
+    *,
+    run_max_fn=None,
+) -> tuple[list[MapCoord], list[str]] | None:
+    """Call Claude for risk_map_layout. Returns (sections, read_order) on success, None on any failure."""
+    import json as _json
+
+    _run = run_max_fn or run_max
+
+    # Build bankerread_insights dict from sections
+    bankerread_insights = {s.id: s.bankerread for s in sections_v2 if s.bankerread is not None}
+    exec_signals = claude_outputs.get("exec_signals", {})
+
+    try:
+        payload = _build_risk_map_input(sections_v2, exec_signals, bankerread_insights, today_iso)
+        prompt = _fill(_load_prompt("risk_map_layout.txt"), {
+            "INPUT_JSON": _json.dumps(payload, default=str),
+        })
+        r = _run(prompt=prompt, timeout_s=45)
+        v = validate_risk_map_layout(
+            r.parsed,
+            section_ids={s.id for s in sections_v2},
+            known_metric_ids={s.id: {m.id for m in s.metrics} for s in sections_v2},
+        )
+        if v.ok:
+            return (v.value["sections"], v.value["read_order"])
+        return None
+    except MaxCallError:
+        return None
+
+
+def call_todays_call(
+    sections_v2: list,
+    claude_outputs: dict,
+    risk_map_sections: list[MapCoord],
+    read_order: list[str],
+    *,
+    run_max_fn=None,
+) -> TodaysCall | None:
+    """Call Claude for todays_call. Returns TodaysCall on success, None on any failure."""
+    import json as _json
+
+    _run = run_max_fn or run_max
+
+    try:
+        prompt = _fill(_load_prompt("todays_call.txt"), {
+            "RISK_MAP_JSON": _json.dumps(
+                {"sections": [mc.model_dump() for mc in risk_map_sections], "read_order": read_order},
+                default=str,
+            ),
+            "BANKERREAD_JSON": _json.dumps(
+                {s.id: (s.bankerread.model_dump() if s.bankerread else None) for s in sections_v2},
+                default=str,
+            ),
+            "EXEC_SIGNALS_JSON": _json.dumps(claude_outputs.get("exec_signals", {}), default=str),
+        })
+        r = _run(prompt=prompt, timeout_s=45)
+        v = validate_todays_call(r.parsed)
+        if v.ok:
+            return v.value
+        return None
+    except MaxCallError:
+        return None
+
+
+def _fallback_risk_map_layout(sections_v2: list) -> tuple[list[MapCoord], list[str]]:
+    """Pure, deterministic. Same input → same output."""
+    map_coords: list[MapCoord] = []
+
+    for s in sections_v2:
+        # Compute x from hero/first metric with a non-flat delta
+        x = 1.0
+        for m in s.metrics:
+            if m.delta is not None and m.delta.direction != "flat":
+                raw = abs(m.delta.value) / 10.0
+                x = max(0.0, min(10.0, raw))
+                break
+
+        y = _Y_BASELINE.get(s.id, 5.0)
+
+        r = int(max(20, min(50, 20 + round((x + y) * 1.5))))
+
+        # Determine type
+        oil_events = s.extras.get("oil_events") if s.extras else None
+        if oil_events and any(e.get("hotness") == "hot" for e in oil_events if isinstance(e, dict)):
+            section_type: str = "event"
+        elif s.id in {"bb", "macro"}:
+            section_type = "anchor"
+        elif s.freshness in ("fresh", "warning"):
+            section_type = "fresh"
+        else:
+            section_type = "slow"
+
+        coord = MapCoord(
+            section_id=s.id,
+            x=x,
+            y=y,
+            r=r,
+            type=section_type,  # type: ignore[arg-type]
+            hero_metric_id=None,
+        )
+        map_coords.append(coord)
+
+    # read_order: sort by (x * y) descending, ties broken by ALL_BUILDER_IDS order
+    coord_by_id = {mc.section_id: mc for mc in map_coords}
+    ordered_ids = list(ALL_BUILDER_IDS)
+
+    def _sort_key(sid: str):
+        mc = coord_by_id[sid]
+        return (-mc.x * mc.y, ordered_ids.index(sid))
+
+    read_order = sorted(coord_by_id.keys(), key=_sort_key)
+
+    return (map_coords, read_order)
+
+
+def _fallback_todays_call(
+    read_order: list[str],
+    sections_v2: list,
+) -> TodaysCall:
+    """Deterministic. Lead section's pull → freeform.text → safe default."""
+    if not read_order:
+        return TodaysCall(text="No single call today — see Flow Index for the full read.")
+
+    by_id = {s.id: s for s in sections_v2}
+    lead = by_id.get(read_order[0])
+
+    if lead is None:
+        return TodaysCall(text="No single call today — see Flow Index for the full read.")
+
+    if lead.bankerread is not None:
+        br = lead.bankerread
+        if br.kind == "structured":
+            return TodaysCall(text=br.pull)
+        # freeform
+        if br.pull:
+            return TodaysCall(text=br.pull)
+        return TodaysCall(text=br.text[:400])
+
+    return TodaysCall(text="No single call today — see Flow Index for the full read.")
 
 
 @_dc
@@ -274,10 +498,24 @@ def run(
     snapshot_override: EconDeltaSnapshot | None = None,
 ) -> RunResult:
     pr = run_pipeline(cfg, snapshot_override=snapshot_override)
+
+    risk_map_result = call_risk_map_layout(pr.sections, pr.claude_outputs, cfg.today.isoformat())
+    if risk_map_result is None:
+        map_coords, read_order = _fallback_risk_map_layout(pr.sections)
+    else:
+        map_coords, read_order = risk_map_result
+
+    todays_call = call_todays_call(pr.sections, pr.claude_outputs, map_coords, read_order)
+    if todays_call is None:
+        todays_call = _fallback_todays_call(read_order, pr.sections)
+
     html = assemble_brief(shell_path, pr.sections)
     return RunResult(
         sections=pr.sections,
         html=html,
         claude_outputs=pr.claude_outputs,
         call_reports=pr.call_reports,
+        map_coords=map_coords,
+        todays_call=todays_call,
+        read_order=read_order,
     )

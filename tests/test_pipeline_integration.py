@@ -1,7 +1,8 @@
 import pytest
 
+from brief.builders import ALL_BUILDER_IDS
 from brief.pipeline import gather, PipelineConfig
-from brief.schema import SectionData
+from brief.schema import MapCoord, SectionData
 
 
 @pytest.mark.integration
@@ -104,6 +105,34 @@ from pathlib import Path
 FIXTURE_SHELL = Path(__file__).parent.parent / "fixtures" / "sample_the_brief.html"
 
 
+def _fake_risk_map():
+    sections = [
+        {
+            "section_id": sid,
+            "x": 5.0,
+            "y": 5.0,
+            "r": 30,
+            "type": "slow",
+            "hero_metric_id": None,
+        }
+        for sid in ALL_BUILDER_IDS
+    ]
+    read_order = [s["section_id"] for s in sections]
+    return MaxCallResult(
+        raw_text="{}",
+        parsed={"sections": sections, "read_order": read_order},
+        usage={}, total_cost_usd=0,
+    )
+
+
+def _fake_todays_call():
+    return MaxCallResult(
+        raw_text="{}",
+        parsed={"text": "Short valid editorial call."},
+        usage={}, total_cost_usd=0,
+    )
+
+
 def test_run_returns_html(fixture_snapshot, today):
     from brief.pipeline import PipelineConfig, run
     cfg = PipelineConfig(
@@ -115,8 +144,68 @@ def test_run_returns_html(fixture_snapshot, today):
             _fake_signals(),
             _fake_insights(),
             _fake_insights_stale(),
+            _fake_risk_map(),
+            _fake_todays_call(),
         ]
         result = run(cfg, shell_path=FIXTURE_SHELL, snapshot_override=fixture_snapshot)
     assert "OLD_BB_BODY" not in result.html
     assert "SectionRMG" not in result.html
     assert result.html.startswith("<!DOCTYPE html>")
+
+
+def test_run_populates_risk_map_and_todays_call(fixture_snapshot, today):
+    """RunResult carries map_coords, read_order, todays_call (from fake)."""
+    from brief.pipeline import PipelineConfig, run
+
+    cfg = PipelineConfig(
+        today=today, enable_history=False, enable_headlines=False,
+    )
+    with patch("brief.pipeline.run_max") as mx:
+        mx.side_effect = [
+            _fake_curation([]),
+            _fake_signals(),
+            _fake_insights(),
+            _fake_insights_stale(),
+            _fake_risk_map(),
+            _fake_todays_call(),
+        ]
+        result = run(cfg, shell_path=FIXTURE_SHELL, snapshot_override=fixture_snapshot)
+
+    assert len(result.map_coords) == 14
+    assert all(isinstance(mc, MapCoord) for mc in result.map_coords)
+    assert len(result.read_order) == 14
+    assert set(result.read_order) == set(ALL_BUILDER_IDS)
+    assert result.todays_call is not None
+    assert result.todays_call.text == "Short valid editorial call."
+    assert result.todays_call.byline == "Desk Editor · The Brief"
+
+
+def test_run_falls_back_when_risk_map_fails(fixture_snapshot, today):
+    """When risk_map_layout Claude response is invalid, fallback produces 14 coords."""
+    from brief.pipeline import PipelineConfig, run
+
+    cfg = PipelineConfig(
+        today=today, enable_history=False, enable_headlines=False,
+    )
+    # Risk map returns empty sections list — validator will reject (count mismatch)
+    _fake_risk_map_invalid = MaxCallResult(
+        raw_text="{}",
+        parsed={"sections": [], "read_order": []},
+        usage={}, total_cost_usd=0,
+    )
+
+    with patch("brief.pipeline.run_max") as mx:
+        mx.side_effect = [
+            _fake_curation([]),
+            _fake_signals(),
+            _fake_insights(),
+            _fake_insights_stale(),
+            _fake_risk_map_invalid,
+            _fake_todays_call(),
+        ]
+        result = run(cfg, shell_path=FIXTURE_SHELL, snapshot_override=fixture_snapshot)
+
+    # Deterministic fallback must produce 14 coords
+    assert len(result.map_coords) == 14
+    # Claude's todays_call still succeeded (valid response after fallback risk_map)
+    assert result.todays_call.text == "Short valid editorial call."
