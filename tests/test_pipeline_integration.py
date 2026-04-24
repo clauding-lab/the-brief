@@ -48,8 +48,15 @@ def _fake_signals():
 def _fake_insights():
     return MaxCallResult(
         raw_text="{}",
-        parsed={"insights": {"bb": ["one", "two", "three", "four"],
-                             "fx": ["one", "two", "three", "four"]}},
+        parsed={"insights": {"fx": ["one", "two", "three", "four"]}},
+        usage={}, total_cost_usd=0,
+    )
+
+
+def _fake_insights_stale():
+    return MaxCallResult(
+        raw_text="{}",
+        parsed={"insights": {"bb": ["No fresh data; reserves dated to early March."]}},
         usage={}, total_cost_usd=0,
     )
 
@@ -60,7 +67,12 @@ def test_run_pipeline_injects_claude_outputs(fixture_snapshot, today):
     cfg = PipelineConfig(today=today, enable_history=False, enable_headlines=False)
 
     call_count = {"n": 0}
-    responses = [_fake_curation([]), _fake_signals(), _fake_insights()]
+    responses = [
+        _fake_curation([]),
+        _fake_signals(),
+        _fake_insights(),         # bankerread_full for fresh+warning sections
+        _fake_insights_stale(),   # bankerread_stale for stale sections (bb)
+    ]
 
     def _stub(**kwargs):
         r = responses[call_count["n"]]
@@ -70,11 +82,18 @@ def test_run_pipeline_injects_claude_outputs(fixture_snapshot, today):
     with patch("brief.pipeline.run_max", side_effect=_stub):
         result = run_pipeline(cfg, snapshot_override=fixture_snapshot)
 
-    assert call_count["n"] == 3
+    assert call_count["n"] == 4
     exec_section = next(s for s in result.sections if s.id == "exec")
     assert exec_section.exec_signals is not None
     assert len(exec_section.exec_signals) >= 1
 
+    # bb is stale in the canonical fixture (reserves_date 51 days old) so it
+    # should receive the stale_micro variant from the bankerread_stale call.
     bb = next(s for s in result.sections if s.id == "bb")
     assert bb.bankerread is not None
-    assert bb.bankerread.variant == "full"
+    assert bb.bankerread.variant == "stale_micro"
+
+    # fx is fresh in the fixture and should receive the full bankerread variant.
+    fx = next(s for s in result.sections if s.id == "fx")
+    assert fx.bankerread is not None
+    assert fx.bankerread.variant == "full"

@@ -175,27 +175,39 @@ def run_pipeline(
     except MaxCallError as e:
         call_reports.append({"name": "exec_signals", "status": "error", "reason": str(e)})
 
-    # Call 3 — bankerread_insights (single call covering all non-unavailable sections)
-    bankerread_ids = {
-        s.id for s in sections_v1
-        if s.freshness in ("fresh", "warning", "stale")
-    }
+    # Call 3 — bankerread_insights (fresh + stale variants)
+    fresh_ids = {s.id for s in sections_v1 if s.freshness in ("fresh", "warning")}
+    stale_ids = {s.id for s in sections_v1 if s.freshness == "stale"}
 
     insights_full: dict[str, list[str]] = {}
     insights_stale: dict[str, list[str]] = {}
 
     try:
-        if bankerread_ids:
-            bankerread_payload = [_section_to_json(s) for s in sections_v1 if s.id in bankerread_ids]
+        if fresh_ids:
+            fresh_payload = [_section_to_json(s) for s in sections_v1 if s.id in fresh_ids]
             prompt = _fill(_load_prompt("bankerread.txt"), {
                 "TODAY_ISO": cfg.today.isoformat(),
-                "SECTIONS_JSON": _json.dumps(bankerread_payload, default=str),
+                "SECTIONS_JSON": _json.dumps(fresh_payload, default=str),
                 "EXEC_SIGNALS_JSON": _json.dumps(claude_outputs.get("exec_signals", {}), default=str),
             })
             r = run_max(prompt=prompt, timeout_s=1800)
-            v = validate_insights(r.parsed, allowed_section_ids=bankerread_ids, stale=False)
+            v = validate_insights(r.parsed, allowed_section_ids=fresh_ids, stale=False)
             insights_full = v.value["insights"] if v.ok else {}
             call_reports.append({"name": "bankerread_full", "status": "ok" if v.ok else "invalid",
+                                 "reason": v.reason, "dropped": v.dropped})
+        if stale_ids:
+            stale_payload = {"ids": sorted(stale_ids)}
+            prompt = _fill(_load_prompt("bankerread_stale.txt"), {
+                "TODAY_ISO": cfg.today.isoformat(),
+                "STALE_SECTIONS_JSON": _json.dumps(stale_payload),
+                "HEADLINES_JSON": _json.dumps(
+                    [{"title": h.title, "url": h.url} for h in raw_headlines]
+                ),
+            })
+            r = run_max(prompt=prompt, timeout_s=900)
+            v = validate_insights(r.parsed, allowed_section_ids=stale_ids, stale=True)
+            insights_stale = v.value["insights"] if v.ok else {}
+            call_reports.append({"name": "bankerread_stale", "status": "ok" if v.ok else "invalid",
                                  "reason": v.reason, "dropped": v.dropped})
     except MaxCallError as e:
         call_reports.append({"name": "bankerread", "status": "error", "reason": str(e)})
