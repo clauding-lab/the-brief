@@ -5,10 +5,13 @@ Phase 3 will extend gather() with 3 Claude calls; Phase 4 adds render().
 from __future__ import annotations
 
 import importlib
+import logging
 import os
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Optional
+
+_log = logging.getLogger(__name__)
 
 from brief.builders import ALL_BUILDER_IDS, BuilderContext
 from brief.cadence import now_bdt
@@ -75,6 +78,7 @@ def gather(
             mod = importlib.import_module(f"brief.builders.{bid}")
             sections.append(mod.build(ctx))
         except Exception as e:
+            _log.warning("builder %s failed: %s: %s", bid, type(e).__name__, e)
             sections.append(SectionData(
                 id=bid,
                 title=bid.upper(),

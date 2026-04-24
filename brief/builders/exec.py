@@ -5,12 +5,16 @@ real exec_signals list is injected in Phase 3 via ctx.claude_outputs.
 """
 from __future__ import annotations
 
+import logging
+
 from brief.schema import ExecSignal, SectionData
 from . import BuilderContext
 
+_log = logging.getLogger(__name__)
+
 
 def build(ctx: BuilderContext) -> SectionData:
-    raw = (ctx.claude_outputs or {}).get("exec_signals") or {}
+    raw = ctx.claude_outputs.get("exec_signals") or {}
     signals_payload = raw.get("signals", []) if isinstance(raw, dict) else []
     signals: list[ExecSignal] = []
     for s in signals_payload:
@@ -20,7 +24,8 @@ def build(ctx: BuilderContext) -> SectionData:
                 text=s["text"],
                 section_anchor=s["section_anchor"],
             ))
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError) as exc:
+            _log.debug("exec signal dropped: %s: %s", type(exc).__name__, exc)
             continue
     return SectionData(
         id="exec",

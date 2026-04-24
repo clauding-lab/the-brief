@@ -1,4 +1,3 @@
-from datetime import date
 import pytest
 
 from brief.pipeline import gather, PipelineConfig
