@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import date, datetime, timezone
 
 from brief.render.assemble import replace_function_body, remove_function, Shell
 
@@ -35,3 +36,35 @@ def test_shell_roundtrip():
     shell.remove_cut_sections(["SectionRMG"])
     assert "OLD_BB_BODY" not in shell.text
     assert "SectionRMG" not in shell.text
+
+
+import importlib
+
+from brief.render.assemble import assemble_brief
+from brief.schema import BankerReadInsight, Metric, SectionData
+
+
+def _section(sid: str, title: str, *, with_br=True) -> SectionData:
+    br = BankerReadInsight(
+        sentences=[f"{sid} one.", "two.", "three.", "four."],
+        generated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+    ) if with_br else None
+    return SectionData(
+        id=sid, title=title, freshness="fresh",
+        metrics=[
+            Metric(id=f"{sid}_a", label="A", value=1.0, unit="x",
+                   as_of=date(2026, 4, 21), source="t", cadence="daily"),
+        ],
+        bankerread=br,
+    )
+
+
+def test_assemble_brief_replaces_bb_and_fx_removes_rmg():
+    sections = [_section("bb", "Policy"), _section("fx", "FX")]
+    out = assemble_brief(SHELL_PATH, sections)
+    assert "OLD_BB_BODY" not in out
+    assert "OLD_FX_BODY" not in out
+    assert "OLD_RMG_BODY" not in out
+    assert "Policy" in out
+    assert "FX" in out
+    assert "SectionRMG" not in out

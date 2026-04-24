@@ -95,3 +95,47 @@ class Shell:
 
     def write(self, path: Path | str) -> None:
         Path(path).write_text(self.text, encoding="utf-8")
+
+
+import importlib as _importlib
+from typing import Iterable as _Iterable
+
+from brief.schema import SectionData as _SectionData
+
+
+_SECTION_TO_TEMPLATE: dict[str, tuple[str, str]] = {
+    # section id -> (template module, React component name to replace)
+    "bb":         ("brief.render.templates.section_bb",         "SectionBB"),
+    "macro":      ("brief.render.templates.section_macro",      "SectionMacro"),
+    "fx":         ("brief.render.templates.section_fx",         "SectionFX"),
+    "remit":      ("brief.render.templates.section_remittance", "SectionRemittance"),
+    "dse":        ("brief.render.templates.section_dse",        "SectionDSE"),
+    "tbond":      ("brief.render.templates.section_tbond",      "SectionTBond"),
+    "iranwar":    ("brief.render.templates.section_iranwar",    "SectionIranWar"),
+    "headlines":  ("brief.render.templates.section_headlines",  "SectionHeadlines"),
+    "exec":       ("brief.render.templates.section_exec",       "SectionExec"),
+    "comm":       ("brief.render.templates.section_comm",       "SectionComm"),
+    "banking":    ("brief.render.templates.section_banking",    "SectionBanking"),
+    "dam":        ("brief.render.templates.section_dam",        "SectionDAM"),
+    "fiscal":     ("brief.render.templates.section_fiscal",     "SectionFiscal"),
+    "nbr":        ("brief.render.templates.section_nbr",        "SectionNBR"),
+}
+
+CUT_SECTIONS = ("SectionRMG", "SectionPower", "SectionPeers")
+
+
+def assemble_brief(
+    shell_path: Path | str,
+    sections: _Iterable[_SectionData],
+) -> str:
+    shell = Shell.load(shell_path)
+    for section in sections:
+        mapping = _SECTION_TO_TEMPLATE.get(section.id)
+        if mapping is None:
+            continue
+        mod_name, component_name = mapping
+        mod = _importlib.import_module(mod_name)
+        new_body = mod.render(section)
+        shell.replace(component_name, new_body)
+    shell.remove_cut_sections(CUT_SECTIONS)
+    return shell.text
