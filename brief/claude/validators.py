@@ -10,6 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from pydantic import ValidationError as _PydValidationError
+
+from brief.schema import MapCoord, TodaysCall
+
 _VALID_WEIGHTS = {"high", "med", "low"}
 _VALID_DIRECTIONS = {"bull", "bear", "warn", "watch"}
 _VALID_TRAFFIC = {"bull", "bear", "warn", "neu"}
@@ -105,3 +109,131 @@ def validate_insights(
         value={"insights": kept},
         dropped=dropped,
     )
+
+
+def validate_risk_map_layout(
+    payload: Any,
+    *,
+    section_ids: set[str],
+    known_metric_ids: dict[str, set[str]] | None = None,
+) -> ValidationResult:
+    """Validate Claude's risk_map_layout response.
+
+    On success: ValidationResult.value = {
+        "sections": list[MapCoord],
+        "read_order": list[str],
+    }
+    """
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+
+    raw_sections = payload.get("sections")
+    if not isinstance(raw_sections, list):
+        return ValidationResult(False, reason="sections missing or not a list")
+
+    want = len(section_ids)
+    if len(raw_sections) != want:
+        return ValidationResult(
+            False,
+            reason=f"sections count mismatch (got {len(raw_sections)}, want {want})",
+        )
+
+    # Parse each entry as MapCoord, collecting typed models
+    sections: list[MapCoord] = []
+    seen_ids: set[str] = set()
+
+    for entry in raw_sections:
+        if not _is_dict(entry):
+            return ValidationResult(False, reason="section entry not a dict")
+        sid = entry.get("section_id")
+        if sid in seen_ids:
+            return ValidationResult(False, reason=f"duplicate section_id: {sid!r}")
+        seen_ids.add(sid)
+        try:
+            coord = MapCoord(**entry)
+        except _PydValidationError as exc:
+            short = str(exc).split("\n")[0]
+            return ValidationResult(False, reason=f"MapCoord validation failed: {short}")
+        sections.append(coord)
+
+    # Check for unknown or missing section_ids
+    unknown = seen_ids - section_ids
+    if unknown:
+        sid = next(iter(sorted(unknown)))
+        return ValidationResult(False, reason=f"unknown section_id: {sid!r}")
+    missing = section_ids - seen_ids
+    if missing:
+        return ValidationResult(False, reason=f"missing section_ids: {sorted(missing)}")
+
+    # Validate hero_metric_id references if lookup provided
+    if known_metric_ids is not None:
+        for coord in sections:
+            if coord.hero_metric_id is not None:
+                allowed_metrics = known_metric_ids.get(coord.section_id, set())
+                if coord.hero_metric_id not in allowed_metrics:
+                    return ValidationResult(
+                        False,
+                        reason=(
+                            f"hero_metric_id {coord.hero_metric_id!r} not in "
+                            f"section {coord.section_id!r} metrics"
+                        ),
+                    )
+
+    # Validate read_order
+    read_order = payload.get("read_order")
+    if not isinstance(read_order, list) or len(read_order) != want:
+        return ValidationResult(
+            False,
+            reason=(
+                f"read_order must be a list of {want} strings"
+                if not isinstance(read_order, list)
+                else f"read_order length mismatch (got {len(read_order)}, want {want})"
+            ),
+        )
+    if not all(isinstance(s, str) for s in read_order):
+        return ValidationResult(False, reason="read_order contains non-string elements")
+
+    ro_set = set(read_order)
+    if len(read_order) != len(ro_set):
+        return ValidationResult(False, reason="read_order contains duplicates")
+    unknown_ro = ro_set - section_ids
+    if unknown_ro:
+        return ValidationResult(
+            False,
+            reason=f"read_order contains unknown section_ids: {sorted(unknown_ro)}",
+        )
+    missing_ro = section_ids - ro_set
+    if missing_ro:
+        return ValidationResult(
+            False,
+            reason=f"read_order missing section_ids: {sorted(missing_ro)}",
+        )
+
+    return ValidationResult(
+        ok=True,
+        value={"sections": sections, "read_order": read_order},
+    )
+
+
+def validate_todays_call(payload: Any) -> ValidationResult:
+    """Validate Claude's todays_call response.
+
+    On success: ValidationResult.value = TodaysCall(text=..., byline="Desk Editor · The Brief").
+    """
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+
+    text = payload.get("text")
+    if not isinstance(text, str) or not text:
+        return ValidationResult(False, reason="text missing or empty")
+
+    if len(text) > 400:
+        return ValidationResult(False, reason=f"text too long: {len(text)} chars")
+
+    if '"' in text:
+        return ValidationResult(False, reason="text contains double quote")
+
+    if "Desk Editor" in text:
+        return ValidationResult(False, reason="text contains Desk Editor byline")
+
+    return ValidationResult(ok=True, value=TodaysCall(text=text))
