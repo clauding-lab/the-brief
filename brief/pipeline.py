@@ -228,7 +228,7 @@ def run_pipeline(
     now = datetime.now(timezone.utc)
     for s in sections_v2:
         full_sentences = insights_full.get(s.id)
-        if full_sentences:
+        if full_sentences and len(full_sentences) >= 4:
             s.bankerread = BankerReadStructured(
                 meaning=full_sentences[0],
                 action=full_sentences[1],
