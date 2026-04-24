@@ -5,7 +5,6 @@ until an EconDelta or dedicated scraper populates them.
 """
 from __future__ import annotations
 
-from datetime import date
 
 from brief.cadence import section_freshness
 from brief.schema import Metric, SectionData
