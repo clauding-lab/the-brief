@@ -6,6 +6,7 @@ No Anthropic API calls. Auth is via the OS user's ~/.claude/.credentials.json
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from typing import Any
@@ -28,9 +29,19 @@ def run_max(
     prompt: str,
     model: str = "claude-opus-4-7",
     timeout_s: int = 1800,
-    claude_binary: str = "claude",
+    claude_binary: str | None = None,
 ) -> MaxCallResult:
-    """Invoke the Claude Max CLI, return parsed result."""
+    """Invoke the Claude Max CLI, return parsed result.
+
+    Binary resolution (highest precedence first):
+      1. explicit `claude_binary=` argument
+      2. `CLAUDE_BINARY` env var — lets VPS deploys point at an absolute
+         path (e.g. /home/adnan/.npm-global/bin/claude) regardless of
+         the PATH that cron/systemd inherits.
+      3. `"claude"` — resolves via $PATH at subprocess launch.
+    """
+    if claude_binary is None:
+        claude_binary = os.environ.get("CLAUDE_BINARY", "claude")
     argv = [
         claude_binary, "-p", prompt,
         "--model", model,

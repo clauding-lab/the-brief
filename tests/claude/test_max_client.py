@@ -63,3 +63,33 @@ def test_run_max_wraps_timeout():
                side_effect=subprocess.TimeoutExpired("claude", 60)):
         with pytest.raises(MaxCallError):
             run_max(prompt="hi", timeout_s=60)
+
+
+def test_run_max_honors_claude_binary_env_var(monkeypatch):
+    claude_payload = {"result": "ok", "usage": {}}
+    with patch("brief.claude.max_client.subprocess.run",
+               return_value=_fake_completed(json.dumps(claude_payload))) as sp:
+        monkeypatch.setenv("CLAUDE_BINARY", "/home/adnan/.npm-global/bin/claude")
+        run_max(prompt="hi", timeout_s=60)
+    argv = sp.call_args.args[0]
+    assert argv[0] == "/home/adnan/.npm-global/bin/claude"
+
+
+def test_run_max_explicit_binary_beats_env_var(monkeypatch):
+    claude_payload = {"result": "ok", "usage": {}}
+    with patch("brief.claude.max_client.subprocess.run",
+               return_value=_fake_completed(json.dumps(claude_payload))) as sp:
+        monkeypatch.setenv("CLAUDE_BINARY", "/env/var/claude")
+        run_max(prompt="hi", timeout_s=60, claude_binary="/explicit/claude")
+    argv = sp.call_args.args[0]
+    assert argv[0] == "/explicit/claude"
+
+
+def test_run_max_defaults_to_plain_claude_when_no_env_var(monkeypatch):
+    claude_payload = {"result": "ok", "usage": {}}
+    with patch("brief.claude.max_client.subprocess.run",
+               return_value=_fake_completed(json.dumps(claude_payload))) as sp:
+        monkeypatch.delenv("CLAUDE_BINARY", raising=False)
+        run_max(prompt="hi", timeout_s=60)
+    argv = sp.call_args.args[0]
+    assert argv[0] == "claude"
