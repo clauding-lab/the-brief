@@ -10,7 +10,7 @@ from brief.schema import SectionData
 
 @pytest.mark.parametrize("bid", ALL_BUILDER_IDS)
 def test_builder_smokes(bid, ctx):
-    # Late-phase builders (headlines, exec) skip in Phase 2; they light up in Phase 3.
+    # Builders not yet implemented are skipped automatically; they must pass before merge.
     try:
         mod = importlib.import_module(f"brief.builders.{bid}")
     except ModuleNotFoundError:
