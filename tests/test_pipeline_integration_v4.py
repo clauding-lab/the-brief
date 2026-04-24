@@ -1,10 +1,10 @@
-"""V4 pipeline integration tests — Phase 4B exit gate (Task 4B.16).
+"""V4 pipeline integration tests -- Phase 4B exit gate (Task 4B.16).
 
 Verifies that run() produces well-formed V4 HTML and a clean plain-text
 email digest across three scenarios:
-  1. Full happy path with all 14 sections on the risk map.
-  2. Risk map fallback (invalid Claude response) — HTML still well-formed.
-  3. todays_call failure — email has graceful fallback text.
+  1. Full happy path with 12 sections on the risk map (exec + headlines excluded).
+  2. Risk map fallback (invalid Claude response) -- HTML still well-formed.
+  3. todays_call failure -- email has graceful fallback text.
 """
 from __future__ import annotations
 
@@ -28,14 +28,16 @@ from tests.test_pipeline_integration import (
 # Extra fakes
 # ---------------------------------------------------------------------------
 
+_RISK_MAP_IDS = ["bb", "macro", "fx", "remit", "dse", "tbond", "iranwar", "comm", "banking", "dam", "fiscal", "nbr"]
+
+
 def _fake_risk_map_full():
-    """All 14 section IDs plotted; type sampled to cover all enum variants."""
+    """12 section IDs plotted (exec + headlines excluded); type sampled to cover all enum variants."""
     types_map = {
         "bb": "anchor", "macro": "anchor", "iranwar": "event",
         "dse": "fresh", "fx": "fresh", "banking": "fresh",
-        "remit": "slow", "tbond": "slow", "headlines": "slow",
-        "exec": "slow", "comm": "slow", "dam": "slow",
-        "fiscal": "slow", "nbr": "slow",
+        "remit": "slow", "tbond": "slow", "comm": "slow",
+        "dam": "slow", "fiscal": "slow", "nbr": "slow",
     }
     sections = [
         {
@@ -46,9 +48,9 @@ def _fake_risk_map_full():
             "type": types_map.get(sid, "slow"),
             "hero_metric_id": None,
         }
-        for sid in ALL_BUILDER_IDS
+        for sid in _RISK_MAP_IDS
     ]
-    read_order = list(ALL_BUILDER_IDS)
+    read_order = list(_RISK_MAP_IDS)
     return MaxCallResult(
         raw_text="{}",
         parsed={"sections": sections, "read_order": read_order},
@@ -78,7 +80,7 @@ def _fake_risk_map_invalid():
 
 @pytest.mark.integration
 def test_run_produces_v4_html_and_email(fixture_snapshot, today):
-    """Happy path: all 14 sections, valid risk map + todays_call."""
+    """Happy path: 12 sections on risk map (exec + headlines excluded), valid risk map + todays_call."""
     cfg = PipelineConfig(today=today, enable_history=False, enable_headlines=False)
     with patch("brief.pipeline.run_max") as mx:
         mx.side_effect = [
@@ -103,7 +105,7 @@ def test_run_produces_v4_html_and_email(fixture_snapshot, today):
     assert 'class="flow-index"' in html
     assert 'class="colophon"' in html
 
-    # Every rendered section appears (13 numbered — exec is not a standalone section)
+    # Every rendered section appears (13 numbered -- exec is not a standalone section)
     for sid in [
         "headlines", "bb", "banking", "dse", "tbond", "fx",
         "macro", "dam", "comm", "remit", "iranwar", "fiscal", "nbr",
@@ -142,13 +144,13 @@ def test_run_v4_html_email_with_risk_map_fallback(fixture_snapshot, today):
             _fake_signals(),
             _fake_insights(),
             _fake_insights_stale(),
-            _fake_risk_map_invalid(),   # invalid → fallback fires
+            _fake_risk_map_invalid(),   # invalid -> fallback fires
             _fake_todays_call_ok(),
         ]
         result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
-    # Fallback still produces 14 coords
-    assert len(result.map_coords) == 14
+    # Fallback produces 12 coords (exec + headlines excluded)
+    assert len(result.map_coords) == 12
 
     # HTML is well-formed (DOCTYPE present, no unreplaced SPLICEs)
     assert result.html.startswith("<!DOCTYPE html>") or result.html.startswith("<!doctype html>")
@@ -193,7 +195,7 @@ def test_v4_email_handles_missing_todays_call(fixture_snapshot, today):
 
     email = result.email_text
     assert "TODAY'S CALL" in email
-    # Fallback text from _fallback_todays_call — should be non-empty
+    # Fallback text from _fallback_todays_call -- should be non-empty
     assert email.count("TODAY'S CALL") >= 1
 
     # Email still structurally complete

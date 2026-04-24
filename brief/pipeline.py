@@ -20,6 +20,13 @@ from brief.headlines import scrape_all
 from brief.history import MetricHistoryClient
 from brief.schema import SectionData
 
+_RISK_MAP_EXCLUDED: frozenset[str] = frozenset({"exec", "headlines"})
+
+
+def _risk_map_sections(sections: list) -> list:
+    """Subset of sections eligible for the Risk Map (12 of 14 builders)."""
+    return [s for s in sections if s.id not in _RISK_MAP_EXCLUDED]
+
 
 @dataclass
 class PipelineConfig:
@@ -138,7 +145,7 @@ def _build_risk_map_input(
     import json as _json
 
     section_entries = []
-    for s in sections_v2:
+    for s in _risk_map_sections(sections_v2):
         # kicker: pull > freshness_reason[:140] > ""
         kicker = ""
         if s.pull:
@@ -220,10 +227,11 @@ def call_risk_map_layout(
             "INPUT_JSON": _json.dumps(payload, default=str),
         })
         r = _run(prompt=prompt, timeout_s=45)
+        _rm_sections = _risk_map_sections(sections_v2)
         v = validate_risk_map_layout(
             r.parsed,
-            section_ids={s.id for s in sections_v2},
-            known_metric_ids={s.id: {m.id for m in s.metrics} for s in sections_v2},
+            section_ids={s.id for s in _rm_sections},
+            known_metric_ids={s.id: {m.id for m in s.metrics} for s in _rm_sections},
         )
         if v.ok:
             return (v.value["sections"], v.value["read_order"])
@@ -268,6 +276,7 @@ def call_todays_call(
 
 def _fallback_risk_map_layout(sections_v2: list) -> tuple[list[MapCoord], list[str]]:
     """Pure, deterministic. Same input → same output."""
+    sections_v2 = _risk_map_sections(sections_v2)
     map_coords: list[MapCoord] = []
 
     for s in sections_v2:

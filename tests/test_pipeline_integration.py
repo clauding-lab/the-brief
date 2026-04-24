@@ -100,6 +100,9 @@ def test_run_pipeline_injects_claude_outputs(fixture_snapshot, today):
     assert fx.bankerread.kind == "structured"
 
 
+_RISK_MAP_IDS = ["bb", "macro", "fx", "remit", "dse", "tbond", "iranwar", "comm", "banking", "dam", "fiscal", "nbr"]
+
+
 def _fake_risk_map():
     sections = [
         {
@@ -110,7 +113,7 @@ def _fake_risk_map():
             "type": "slow",
             "hero_metric_id": None,
         }
-        for sid in ALL_BUILDER_IDS
+        for sid in _RISK_MAP_IDS
     ]
     read_order = [s["section_id"] for s in sections]
     return MaxCallResult(
@@ -170,23 +173,23 @@ def test_run_populates_risk_map_and_todays_call(fixture_snapshot, today):
         ]
         result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
-    assert len(result.map_coords) == 14
+    assert len(result.map_coords) == 12
     assert all(isinstance(mc, MapCoord) for mc in result.map_coords)
-    assert len(result.read_order) == 14
-    assert set(result.read_order) == set(ALL_BUILDER_IDS)
+    assert len(result.read_order) == 12
+    assert set(result.read_order) == {"bb", "macro", "fx", "remit", "dse", "tbond", "iranwar", "comm", "banking", "dam", "fiscal", "nbr"}
     assert result.todays_call is not None
     assert result.todays_call.text == "Short valid editorial call."
     assert result.todays_call.byline == "Desk Editor · The Brief"
 
 
 def test_run_falls_back_when_risk_map_fails(fixture_snapshot, today):
-    """When risk_map_layout Claude response is invalid, fallback produces 14 coords."""
+    """When risk_map_layout Claude response is invalid, fallback produces 12 coords (exec + headlines excluded)."""
     from brief.pipeline import PipelineConfig, run
 
     cfg = PipelineConfig(
         today=today, enable_history=False, enable_headlines=False,
     )
-    # Risk map returns empty sections list — validator will reject (count mismatch)
+    # Risk map returns empty sections list -- validator will reject (count mismatch)
     _fake_risk_map_invalid = MaxCallResult(
         raw_text="{}",
         parsed={"sections": [], "read_order": []},
@@ -204,7 +207,7 @@ def test_run_falls_back_when_risk_map_fails(fixture_snapshot, today):
         ]
         result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
-    # Deterministic fallback must produce 14 coords
-    assert len(result.map_coords) == 14
+    # Deterministic fallback must produce 12 coords (exec + headlines excluded)
+    assert len(result.map_coords) == 12
     # Claude's todays_call still succeeded (valid response after fallback risk_map)
     assert result.todays_call.text == "Short valid editorial call."
