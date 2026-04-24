@@ -1,0 +1,203 @@
+{
+  "today_iso": "2026-04-24",
+  "sections": [
+    {
+      "section_id": "bb",
+      "title": "Bangladesh Bank Policy",
+      "kicker": "MPC holds policy rate for third consecutive meeting",
+      "freshness": "fresh",
+      "top_metrics": [
+        {"id": "bb_policy_rate", "label": "Policy Rate", "value": 10.00, "unit": "%", "delta": {"value": 0.0, "direction": "flat", "window": "mom"}},
+        {"id": "bb_repo_rate", "label": "Repo Rate", "value": 10.50, "unit": "%", "delta": {"value": 0.0, "direction": "flat", "window": "mom"}},
+        {"id": "bb_reverse_repo", "label": "Reverse Repo", "value": 8.50, "unit": "%", "delta": {"value": 0.0, "direction": "flat", "window": "mom"}}
+      ]
+    },
+    {
+      "section_id": "macro",
+      "title": "Macro Indicators",
+      "kicker": "CPI inches up on food prices; GDP growth estimate revised down",
+      "freshness": "fresh",
+      "top_metrics": [
+        {"id": "macro_cpi", "label": "CPI Inflation", "value": 9.1, "unit": "%", "delta": {"value": 0.2, "direction": "up", "window": "mom"}},
+        {"id": "macro_gdp_growth", "label": "GDP Growth Est.", "value": 5.4, "unit": "%", "delta": {"value": -0.3, "direction": "down", "window": "yoy"}},
+        {"id": "macro_core_cpi", "label": "Core CPI", "value": 7.8, "unit": "%", "delta": {"value": 0.1, "direction": "up", "window": "mom"}}
+      ]
+    },
+    {
+      "section_id": "fx",
+      "title": "Foreign Exchange",
+      "kicker": "BDT holds near crawling-peg ceiling as dollar demand stays firm",
+      "freshness": "warning",
+      "top_metrics": [
+        {"id": "fx_usd_bdt", "label": "USD/BDT (mid)", "value": 109.75, "unit": "BDT", "delta": {"value": 0.15, "direction": "up", "window": "wow"}},
+        {"id": "fx_reserves_gross", "label": "Gross Reserves", "value": 20.5, "unit": "bn USD", "delta": {"value": -0.4, "direction": "down", "window": "wow"}},
+        {"id": "fx_reserves_net", "label": "Net Reserves (BPM6)", "value": 15.2, "unit": "bn USD", "delta": {"value": -0.3, "direction": "down", "window": "wow"}}
+      ]
+    },
+    {
+      "section_id": "remit",
+      "title": "Remittances",
+      "kicker": "April inflows tracking above last year despite Eid calendar shift",
+      "freshness": "fresh",
+      "top_metrics": [
+        {"id": "remit_monthly", "label": "Remittance Apr MTD", "value": 1.82, "unit": "bn USD", "delta": {"value": 0.11, "direction": "up", "window": "yoy"}},
+        {"id": "remit_ytd", "label": "FY26 YTD", "value": 17.4, "unit": "bn USD", "delta": {"value": 0.9, "direction": "up", "window": "yoy"}}
+      ]
+    },
+    {
+      "section_id": "dse",
+      "title": "Dhaka Stock Exchange",
+      "kicker": "DSEX slides on thin volume; breadth negative for fifth straight session",
+      "freshness": "fresh",
+      "top_metrics": [
+        {"id": "dse_dsex", "label": "DSEX", "value": 5218.4, "unit": "pts", "delta": {"value": -34.2, "direction": "down", "window": "dod"}},
+        {"id": "dse_turnover", "label": "Turnover", "value": 382.0, "unit": "cr BDT", "delta": {"value": -48.0, "direction": "down", "window": "dod"}},
+        {"id": "dse_advdec", "label": "Adv/Dec", "value": 0.52, "unit": "ratio", "delta": {"value": -0.09, "direction": "down", "window": "dod"}}
+      ]
+    },
+    {
+      "section_id": "tbond",
+      "title": "T-Bond Market",
+      "kicker": "10yr yield edges higher as banks stay cautious on duration",
+      "freshness": "fresh",
+      "top_metrics": [
+        {"id": "tbond_10yr", "label": "10yr T-Bond Yield", "value": 11.85, "unit": "%", "delta": {"value": 0.07, "direction": "up", "window": "wow"}},
+        {"id": "tbond_5yr", "label": "5yr T-Bond Yield", "value": 11.40, "unit": "%", "delta": {"value": 0.05, "direction": "up", "window": "wow"}},
+        {"id": "tbond_91d_tbill", "label": "91d T-Bill Cut-off", "value": 10.65, "unit": "%", "delta": {"value": 0.0, "direction": "flat", "window": "wow"}}
+      ]
+    },
+    {
+      "section_id": "iranwar",
+      "title": "Iran-Israel / Hormuz Risk",
+      "kicker": "Iran signals partial Strait of Hormuz controls; tanker rates spike",
+      "freshness": "fresh",
+      "top_metrics": [
+        {"id": "iranwar_brent", "label": "Brent Crude", "value": 88.4, "unit": "USD/bbl", "delta": {"value": 3.2, "direction": "up", "window": "dod"}},
+        {"id": "iranwar_hormuz_premium", "label": "Hormuz Risk Premium (est.)", "value": 5.5, "unit": "USD/bbl", "delta": {"value": 2.0, "direction": "up", "window": "dod"}},
+        {"id": "iranwar_vlcc_td3c", "label": "VLCC TD3C Rate", "value": 42.0, "unit": "WS pts", "delta": {"value": 8.0, "direction": "up", "window": "dod"}}
+      ]
+    },
+    {
+      "section_id": "headlines",
+      "title": "Top Headlines",
+      "kicker": "IMF tranche review postponed; interim government unveils SME credit facility",
+      "freshness": "fresh",
+      "top_metrics": []
+    },
+    {
+      "section_id": "exec",
+      "title": "Executive Signals",
+      "kicker": "Bear dominates; oil shock and falling reserves set the tone",
+      "freshness": "fresh",
+      "top_metrics": []
+    },
+    {
+      "section_id": "comm",
+      "title": "Commodities",
+      "kicker": "Edible oil and wheat prices elevated; domestic pass-through risk rising",
+      "freshness": "warning",
+      "top_metrics": [
+        {"id": "comm_crude_brent", "label": "Brent Crude", "value": 88.4, "unit": "USD/bbl", "delta": {"value": 3.2, "direction": "up", "window": "dod"}},
+        {"id": "comm_palm_oil", "label": "Palm Oil (BMD)", "value": 3980.0, "unit": "MYR/t", "delta": {"value": 55.0, "direction": "up", "window": "wow"}},
+        {"id": "comm_wheat_cbot", "label": "Wheat (CBOT)", "value": 5.42, "unit": "USD/bu", "delta": {"value": 0.08, "direction": "up", "window": "wow"}}
+      ]
+    },
+    {
+      "section_id": "banking",
+      "title": "Banking Sector",
+      "kicker": "Credit growth slows to 9.2%; NPL ratio ticks up in Q1 data",
+      "freshness": "warning",
+      "top_metrics": [
+        {"id": "banking_credit_growth", "label": "Private Credit Growth", "value": 9.2, "unit": "% yoy", "delta": {"value": -0.5, "direction": "down", "window": "mom"}},
+        {"id": "banking_npl_ratio", "label": "NPL Ratio (reported)", "value": 11.4, "unit": "%", "delta": {"value": 0.3, "direction": "up", "window": "mom"}},
+        {"id": "banking_adv_dep_ratio", "label": "Adv/Dep Ratio", "value": 73.8, "unit": "%", "delta": {"value": -0.2, "direction": "down", "window": "mom"}}
+      ]
+    },
+    {
+      "section_id": "dam",
+      "title": "Power & Dam",
+      "kicker": "Kaptai reservoir at seasonal low; grid deficit widens in peak demand week",
+      "freshness": "stale",
+      "top_metrics": [
+        {"id": "dam_kaptai_level", "label": "Kaptai Level", "value": 76.4, "unit": "ft MSL", "delta": {"value": -1.2, "direction": "down", "window": "wow"}},
+        {"id": "dam_grid_deficit", "label": "Grid Deficit (est.)", "value": 1200.0, "unit": "MW", "delta": {"value": 150.0, "direction": "up", "window": "dod"}}
+      ]
+    },
+    {
+      "section_id": "fiscal",
+      "title": "Fiscal Position",
+      "kicker": "Budget deficit widens as ADP utilisation misses Q3 target",
+      "freshness": "stale",
+      "top_metrics": [
+        {"id": "fiscal_adp_util", "label": "ADP Utilisation (Q3)", "value": 48.3, "unit": "%", "delta": {"value": -4.2, "direction": "down", "window": "yoy"}},
+        {"id": "fiscal_deficit_gdp", "label": "Fiscal Deficit / GDP", "value": 5.1, "unit": "%", "delta": {"value": 0.2, "direction": "up", "window": "yoy"}}
+      ]
+    },
+    {
+      "section_id": "nbr",
+      "title": "NBR Revenue",
+      "kicker": "VAT collections lag target by 12% through March; import duty softens",
+      "freshness": "stale",
+      "top_metrics": [
+        {"id": "nbr_vat_ytd", "label": "VAT Collections YTD", "value": 98400.0, "unit": "cr BDT", "delta": {"value": -12.0, "direction": "down", "window": "yoy"}},
+        {"id": "nbr_import_duty_ytd", "label": "Import Duty YTD", "value": 31200.0, "unit": "cr BDT", "delta": {"value": -8.0, "direction": "down", "window": "yoy"}}
+      ]
+    }
+  ],
+  "exec_signals": [
+    {"direction": "bear", "text": "Brent up 3.8% today on Hormuz partial closure threat", "section_anchor": "iranwar"},
+    {"direction": "bear", "text": "Net reserves down to 15.2bn USD, 4-month import cover", "section_anchor": "fx"},
+    {"direction": "bear", "text": "DSEX breadth 0.52 adv/dec for fifth straight negative session", "section_anchor": "dse"},
+    {"direction": "warn", "text": "BB holds 10.00% rate; real rate still negative at CPI 9.1%", "section_anchor": "bb"},
+    {"direction": "warn", "text": "10yr yield at 11.85%; bank duration books under pressure", "section_anchor": "tbond"},
+    {"direction": "watch", "text": "IMF tranche review postponed; timeline unclear", "section_anchor": "headlines"},
+    {"direction": "bull", "text": "Remittance Apr MTD 1.82bn USD, up 6.5% yoy ahead of pace", "section_anchor": "remit"}
+  ],
+  "bankerread_insights": {
+    "iranwar": {
+      "kind": "structured",
+      "meaning": "Iran signalling Strait controls has pushed Brent to 88.4 USD/bbl, a 3.8% single-day spike that feeds directly into Bangladesh fuel subsidy cost and LC opening pressures.",
+      "action": "Cap new commodity LCs at 90-day sight for any Hormuz-route crude cargo until risk premium settles below 3 USD/bbl.",
+      "trigger": "Watch Brent above 92 USD/bbl as the threshold where BB may issue a forex conservation circular.",
+      "focus": "Energy-sector borrowers with floating fuel cost exposure need a stress test at 95 USD/bbl scenario this week.",
+      "pull": "Oil shock + Hormuz premium = LC cost escalation imminent."
+    },
+    "fx": {
+      "kind": "structured",
+      "meaning": "Net reserves at 15.2bn USD represent barely four months of import cover, the lowest since the 2022 crisis, with further drawdown likely if oil import bills rise.",
+      "action": "Prioritise export-backed FCY deposit mobilisation; avoid approving new FCY loans against BDT collateral until reserves stabilise above 16bn USD.",
+      "trigger": "A weekly reserves print below 15.0bn USD net would signal BB intervention and likely trigger crawling-peg ceiling breach.",
+      "focus": "Clients with bullet USD repayments in May-June are at elevated rollover risk given current BDT softness.",
+      "pull": "Reserve drawdown trend is the single biggest macro risk on the desk this week."
+    },
+    "bb": {
+      "kind": "structured",
+      "meaning": "BB holding at 10.00% for a third consecutive meeting confirms the MPC believes inflation momentum is contained, but real rates remain negative at minus 0.9% against CPI of 9.1%.",
+      "action": "Lock in 3-year fixed-rate SME loans at current SMART-linked floors before any eventual rate normalisation erodes spread.",
+      "trigger": "A CPI print above 9.5% for two consecutive months would likely force BB to resume hiking, repricing the entire loan book.",
+      "focus": "NBFI liability pricing still lags the policy rate; review term deposit re-pricing schedules for Q2.",
+      "pull": "Rate hold is dovish signal — but negative real rates keep inflation risk alive."
+    },
+    "macro": {
+      "kind": "structured",
+      "meaning": "CPI at 9.1% with a 0.2pp monthly uptick on food prices confirms that last mile disinflation is stalling, undermining the case for an early rate cut.",
+      "action": "Build CPI sensitivity into credit models; sectors exposed to food retail and agri supply chains warrant a 50bp risk premium add.",
+      "trigger": "A GDP growth revision below 5.0% official estimate would compress tax revenue and widen fiscal space needed for IMF programme targets.",
+      "focus": "Core CPI at 7.8% suggests non-food demand pressures remain; watch wage-driven services inflation in Q2.",
+      "pull": "Sticky CPI + slowing GDP = stagflation risk creeping into the base case."
+    },
+    "tbond": {
+      "kind": "structured",
+      "meaning": "The 10yr yield edging to 11.85% reflects market scepticism about the pace of fiscal consolidation and elevated supply from the government auction calendar.",
+      "action": "Trim HTM bond portfolio duration below 5 years; favour floating-rate tbill ladder over long-dated fixed-coupon paper at current spreads.",
+      "trigger": "A 10yr auction devolvement or cut-off above 12.25% would signal primary dealer demand destruction and warrant immediate ALM review.",
+      "focus": "Banks carrying large AFS bond books face mark-to-market losses if yields breach 12.00%; model the P&L impact now.",
+      "pull": "Duration risk is underpriced — act before yields test 12%."
+    },
+    "dse": {
+      "kind": "freeform",
+      "text": "DSEX at 5218 on thin 382cr turnover signals institutional absence; five-day negative breadth (adv/dec 0.52) reflects broad risk-off positioning. Equities are not the priority read today — Hormuz and reserves dominate.",
+      "pull": null
+    }
+  }
+}
