@@ -7,7 +7,7 @@ balanced `{...}` body, and substitute a freshly-rendered full function.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -39,6 +39,12 @@ def _brace_end(text: str, start: int) -> int:
 
 
 def _find_function(text: str, name: str) -> tuple[int, int] | None:
+    """Locate a zero-argument `function NAME() { ... }` definition.
+
+    Only matches zero-arg signatures by design — Sections in the shell are all
+    zero-arg components. Functions with destructured props (e.g.
+    `MetricCard({label, value})`) are intentionally not matched.
+    """
     m = re.search(r"function\s+" + re.escape(name) + r"\s*\(\s*\)", text)
     if not m:
         return None
