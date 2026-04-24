@@ -20,8 +20,8 @@ def render(section: SectionData) -> str:
         f'change="{fmt_num(change.value if change else None, 2)}%" />'
     )
     breadth_line = (
-        f'<div className="breadth">Advancing {int(advancing.value) if advancing and advancing.value else "—"} · '
-        f'Declining {int(declining.value) if declining and declining.value else "—"}</div>'
+        f'<div className="breadth">Advancing {int(advancing.value) if advancing and advancing.value is not None else "—"} · '
+        f'Declining {int(declining.value) if declining and declining.value is not None else "—"}</div>'
     )
     pill = freshness_pill(section.freshness)
     br = bankerread_tag(section.bankerread)
