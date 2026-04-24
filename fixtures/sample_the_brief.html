@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>TEST</title><style>/* CSS */</style></head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+// ── Components
+function MetricCard({label, value}) { return <div>{label}:{value}</div>; }
+function BankerRead({insight}) { return <p>{insight}</p>; }
+
+// ── Sections
+function SectionBB() {
+  return (<section>OLD_BB_BODY</section>);
+}
+
+function SectionFX() {
+  return (<section>OLD_FX_BODY</section>);
+}
+
+function SectionRMG() {
+  return (<section>OLD_RMG_BODY</section>);
+}
+
+// ── Main App
+function App() { return <><SectionBB /><SectionFX /><SectionRMG /></>; }
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
