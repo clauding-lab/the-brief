@@ -16,19 +16,24 @@ from typing import Iterable
 _log = logging.getLogger(__name__)
 
 
+# Chars that can immediately precede a string literal in valid JS/JSX context.
+# Excludes `<` and `>` (JSX tag ambiguity) and alphanumerics (apostrophe-in-text).
+# `return "x"` etc. is safe even without a keyword check: the heuristic skips the
+# quotes entirely, treating them as literal chars — the contents of "x" don't
+# affect brace depth so no harm done.
+_EXPR_START_CHARS = frozenset("([{,;=+-*/%^&|~!?:")
+
+
 def _brace_end(text: str, start: int) -> int:
     """Return index of the `}` closing the `{` at `start`.
 
-    KNOWN LIMITATION: this lexer treats `'`, `"`, `` ` `` as string delimiters
-    in all contexts. JSX text content like `Rahman's promised...` inside a
-    `<BankerRead insight="..." />` value can trip the algorithm — the `'` inside
-    the double-quoted JSX attribute is consumed as part of the attribute's
-    string content (correct), but if the surrounding JS context has already
-    mis-tracked an earlier quote, the apostrophe in JSX text becomes a stray
-    string opener that never closes, causing _brace_end to walk past the real
-    closing brace by hundreds of lines. Tested against the production
-    `the-brief.html` shell (~190KB), SectionMacro and SectionBanking trip this.
-    A real JS+JSX lexer (acorn-style) is needed for full correctness.
+    Heuristic JS+JSX lexer: tracks string literals (`"`, `'`, `` ` ``) but only
+    enters string mode when the quote is in a JS expression-start position. JSX
+    text content like `Rahman's promised...` is correctly skipped because the
+    `'` is preceded by an alphabetic character (not a JS expression starter).
+    Limitation: doesn't handle `return "x"` style keyword-prefix strings as
+    strings — but their contents don't affect brace depth, so this is benign.
+    A full JS+JSX lexer (acorn-style) would be more robust for edge cases.
     """
     depth = 0
     in_str: str | None = None
@@ -43,7 +48,13 @@ def _brace_end(text: str, start: int) -> int:
                 in_str = None
         else:
             if ch in ('"', "'", "`"):
-                in_str = ch
+                # Look back past whitespace for context.
+                j = i - 1
+                while j >= start and text[j] in (" ", "\t", "\n", "\r"):
+                    j -= 1
+                if j < start or text[j] in _EXPR_START_CHARS:
+                    in_str = ch
+                # else: apostrophe/quote in text content; ignore.
             elif ch == "{":
                 depth += 1
             elif ch == "}":

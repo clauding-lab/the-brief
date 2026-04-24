@@ -66,3 +66,38 @@ def test_assemble_brief_replaces_bb_and_fx_removes_rmg():
     assert "Policy" in out
     assert "FX" in out
     assert "SectionRMG" not in out
+
+
+def test_brace_end_handles_jsx_text_apostrophes():
+    """Regression: apostrophes in JSX text content (e.g. `Rahman's`) inside a
+    `<BankerRead insight="...">` attribute were tripping the brace lexer,
+    causing _brace_end to walk hundreds of lines past the real closing brace.
+    See `_brace_end` heuristic and limitation note."""
+    from brief.render.assemble import _find_function
+
+    shell = (
+        "const SectionFoo = React.memo(function SectionFoo() {\n"
+        "  return (\n"
+        '    <div style={{ display: "flex", alignItems: "center" }}>\n'
+        '      <BankerRead insight="Rahman\'s promised gradual rate cut is '
+        'unlikely; it\'s a bull\'s gambit." />\n'
+        "    </div>\n"
+        "  );\n"
+        "});\n"
+        "\n"
+        "function nextFunc() {\n"
+        "  return 1;\n"
+        "}\n"
+    )
+    span = _find_function(shell, "SectionFoo")
+    assert span is not None
+    start, end = span
+    body = shell[start:end]
+    # The function body MUST end before `nextFunc`; if the lexer walks too
+    # far the body would contain `function nextFunc`.
+    assert "nextFunc" not in body, (
+        "splicer walked past closing brace into next function — "
+        "JSX-text apostrophe heuristic regressed"
+    )
+    assert body.startswith("function SectionFoo()")
+    assert body.endswith("}")
