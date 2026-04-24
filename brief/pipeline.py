@@ -477,8 +477,6 @@ def run_pipeline(
 
 from pathlib import Path as _Path
 
-from brief.render.assemble import assemble_brief
-
 
 @_dc
 class RunResult:
@@ -489,14 +487,37 @@ class RunResult:
     map_coords: list[MapCoord] = field(default_factory=list)
     todays_call: TodaysCall | None = None
     read_order: list[str] = field(default_factory=list)
+    email_text: str = ""
+
+
+def render_v4(run_result: "RunResult") -> tuple[str, str]:
+    """Render the V4 HTML + email digest. Returns (html, email_text)."""
+    from brief.render.v4.assemble import assemble_brief as assemble_v4
+    from brief.render.v4.email_digest import render_email_digest
+    html = assemble_v4(run_result)
+    email_text = render_email_digest(run_result)
+    return html, email_text
 
 
 def run(
     cfg: PipelineConfig,
     *,
-    shell_path: _Path | str,
+    shell_path: _Path | str | None = None,
     snapshot_override: EconDeltaSnapshot | None = None,
 ) -> RunResult:
+    """Run the full pipeline and render V4 HTML + email digest.
+
+    Parameters
+    ----------
+    cfg:
+        Pipeline configuration.
+    shell_path:
+        Deprecated. Accepted for backward compatibility but no longer forwarded
+        to the V4 assembler (which uses its own default shell_v4.html).
+        Pass None to use V4 defaults.
+    snapshot_override:
+        Optional EconDeltaSnapshot to use instead of loading from disk.
+    """
     pr = run_pipeline(cfg, snapshot_override=snapshot_override)
 
     risk_map_result = call_risk_map_layout(pr.sections, pr.claude_outputs, cfg.today.isoformat())
@@ -509,13 +530,17 @@ def run(
     if todays_call is None:
         todays_call = _fallback_todays_call(read_order, pr.sections)
 
-    html = assemble_brief(shell_path, pr.sections)
-    return RunResult(
+    rr = RunResult(
         sections=pr.sections,
-        html=html,
+        html="",
         claude_outputs=pr.claude_outputs,
         call_reports=pr.call_reports,
         map_coords=map_coords,
         todays_call=todays_call,
         read_order=read_order,
+        email_text="",
     )
+    html, email_text = render_v4(rr)
+    rr.html = html
+    rr.email_text = email_text
+    return rr

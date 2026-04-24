@@ -82,6 +82,31 @@ _PLACEHOLDER_TO_RENDERER: dict[str, tuple[str, str]] = {
 # Assembler orchestrator
 # ---------------------------------------------------------------------------
 
+def _build_args(
+    placeholder: str,
+    run_result: "RunResult",
+    sections_by_id: dict,
+) -> tuple:
+    """Build the correct positional args for each renderer based on placeholder name."""
+    if placeholder in ("dateline", "masthead_todays_call", "colophon"):
+        return (run_result,)
+    if placeholder == "risk_map":
+        return (run_result.map_coords, sections_by_id, run_result.read_order)
+    if placeholder == "flow_index":
+        return (run_result.read_order, sections_by_id)
+    if placeholder == "section_headlines":
+        section = sections_by_id.get("headlines")
+        curation = run_result.claude_outputs.get("headlines_curation")
+        return (section, curation)
+    # All other section_* placeholders: strip "section_" prefix to get section id
+    if placeholder.startswith("section_"):
+        sid = placeholder[len("section_"):]
+        section = sections_by_id.get(sid)
+        return (section,)
+    # Fallback: pass RunResult
+    return (run_result,)
+
+
 def assemble_brief(
     run_result: "RunResult",
     shell_path: str | Path | None = None,
@@ -105,35 +130,32 @@ def assemble_brief(
         shell_path = Path(__file__).parent / "shell_v4.html"
 
     html = load_shell(shell_path)
+    sections_by_id = {s.id: s for s in run_result.sections}
 
     for placeholder, (module_path, func_name) in _PLACEHOLDER_TO_RENDERER.items():
         try:
             mod = importlib.import_module(module_path)
             renderer = getattr(mod, func_name)
-            fragment = renderer(run_result)
-        except ModuleNotFoundError:
-            _log.debug(
-                "V4 template %s not yet implemented; inserting TODO stub for %r",
+            args = _build_args(placeholder, run_result, sections_by_id)
+            fragment = renderer(*args)
+        except (ModuleNotFoundError, AttributeError) as exc:
+            _log.warning(
+                "V4 template %s.%s unavailable (%s); inserting TODO stub for %r",
                 module_path,
+                func_name,
+                exc,
                 placeholder,
             )
-            fragment = f"<!-- TODO: {placeholder} renderer not yet implemented -->"
-        except AttributeError as exc:
-            _log.warning(
-                "V4 template %s missing function %s: %s",
-                module_path,
-                func_name,
-                exc,
-            )
-            fragment = f"<!-- TODO: {placeholder} renderer not yet implemented -->"
+            fragment = f"<!-- TODO: {placeholder} renderer unavailable -->"
         except Exception as exc:  # noqa: BLE001
             _log.error(
-                "V4 renderer %s.%s raised %r; falling back to stub",
+                "V4 renderer %s.%s raised %r; falling back to error stub",
                 module_path,
                 func_name,
                 exc,
             )
-            fragment = f"<!-- TODO: {placeholder} renderer failed: {exc} -->"
+            short_reason = repr(exc)[:120]
+            fragment = f"<!-- ERROR rendering {placeholder}: {short_reason} -->"
 
         try:
             html = splice(html, placeholder, fragment)

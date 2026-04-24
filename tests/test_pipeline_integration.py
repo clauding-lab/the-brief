@@ -100,11 +100,6 @@ def test_run_pipeline_injects_claude_outputs(fixture_snapshot, today):
     assert fx.bankerread.kind == "structured"
 
 
-from pathlib import Path
-
-FIXTURE_SHELL = Path(__file__).parent.parent / "fixtures" / "sample_the_brief.html"
-
-
 def _fake_risk_map():
     sections = [
         {
@@ -147,10 +142,14 @@ def test_run_returns_html(fixture_snapshot, today):
             _fake_risk_map(),
             _fake_todays_call(),
         ]
-        result = run(cfg, shell_path=FIXTURE_SHELL, snapshot_override=fixture_snapshot)
+        result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
     assert "OLD_BB_BODY" not in result.html
     assert "SectionRMG" not in result.html
     assert result.html.startswith("<!DOCTYPE html>")
+    # V4-specific content checks
+    assert "risk-map" in result.html
+    assert "masthead" in result.html
+    assert "section-bb" in result.html
 
 
 def test_run_populates_risk_map_and_todays_call(fixture_snapshot, today):
@@ -169,7 +168,7 @@ def test_run_populates_risk_map_and_todays_call(fixture_snapshot, today):
             _fake_risk_map(),
             _fake_todays_call(),
         ]
-        result = run(cfg, shell_path=FIXTURE_SHELL, snapshot_override=fixture_snapshot)
+        result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
     assert len(result.map_coords) == 14
     assert all(isinstance(mc, MapCoord) for mc in result.map_coords)
@@ -203,7 +202,7 @@ def test_run_falls_back_when_risk_map_fails(fixture_snapshot, today):
             _fake_risk_map_invalid,
             _fake_todays_call(),
         ]
-        result = run(cfg, shell_path=FIXTURE_SHELL, snapshot_override=fixture_snapshot)
+        result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
     # Deterministic fallback must produce 14 coords
     assert len(result.map_coords) == 14

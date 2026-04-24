@@ -158,12 +158,12 @@ class TestAssembleBrief:
         html = assemble_brief(run_result, shell_path=FIXTURE_PATH)
         assert 'class="page"' in html
 
-    def test_stub_comments_present_for_unimplemented_renderers(self) -> None:
-        """Since templates aren't written yet, TODO stubs should appear."""
+    def test_no_todo_stubs_when_all_templates_implemented(self) -> None:
+        """Now that all V4 templates are implemented, no TODO stubs should appear."""
         run_result = _minimal_run_result()
         html = assemble_brief(run_result, shell_path=FIXTURE_PATH)
-        # At least some TODO stubs should be present (all templates are unimplemented)
-        assert "<!-- TODO:" in html
+        # All templates are now implemented — no TODO stubs expected
+        assert "<!-- TODO:" not in html
 
     def test_output_longer_than_input(self) -> None:
         """After splicing, output should be at least as long as input."""
