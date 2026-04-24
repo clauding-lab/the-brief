@@ -244,3 +244,32 @@ def run_pipeline(
         claude_outputs=claude_outputs,
         call_reports=call_reports,
     )
+
+
+from pathlib import Path as _Path
+
+from brief.render.assemble import assemble_brief
+
+
+@_dc
+class RunResult:
+    sections: list
+    html: str
+    claude_outputs: dict
+    call_reports: list[dict]
+
+
+def run(
+    cfg: PipelineConfig,
+    *,
+    shell_path: _Path | str,
+    snapshot_override: EconDeltaSnapshot | None = None,
+) -> RunResult:
+    pr = run_pipeline(cfg, snapshot_override=snapshot_override)
+    html = assemble_brief(shell_path, pr.sections)
+    return RunResult(
+        sections=pr.sections,
+        html=html,
+        claude_outputs=pr.claude_outputs,
+        call_reports=pr.call_reports,
+    )

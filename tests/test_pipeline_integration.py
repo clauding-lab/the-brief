@@ -97,3 +97,26 @@ def test_run_pipeline_injects_claude_outputs(fixture_snapshot, today):
     fx = next(s for s in result.sections if s.id == "fx")
     assert fx.bankerread is not None
     assert fx.bankerread.variant == "full"
+
+
+from pathlib import Path
+
+FIXTURE_SHELL = Path(__file__).parent.parent / "fixtures" / "sample_the_brief.html"
+
+
+def test_run_returns_html(fixture_snapshot, today):
+    from brief.pipeline import PipelineConfig, run
+    cfg = PipelineConfig(
+        today=today, enable_history=False, enable_headlines=False,
+    )
+    with patch("brief.pipeline.run_max") as mx:
+        mx.side_effect = [
+            _fake_curation([]),
+            _fake_signals(),
+            _fake_insights(),
+            _fake_insights_stale(),
+        ]
+        result = run(cfg, shell_path=FIXTURE_SHELL, snapshot_override=fixture_snapshot)
+    assert "OLD_BB_BODY" not in result.html
+    assert "SectionRMG" not in result.html
+    assert result.html.startswith("<!DOCTYPE html>")
