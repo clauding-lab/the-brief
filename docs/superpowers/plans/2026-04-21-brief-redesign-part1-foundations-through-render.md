@@ -1416,10 +1416,9 @@ git commit -m "feat(brief): port headline scraper from update.py"
 - [ ] **Step 1: Append the failing test**
 
 ```python
-from datetime import date
+from datetime import date, datetime, timezone
 from brief.builders import BuilderContext
 from brief.econdelta import EconDeltaSnapshot
-from datetime import datetime, timezone
 
 
 def _empty_snap():
@@ -1507,7 +1506,7 @@ from brief.history import HistoryRow
 def _snap(**overrides):
     data = {
         "gross_reserves_usd_bn": 34.1166,
-        "reserves_date": "2026-03-01",
+        "reserves_date": "2026-04-14",
     }
     data.update(overrides)
     return EconDeltaSnapshot(
@@ -1745,7 +1744,7 @@ def build(ctx: BuilderContext) -> SectionData:
             value=ctx.snapshot.get(src_key),
             unit=unit,
             as_of=ctx.today,
-            source="BB (via EconDelta)",
+            source="BB",
             source_url="https://www.bb.org.bd/en/index.php/econdata/exchangerate",
             cadence="daily",
         )
