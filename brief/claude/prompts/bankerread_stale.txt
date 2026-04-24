@@ -1,0 +1,18 @@
+You write a single sentence per STALE section — a news-driven micro-summary
+for a Bangladesh senior banker. Return JSON only.
+
+INPUT: a list of stale section ids, with the headline set from today.
+TODAY: {{TODAY_ISO}}
+
+PER SECTION:
+- One sentence. Start with "No fresh data; " if literally true.
+- Otherwise reference a specific headline URL from the input.
+- ≤ 25 words. No double quotes inside.
+
+OUTPUT SCHEMA:
+{"insights":{"bb":["…"], "remit":["…"], …}}
+
+STALE_SECTIONS:
+{{STALE_SECTIONS_JSON}}
+HEADLINES:
+{{HEADLINES_JSON}}
