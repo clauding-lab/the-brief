@@ -18,3 +18,63 @@ def test_gather_returns_14_sections(fixture_snapshot, today):
     for s in sections:
         assert isinstance(s, SectionData)
         assert s.freshness in ("fresh", "warning", "stale", "pending", "unavailable")
+
+
+from unittest.mock import patch
+
+from brief.claude.max_client import MaxCallResult
+from brief.pipeline import run_pipeline
+
+
+def _fake_curation(urls):
+    return MaxCallResult(
+        raw_text="{}",
+        parsed={"selected": [{"url": u, "domain": "fx", "weight": "med"} for u in urls[:2]],
+                "rationale_bullet": "test"},
+        usage={}, total_cost_usd=0,
+    )
+
+
+def _fake_signals():
+    return MaxCallResult(
+        raw_text="{}",
+        parsed={"signals": [{"direction": "bull", "text": "reserves up",
+                             "section_anchor": "bb"}],
+                "traffic_status": "neu"},
+        usage={}, total_cost_usd=0,
+    )
+
+
+def _fake_insights():
+    return MaxCallResult(
+        raw_text="{}",
+        parsed={"insights": {"bb": ["one", "two", "three", "four"],
+                             "fx": ["one", "two", "three", "four"]}},
+        usage={}, total_cost_usd=0,
+    )
+
+
+def test_run_pipeline_injects_claude_outputs(fixture_snapshot, today):
+    from brief.pipeline import PipelineConfig
+
+    cfg = PipelineConfig(today=today, enable_history=False, enable_headlines=False)
+
+    call_count = {"n": 0}
+    responses = [_fake_curation([]), _fake_signals(), _fake_insights()]
+
+    def _stub(**kwargs):
+        r = responses[call_count["n"]]
+        call_count["n"] += 1
+        return r
+
+    with patch("brief.pipeline.run_max", side_effect=_stub):
+        result = run_pipeline(cfg, snapshot_override=fixture_snapshot)
+
+    assert call_count["n"] == 3
+    exec_section = next(s for s in result.sections if s.id == "exec")
+    assert exec_section.exec_signals is not None
+    assert len(exec_section.exec_signals) >= 1
+
+    bb = next(s for s in result.sections if s.id == "bb")
+    assert bb.bankerread is not None
+    assert bb.bankerread.variant == "full"

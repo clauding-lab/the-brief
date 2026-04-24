@@ -86,3 +86,149 @@ def gather(
                 freshness_reason=f"builder error: {type(e).__name__}: {e}",
             ))
     return sections
+
+
+from dataclasses import dataclass as _dc
+from datetime import datetime, timezone
+
+from brief.builders import SPINE_BUILDER_IDS
+from brief.claude.max_client import MaxCallError, MaxCallResult, run_max
+from brief.claude.validators import (
+    ValidationResult,
+    validate_curation,
+    validate_insights,
+    validate_signals,
+)
+from brief.schema import BankerReadInsight
+
+
+def _load_prompt(name: str) -> str:
+    from pathlib import Path
+    p = Path(__file__).parent / "claude" / "prompts" / name
+    return p.read_text(encoding="utf-8")
+
+
+def _fill(template: str, replacements: dict[str, str]) -> str:
+    out = template
+    for k, v in replacements.items():
+        out = out.replace("{{" + k + "}}", v)
+    return out
+
+
+def _section_to_json(s) -> dict:
+    return s.model_dump(mode="json")
+
+
+@_dc
+class PipelineResult:
+    sections: list
+    claude_outputs: dict
+    call_reports: list[dict]
+
+
+def run_pipeline(
+    cfg: PipelineConfig, *, snapshot_override: EconDeltaSnapshot | None = None,
+) -> PipelineResult:
+    import json as _json
+
+    # Phase A — initial gather (no Claude)
+    sections_v1 = gather(cfg, snapshot_override=snapshot_override)
+    by_id_v1 = {s.id: s for s in sections_v1}
+
+    claude_outputs: dict[str, Any] = {}
+    call_reports: list[dict] = []
+
+    # Call 1 — headlines_curation
+    headlines_section = by_id_v1.get("headlines")
+    raw_headlines = list(headlines_section.news) if headlines_section else []
+    allowed_urls = {h.url for h in raw_headlines}
+
+    try:
+        prompt = _fill(_load_prompt("headlines_curation.txt"), {
+            "HEADLINES_JSON": _json.dumps(
+                [{"title": h.title, "url": h.url, "source": h.source,
+                  "published": h.published.isoformat()} for h in raw_headlines]
+            ),
+        })
+        r = run_max(prompt=prompt, timeout_s=600)
+        v = validate_curation(r.parsed, allowed_urls=allowed_urls)
+        if v.ok:
+            claude_outputs["headlines_curation"] = v.value
+        call_reports.append({"name": "headlines_curation", "status": "ok" if v.ok else "invalid", "reason": v.reason})
+    except MaxCallError as e:
+        call_reports.append({"name": "headlines_curation", "status": "error", "reason": str(e)})
+
+    # Call 2 — exec_signals
+    try:
+        allowed_anchors = set(ALL_BUILDER_IDS)
+        spine_payload = [_section_to_json(s) for s in sections_v1
+                         if s.id in SPINE_BUILDER_IDS and s.freshness in ("fresh", "warning")]
+        prompt = _fill(_load_prompt("exec_signals.txt"), {
+            "TODAY_ISO": cfg.today.isoformat(),
+            "SECTIONS_JSON": _json.dumps(spine_payload, default=str),
+        })
+        r = run_max(prompt=prompt, timeout_s=900)
+        v = validate_signals(r.parsed, allowed_anchors=allowed_anchors)
+        if v.ok:
+            claude_outputs["exec_signals"] = v.value
+        call_reports.append({"name": "exec_signals", "status": "ok" if v.ok else "invalid", "reason": v.reason})
+    except MaxCallError as e:
+        call_reports.append({"name": "exec_signals", "status": "error", "reason": str(e)})
+
+    # Call 3 — bankerread_insights (single call covering all non-unavailable sections)
+    bankerread_ids = {
+        s.id for s in sections_v1
+        if s.freshness in ("fresh", "warning", "stale")
+    }
+
+    insights_full: dict[str, list[str]] = {}
+    insights_stale: dict[str, list[str]] = {}
+
+    try:
+        if bankerread_ids:
+            bankerread_payload = [_section_to_json(s) for s in sections_v1 if s.id in bankerread_ids]
+            prompt = _fill(_load_prompt("bankerread.txt"), {
+                "TODAY_ISO": cfg.today.isoformat(),
+                "SECTIONS_JSON": _json.dumps(bankerread_payload, default=str),
+                "EXEC_SIGNALS_JSON": _json.dumps(claude_outputs.get("exec_signals", {}), default=str),
+            })
+            r = run_max(prompt=prompt, timeout_s=1800)
+            v = validate_insights(r.parsed, allowed_section_ids=bankerread_ids, stale=False)
+            insights_full = v.value["insights"] if v.ok else {}
+            call_reports.append({"name": "bankerread_full", "status": "ok" if v.ok else "invalid",
+                                 "reason": v.reason, "dropped": v.dropped})
+    except MaxCallError as e:
+        call_reports.append({"name": "bankerread", "status": "error", "reason": str(e)})
+
+    claude_outputs["bankerread_full"] = insights_full
+    claude_outputs["bankerread_stale"] = insights_stale
+
+    # Phase B — rebuild affected sections with Claude outputs
+    cfg2 = PipelineConfig(
+        today=cfg.today, enable_history=cfg.enable_history,
+        enable_headlines=cfg.enable_headlines,
+        econdelta_path=cfg.econdelta_path,
+        supabase_url=cfg.supabase_url, supabase_key=cfg.supabase_key,
+        claude_outputs=claude_outputs,
+    )
+    sections_v2 = gather(cfg2, snapshot_override=snapshot_override)
+
+    now = datetime.now(timezone.utc)
+    for s in sections_v2:
+        full_sentences = insights_full.get(s.id)
+        if full_sentences:
+            s.bankerread = BankerReadInsight(
+                sentences=full_sentences, generated_at=now, variant="full",
+            )
+            continue
+        stale_sentences = insights_stale.get(s.id)
+        if stale_sentences:
+            s.bankerread = BankerReadInsight(
+                sentences=stale_sentences, generated_at=now, variant="stale_micro",
+            )
+
+    return PipelineResult(
+        sections=sections_v2,
+        claude_outputs=claude_outputs,
+        call_reports=call_reports,
+    )
