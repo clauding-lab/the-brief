@@ -212,3 +212,38 @@ def test_systemic_risk_callout_rejects_short_body():
     payload = {"headline": "Tight", "body": "too short"}
     result = validate_systemic_risk_callout(payload, expected_level="warning", rule_id="x")
     assert not result.ok
+
+
+# ---------------------------------------------------------------------------
+# Task 15: validate_editorial_qa (V5 — Call 6)
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_editorial_qa
+
+
+def test_editorial_qa_pass():
+    payload = {"status": "pass", "issues": [], "shippable": True}
+    result = validate_editorial_qa(payload)
+    assert result.ok
+    assert result.value.shippable is True
+
+
+def test_editorial_qa_block_with_issues():
+    payload = {
+        "status": "block",
+        "issues": [
+            {"section_id": "bb", "severity": "block", "message": "empty banker read"},
+            {"section_id": None, "severity": "warn", "message": "tone mismatch"},
+        ],
+        "shippable": False,
+    }
+    result = validate_editorial_qa(payload)
+    assert result.ok
+    assert result.value.shippable is False
+    assert len(result.value.issues) == 2
+
+
+def test_editorial_qa_rejects_inconsistent_shippable():
+    payload = {"status": "block", "issues": [], "shippable": True}
+    result = validate_editorial_qa(payload)
+    assert not result.ok

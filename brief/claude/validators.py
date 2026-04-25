@@ -377,3 +377,44 @@ def validate_systemic_risk_callout(
     return ValidationResult(True, value=SystemicRisk(
         headline=headline, body=body, level=expected_level, rule_id=rule_id
     ))
+
+
+def validate_editorial_qa(payload: Any) -> ValidationResult:
+    """Validate Claude's editorial_qa response (V5 Call 6 — pre-flight gate)."""
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+    status = payload.get("status")
+    if status not in {"pass", "block"}:
+        return ValidationResult(False, reason=f"status must be 'pass' or 'block'; got {status!r}")
+    issues_raw = payload.get("issues", [])
+    if not isinstance(issues_raw, list):
+        return ValidationResult(False, reason="issues not a list")
+    shippable = payload.get("shippable")
+    if not isinstance(shippable, bool):
+        return ValidationResult(False, reason="shippable not a bool")
+
+    from brief.schema import EditorialQAResult, QAIssue
+
+    issues = []
+    for item in issues_raw:
+        if not _is_dict(item):
+            return ValidationResult(False, reason="issue not a dict")
+        if item.get("severity") not in {"info", "warn", "block"}:
+            return ValidationResult(False, reason=f"bad severity: {item.get('severity')!r}")
+        if not isinstance(item.get("message"), str):
+            return ValidationResult(False, reason="issue.message not a string")
+        issues.append(QAIssue(
+            section_id=item.get("section_id"),
+            severity=item["severity"],
+            message=item["message"],
+        ))
+
+    has_block_severity = any(i.severity == "block" for i in issues)
+    expected_shippable = (status == "pass") and (not has_block_severity)
+    if shippable != expected_shippable:
+        return ValidationResult(
+            False,
+            reason=f"shippable={shippable} inconsistent with status={status!r} + issues",
+        )
+
+    return ValidationResult(True, value=EditorialQAResult(status=status, issues=issues, shippable=shippable))
