@@ -20,6 +20,7 @@ import traceback
 from datetime import date
 from pathlib import Path
 
+from brief.gitops import push_artifacts
 from brief.notify import build_payload, post_discord
 from brief.pipeline import PipelineConfig, RunResult, run
 from brief.report import build_run_report, write_run_report
@@ -64,6 +65,16 @@ def main(argv: list[str] | None = None) -> int:
     (ns.artifacts_dir / "email.txt").write_text(rr.email_text, encoding="utf-8")
 
     report = build_run_report(rr, shadow=ns.shadow)
+
+    if ns.shadow:
+        gp = push_artifacts(
+            repo_dir=Path.cwd(),
+            branch=f"shadow/{today.isoformat()}",
+            artifacts_dir=ns.artifacts_dir,
+            message=f"Brief {today.isoformat()} [shadow]",
+        )
+        report["git_push"] = gp
+
     write_run_report(ns.artifacts_dir / "run_report.json", report)
 
     webhook = os.environ.get("DISCORD_WEBHOOK_URL")

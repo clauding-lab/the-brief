@@ -72,6 +72,9 @@ def test_cli_shadow_flag_threads_through(tmp_path: Path, monkeypatch, fake_run_r
         captured["shadow"] = kw.get("shadow", False)
         return fake_run_result
     monkeypatch.setattr(cli, "run_with_mode", spy)
+    monkeypatch.setattr(cli, "push_artifacts",
+                        lambda *, repo_dir, branch, artifacts_dir, message, dry_run=False:
+                        {"branch": branch, "sha": "abc1234", "pushed": True})
     cli.main(["run", f"--artifacts-dir={tmp_path}", "--shadow"])
     assert captured["shadow"] is True
 
@@ -90,6 +93,36 @@ def test_post_discord_called_once_when_env_set(tmp_path, monkeypatch, fake_run_r
     monkeypatch.setattr(cli, "post_discord", lambda url, *, payload: calls.append(url) or 0)
     cli.main(["run", f"--artifacts-dir={tmp_path}"])
     assert len(calls) == 1
+
+
+def test_shadow_calls_push_artifacts(tmp_path: Path, monkeypatch, fake_run_result):
+    """--shadow flag triggers push_artifacts and folds result into run_report.json."""
+    monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
+    push_calls = []
+    def fake_push_artifacts(*, repo_dir, branch, artifacts_dir, message, dry_run=False):
+        push_calls.append({"branch": branch, "message": message})
+        return {"branch": branch, "sha": "abc1234", "pushed": True}
+    monkeypatch.setattr(cli, "push_artifacts", fake_push_artifacts)
+    rc = cli.main(["run", f"--artifacts-dir={tmp_path}", "--shadow"])
+    assert rc == 0
+    assert len(push_calls) == 1
+    assert push_calls[0]["branch"].startswith("shadow/")
+    report = json.loads((tmp_path / "run_report.json").read_text())
+    assert report["git_push"]["pushed"] is True
+    assert report["git_push"]["sha"] == "abc1234"
+
+
+def test_non_shadow_does_not_call_push_artifacts(tmp_path: Path, monkeypatch, fake_run_result):
+    """Without --shadow, push_artifacts is never called."""
+    monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
+    push_calls = []
+    def fake_push_artifacts(*, repo_dir, branch, artifacts_dir, message, dry_run=False):
+        push_calls.append(branch)
+        return {"branch": branch, "sha": "abc1234", "pushed": True}
+    monkeypatch.setattr(cli, "push_artifacts", fake_push_artifacts)
+    rc = cli.main(["run", f"--artifacts-dir={tmp_path}"])
+    assert rc == 0
+    assert len(push_calls) == 0
 
 
 def test_post_discord_not_called_when_env_unset(tmp_path, monkeypatch, fake_run_result):
