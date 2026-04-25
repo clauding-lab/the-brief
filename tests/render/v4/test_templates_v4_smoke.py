@@ -176,3 +176,41 @@ def test_section_smoke_unavailable(
     assert "section-unavailable" in html
     assert "Key Metric" not in html
     assert "bankerread" not in html
+
+
+# ---------------------------------------------------------------------------
+# RED tests: rendered section HTML must contain unescaped staleness dot
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "sid,renderer_path,_numeral,_kicker",
+    _CASES,
+    ids=[f"{c[0]}-dot-not-escaped" for c in _CASES],
+)
+def test_section_dot_not_escaped(
+    sid: str,
+    renderer_path: str,
+    _numeral: str,
+    _kicker: str,
+) -> None:
+    """Rendered section HTML must contain literal staleness dot spans, not escaped entities.
+
+    Regression test for the section-meta pill bug where section_head() was
+    HTML-escaping pre-rendered HTML strings passed as meta items, producing
+    visible &lt;span class="dot dot-fresh"&gt; in the output.
+    """
+    # Arrange
+    section = _make_minimal_section(sid)
+
+    # Act
+    module_path, func_name = renderer_path.rsplit(".", 1)
+    fn = getattr(importlib.import_module(module_path), func_name)
+    html_output = fn(section)
+
+    # Assert: literal dot span present (not escaped)
+    assert '<span class="dot dot-' in html_output, (
+        f"[{sid}] staleness dot span was HTML-escaped or missing in rendered output"
+    )
+    assert "&lt;span" not in html_output, (
+        f"[{sid}] Found &lt;span in rendered HTML — meta items are being double-escaped"
+    )
