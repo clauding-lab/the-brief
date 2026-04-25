@@ -18,3 +18,6 @@ dist/
 build/
 .mypy_cache/
 .ruff_cache/
+
+# Superpowers brainstorm state (local only)
+.superpowers/
