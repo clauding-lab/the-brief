@@ -80,3 +80,23 @@ def test_cli_rejects_unknown_subcommand():
     with pytest.raises(SystemExit) as ei:
         cli.main(["sneeze"])
     assert ei.value.code != 0
+
+
+def test_post_discord_called_once_when_env_set(tmp_path, monkeypatch, fake_run_result):
+    """post_discord fires exactly once when DISCORD_WEBHOOK_URL is in the environment."""
+    monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.example/webhook/test")
+    calls = []
+    monkeypatch.setattr(cli, "post_discord", lambda url, *, payload: calls.append(url) or 0)
+    cli.main(["run", f"--artifacts-dir={tmp_path}"])
+    assert len(calls) == 1
+
+
+def test_post_discord_not_called_when_env_unset(tmp_path, monkeypatch, fake_run_result):
+    """post_discord is never invoked when DISCORD_WEBHOOK_URL is absent from the environment."""
+    monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
+    monkeypatch.delenv("DISCORD_WEBHOOK_URL", raising=False)
+    calls = []
+    monkeypatch.setattr(cli, "post_discord", lambda url, *, payload: calls.append(url) or 0)
+    cli.main(["run", f"--artifacts-dir={tmp_path}"])
+    assert len(calls) == 0

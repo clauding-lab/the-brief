@@ -14,11 +14,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import traceback
 from datetime import date
 from pathlib import Path
 
+from brief.notify import build_payload, post_discord
 from brief.pipeline import PipelineConfig, RunResult, run
 from brief.report import build_run_report, write_run_report
 
@@ -63,6 +65,13 @@ def main(argv: list[str] | None = None) -> int:
 
     report = build_run_report(rr, shadow=ns.shadow)
     write_run_report(ns.artifacts_dir / "run_report.json", report)
+
+    webhook = os.environ.get("DISCORD_WEBHOOK_URL")
+    if webhook:
+        repo = os.environ.get("BRIEF_REPO_SLUG", "clauding-lab/the-brief")
+        lead = rr.todays_call.text if rr.todays_call else None
+        post_discord(webhook, payload=build_payload(report, lead_headline=lead,
+                                                    repo_slug=repo))
 
     return 0 if report["status"] == "ok" else 2
 
