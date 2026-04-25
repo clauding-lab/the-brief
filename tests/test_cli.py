@@ -100,6 +100,13 @@ def test_shadow_calls_push_artifacts(tmp_path: Path, monkeypatch, fake_run_resul
     monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
     push_calls = []
     def fake_push_artifacts(*, repo_dir, branch, artifacts_dir, message, dry_run=False):
+        # Invariant: run_report.json must exist at push time, because
+        # gitops.push_artifacts copies it onto the shadow branch via `git add`.
+        # If we write it AFTER push_artifacts, the real (non-mocked) gitops
+        # fails with `git add: pathspec 'run_report.json' did not match any files`.
+        assert (artifacts_dir / "run_report.json").exists(), (
+            "run_report.json must be written before push_artifacts is called"
+        )
         push_calls.append({"branch": branch, "message": message})
         return {"branch": branch, "sha": "abc1234", "pushed": True}
     monkeypatch.setattr(cli, "push_artifacts", fake_push_artifacts)

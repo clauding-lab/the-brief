@@ -76,6 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     report = build_run_report(rr, shadow=ns.shadow)
     report["duration_s"] = elapsed
 
+    # Write run_report.json BEFORE push_artifacts so the file exists when
+    # gitops copies/git-adds it onto the shadow (or main) branch. The local
+    # artifact is overwritten below with the git_push field once we know it.
+    write_run_report(ns.artifacts_dir / "run_report.json", report)
+
     if ns.push_main or ns.shadow:
         branch = "main" if ns.push_main else f"shadow/{today.isoformat()}"
         gp = push_artifacts(
@@ -85,8 +90,6 @@ def main(argv: list[str] | None = None) -> int:
             message=f"Brief {today.isoformat()} [{'main' if ns.push_main else 'shadow'}]",
         )
         report["git_push"] = gp
-        write_run_report(ns.artifacts_dir / "run_report.json", report)
-    else:
         write_run_report(ns.artifacts_dir / "run_report.json", report)
 
     if ns.email and os.environ.get("BREVO_API_KEY") and os.environ.get("FROM_EMAIL"):
