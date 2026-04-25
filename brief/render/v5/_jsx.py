@@ -30,7 +30,7 @@ __all__ = [
 ]
 
 _VALID_KINDS = frozenset({"event", "fresh", "slow", "anchor"})
-_VALID_FRESHNESS = frozenset({"fresh", "warming_up", "stale", "warn", "pending", "unavailable"})
+_VALID_FRESHNESS = frozenset({"fresh", "warming_up", "stale", "warning", "pending", "unavailable"})
 
 
 def kind_dot(kind: str) -> str:
@@ -49,7 +49,7 @@ def freshness_pill(freshness: str) -> str:
     label_map = {
         "warming_up": "WARMING UP",
         "stale": "STALE",
-        "warn": "WARN",
+        "warning": "WARN",
         "pending": "PENDING",
         "unavailable": "UNAVAILABLE",
     }
