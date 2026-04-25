@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-25T21:17:24.537788+06:00",
+  "today": "2026-04-25",
+  "shadow": true,
+  "status": "degraded",
+  "duration_s": 221.4487308470998,
+  "call_reports": [
+    {
+      "name": "headlines_curation",
+      "status": "invalid",
+      "reason": "unknown url: 'https://www.tbsnews.net/economy/how-fuel-crisis-disrupting-production-and-squeezing-businesses-1420821'",
+      "cost_usd": 0.9040437499999999,
+      "duration_s": 20.01550506404601,
+      "tokens": {
+        "input": 5,
+        "output": 832
+      }
+    },
+    {
+      "name": "exec_signals",
+      "status": "ok",
+      "reason": "",
+      "cost_usd": 0.15510425,
+      "duration_s": 16.62378509598784,
+      "tokens": {
+        "input": 5,
+        "output": 407
+      }
+    },
+    {
+      "name": "bankerread_full",
+      "status": "ok",
+      "reason": "",
+      "dropped": {},
+      "cost_usd": 0.16826675,
+      "duration_s": 30.90417793393135,
+      "tokens": {
+        "input": 5,
+        "output": 816
+      }
+    },
+    {
+      "name": "bankerread_stale",
+      "status": "ok",
+      "reason": "",
+      "dropped": {},
+      "cost_usd": 0.139048,
+      "duration_s": 12.090008510043845,
+      "tokens": {
+        "input": 5,
+        "output": 205
+      }
+    },
+    {
+      "name": "risk_map_layout",
+      "status": "ok",
+      "reason": "",
+      "cost_usd": 0.13489374999999998,
+      "duration_s": 13.763713354011998,
+      "tokens": {
+        "input": 5,
+        "output": 769
+      }
+    },
+    {
+      "name": "todays_call",
+      "status": "ok",
+      "reason": "",
+      "cost_usd": 0.08238725,
+      "duration_s": 9.511012445902452,
+      "tokens": {
+        "input": 5,
+        "output": 145
+      }
+    }
+  ],
+  "total_cost_usd": 1.5837,
+  "degraded_sections": [
+    "bb",
+    "dse",
+    "tbond",
+    "comm"
+  ],
+  "builder_failures": [],
+  "git_push": {
+    "branch": null,
+    "sha": null,
+    "pushed": false
+  }
+}
