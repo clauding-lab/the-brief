@@ -26,7 +26,7 @@ Hard invariants throughout:
 2. **BDT times in outputs, UTC in systemd `OnCalendar`.** `06:30 BDT = 00:30 UTC`. The Brief's header dates render in BDT — never switch internals to UTC.
 3. **Fail-closed.** If `pipeline.run()` raises, the CLI exits non-zero, systemd marks the run failed, the Discord webhook fires with a FAILED line, and nothing gets pushed to git.
 4. **Shadow runs never email subscribers and never push to `main`.**
-5. **`update.py` stays in the repo through Phase 6.7.** Removal is a final step, after 14 days of stable V4 operation.
+5. **`update.py` stays in the repo through Phase 6.5.** Removal is a final step, after 14 days of stable V4 operation.
 
 ---
 
@@ -53,8 +53,8 @@ deploy/
 docs/ops/
   part2-preflight.md          # Phase 5.1 checklist (operator-run before install)
   part2-shadow-observations.md # Phase 6.1/6.3 daily-drift notes scaffold
-  part2-cutover-runbook.md    # Phase 6.4 step-by-step cutover
-  part2-rollback-runbook.md   # Phase 6.5 rollback (BRIEF_DRY_RUN=1 + GHA re-enable)
+  part2-cutover-runbook.md    # Phase 6.3 step-by-step cutover
+  part2-rollback-runbook.md   # Phase 6.4 rollback (BRIEF_DRY_RUN=1 + GHA re-enable)
 
 tests/
   test_cli.py                 # argparse behavior + exit codes + artifact writes
@@ -69,8 +69,8 @@ tests/
 brief/pipeline.py             # call_reports gains cost_usd + duration_s + tokens (Task 5.4)
 brief/claude/max_client.py    # MaxCallResult already exposes total_cost_usd; expose duration_s + input/output tokens (Task 5.4)
 requirements.txt              # No new runtime deps; confirm current pin list unchanged
-.github/workflows/daily-update.yml # Disable schedule (Phase 6.4 only; keep workflow_dispatch)
-update.py                     # Add deprecation header (Phase 6.4); deletion deferred to 6.7
+.github/workflows/daily-update.yml # Disable schedule (Phase 6.3 cutover; keep workflow_dispatch)
+update.py                     # Add deprecation header (Phase 6.3 cutover); deletion deferred to 6.5
 ```
 
 ### Files that already exist and MUST NOT be touched in this plan
@@ -86,7 +86,7 @@ update.py                     # Add deprecation header (Phase 6.4); deletion def
 
 - Every task ends with one commit. No task leaves uncommitted work across a step boundary.
 - Commit type prefixes: `feat(cli|cli_report|cli_notify|gitops)`, `feat(deploy)`, `chore(deploy)`, `docs(ops)`, `ci(cutover)`, `chore(cleanup)`.
-- Only Phase 6.4 and Phase 6.7 touch files outside `brief/`, `deploy/`, `docs/`, and `tests/` — that is intentional; all earlier tasks are VPS-deploy-neutral and safe to land on `docs/part2-plan` iteratively.
+- Only Phase 6.5 (`update.py` removal) deletes files outside `brief/`, `deploy/`, `docs/`, and `tests/`. The cutover (Phase 6.3) and rollback (Phase 6.4) runbooks prescribe edits to `.github/workflows/daily-update.yml` and `update.py`, but those land via runbook execution on the operator's local checkout, not via the plan task itself — so the plan tasks themselves stay VPS-deploy-neutral and safe to land on `docs/part2-plan` iteratively.
 - After each phase exit gate passes, squash-merge `docs/part2-plan` into `feat/v4-retarget` (or a dedicated `feat/v4-deploy` branch if Part 1 PR is still open).
 
 ---
@@ -146,6 +146,17 @@ Tick the checkbox once the expected output is confirmed. Do not start `install.s
 
 - [ ] `df -h /home/adnan` → at least 2 GB free.
 - [ ] `df -h /` → at least 500 MB free (for `/var/log` journal).
+
+## 8. GitHub push-back (SSH deploy key)
+
+The pipeline pushes artifacts to `clauding-lab/the-brief` from the VPS via SSH. A deploy key with `contents: write` must already be installed on the repo and the matching private key must be on the VPS.
+
+- [ ] `test -f /home/adnan/.ssh/the-brief && stat -c '%a' /home/adnan/.ssh/the-brief` → prints `600`. (Private key path used by `brief.gitops`; if the path differs, update `GIT_SSH_COMMAND` in `/etc/brief.env`.)
+- [ ] `ssh-keygen -y -f /home/adnan/.ssh/the-brief | awk '{print $2}'` → prints the public key. Compare against **GitHub → repo `clauding-lab/the-brief` → Settings → Deploy keys** — the same key must be listed with **Allow write access** ticked. If absent, add it before continuing.
+- [ ] `GIT_SSH_COMMAND='ssh -i /home/adnan/.ssh/the-brief -o IdentitiesOnly=yes' ssh -T git@github.com 2>&1 | grep -E "successfully authenticated|Permission denied"` → prints a line containing `successfully authenticated` (GitHub's banner; the SSH session itself exits non-zero, that's normal).
+- [ ] From a temp clone: `GIT_SSH_COMMAND='ssh -i /home/adnan/.ssh/the-brief -o IdentitiesOnly=yes' git ls-remote git@github.com:clauding-lab/the-brief.git refs/heads/main` → prints the current `main` HEAD SHA (proves read access).
+
+If any of the above fail, generate a fresh keypair (`ssh-keygen -t ed25519 -f /home/adnan/.ssh/the-brief -N ''`), add the `.pub` to the repo's deploy keys with write access, and re-run this section. Do **not** continue to `install.sh` until all four boxes are green — `brief.gitops.push_artifacts` will fail at first run otherwise.
 
 When every item is ticked, proceed to `deploy/install.sh`.
 ```
@@ -1086,6 +1097,13 @@ FROM_EMAIL=adnan.rshd@gmail.com
 # --- Notifications ------------------------------------------------------------
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/REDACTED
 
+# --- Git push-back ------------------------------------------------------------
+# brief.gitops.push_artifacts uses git+ssh to write run artifacts back to the
+# repo. The deploy key (added under repo Settings → Deploy keys with write
+# access) lives at /home/adnan/.ssh/the-brief; IdentitiesOnly=yes prevents the
+# agent from trying other keys. Verified by Task 5.1 §8 preflight.
+GIT_SSH_COMMAND=ssh -i /home/adnan/.ssh/the-brief -o IdentitiesOnly=yes
+
 # --- Pipeline behaviour -------------------------------------------------------
 # BRIEF_DRY_RUN=1 means: run the pipeline, compute the report, post Discord,
 # but do NOT write artifacts and do NOT git push. Rollback switch.
@@ -1157,7 +1175,7 @@ WantedBy=multi-user.target
 ```
 
 Notes:
-- `--shadow` is hard-coded in the service file for Phase 5. Cutover (Phase 6.4) replaces it with no flag.
+- `--shadow` is hard-coded in the service file for Phase 5. Cutover (Phase 6.3) replaces it with `--push-main --email`.
 - `ReadWritePaths` includes `~/.claude` because the Max CLI writes/reads `.credentials.json`. `ProtectHome=read-only` lets that one dir through via the RW allow-list.
 
 - [ ] **Step 2: Write `deploy/brief.timer`**
@@ -1453,124 +1471,7 @@ git add docs/ops/part2-shadow-observations.md
 git commit -m "docs(ops): shadow-observation daily scaffold (3 clean required)"
 ```
 
-### Task 6.2: Cutover runbook
-
-**Files:**
-- Create: `docs/ops/part2-cutover-runbook.md`
-
-- [ ] **Step 1: Write the runbook**
-
-```markdown
-# Brief Part 2 — Cutover Runbook
-
-**Do not start this until `docs/ops/part2-shadow-observations.md` shows 3 consecutive clean days.**
-
-## Step 1 — Pause the GHA schedule
-
-Edit `.github/workflows/daily-update.yml`:
-
-```yaml
-on:
-  # schedule:
-  #   - cron: '30 0 * * 0-5'     # commented out; kept for quick re-enable
-  workflow_dispatch:              # keep for emergencies
-```
-
-Commit on `main` directly (small, reversible):
-```
-git add .github/workflows/daily-update.yml
-git commit -m "ci(cutover): pause GHA schedule; VPS is primary"
-git push origin main
-```
-
-## Step 2 — Flip VPS pipeline to main + email
-
-On the VPS:
-```
-sudo sed -i 's|--shadow|--push-main --email|' /etc/systemd/system/brief.service
-sudo systemctl daemon-reload
-```
-
-(Agents: the actual CLI flags — `--push-main --email` — must already be implemented. See Task 6.4 pre-reqs in this plan.)
-
-## Step 3 — Add deprecation header to `update.py`
-
-```
-# update.py
-# DEPRECATED: superseded by brief.cli (V4 pipeline). This file is kept
-# only for emergency rollback via GHA workflow_dispatch. Scheduled removal:
-# 2026-05-09 (14 days after cutover).
-```
-
-## Step 4 — Verify next scheduled run
-
-- `ssh adnan@135.181.43.68 'systemctl list-timers brief.timer --no-pager'`
-- Confirm the next trigger is tomorrow 00:30 UTC.
-- Next morning (06:30 BDT): confirm `main` branch got a new commit from `clauding-lab` deploy key, email landed in adnan's inbox, Discord said `✅ ok`, no `shadow/` branch from today (since we're in main mode now).
-
-## Step 5 — Monitor 7 days
-
-- Daily Discord check. Daily `jq '.status' main/run_report.json` on the VPS.
-- Any `status == "error"` → execute rollback runbook immediately, do not wait.
-- At day 7 (2026-05-03 at the earliest): cutover is ratified. Proceed to Task 6.7 (`update.py` removal).
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add docs/ops/part2-cutover-runbook.md
-git commit -m "docs(ops): cutover runbook (requires 3 clean shadow days)"
-```
-
-### Task 6.3: Rollback runbook
-
-**Files:**
-- Create: `docs/ops/part2-rollback-runbook.md`
-
-- [ ] **Step 1: Write the runbook**
-
-```markdown
-# Brief Part 2 — Rollback Runbook
-
-Invoke when V4 produces a bad `index.html`, a hallucinated number, a silently empty section, or any failure that would be visible to subscribers.
-
-**Target:** within 15 minutes, GHA is back in control and today's send is either the legacy output or paused.
-
-## Option A — V4 ran and produced a bad output (most common)
-
-1. `ssh adnan@135.181.43.68`
-2. `sudo sed -i 's|BRIEF_DRY_RUN=0|BRIEF_DRY_RUN=1|' /etc/brief.env`
-3. `sudo systemctl stop brief.service` (if still running)
-4. If a bad commit already landed on `main`: `cd ~/the-brief && git revert HEAD && git push origin main`.
-5. Locally, re-enable GHA schedule:
-   ```
-   git checkout main
-   # uncomment the schedule block in .github/workflows/daily-update.yml
-   git commit -am "ci(rollback): re-enable GHA schedule"
-   git push origin main
-   ```
-6. Trigger the GHA workflow manually via `workflow_dispatch` if the subscribers need today's send.
-
-## Option B — V4 hasn't run yet, pre-emptive disable
-
-1. `ssh adnan@135.181.43.68`
-2. `sudo systemctl disable --now brief.timer`
-3. `sudo sed -i 's|BRIEF_DRY_RUN=0|BRIEF_DRY_RUN=1|' /etc/brief.env` (belt-and-braces).
-4. Re-enable GHA schedule as in Option A step 5.
-
-## Exit from rollback
-
-Once the root cause is fixed and a fresh shadow-soak of 3 clean days completes: redo Task 6.2 cutover runbook.
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add docs/ops/part2-rollback-runbook.md
-git commit -m "docs(ops): rollback runbook (BRIEF_DRY_RUN + GHA re-enable)"
-```
-
-### Task 6.4: CLI flags for main-push + email (pre-req for cutover)
+### Task 6.2: CLI flags for main-push + email (pre-req for cutover)
 
 **Files:**
 - Modify: `brief/cli.py` (add `--push-main` and `--email` mutually-exclusive-with-`--shadow`)
@@ -1579,7 +1480,7 @@ git commit -m "docs(ops): rollback runbook (BRIEF_DRY_RUN + GHA re-enable)"
 - Create: `brief/email_send.py` (if SMTP complexity warrants a separate module)
 - Create: `tests/test_email_send.py`
 
-The cutover runbook references `--push-main --email`. Those flags must exist before the operator runs it. This task lands them on `docs/part2-plan` so they ship with Phase 5's V4 code base and are available at cutover time.
+The cutover runbook (Task 6.3) drives `--push-main --email`. Those flags must exist before the operator runs the runbook. This task lands them on `docs/part2-plan` so they ship with Phase 5's V4 code base and are available at cutover time. Ordering rationale: this task was originally numbered 6.4 in the v1 plan but executes purely against `brief/` and `tests/` (no VPS, no shadow soak), so it can land at any point during Phase 5 or early Phase 6 — moving it ahead of 6.3 makes the dependency graph explicit.
 
 - [ ] **Step 1: Write failing tests**
 
@@ -1716,6 +1617,125 @@ git add brief/cli.py brief/email_send.py tests/
 git commit -m "feat(cli): --push-main + --email flags for post-cutover use"
 ```
 
+### Task 6.3: Cutover runbook
+
+**Files:**
+- Create: `docs/ops/part2-cutover-runbook.md`
+
+Pre-req: Task 6.2 (`--push-main` and `--email` flags) must already be merged onto `docs/part2-plan` — the runbook below assumes both flags exist on the deployed `brief.cli`.
+
+- [ ] **Step 1: Write the runbook**
+
+```markdown
+# Brief Part 2 — Cutover Runbook
+
+**Do not start this until `docs/ops/part2-shadow-observations.md` shows 3 consecutive clean days.**
+
+## Step 1 — Pause the GHA schedule
+
+Edit `.github/workflows/daily-update.yml`:
+
+```yaml
+on:
+  # schedule:
+  #   - cron: '30 0 * * 0-5'     # commented out; kept for quick re-enable
+  workflow_dispatch:              # keep for emergencies
+```
+
+Commit on `main` directly (small, reversible):
+```
+git add .github/workflows/daily-update.yml
+git commit -m "ci(cutover): pause GHA schedule; VPS is primary"
+git push origin main
+```
+
+## Step 2 — Flip VPS pipeline to main + email
+
+On the VPS:
+```
+sudo sed -i 's|--shadow|--push-main --email|' /etc/systemd/system/brief.service
+sudo systemctl daemon-reload
+```
+
+(Agents: the actual CLI flags — `--push-main --email` — must already be implemented. See Task 6.2 pre-reqs in this plan.)
+
+## Step 3 — Add deprecation header to `update.py`
+
+```
+# update.py
+# DEPRECATED: superseded by brief.cli (V4 pipeline). This file is kept
+# only for emergency rollback via GHA workflow_dispatch. Scheduled removal:
+# 2026-05-09 (14 days after cutover).
+```
+
+## Step 4 — Verify next scheduled run
+
+- `ssh adnan@135.181.43.68 'systemctl list-timers brief.timer --no-pager'`
+- Confirm the next trigger is tomorrow 00:30 UTC.
+- Next morning (06:30 BDT): confirm `main` branch got a new commit from `clauding-lab` deploy key, email landed in adnan's inbox, Discord said `✅ ok`, no `shadow/` branch from today (since we're in main mode now).
+
+## Step 5 — Monitor 7 days
+
+- Daily Discord check. Daily `jq '.status' main/run_report.json` on the VPS.
+- Any `status == "error"` → execute rollback runbook immediately, do not wait.
+- At day 7 (2026-05-03 at the earliest): cutover is ratified. Proceed to Task 6.5 (`update.py` removal).
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/ops/part2-cutover-runbook.md
+git commit -m "docs(ops): cutover runbook (requires 3 clean shadow days)"
+```
+
+### Task 6.4: Rollback runbook
+
+**Files:**
+- Create: `docs/ops/part2-rollback-runbook.md`
+
+- [ ] **Step 1: Write the runbook**
+
+```markdown
+# Brief Part 2 — Rollback Runbook
+
+Invoke when V4 produces a bad `index.html`, a hallucinated number, a silently empty section, or any failure that would be visible to subscribers.
+
+**Target:** within 15 minutes, GHA is back in control and today's send is either the legacy output or paused.
+
+## Option A — V4 ran and produced a bad output (most common)
+
+1. `ssh adnan@135.181.43.68`
+2. `sudo sed -i 's|BRIEF_DRY_RUN=0|BRIEF_DRY_RUN=1|' /etc/brief.env`
+3. `sudo systemctl stop brief.service` (if still running)
+4. If a bad commit already landed on `main`: `cd ~/the-brief && git revert HEAD && git push origin main`.
+5. Locally, re-enable GHA schedule:
+   ```
+   git checkout main
+   # uncomment the schedule block in .github/workflows/daily-update.yml
+   git commit -am "ci(rollback): re-enable GHA schedule"
+   git push origin main
+   ```
+6. Trigger the GHA workflow manually via `workflow_dispatch` if the subscribers need today's send.
+
+## Option B — V4 hasn't run yet, pre-emptive disable
+
+1. `ssh adnan@135.181.43.68`
+2. `sudo systemctl disable --now brief.timer`
+3. `sudo sed -i 's|BRIEF_DRY_RUN=0|BRIEF_DRY_RUN=1|' /etc/brief.env` (belt-and-braces).
+4. Re-enable GHA schedule as in Option A step 5.
+
+## Exit from rollback
+
+Once the root cause is fixed and a fresh shadow-soak of 3 clean days completes: redo Task 6.3 cutover runbook.
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/ops/part2-rollback-runbook.md
+git commit -m "docs(ops): rollback runbook (BRIEF_DRY_RUN + GHA re-enable)"
+```
+
 ### Task 6.5: `update.py` removal
 
 **Files:**
@@ -1830,10 +1850,10 @@ Squash-merge into `feat/v4-retarget` (not `main` — `main` still has the legacy
 
 ## Self-Review Notes (author → reader)
 
-- **Spec coverage.** Spec §8 Phases 5 & 6 → Tasks 5.1–5.11 + 6.1–6.7. Spec §10 success criteria → Task 6.6 audit. Spec §11 env vars → Task 5.7 `brief.env.example`. Spec's "env flag `BRIEF_DRY_RUN=1`" → Task 5.7 and rollback runbook (6.3). Spec's "Max OAuth via existing `~/.claude/.credentials.json`" → Task 5.8 service file's `ReadWritePaths`. Spec's "git push-back: SSH deploy key for `clauding-lab/the-brief` with `contents: write`" — assumed pre-existing; if not, add it to 5.1 preflight as an extra check.
+- **Spec coverage.** Spec §8 Phases 5 & 6 → Tasks 5.1–5.11 + 6.1–6.7. Spec §10 success criteria → Task 6.6 audit. Spec §11 env vars → Task 5.7 `brief.env.example`. Spec's "env flag `BRIEF_DRY_RUN=1`" → Task 5.7 and rollback runbook (6.4). Spec's "Max OAuth via existing `~/.claude/.credentials.json`" → Task 5.8 service file's `ReadWritePaths`. Spec's "git push-back: SSH deploy key for `clauding-lab/the-brief` with `contents: write`" — verified explicitly in Task 5.1 §8 preflight (key file perms, GitHub deploy-key listing, auth handshake, `ls-remote` read).
 - **Placeholder scan.** No "TBD" / "implement later" / "similar to Task N" — every code block is complete. The only narrative section is the self-review itself.
 - **Type consistency.** `RunResult` fields used in tests match the dataclass in `brief/pipeline.py:491` (sections, html, claude_outputs, call_reports, map_coords, todays_call, read_order, email_text). `call_reports` entries add new keys (`cost_usd`, `duration_s`, `tokens`) in Task 5.4 — `build_run_report` in Task 5.3 tolerates missing keys via `setdefault`, so the ordering (5.3 before 5.4) is safe. `MaxCallResult` extension in Task 5.4 is purely additive.
-- **Known weaknesses.** (a) Cost numbers from the CLI are the CLI's `total_cost_usd` field — the Max CLI's own billing is Claude-Max-subscription-level; this field is an API-equivalent estimate useful for budget alerts but does not reflect actual subscription spend. (b) Task 6.4 email wiring is only unit-tested; an integration test against Brevo would need a staging account — deferred as out-of-scope. (c) Phase 6.5 `update.py` removal deliberately hard-codes the 2026-05-09 date; if cutover slips, update that date to `cutover-date + 14 days`.
+- **Known weaknesses.** (a) Cost numbers from the CLI are the CLI's `total_cost_usd` field — the Max CLI's own billing is Claude-Max-subscription-level; this field is an API-equivalent estimate useful for budget alerts but does not reflect actual subscription spend. (b) Task 6.2 email wiring is only unit-tested; an integration test against Brevo would need a staging account — deferred as out-of-scope. (c) Phase 6.5 `update.py` removal deliberately hard-codes the 2026-05-09 date; if cutover slips, update that date to `cutover-date + 14 days`.
 
 ---
 
