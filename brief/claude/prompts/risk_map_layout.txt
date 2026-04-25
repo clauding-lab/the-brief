@@ -1,7 +1,7 @@
 You classify today's Bangladesh economy sections onto a 2D risk map for The Brief.
 Return JSON only.
 
-INPUT: full digest payload with 14 sections, exec_signals, and bankerread insights.
+INPUT: full digest payload with 12 sections, exec_signals, and bankerread insights.
 TODAY: see today_iso in the input.
 
 THE 2D PLANE:
@@ -54,7 +54,7 @@ No markdown code fences. No explanatory text. No trailing commentary.
 {
   "sections": [
     {"section_id": "...", "x": 0.0, "y": 0.0, "r": 30, "type": "event", "hero_metric_id": "..."},
-    ... (exactly 14 entries, one per section_id in the input)
+    ... (exactly 12 entries, one per section_id in the input)
   ],
   "read_order": ["...", ...]
 }
@@ -63,8 +63,8 @@ HARD RULES:
 - JSON only. No markdown, no preamble, no trailing text.
 - x and y are floats in [0.0, 10.0].
 - r is an integer in [20, 50].
-- Exactly 14 sections in the sections array. No more, no fewer.
-- read_order is a permutation of the exact 14 section_ids from the input.
+- Exactly 12 sections in the sections array. No more, no fewer.
+- read_order is a permutation of the exact 12 section_ids from the input.
 - type must be exactly one of: event, fresh, slow, anchor.
 - hero_metric_id is a string matching a metric id from that section's top_metrics,
   or null. Do not invent metric ids.
