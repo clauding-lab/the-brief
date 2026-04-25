@@ -31,3 +31,13 @@ def test_css_var_matches_python_type_family():
         assert m, f"CSS missing var {css_key}"
         assert m.group(1).strip() == _tokens.TYPE[py_key], \
             f"value mismatch for {py_key}"
+
+
+def test_css_var_matches_python_space():
+    css = TOKENS_CSS.read_text()
+    for key, value in _tokens.SPACE.items():
+        css_key = f"--space-{key}"
+        m = re.search(rf"{re.escape(css_key)}:\s*([^;]+);", css)
+        assert m, f"CSS missing var {css_key}"
+        assert m.group(1).strip() == value, \
+            f"value mismatch for {key}: py={value} css={m.group(1).strip()}"
