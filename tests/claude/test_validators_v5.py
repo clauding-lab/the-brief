@@ -74,3 +74,42 @@ def test_top_picks_rejects_tldr_too_long():
     result = validate_top_picks(bad, allowed_ids=ALL_IDS)
     assert not result.ok
     assert "tldr" in result.reason.lower()
+
+
+# ---------------------------------------------------------------------------
+# Task 12: validate_todays_call (V5 — Call 3)
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_todays_call
+
+
+def test_todays_call_valid():
+    payload = {
+        "text": "Hormuz is priced risk, not scarcity. " * 10,
+        "byline": "Desk Editor · The Brief",
+    }
+    result = validate_todays_call(payload)
+    assert result.ok
+
+
+def test_todays_call_rejects_too_short():
+    payload = {"text": "Short.", "byline": "x"}
+    result = validate_todays_call(payload)
+    assert not result.ok
+    assert "60-100" in result.reason
+
+
+def test_todays_call_rejects_too_long():
+    payload = {"text": "word " * 200, "byline": "x"}
+    result = validate_todays_call(payload)
+    assert not result.ok
+
+
+def test_todays_call_rejects_double_quotes_in_text():
+    payload = {
+        "text": 'Hormuz is "priced risk" not scarcity. ' * 10,
+        "byline": "x",
+    }
+    result = validate_todays_call(payload)
+    assert not result.ok
+    assert "double quote" in result.reason.lower()

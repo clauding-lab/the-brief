@@ -217,24 +217,23 @@ def validate_risk_map_layout(
 
 
 def validate_todays_call(payload: Any) -> ValidationResult:
-    """Validate Claude's todays_call response.
+    """Validate Claude's todays_call response (V5 contract).
 
-    On success: ValidationResult.value = TodaysCall(text=..., byline="Desk Editor · The Brief").
+    On success: ValidationResult.value = TodaysCall(text=..., byline=...).
+    V5: enforces 60-100 word count; rejects double quotes; accepts byline in payload.
     """
     if not _is_dict(payload):
         return ValidationResult(False, reason="payload not a dict")
-
     text = payload.get("text")
-    if not isinstance(text, str) or not text:
-        return ValidationResult(False, reason="text missing or empty")
-
+    byline = payload.get("byline", "Desk Editor · The Brief")
+    if not isinstance(text, str):
+        return ValidationResult(False, reason="text missing or not a string")
+    word_count = len(text.split())
+    if word_count < 60 or word_count > 100:
+        return ValidationResult(False, reason=f"text must be 60-100 words; got {word_count}")
     if '"' in text:
-        return ValidationResult(False, reason="text contains double quote")
-
-    if "Desk Editor" in text:
-        return ValidationResult(False, reason="text contains Desk Editor byline")
-
-    return ValidationResult(ok=True, value=TodaysCall(text=text, generated_at=datetime.now(timezone.utc)))
+        return ValidationResult(False, reason="text contains double quote (template-breaking)")
+    return ValidationResult(True, value=TodaysCall(text=text, byline=byline, generated_at=datetime.now(timezone.utc)))
 
 
 def validate_top_picks(payload: Any, *, allowed_ids: set[str]) -> ValidationResult:
