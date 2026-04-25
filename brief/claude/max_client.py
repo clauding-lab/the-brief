@@ -7,10 +7,39 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+# Matches an opening fence (```json, ```JSON, ```, etc.) and a closing ```.
+# The language tag is optional and case-insensitive.  re.DOTALL lets '.' match
+# newlines so multi-line JSON bodies are captured in group(1).
+_FENCE_RE = re.compile(
+    r"^```[a-zA-Z]*\n(.*?)\n```$",
+    re.DOTALL,
+)
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Return *text* with surrounding markdown code fences removed.
+
+    Claude occasionally wraps its JSON output in triple-backtick fences even
+    when asked for bare JSON.  This helper strips them so json.loads() can
+    succeed.  If no fence is detected the text is returned unchanged.
+
+    Only the outermost fence pair is removed; ``MaxCallResult.raw_text`` is
+    intentionally left as-returned so future debugging retains the original
+    Claude output.
+    """
+    stripped = text.strip()
+    m = _FENCE_RE.match(stripped)
+    if m:
+        return m.group(1)
+    # Return the stripped version only if text had leading/trailing whitespace;
+    # otherwise preserve the original so callers that check identity still work.
+    return stripped if stripped != text else text
 
 
 class MaxCallError(RuntimeError):
@@ -79,7 +108,7 @@ def run_max(
 
     parsed: Any | None
     try:
-        parsed = json.loads(raw_text)
+        parsed = json.loads(_strip_markdown_fences(raw_text))
     except json.JSONDecodeError:
         parsed = None
 
