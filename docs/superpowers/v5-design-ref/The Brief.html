@@ -1,0 +1,1321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Brief — Tue 21 Apr 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;0,8..60,900;1,8..60,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+:root {
+  /* Paper */
+  --paper: #faf7f0;
+  --paper-2: #f4efe3;
+  --paper-3: #ece5d3;
+  --ink: #1a1815;
+  --ink-2: #3a352e;
+  --ink-3: #6a6358;
+  --ink-4: #9a8f80;
+  --rule: #1a1815;
+  --rule-soft: #d8cfba;
+  --rule-hair: #e8e1cf;
+
+  /* Accents (editorial palette - default) */
+  --up: #2f6b3a;        /* editorial green */
+  --down: #a8322a;      /* brick red */
+  --warn: #b57a15;      /* amber */
+  --watch: #2a4d7a;     /* ink blue */
+  --up-bg: #e8efe3;
+  --down-bg: #f2e4e1;
+  --warn-bg: #f4ebd5;
+  --watch-bg: #e0e7ef;
+
+  /* Density */
+  --pad-col: 28px;
+  --pad-row: 22px;
+  --lede: 1.08rem;
+  --h-gap: 56px;
+
+  /* Type */
+  --serif: 'Source Serif 4', 'Source Serif Pro', Georgia, 'Times New Roman', serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-accent="terminal"] {
+  --up: #0b7a5a;
+  --down: #b23a7a;
+  --warn: #c08a2a;
+  --watch: #2a6aa8;
+  --up-bg: #dff0ea;
+  --down-bg: #f4e2ee;
+  --warn-bg: #f6edd5;
+  --watch-bg: #e0eaf4;
+}
+[data-accent="muted"] {
+  --up: #55614b;
+  --down: #8a4a42;
+  --warn: #8a7236;
+  --watch: #455a72;
+  --up-bg: #ebede3;
+  --down-bg: #f1e5e0;
+  --warn-bg: #efe8d4;
+  --watch-bg: #e4e8ec;
+}
+
+[data-density="compact"] {
+  --pad-col: 18px;
+  --pad-row: 14px;
+  --h-gap: 36px;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+}
+
+body { background-image:
+  radial-gradient(1200px 600px at 10% -200px, rgba(122,98,45,0.04), transparent 60%),
+  radial-gradient(900px 500px at 95% 5%, rgba(47,107,58,0.03), transparent 60%);
+}
+
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--watch); outline-offset: 2px; border-radius: 2px; }
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 36px 80px;
+}
+
+/* ---------- Masthead ---------- */
+.masthead {
+  padding-top: 18px;
+}
+.masthead .top-rule { height: 1px; background: var(--rule); margin-bottom: 12px; }
+.masthead-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);
+}
+.masthead-title {
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: clamp(64px, 11vw, 128px);
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+  text-align: center;
+  margin: 14px 0 4px;
+  font-variation-settings: "opsz" 60;
+}
+.masthead-title em {
+  font-style: italic;
+  font-weight: 400;
+  font-variation-settings: "opsz" 60;
+}
+.masthead-sub {
+  text-align: center;
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--ink-2);
+  font-size: 16px;
+  margin-bottom: 18px;
+}
+.masthead-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  border-top: 3px double var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 4px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+.masthead-ticker {
+  display: flex; gap: 28px; overflow: hidden; white-space: nowrap;
+  font-family: var(--mono); font-size: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule-hair);
+  color: var(--ink-2);
+}
+.masthead-ticker b { color: var(--ink); font-weight: 600; margin-right: 8px;}
+.masthead-ticker .up { color: var(--up); }
+.masthead-ticker .down { color: var(--down); }
+
+/* ---------- Section chrome ---------- */
+.sec {
+  padding-top: 24px;
+  margin-top: var(--h-gap);
+  border-top: 1px solid var(--rule);
+}
+.sec:first-of-type { margin-top: 28px; }
+.sec-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.kicker {
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-3);
+}
+.sec-title {
+  font-family: var(--serif); font-weight: 700; font-size: 34px;
+  letter-spacing: -0.01em; line-height: 1.05;
+  margin: 2px 0 0;
+}
+.sec-title em { font-style: italic; font-weight: 400; color: var(--ink-2);}
+.sec-dek {
+  font-family: var(--serif); font-style: italic; color: var(--ink-3);
+  font-size: 15px; max-width: 72ch; margin-top: 6px;
+}
+.sec-meta {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+.sec-body { display: grid; gap: var(--pad-col); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-12 { grid-template-columns: repeat(12, 1fr); }
+
+@media (max-width: 900px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .grid-12 { grid-template-columns: repeat(6, 1fr); }
+  .page { padding: 16px 18px 60px; }
+}
+@media (max-width: 560px) {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  .grid-12 { grid-template-columns: repeat(2, 1fr); }
+  .sec-title { font-size: 26px; }
+}
+
+/* ---------- MetricCard ---------- */
+.metric {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: var(--pad-row) 0 var(--pad-row) 18px;
+  border-left: 1px solid var(--rule-soft);
+  position: relative;
+  min-height: 120px;
+}
+.metric.flush { padding-left: 0; border-left: 0; }
+.metric .label {
+  font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+  display: flex; align-items: center; gap: 8px;
+}
+.metric .value {
+  font-family: var(--mono); font-weight: 500;
+  font-size: 30px; letter-spacing: -0.02em; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+.metric .value .unit { font-size: 13px; color: var(--ink-3); margin-left: 4px; font-weight: 400; letter-spacing: 0; }
+.metric .delta {
+  font-family: var(--mono); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; gap: 6px;
+}
+.metric .delta.up { color: var(--up); }
+.metric .delta.down { color: var(--down); }
+.metric .delta.flat { color: var(--ink-3); }
+.metric .foot {
+  margin-top: auto;
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding-top: 8px;
+}
+.metric .spark { margin: 2px 0 4px; }
+
+/* StaleDot */
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.dot.fresh { background: var(--up); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+.dot.stale { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+.dot.pending { background: var(--watch); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 100px;
+  border: 1px solid var(--rule-soft);
+  color: var(--ink-3);
+  background: transparent;
+}
+.pill.daily { border-color: var(--up); color: var(--up); }
+.pill.weekly { border-color: var(--watch); color: var(--watch); }
+.pill.monthly { border-color: var(--ink-2); color: var(--ink-2); }
+.pill.event { border-color: var(--down); color: var(--down); }
+.pill.pending { background: var(--watch-bg); border-color: var(--watch); color: var(--watch); }
+.pill.stale { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+
+/* ---------- Exec Signals ---------- */
+.exec {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  padding: 22px 28px 24px;
+  margin-top: 28px;
+}
+.exec.compact { padding: 16px 20px; }
+.exec h2 {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+.exec .dek {
+  font-family: var(--serif); font-style: italic;
+  color: var(--ink-3); font-size: 14px; margin-bottom: 14px;
+}
+.exec-list { list-style: none; padding: 0; margin: 0;
+  display: grid; gap: 10px 28px;
+}
+.exec-list.list { grid-template-columns: 1fr; }
+.exec-list.grid { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 720px) { .exec-list.grid { grid-template-columns: 1fr; } }
+
+.exec-item {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--rule-soft);
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+.exec-item:last-child { border-bottom: 0; }
+.exec-item:hover { background: rgba(0,0,0,0.02); }
+.exec-icon { font-family: var(--mono); font-size: 13px; line-height: 1; }
+.exec-icon.bull { color: var(--up); }
+.exec-icon.bear { color: var(--down); }
+.exec-icon.warn { color: var(--warn); }
+.exec-icon.watch { color: var(--watch); }
+.exec-text { font-family: var(--serif); font-size: 16px; line-height: 1.4; }
+.exec-text b { font-weight: 600; }
+.exec-num { font-family: var(--mono); font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; letter-spacing: 0.02em;}
+.exec-anchor { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase;}
+
+/* Ticker layout */
+.exec-ticker {
+  display: flex; gap: 40px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 6px 0 14px;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.exec-ticker .exec-item {
+  display: inline-grid;
+  grid-template-columns: 22px 1fr;
+  border: 0; min-width: 260px; scroll-snap-align: start;
+  padding: 10px 0;
+}
+.exec-ticker .exec-item .exec-num, .exec-ticker .exec-item .exec-anchor { display: none; }
+
+/* ---------- BankerRead ---------- */
+.br {
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 18px 20px;
+  position: relative;
+}
+.br.inline { margin-top: 16px; }
+.br.rail { position: sticky; top: 20px; }
+.br-kicker {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink);
+  margin-bottom: 10px;
+}
+.br-kicker::before, .br-kicker::after {
+  content: ""; flex: 0 0 14px; height: 1px; background: var(--ink);
+}
+.br-kicker::after { flex: 1; }
+.br-body {
+  font-family: var(--serif);
+  font-size: 15.5px; line-height: 1.55;
+  color: var(--ink);
+}
+.br-body .s {
+  display: block;
+  padding-left: 18px;
+  position: relative;
+  margin-bottom: 6px;
+}
+.br-body .s::before {
+  position: absolute; left: 0; top: 0;
+  font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+  letter-spacing: 0.1em;
+}
+.br-body .s.meaning::before { content: "A"; }
+.br-body .s.action::before { content: "B"; color: var(--up); }
+.br-body .s.trigger::before { content: "C"; color: var(--warn); }
+.br-body .s.focus::before { content: "D"; color: var(--watch); }
+.br-body .s b { font-weight: 600; }
+.br-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px dotted var(--rule-soft);
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3);
+}
+.br-foot a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ink); padding-bottom: 1px;}
+
+/* Aggregated BankerRead panel (bottom placement) */
+.br-agg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+@media (max-width: 820px) { .br-agg { grid-template-columns: 1fr; } }
+
+/* Rail layout */
+.layout-rail .sec-body.with-rail { grid-template-columns: 2fr 1fr; }
+@media (max-width: 900px) { .layout-rail .sec-body.with-rail { grid-template-columns: 1fr; } }
+
+/* ---------- Headlines ---------- */
+.headlines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+@media (max-width: 900px) { .headlines { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .headlines { grid-template-columns: 1fr; } }
+.hl {
+  padding: 14px 18px 18px;
+  border-left: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+  display: flex; flex-direction: column; gap: 6px;
+  min-height: 150px;
+}
+.hl:nth-child(3n+1) { border-left: 0; padding-left: 0; }
+.hl-src {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+}
+.hl-src .srcname {
+  padding: 1px 6px; background: var(--paper-3); color: var(--ink-2); border-radius: 2px;
+  font-weight: 600;
+}
+.hl-src .srcname[data-src="DS"] { background: #efe1de; color: #7a2a22; }
+.hl-src .srcname[data-src="TBS"] { background: #e4ecd8; color: #3d5522; }
+.hl-src .srcname[data-src="FE"] { background: #e8e0ee; color: #422a66; }
+.hl-src .srcname[data-src="FT"] { background: #f7e3c3; color: #7a4e15; }
+.hl-src .srcname[data-src="REU"] { background: #f3dcd2; color: #7a3820; }
+.hl-src .srcname[data-src="BBC"] { background: #e0e3ed; color: #1a2a66; }
+.hl-src .srcname[data-src="AJZ"] { background: #d9e6df; color: #1e4a3a; }
+.hl-title {
+  font-family: var(--serif); font-size: 17px; font-weight: 600;
+  line-height: 1.25; letter-spacing: -0.005em;
+  color: var(--ink);
+}
+.hl-dek { font-family: var(--serif); font-size: 13.5px; color: var(--ink-2); line-height: 1.4;}
+.hl-time { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); margin-top: auto; letter-spacing: 0.1em; text-transform: uppercase;}
+
+/* ---------- Section unavailable ---------- */
+.unavail {
+  border: 1px dashed var(--rule-soft);
+  padding: 20px;
+  min-height: 150px;
+  display: flex; flex-direction: column; gap: 8px;
+  background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.02) 8px, rgba(0,0,0,0.02) 16px);
+}
+.unavail .label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--warn);}
+.unavail .msg { font-family: var(--serif); font-style: italic; color: var(--ink-2); font-size: 14px;}
+.unavail .lastknown { font-family: var(--mono); font-size: 11px; color: var(--ink-3);}
+
+/* ---------- Tweaks ---------- */
+.tweaks {
+  position: fixed;
+  right: 20px; bottom: 20px;
+  width: 280px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+  font-family: var(--sans); font-size: 12px;
+  z-index: 9999;
+}
+.tweaks-h {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  background: var(--paper-2);
+}
+.tweaks-b { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; }
+.tw-row { display: flex; flex-direction: column; gap: 6px; }
+.tw-lbl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);}
+.tw-opts { display: flex; gap: 4px; flex-wrap: wrap; }
+.tw-opt {
+  padding: 5px 9px; font-family: var(--mono); font-size: 10.5px;
+  background: var(--paper); color: var(--ink-2);
+  border: 1px solid var(--rule-soft);
+  cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.tw-opt.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.tw-opt:hover:not(.on) { border-color: var(--ink-3); }
+
+/* ---------- Small utilities ---------- */
+.rule-thick { height: 2px; background: var(--ink); margin: 6px 0 14px;}
+.drop::first-letter {
+  font-family: var(--serif);
+  float: left;
+  font-size: 3.3em;
+  line-height: 0.86;
+  padding: 4px 8px 0 0;
+  font-weight: 700;
+}
+.note { font-family: var(--serif); font-style: italic; color: var(--ink-3); font-size: 13.5px;}
+
+/* Yield curve mini */
+svg.chart text { font-family: var(--mono); font-size: 9px; fill: var(--ink-3);}
+
+/* Oil event pins */
+.event-pin { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2);}
+
+/* Accessibility */
+.sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Print */
+@media print {
+  .tweaks { display: none; }
+  body { background: white; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// Tweaks persistence block
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "comfortable",
+  "accent": "editorial",
+  "execLayout": "grid",
+  "brPlacement": "inline"
+}/*EDITMODE-END*/;
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ============================================================
+ * DATA
+ * ============================================================ */
+
+const TODAY = "Tue, 21 Apr 2026";
+const ISSUE = "No. 412";
+const VOL = "Vol. II";
+
+const EXEC_SIGNALS = [
+  { kind: "bull", text: <>Reserves edge up to <b>$34.12bn</b>; import cover steady at 3.5 months.</>, anchor: "fx", num: "+0.4% WoW" },
+  { kind: "bear", text: <>DSEX slips <b>-0.78%</b> to 5,232 on financials; turnover thin at BDT 428cr.</>, anchor: "dse", num: "-41 pts" },
+  { kind: "warn", text: <>CPI food sticky at <b>10.4%</b>; rice wholesale +2.1% WoW at DAM.</>, anchor: "macro", num: "Mar '26" },
+  { kind: "bull", text: <>Remittance print <b>$2.31bn</b> for Mar; YoY +11.6%.</>, anchor: "remit", num: "+11.6% YoY" },
+  { kind: "bear", text: <>Brent jumps <b>$3.40</b> on Hormuz tanker incident; WTI tracks higher.</>, anchor: "oil", num: "$95.10" },
+  { kind: "watch", text: <>91-day T-bill cut-off firms to <b>11.85%</b>; curve bear-steepens.</>, anchor: "tbond", num: "+9 bps" },
+  { kind: "warn", text: <>BB holds policy rate at <b>9.00%</b>; SLF ceiling unchanged, credit growth undershooting.</>, anchor: "policy", num: "9.00%" },
+];
+
+const sparkData = {
+  usd: [121.8, 122.0, 122.2, 122.3, 122.5, 122.6, 122.65, 122.7, 122.7, 122.7, 122.7, 122.7],
+  eur: [129.4, 129.8, 130.2, 130.6, 130.9, 131.2, 131.0, 130.8, 130.5, 130.3, 130.0, 130.1],
+  gbp: [151.2, 151.5, 151.9, 152.3, 152.6, 152.9, 152.7, 152.5, 152.2, 152.0, 151.8, 152.1],
+  reserves: [32.4, 32.7, 33.0, 33.4, 33.6, 33.8, 33.9, 34.0, 34.05, 34.08, 34.10, 34.12],
+  dsex: [5380, 5360, 5345, 5310, 5290, 5270, 5260, 5255, 5248, 5240, 5238, 5232],
+  ds30: [1985, 1978, 1972, 1965, 1958, 1950, 1948, 1946, 1942, 1938, 1935, 1932],
+  dses: [1172, 1174, 1176, 1177, 1175, 1173, 1172, 1171, 1169, 1168, 1167, 1165],
+  brent: [82.1, 83.4, 84.6, 86.2, 87.9, 89.1, 90.2, 91.0, 91.6, 92.3, 93.8, 95.1],
+  wti:   [78.2, 79.5, 80.7, 82.3, 84.0, 85.1, 86.4, 87.0, 87.6, 88.3, 89.6, 91.0],
+  t91: [11.60, 11.62, 11.65, 11.68, 11.70, 11.72, 11.74, 11.76, 11.78, 11.80, 11.82, 11.85],
+  t182: [11.80, 11.82, 11.85, 11.88, 11.90, 11.92, 11.94, 11.96, 11.98, 12.00, 12.02, 12.05],
+  t364: [11.95, 11.98, 12.00, 12.02, 12.05, 12.07, 12.10, 12.12, 12.14, 12.16, 12.18, 12.20],
+  b5y: [12.30, 12.35, 12.40, 12.42, 12.45, 12.48, 12.50, 12.52, 12.54, 12.56, 12.58, 12.60],
+  b10y: [12.70, 12.72, 12.74, 12.76, 12.78, 12.80, 12.82, 12.84, 12.86, 12.88, 12.90, 12.92],
+  remit: [1.85, 1.94, 2.01, 2.05, 2.11, 2.18, 2.20, 2.22, 2.25, 2.27, 2.29, 2.31],
+  cpi: [9.6, 9.5, 9.5, 9.4, 9.4, 9.3, 9.3, 9.2, 9.2, 9.2, 9.2, 9.2],
+  cpifood: [10.8, 10.7, 10.7, 10.6, 10.6, 10.5, 10.5, 10.5, 10.4, 10.4, 10.4, 10.4],
+  credit: [10.8, 10.7, 10.6, 10.4, 10.2, 10.0, 9.8, 9.7, 9.6, 9.5, 9.4, 9.3],
+};
+
+/* ============================================================
+ * PRIMITIVE COMPONENTS
+ * ============================================================ */
+
+function StaleDot({ state = "fresh" }) {
+  const title = { fresh: "Fresh", warn: "Warning", stale: "Stale", pending: "Pending release" }[state];
+  return <span className={`dot ${state}`} title={title} aria-label={title}/>;
+}
+
+function Cadence({ kind = "daily" }) {
+  const map = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", event: "Event" };
+  return <span className={`pill ${kind}`}>{map[kind]}</span>;
+}
+
+function Sparkline({ data, color = "var(--ink-2)", w = 140, h = 34, fill = true }) {
+  if (!data?.length) return null;
+  const min = Math.min(...data), max = Math.max(...data);
+  const pad = 2;
+  const range = (max - min) || 1;
+  const step = (w - pad*2) / (data.length - 1);
+  const pts = data.map((v, i) => [pad + i*step, pad + (h - pad*2) * (1 - (v - min)/range)]);
+  const d = pts.map((p, i) => (i === 0 ? `M${p[0].toFixed(1)},${p[1].toFixed(1)}` : `L${p[0].toFixed(1)},${p[1].toFixed(1)}`)).join(" ");
+  const dArea = d + ` L${pts[pts.length-1][0].toFixed(1)},${h} L${pts[0][0].toFixed(1)},${h} Z`;
+  const up = data[data.length-1] >= data[0];
+  const strokeCol = color === "auto" ? (up ? "var(--up)" : "var(--down)") : color;
+  return (
+    <svg className="spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+      {fill && <path d={dArea} fill={strokeCol} opacity="0.08"/>}
+      <path d={d} fill="none" stroke={strokeCol} strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round"/>
+      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="1.8" fill={strokeCol}/>
+    </svg>
+  );
+}
+
+function MetricCard({ label, value, unit, delta, deltaDir, asOf, source, cadence, state = "fresh", spark, note, flush = false, nextRelease }) {
+  return (
+    <div className={`metric ${flush ? "flush" : ""}`}>
+      <div className="label">
+        <StaleDot state={state}/>
+        <span>{label}</span>
+      </div>
+      <div className="value">
+        {value}{unit && <span className="unit">{unit}</span>}
+      </div>
+      {delta && (
+        <div className={`delta ${deltaDir || "flat"}`}>
+          {deltaDir === "up" && "▲"}
+          {deltaDir === "down" && "▼"}
+          {deltaDir === "flat" && "–"}
+          <span>{delta}</span>
+        </div>
+      )}
+      {spark && <Sparkline data={spark} color={deltaDir === "up" ? "var(--up)" : deltaDir === "down" ? "var(--down)" : "var(--ink-3)"} />}
+      {note && <div className="note" style={{fontSize: 12.5, lineHeight: 1.4}}>{note}</div>}
+      {nextRelease && (
+        <div><span className="pill pending">Next release {nextRelease}</span></div>
+      )}
+      <div className="foot">
+        {cadence && <Cadence kind={cadence}/>}
+        {state === "stale" && <span className="pill stale">Stale</span>}
+        {source && <span>{source}</span>}
+        {asOf && <span>· As of {asOf}</span>}
+      </div>
+    </div>
+  );
+}
+
+function BankerRead({ meaning, action, trigger, focus, anchor, anchorLabel }) {
+  return (
+    <aside className="br inline" role="complementary" aria-label="BankerRead">
+      <div className="br-kicker">BankerRead</div>
+      <div className="br-body">
+        <span className="s meaning">{meaning}</span>
+        <span className="s action">{action}</span>
+        <span className="s trigger">{trigger}</span>
+        <span className="s focus">{focus}</span>
+      </div>
+      <div className="br-foot">
+        <span>4-sentence brief</span>
+        {anchor && <a href={`#${anchor}`}>Jump to {anchorLabel} ↓</a>}
+      </div>
+    </aside>
+  );
+}
+
+function SectionHead({ id, kicker, title, dek, meta }) {
+  return (
+    <div className="sec-head">
+      <div>
+        <div className="kicker">{kicker}</div>
+        <h2 className="sec-title" id={id}>{title}</h2>
+        {dek && <div className="sec-dek">{dek}</div>}
+      </div>
+      {meta && <div className="sec-meta">{meta}</div>}
+    </div>
+  );
+}
+
+function Section({ id, kicker, title, dek, meta, children, withRail, bankerRead }) {
+  return (
+    <section className="sec" id={id} data-screen-label={kicker}>
+      <SectionHead id={id} kicker={kicker} title={title} dek={dek} meta={meta}/>
+      {withRail ? (
+        <div className="sec-body with-rail" style={{display: "grid", gap: "var(--pad-col)"}}>
+          <div>{children}</div>
+          <div>{bankerRead}</div>
+        </div>
+      ) : (
+        <>
+          {children}
+          {bankerRead && bankerRead}
+        </>
+      )}
+    </section>
+  );
+}
+
+function ExecSignalBullet({ sig, layout }) {
+  return (
+    <a className="exec-item" href={`#${sig.anchor}`}>
+      <span className={`exec-icon ${sig.kind}`}>
+        {sig.kind === "bull" && "▲"}
+        {sig.kind === "bear" && "▼"}
+        {sig.kind === "warn" && "⚠"}
+        {sig.kind === "watch" && "→"}
+      </span>
+      <span className="exec-text">{sig.text}</span>
+      {layout !== "ticker" && <span className="exec-num">{sig.num}</span>}
+    </a>
+  );
+}
+
+function SectionUnavailable({ name, lastKnown, reason }) {
+  return (
+    <div className="unavail" role="status">
+      <div className="label">⚠ Section Unavailable</div>
+      <div className="msg">Data missing for <b>{name}</b> today. {reason}</div>
+      <div className="lastknown">Last known: {lastKnown}</div>
+    </div>
+  );
+}
+
+/* ============================================================
+ * BANKERREAD CONTENT (shared for inline/rail/bottom)
+ * ============================================================ */
+const BR = {
+  policy: {
+    meaning: <>The policy rate's fourth consecutive hold against undershooting credit growth signals comfort with the real-rate gap, not a pivot.</>,
+    action: <><b>Keep duration risk contained:</b> cap fixed-rate corporate book above 5y at 12% of total.</>,
+    trigger: <><b>Watch credit growth:</b> a fifth month below 9.5% raises the odds of MPC easing the SLF ceiling.</>,
+    focus: <>Over the quarter, rotate new origination toward floating-rate SME facilities tied to T-bill resets.</>,
+  },
+  macro: {
+    meaning: <>Headline CPI sitting on 9.2% masks food inflation sticky above 10%; household real income pressure persists.</>,
+    action: <><b>Tighten retail underwriting</b> for unsecured personal loans with monthly income under BDT 60k.</>,
+    trigger: <><b>If food CPI breaches 10.8%</b> next print, expect a supervisory letter on consumer NPL coverage.</>,
+    focus: <>Build provisions ahead of the curve; it is cheaper than apologising to the audit committee in July.</>,
+  },
+  fx: {
+    meaning: <>A third straight week of flat reserves suggests the floor is holding but not rebuilding.</>,
+    action: <>Consider capping <b>USD-short book at 8%</b> of liquid assets; the line to watch is <b>$33bn</b>.</>,
+    trigger: <>A drop below $33bn with a simultaneous BDT slide past 123.0 would warrant halting new NOSTRO drawdowns.</>,
+    focus: <>Over the quarter, stretch deposit tenor on USD books and pre-fund Q3 L/C obligations.</>,
+  },
+  remit: {
+    meaning: <>Double-digit YoY remittance growth for the third month builds the FX cushion the central bank cannot buy.</>,
+    action: <>Lean into <b>NRB deposit products</b>: raise ceiling on 1y USD FDs by 25bps where competitors are passive.</>,
+    trigger: <>A single-month print below $1.85bn would mark a reversal; prepare FX contingency draft now.</>,
+    focus: <>Compete on channel reliability, not price; Eid-cycle inflows reward banks with same-day crediting.</>,
+  },
+  dse: {
+    meaning: <>Broad-based financial weakness with thin turnover is a liquidity story, not yet a credit one.</>,
+    action: <><b>No book-value trigger is breached</b> — hold equity-linked margin book steady; resist fresh promotional leverage.</>,
+    trigger: <>DSEX closing below <b>5,150</b> with turnover under BDT 350cr would force MTM review on margin facilities.</>,
+    focus: <>Quarter ahead, shift prop allocation from banks toward consumer staples with pricing power.</>,
+  },
+  tbond: {
+    meaning: <>The curve's bear-steepen signals the market wants term premium, not a policy cut.</>,
+    action: <>Extend the HTM book selectively in the <b>5y bucket</b> where the 12.60% handle offers real carry.</>,
+    trigger: <>If the 10y breaches <b>13.00%</b>, re-open the barbell vs matching the liability ladder.</>,
+    focus: <>Use next month's auction calendar to smooth rollover; do not sit on the 364 alone.</>,
+  },
+  oil: {
+    meaning: <>The Hormuz tanker incident re-prices risk, not supply; the move is premium, not scarcity — for now.</>,
+    action: <>Add <b>scenario provisions</b> on aviation and bunker exposure above BDT 50cr; stress at Brent $115.</>,
+    trigger: <>A confirmed strait closure or second incident puts CPI food on a feed-through risk within six weeks.</>,
+    focus: <>Revisit oil hedge pricing offered to corporate customers; this window favours structured caps over swaps.</>,
+  },
+};
+
+/* ============================================================
+ * MASTHEAD + EXEC
+ * ============================================================ */
+
+function Masthead() {
+  return (
+    <header className="masthead" role="banner">
+      <div className="top-rule"/>
+      <div className="masthead-meta">
+        <span>{VOL} · {ISSUE}</span>
+        <span>Bangladesh · Daily Sun–Fri</span>
+        <span>{TODAY}</span>
+      </div>
+      <h1 className="masthead-title">The <em>Brief</em></h1>
+      <div className="masthead-sub">The morning intelligence for Bangladesh banking — numbers first, commentary second.</div>
+      <div className="masthead-bar">
+        <span>Edition 06:15 BDT</span>
+        <span>Next update · 18:00 BDT closing snap</span>
+        <span>Prepared for senior banking</span>
+      </div>
+      <div className="masthead-ticker" aria-label="Live markers">
+        <span><b>USD/BDT</b> 122.70 <span className="up">▲ 0.04</span></span>
+        <span><b>DSEX</b> 5,232 <span className="down">▼ 41</span></span>
+        <span><b>Brent</b> $95.10 <span className="up">▲ 3.40</span></span>
+        <span><b>91-day T-Bill</b> 11.85% <span className="up">▲ 9bps</span></span>
+        <span><b>Reserves</b> $34.12bn <span className="up">▲ 0.12</span></span>
+        <span><b>CPI</b> 9.2% <span className="down">▼ 0.0</span></span>
+        <span><b>Remit (Mar)</b> $2.31bn <span className="up">▲ 11.6% YoY</span></span>
+      </div>
+    </header>
+  );
+}
+
+function ExecSignals({ layout }) {
+  return (
+    <section className={`exec ${layout === "compact" ? "compact" : ""}`} aria-labelledby="exec-h">
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10}}>
+        <div>
+          <h2 id="exec-h">Executive Signals</h2>
+          <div className="dek">Seven things for the 06:15 scan. Each anchors to a section below.</div>
+        </div>
+        <div className="kicker">06:15 BDT · 21.04</div>
+      </div>
+      {layout === "ticker" ? (
+        <div className="exec-ticker">
+          {EXEC_SIGNALS.map((s, i) => <ExecSignalBullet key={i} sig={s} layout="ticker"/>)}
+        </div>
+      ) : (
+        <ul className={`exec-list ${layout === "grid" ? "grid" : "list"}`}>
+          {EXEC_SIGNALS.map((s, i) => <li key={i} style={{listStyle:"none"}}><ExecSignalBullet sig={s}/></li>)}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/* ============================================================
+ * SECTION BODIES
+ * ============================================================ */
+
+function Policy({ brPlacement }) {
+  return (
+    <Section
+      id="policy"
+      kicker="§02 · Policy & Rates"
+      title={<>Policy & <em>Rates</em></>}
+      dek="Bangladesh Bank held the policy rate at 9.00% at the April MPC; SLF ceiling unchanged. Credit growth continues to undershoot the 10% corridor."
+      meta={<><Cadence kind="weekly"/><span>Bangladesh Bank</span></>}
+      withRail={brPlacement === "rail"}
+      bankerRead={brPlacement !== "bottom" && <BankerRead {...BR.policy} anchor="policy" anchorLabel="Policy"/>}
+    >
+      <div className="sec-body grid-3">
+        <MetricCard flush label="Policy Rate (Repo)" value="9.00" unit="%" delta="Unchanged" deltaDir="flat" asOf="Apr 17" source="BB" cadence="event" state="fresh" spark={[9.0,9.0,9.0,9.0,9.0,9.0]}/>
+        <MetricCard label="Standing Deposit Facility (SDF)" value="7.50" unit="%" delta="Unchanged" deltaDir="flat" asOf="Apr 17" source="BB" cadence="event" state="fresh"/>
+        <MetricCard label="Standing Lending Facility (SLF)" value="10.50" unit="%" delta="Unchanged" deltaDir="flat" asOf="Apr 17" source="BB" cadence="event" state="fresh"/>
+        <MetricCard flush label="Gross Reserves" value="34.12" unit="bn USD" delta="+0.4% WoW" deltaDir="up" asOf="Apr 18" source="BB" cadence="weekly" state="fresh" spark={sparkData.reserves}/>
+        <MetricCard label="Private Credit Growth" value="9.30" unit="% YoY" delta="-0.20pp" deltaDir="down" asOf="Feb '26" source="BB" cadence="monthly" state="fresh" spark={sparkData.credit} note="Below 10% BB corridor for fourth consecutive month."/>
+        <MetricCard label="GDP Growth" value="5.82" unit="% y/y" delta="FY25 provisional" deltaDir="flat" asOf="Dec '25" source="BBS" cadence="monthly" state="pending" nextRelease="Apr 30"/>
+      </div>
+    </Section>
+  );
+}
+
+function Macro({ brPlacement }) {
+  return (
+    <Section
+      id="macro"
+      kicker="§03 · Macro"
+      title={<>Inflation & <em>Household</em></>}
+      dek="Headline CPI held at 9.2% for March; food inflation sticky above 10%, rural-urban gap widening by 40bps."
+      meta={<><Cadence kind="monthly"/><span>BBS · MoF</span></>}
+      withRail={brPlacement === "rail"}
+      bankerRead={brPlacement !== "bottom" && <BankerRead {...BR.macro} anchor="macro" anchorLabel="Macro"/>}
+    >
+      <div className="sec-body grid-3">
+        <MetricCard flush label="CPI Headline" value="9.20" unit="% y/y" delta="Flat" deltaDir="flat" asOf="Mar '26" source="BBS" cadence="monthly" state="fresh" spark={sparkData.cpi}/>
+        <MetricCard label="CPI Food" value="10.40" unit="% y/y" delta="Flat" deltaDir="flat" asOf="Mar '26" source="BBS" cadence="monthly" state="warn" spark={sparkData.cpifood} note="Warn: age at 22 days; next print 28 Apr."/>
+        <MetricCard label="MPC Statement" value="Hold" unit="" delta="Governor sees disinflation H2 FY26." deltaDir="flat" asOf="Apr 17" source="BB" cadence="event" state="fresh"/>
+      </div>
+    </Section>
+  );
+}
+
+function FX({ brPlacement }) {
+  return (
+    <Section
+      id="fx"
+      kicker="§04 · Foreign Exchange"
+      title={<>FX & <em>External</em></>}
+      dek="Taka steady at 122.70 to the dollar; interbank thinly traded above the reference rate. Trade deficit narrowed in March on import compression."
+      meta={<><Cadence kind="daily"/><span>BB · BBS</span></>}
+      withRail={brPlacement === "rail"}
+      bankerRead={brPlacement !== "bottom" && <BankerRead {...BR.fx} anchor="fx" anchorLabel="FX"/>}
+    >
+      <div className="sec-body grid-4">
+        <MetricCard flush label="USD/BDT (mid)" value="122.70" delta="+0.04" deltaDir="up" asOf="06:00 BDT" source="BB" cadence="daily" state="fresh" spark={sparkData.usd}/>
+        <MetricCard label="EUR/BDT (mid)" value="130.10" delta="-0.18" deltaDir="down" asOf="06:00 BDT" source="BB" cadence="daily" state="fresh" spark={sparkData.eur}/>
+        <MetricCard label="GBP/BDT (mid)" value="152.10" delta="+0.12" deltaDir="up" asOf="06:00 BDT" source="BB" cadence="daily" state="fresh" spark={sparkData.gbp}/>
+        <MetricCard label="Gross Reserves" value="34.12" unit="bn USD" delta="+0.12 WoW" deltaDir="up" asOf="Apr 18" source="BB" cadence="weekly" state="fresh" spark={sparkData.reserves}/>
+        <MetricCard flush label="Exports (Mar)" value="4.64" unit="bn USD" delta="+6.8% YoY" deltaDir="up" asOf="Mar '26" source="EPB" cadence="monthly" state="fresh"/>
+        <MetricCard label="Imports (Mar)" value="5.98" unit="bn USD" delta="+3.1% YoY" deltaDir="up" asOf="Mar '26" source="BB" cadence="monthly" state="fresh"/>
+        <MetricCard label="Trade Deficit (Mar)" value="1.34" unit="bn USD" delta="-11.4% YoY" deltaDir="up" asOf="Mar '26" source="BB" cadence="monthly" state="fresh" note="Narrowing on import compression, not export surge."/>
+        <MetricCard label="Current Account (Feb)" value="-0.48" unit="bn USD" delta="Narrowing" deltaDir="up" asOf="Feb '26" source="BB" cadence="monthly" state="pending" nextRelease="Apr 28"/>
+      </div>
+    </Section>
+  );
+}
+
+function Remittance({ brPlacement }) {
+  return (
+    <Section
+      id="remit"
+      kicker="§05 · Remittance"
+      title={<>Remittance <em>Inflow</em></>}
+      dek="March print at $2.31bn; YoY +11.6%. Channel share continues to shift toward MFS and bank mobile rails."
+      meta={<><Cadence kind="monthly"/><span>Bangladesh Bank</span></>}
+      withRail={brPlacement === "rail"}
+      bankerRead={brPlacement !== "bottom" && <BankerRead {...BR.remit} anchor="remit" anchorLabel="Remittance"/>}
+    >
+      <div className="sec-body grid-3">
+        <MetricCard flush label="Remittance (Mar '26)" value="2.31" unit="bn USD" delta="+11.6% YoY" deltaDir="up" asOf="Mar '26" source="BB" cadence="monthly" state="fresh" spark={sparkData.remit}/>
+        <MetricCard label="Remittance (YTD FY26)" value="19.84" unit="bn USD" delta="+9.2% vs FY25" deltaDir="up" asOf="Mar '26" source="BB" cadence="monthly" state="fresh"/>
+        <MetricCard label="Remittance (Apr '26)" value="—" unit="" delta="First weekly est. expected" deltaDir="flat" asOf="Pending" source="BB" cadence="monthly" state="pending" nextRelease="May 2"/>
+      </div>
+    </Section>
+  );
+}
+
+function DSE({ brPlacement }) {
+  return (
+    <Section
+      id="dse"
+      kicker="§06 · Equities"
+      title={<>Dhaka Stock <em>Exchange</em></>}
+      dek="DSEX slipped 41 points to 5,232 on thin BDT 428cr turnover; financials led decliners, advancing-declining breadth at 74:162."
+      meta={<><Cadence kind="daily"/><span>Dhaka Stock Exchange</span></>}
+      withRail={brPlacement === "rail"}
+      bankerRead={brPlacement !== "bottom" && <BankerRead {...BR.dse} anchor="dse" anchorLabel="DSE"/>}
+    >
+      <div className="sec-body grid-4">
+        <MetricCard flush label="DSEX" value="5,232" delta="-41 / -0.78%" deltaDir="down" asOf="Apr 20 close" source="DSE" cadence="daily" state="fresh" spark={sparkData.dsex}/>
+        <MetricCard label="DS30" value="1,932" delta="-7 / -0.36%" deltaDir="down" asOf="Apr 20 close" source="DSE" cadence="daily" state="fresh" spark={sparkData.ds30}/>
+        <MetricCard label="DSES (Shariah)" value="1,165" delta="-3 / -0.26%" deltaDir="down" asOf="Apr 20 close" source="DSE" cadence="daily" state="fresh" spark={sparkData.dses}/>
+        <MetricCard label="Turnover" value="428" unit="cr BDT" delta="-6.1% DoD" deltaDir="down" asOf="Apr 20 close" source="DSE" cadence="daily" state="fresh" note="Below 30-day avg of 462cr."/>
+      </div>
+      <div className="sec-body grid-2" style={{marginTop: 16}}>
+        <div>
+          <div className="kicker" style={{marginBottom: 10}}>Breadth · Apr 20</div>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap: 12, fontFamily:"var(--mono)", fontSize: 13}}>
+            <div><div style={{color:"var(--up)", fontSize: 22, fontWeight: 600}}>74</div><div style={{color:"var(--ink-3)", fontSize:10, letterSpacing:".1em", textTransform:"uppercase"}}>Advancing</div></div>
+            <div><div style={{color:"var(--down)", fontSize: 22, fontWeight: 600}}>162</div><div style={{color:"var(--ink-3)", fontSize:10, letterSpacing:".1em", textTransform:"uppercase"}}>Declining</div></div>
+            <div><div style={{fontSize: 22, fontWeight: 600}}>58</div><div style={{color:"var(--ink-3)", fontSize:10, letterSpacing:".1em", textTransform:"uppercase"}}>Unchanged</div></div>
+          </div>
+        </div>
+        <div>
+          <div className="kicker" style={{marginBottom: 10}}>Sector Heat · 1 day</div>
+          <SectorHeat/>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function SectorHeat() {
+  const sectors = [
+    {name: "Banks", pct: -1.4},
+    {name: "NBFI", pct: -1.1},
+    {name: "Textile", pct: -0.3},
+    {name: "Pharma", pct: 0.4},
+    {name: "Fuel", pct: 0.8},
+    {name: "Telecom", pct: -0.6},
+    {name: "Food", pct: 0.2},
+    {name: "IT", pct: 0.1},
+  ];
+  return (
+    <div style={{display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:2}}>
+      {sectors.map(s => {
+        const mag = Math.min(Math.abs(s.pct) / 2, 1);
+        const col = s.pct >= 0 ? `color-mix(in oklab, var(--up) ${mag*60+20}%, var(--paper))` : `color-mix(in oklab, var(--down) ${mag*60+20}%, var(--paper))`;
+        return (
+          <div key={s.name} style={{background: col, padding: "10px 8px", textAlign:"center"}}>
+            <div style={{fontFamily:"var(--mono)", fontSize:10.5, letterSpacing:".08em", textTransform:"uppercase", color:"var(--ink)"}}>{s.name}</div>
+            <div style={{fontFamily:"var(--mono)", fontSize:14, fontWeight:600, color:"var(--ink)"}}>{s.pct > 0 ? "+" : ""}{s.pct.toFixed(1)}%</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TBond({ brPlacement }) {
+  return (
+    <Section
+      id="tbond"
+      kicker="§07 · Fixed Income"
+      title={<>T-Bill & <em>T-Bond Curve</em></>}
+      dek="Short end firms ahead of Thursday's 91/182/364 auction; the curve bear-steepens with 5y-2y spread widening to 40bps."
+      meta={<><Cadence kind="weekly"/><span>Bangladesh Bank · Auction</span></>}
+      withRail={brPlacement === "rail"}
+      bankerRead={brPlacement !== "bottom" && <BankerRead {...BR.tbond} anchor="tbond" anchorLabel="Bonds"/>}
+    >
+      <div className="sec-body grid-4">
+        <MetricCard flush label="91-day T-Bill" value="11.85" unit="%" delta="+9 bps WoW" deltaDir="up" asOf="Apr 17 auction" source="BB" cadence="weekly" state="fresh" spark={sparkData.t91}/>
+        <MetricCard label="182-day T-Bill" value="12.05" unit="%" delta="+7 bps WoW" deltaDir="up" asOf="Apr 17 auction" source="BB" cadence="weekly" state="fresh" spark={sparkData.t182}/>
+        <MetricCard label="364-day T-Bill" value="12.20" unit="%" delta="+5 bps WoW" deltaDir="up" asOf="Apr 17 auction" source="BB" cadence="weekly" state="fresh" spark={sparkData.t364}/>
+        <MetricCard label="Next auction" value="Apr 24" delta="91 / 182 / 364 (indicative BDT 80bn)" deltaDir="flat" cadence="event" source="BB" state="fresh"/>
+        <MetricCard flush label="BGTB 5Y" value="12.60" unit="%" delta="+4 bps WoW" deltaDir="up" asOf="Apr 17" source="BB" cadence="weekly" state="fresh" spark={sparkData.b5y}/>
+        <MetricCard label="BGTB 10Y" value="12.92" unit="%" delta="+6 bps WoW" deltaDir="up" asOf="Apr 17" source="BB" cadence="weekly" state="fresh" spark={sparkData.b10y}/>
+        <MetricCard label="Curve 10Y – 2Y" value="72" unit="bps" delta="+1 bp" deltaDir="up" asOf="Apr 17" source="BB" cadence="weekly" state="fresh" note="Bear-steepening regime — term premium returning."/>
+        <YieldCurve/>
+      </div>
+    </Section>
+  );
+}
+
+function YieldCurve() {
+  const pts = [
+    { t: "3M", y: 11.85 },
+    { t: "6M", y: 12.05 },
+    { t: "1Y", y: 12.20 },
+    { t: "2Y", y: 12.40 },
+    { t: "5Y", y: 12.60 },
+    { t: "10Y", y: 12.92 },
+  ];
+  const prev = [11.76, 11.96, 12.12, 12.32, 12.52, 12.84];
+  const w = 260, h = 120, pad = 24;
+  const yMin = 11.5, yMax = 13.2;
+  const x = i => pad + i * (w - pad*2) / (pts.length - 1);
+  const y = v => pad + (h - pad*2) * (1 - (v - yMin)/(yMax - yMin));
+  const d = pts.map((p, i) => (i === 0 ? "M" : "L") + x(i).toFixed(1) + "," + y(p.y).toFixed(1)).join(" ");
+  const dPrev = prev.map((v, i) => (i === 0 ? "M" : "L") + x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ");
+  return (
+    <div className="metric flush" style={{minHeight: 160}}>
+      <div className="label"><StaleDot state="fresh"/>Yield Curve · BDT Govt</div>
+      <svg className="chart" width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        {[11.5, 12.0, 12.5, 13.0].map(v => (
+          <g key={v}>
+            <line x1={pad} x2={w-pad} y1={y(v)} y2={y(v)} stroke="var(--rule-hair)"/>
+            <text x={4} y={y(v)+3}>{v.toFixed(1)}</text>
+          </g>
+        ))}
+        <path d={dPrev} fill="none" stroke="var(--ink-4)" strokeWidth="1" strokeDasharray="3 3"/>
+        <path d={d} fill="none" stroke="var(--ink)" strokeWidth="1.5"/>
+        {pts.map((p, i) => <g key={p.t}>
+          <circle cx={x(i)} cy={y(p.y)} r="2.2" fill="var(--ink)"/>
+          <text x={x(i)} y={h-6} textAnchor="middle">{p.t}</text>
+        </g>)}
+      </svg>
+      <div className="foot">
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:14, height:1.5, background:"var(--ink)"}}/> Today</span>
+        <span style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:14, borderTop:"1px dashed var(--ink-4)"}}/> 1w ago</span>
+      </div>
+    </div>
+  );
+}
+
+function Oil({ brPlacement }) {
+  return (
+    <Section
+      id="oil"
+      kicker="§08 · Geopolitics · Oil"
+      title={<>Iran & <em>Oil Complex</em></>}
+      dek="Brent pushes above $95 on Hormuz tanker incident overnight; implied vol at 52 handles highest since 2024."
+      meta={<><Cadence kind="event"/><span>Yahoo Finance · Reuters</span></>}
+      withRail={brPlacement === "rail"}
+      bankerRead={brPlacement !== "bottom" && <BankerRead {...BR.oil} anchor="oil" anchorLabel="Oil"/>}
+    >
+      <div className="sec-body grid-3">
+        <MetricCard flush label="Brent Spot" value="95.10" unit="USD/bbl" delta="+3.40 / +3.7%" deltaDir="up" asOf="Apr 21 05:00 GMT" source="Yahoo" cadence="daily" state="fresh" spark={sparkData.brent}/>
+        <MetricCard label="WTI Spot" value="91.00" unit="USD/bbl" delta="+2.95 / +3.4%" deltaDir="up" asOf="Apr 21 05:00 GMT" source="Yahoo" cadence="daily" state="fresh" spark={sparkData.wti}/>
+        <MetricCard label="Brent-WTI Spread" value="4.10" unit="USD" delta="+0.45" deltaDir="up" asOf="Apr 21 05:00 GMT" source="Yahoo" cadence="daily" state="fresh"/>
+      </div>
+      <div style={{marginTop: 18}}>
+        <OilEventChart/>
+      </div>
+    </Section>
+  );
+}
+
+function OilEventChart() {
+  const data = sparkData.brent;
+  const events = [
+    { i: 3, label: "IAEA report", detail: "Apr 02" },
+    { i: 8, label: "OPEC+ hold", detail: "Apr 11" },
+    { i: 11, label: "Hormuz tanker", detail: "Apr 21", hot: true },
+  ];
+  const w = 900, h = 170, pad = 34;
+  const min = 80, max = 98;
+  const x = i => pad + i * (w - pad*2) / (data.length - 1);
+  const y = v => pad + (h - pad*2) * (1 - (v - min) / (max - min));
+  const pathD = data.map((v, i) => (i === 0 ? "M" : "L") + x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ");
+  const areaD = pathD + ` L${x(data.length-1)},${h-pad} L${x(0)},${h-pad} Z`;
+  return (
+    <div className="metric flush" style={{minHeight: 180}}>
+      <div className="label"><StaleDot state="fresh"/>Brent Spot · 12-session with event pins</div>
+      <svg className="chart" width="100%" viewBox={`0 0 ${w} ${h}`} style={{overflow:"visible"}}>
+        {[85, 90, 95].map(v => (
+          <g key={v}>
+            <line x1={pad} x2={w-pad} y1={y(v)} y2={y(v)} stroke="var(--rule-hair)"/>
+            <text x={6} y={y(v)+3}>{v}</text>
+          </g>
+        ))}
+        <path d={areaD} fill="var(--ink)" opacity="0.05"/>
+        <path d={pathD} fill="none" stroke="var(--ink)" strokeWidth="1.3"/>
+        {events.map(e => (
+          <g key={e.label}>
+            <line x1={x(e.i)} x2={x(e.i)} y1={pad} y2={h-pad} stroke={e.hot ? "var(--down)" : "var(--ink-3)"} strokeDasharray="2 3" strokeWidth="0.8"/>
+            <circle cx={x(e.i)} cy={y(data[e.i])} r="3" fill={e.hot ? "var(--down)" : "var(--ink)"}/>
+            <text x={x(e.i)} y={pad-8} textAnchor="middle" className="event-pin" style={{fontWeight: e.hot?600:400, fill: e.hot?"var(--down)":"var(--ink-2)"}}>{e.label}</text>
+            <text x={x(e.i)} y={pad-20} textAnchor="middle" className="event-pin">{e.detail}</text>
+          </g>
+        ))}
+        {data.map((v, i) => i % 2 === 0 && (
+          <text key={i} x={x(i)} y={h-10} textAnchor="middle">{`D-${data.length-1-i}`}</text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function Headlines() {
+  const items = [
+    { src: "DS", label: "The Daily Star", title: "Export earnings rebound to $4.64bn in March, led by apparel", dek: "EPB data shows RMG exports up 7.1% YoY; non-RMG shipments flat.", time: "04:52 BDT", state: "fresh" },
+    { src: "TBS", label: "The Business Standard", title: "Bangladesh Bank eyes secondary bond liquidity as spreads widen", dek: "Officials weigh primary-dealer incentives ahead of May auction calendar.", time: "05:10 BDT", state: "fresh" },
+    { src: "FE", label: "Financial Express", title: "NBR revenue collection falls Tk 32,000cr short of nine-month target", dek: "VAT and income-tax shortfalls deepen; FY26 target revision likely.", time: "05:40 BDT", state: "fresh" },
+    { src: "FT", label: "Financial Times", title: "Dollar retreats as US soft data re-opens Fed cut debate", dek: "EM Asia currencies firmer on the margin; taka participation thin.", time: "04:20 BDT", state: "fresh" },
+    { src: "REU", label: "Reuters", title: "Tanker struck in Strait of Hormuz; shipping lanes partially disrupted", dek: "No claim of responsibility; insurer war-risk premia up 18%.", time: "03:05 BDT", state: "fresh" },
+    { src: "BBC", label: "BBC", title: "Bangladesh remittance inflow hits nine-month high in March", dek: "$2.31bn headline supported by Eid-ul-Fitr repatriation window.", time: "Apr 20, 22:30", state: "fresh" },
+    { src: "AJZ", label: "Al Jazeera", title: "South Asia grapples with record pre-monsoon heat; crop yield at risk", dek: "Bangladesh rural districts report wheat damage of up to 9%.", time: "Apr 20, 20:45", state: "fresh" },
+    { src: "TBS", label: "The Business Standard", title: "SME loan disbursement grows 6.2% in Q3 on refinance-line take-up", dek: "Women-led enterprise share at 9%; BB aims 15% by FY27.", time: "Apr 20, 19:10", state: "fresh" },
+    { src: "FE", label: "Financial Express", title: "LNG spot cargo lands at Moheshkhali; winter demand normalisation in sight", dek: "Petrobangla signals shift to long-term contracts for FY27.", time: "Apr 20, 18:40", state: "fresh" },
+  ];
+  return (
+    <Section
+      id="headlines"
+      kicker="§09 · Headlines"
+      title={<>The <em>Wires</em></>}
+      dek="A curated morning set. Domestic first, then world — tagged by source, time-stamped to Dhaka."
+      meta={<><Cadence kind="daily"/><span>Editor's cut · 06:00 BDT</span></>}
+    >
+      <div className="headlines">
+        {items.map((h, i) => (
+          <article className="hl" key={i}>
+            <div className="hl-src">
+              <span className="srcname" data-src={h.src}>{h.src}</span>
+              <span>{h.label}</span>
+            </div>
+            <div className="hl-title">{h.title}</div>
+            <div className="hl-dek">{h.dek}</div>
+            <div className="hl-time">{h.time}</div>
+          </article>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* Secondary (scaffolded) */
+function Banking() {
+  return (
+    <Section
+      id="banking"
+      kicker="§11 · Secondary · Banking"
+      title={<>Sector <em>Health</em></>}
+      dek="Quarterly prudential metrics; next data release on schedule for end of April."
+      meta={<><Cadence kind="monthly"/><span>BB supervision</span></>}
+    >
+      <div className="sec-body grid-4">
+        <MetricCard flush label="System NPL Ratio" value="10.80" unit="%" delta="+20 bps QoQ" deltaDir="down" asOf="Dec '25" source="BB" cadence="monthly" state="pending" nextRelease="Apr 30"/>
+        <MetricCard label="System CAR" value="11.60" unit="%" delta="-10 bps QoQ" deltaDir="down" asOf="Dec '25" source="BB" cadence="monthly" state="pending" nextRelease="Apr 30"/>
+        <MetricCard label="Provisioning Shortfall" value="24,800" unit="cr BDT" delta="Widening" deltaDir="down" asOf="Dec '25" source="BB" cadence="monthly" state="pending" nextRelease="Apr 30"/>
+        <SectionUnavailable name="Sector ROA detail" lastKnown="1.02% · Sep '25" reason="BB quarterly supervisory bulletin under review; no fresh read for April."/>
+      </div>
+    </Section>
+  );
+}
+
+function Commodities() {
+  return (
+    <Section
+      id="commod"
+      kicker="§12 · Secondary · Commodities"
+      title={<>Metals, Gas, <em>& Food</em></>}
+      dek="Secondary board. Gold firms on real-rate pull; natgas weak; DAM wholesale basket up on rice and pulses."
+      meta={<><Cadence kind="daily"/><span>Yahoo · TCB</span></>}
+    >
+      <div className="sec-body grid-4">
+        <MetricCard flush label="Gold (spot)" value="2,384" unit="USD/oz" delta="+0.6%" deltaDir="up" asOf="Apr 21 05:00 GMT" source="Yahoo" cadence="daily" state="fresh"/>
+        <MetricCard label="Natural Gas (HH)" value="1.82" unit="USD/MMBtu" delta="-1.8%" deltaDir="down" asOf="Apr 20 close" source="Yahoo" cadence="daily" state="warn" note="Warn: source latency 19h; expected by 09:00 BDT."/>
+        <MetricCard label="DAM basket (9-items)" value="+1.4" unit="% WoW" delta="Rice +2.1%, onion -1.3%" deltaDir="down" asOf="Apr 19" source="TCB" cadence="weekly" state="fresh"/>
+        <MetricCard label="LNG spot · JKM" value="11.40" unit="USD/MMBtu" delta="Flat" deltaDir="flat" asOf="Apr 18" source="Platts" cadence="weekly" state="stale" note="Last known 4 days old; wire feed disrupted — next update Apr 22."/>
+      </div>
+    </Section>
+  );
+}
+
+function BankerReadAggregate() {
+  return (
+    <Section
+      id="bread"
+      kicker="§10 · BankerRead"
+      title={<>BankerRead · <em>The Day's Seven Calls</em></>}
+      dek="Four lines per topic. A. what today's data means for the book, B. action with exposure or threshold, C. trigger to watch, D. strategic focus."
+      meta={<><span style={{color:"var(--ink-2)"}}>Compiled 06:10 BDT</span></>}
+    >
+      <div className="br-agg">
+        <BankerRead {...BR.policy} anchor="policy" anchorLabel="Policy"/>
+        <BankerRead {...BR.macro} anchor="macro" anchorLabel="Macro"/>
+        <BankerRead {...BR.fx} anchor="fx" anchorLabel="FX"/>
+        <BankerRead {...BR.remit} anchor="remit" anchorLabel="Remittance"/>
+        <BankerRead {...BR.dse} anchor="dse" anchorLabel="DSE"/>
+        <BankerRead {...BR.tbond} anchor="tbond" anchorLabel="Bonds"/>
+        <BankerRead {...BR.oil} anchor="oil" anchorLabel="Oil"/>
+      </div>
+    </Section>
+  );
+}
+
+function Colophon() {
+  return (
+    <footer className="sec" style={{marginTop: 60}}>
+      <div className="masthead-bar">
+        <span>The Brief · Daily Sun–Fri</span>
+        <span>Compiled from Bangladesh Bank, BBS, DSE, EPB, MoF, NBR, TCB, Yahoo Finance, Reuters, BBC, Al Jazeera, DS, TBS, FE, FT.</span>
+        <span>Edition {ISSUE}</span>
+      </div>
+      <div style={{fontFamily:"var(--serif)", fontStyle:"italic", color:"var(--ink-3)", fontSize: 13.5, marginTop: 10, maxWidth: 72}}>
+        Every figure in this edition is dated and sourced above. Where a data state differs from fresh, the dot, pill, and release line make the reason visible.
+      </div>
+    </footer>
+  );
+}
+
+/* ============================================================
+ * TWEAKS PANEL
+ * ============================================================ */
+function Tweaks({ tweaks, setTweak, visible }) {
+  if (!visible) return null;
+  const OPT = ({ k, val, label }) => (
+    <button className={`tw-opt ${tweaks[k] === val ? "on" : ""}`} onClick={() => setTweak(k, val)}>{label}</button>
+  );
+  return (
+    <aside className="tweaks" aria-label="Tweaks">
+      <div className="tweaks-h">
+        <span>Tweaks</span>
+        <span style={{color:"var(--ink-3)"}}>4 controls</span>
+      </div>
+      <div className="tweaks-b">
+        <div className="tw-row">
+          <div className="tw-lbl">Density</div>
+          <div className="tw-opts">
+            <OPT k="density" val="comfortable" label="Comfortable"/>
+            <OPT k="density" val="compact" label="Compact"/>
+          </div>
+        </div>
+        <div className="tw-row">
+          <div className="tw-lbl">Accent palette</div>
+          <div className="tw-opts">
+            <OPT k="accent" val="editorial" label="Editorial"/>
+            <OPT k="accent" val="terminal" label="Terminal"/>
+            <OPT k="accent" val="muted" label="Muted"/>
+          </div>
+        </div>
+        <div className="tw-row">
+          <div className="tw-lbl">Exec Signals layout</div>
+          <div className="tw-opts">
+            <OPT k="execLayout" val="list" label="List"/>
+            <OPT k="execLayout" val="grid" label="Grid"/>
+            <OPT k="execLayout" val="ticker" label="Ticker"/>
+          </div>
+        </div>
+        <div className="tw-row">
+          <div className="tw-lbl">BankerRead placement</div>
+          <div className="tw-opts">
+            <OPT k="brPlacement" val="inline" label="Inline"/>
+            <OPT k="brPlacement" val="rail" label="Right rail"/>
+            <OPT k="brPlacement" val="bottom" label="Bottom"/>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+/* ============================================================
+ * ROOT
+ * ============================================================ */
+function App() {
+  const [tweaks, setTweaks] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("theBrief.tweaks") || "null");
+      return { ...TWEAK_DEFAULTS, ...(saved || {}) };
+    } catch { return { ...TWEAK_DEFAULTS }; }
+  });
+  const [editVisible, setEditVisible] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("theBrief.tweaks", JSON.stringify(tweaks));
+  }, [tweaks]);
+
+  useEffect(() => {
+    const onMsg = (e) => {
+      const d = e.data || {};
+      if (d.type === "__activate_edit_mode") setEditVisible(true);
+      if (d.type === "__deactivate_edit_mode") setEditVisible(false);
+    };
+    window.addEventListener("message", onMsg);
+    window.parent.postMessage({ type: "__edit_mode_available" }, "*");
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
+  const setTweak = (k, v) => {
+    setTweaks(prev => {
+      const next = { ...prev, [k]: v };
+      window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { [k]: v } }, "*");
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-accent", tweaks.accent);
+    document.documentElement.setAttribute("data-density", tweaks.density);
+  }, [tweaks.accent, tweaks.density]);
+
+  const brP = tweaks.brPlacement;
+  const layoutClass = brP === "rail" ? "layout-rail" : "";
+
+  return (
+    <div className={`page ${layoutClass}`}>
+      <Masthead/>
+      <ExecSignals layout={tweaks.execLayout}/>
+
+      <Policy brPlacement={brP}/>
+      <Macro brPlacement={brP}/>
+      <FX brPlacement={brP}/>
+      <Remittance brPlacement={brP}/>
+      <DSE brPlacement={brP}/>
+      <TBond brPlacement={brP}/>
+      <Oil brPlacement={brP}/>
+      <Headlines/>
+
+      {brP === "bottom" && <BankerReadAggregate/>}
+
+      <Banking/>
+      <Commodities/>
+      <Colophon/>
+
+      <Tweaks tweaks={tweaks} setTweak={setTweak} visible={editVisible}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
