@@ -264,10 +264,9 @@ def section_head(
     kicker     — e.g. "POLICY & RATES", mono uppercase.
     title_parts — list of (text, style) where style in {"plain", "italic-ox"}.
     dek        — sub-title paragraph, italic serif.
-    meta       — list of pre-rendered HTML fragment strings embedded verbatim
-                 as pill content. Callers MUST pass trusted HTML (e.g. output
-                 of staleness_dot() or _freshness_pill_html()). Do NOT pass
-                 raw user strings here — they will not be escaped.
+    meta       — list of pre-rendered HTML fragments (e.g. staleness_dot(),
+                 _freshness_pill_html()) passed through verbatim as pill content.
+                 Items must already be safe HTML — they are NOT escaped here.
 
     Returns <header class="section-head">...</header>.
     """
@@ -293,7 +292,7 @@ def section_head(
     # Dek
     dek_html = f'<p class="section-dek">{_esc(dek)}</p>'
 
-    # Meta pills — items are pre-rendered HTML fragments; embed verbatim.
+    # Meta pills — items are pre-rendered HTML fragments; do not escape them.
     meta_html = ""
     if meta:
         pills = "".join(

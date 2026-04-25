@@ -8,6 +8,14 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+# Realistic browser UA — avoids ASN-level 403s (e.g. Hetzner Germany blocked
+# by dhakatribune.com when a bot UA is sent).
+BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+
 HEADLINE_SOURCES: list[dict] = [
     {
         "url":     "https://www.thedailystar.net/business",
@@ -49,7 +57,7 @@ class Headline:
 
 def _fetch_page(url: str, timeout: int = 15) -> str:  # pragma: no cover
     req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (compatible; TheBrief/1.0)"
+        "User-Agent": BROWSER_UA
     })
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:

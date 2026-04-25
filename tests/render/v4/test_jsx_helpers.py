@@ -378,3 +378,62 @@ class TestSectionHead:
             meta=[],
         )
         assert "section-meta" not in result
+
+    # ------------------------------------------------------------------
+    # RED tests: section_head must NOT escape pre-rendered HTML meta items
+    # ------------------------------------------------------------------
+
+    def test_html_meta_item_not_escaped(self) -> None:
+        """Meta items that are pre-rendered HTML must pass through unescaped.
+
+        staleness_dot() returns '<span class="dot dot-fresh"></span>'.
+        section_head must embed it verbatim — not as &lt;span...&gt;.
+        """
+        # Arrange
+        dot_html = staleness_dot("fresh")
+
+        # Act
+        result = section_head(
+            numeral="06",
+            kicker="FX",
+            title_parts=[("BDT/USD", "plain")],
+            dek="",
+            meta=[dot_html],
+        )
+
+        # Assert: literal span present, not escaped entity
+        assert '<span class="dot dot-fresh">' in result, (
+            "staleness_dot HTML was escaped instead of passed through: "
+            + repr(result)
+        )
+        assert "&lt;span" not in result, (
+            "Found HTML-escaped '<' in section_head output — meta items are being double-escaped"
+        )
+
+    def test_freshness_pill_html_meta_item_not_escaped(self) -> None:
+        """A freshness-pill span passed as a meta item must render as real HTML.
+
+        _freshness_pill_html returns '<span class="fresh-pill...">STALE</span>'.
+        section_head must not escape the angle brackets.
+        """
+        from brief.render.v4.templates._generic import _freshness_pill_html
+
+        # Arrange
+        pill_html = _freshness_pill_html("stale")
+
+        # Act
+        result = section_head(
+            numeral="07",
+            kicker="MACRO",
+            title_parts=[("Macro Indicators", "plain")],
+            dek="",
+            meta=[pill_html],
+        )
+
+        # Assert
+        assert '<span class="fresh-pill' in result, (
+            "freshness pill HTML was escaped in section_head output"
+        )
+        assert "&lt;span" not in result, (
+            "Found HTML-escaped '<' — meta items are being double-escaped"
+        )
