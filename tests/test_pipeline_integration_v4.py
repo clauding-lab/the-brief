@@ -58,10 +58,21 @@ def _fake_risk_map_full():
     )
 
 
+_FAKE_V4_CALL_TEXT = (
+    # V5 validator requires 60-100 words.
+    "Bangladesh policy rate held steady as gross reserves edged upward for a "
+    "second consecutive week narrowing the external financing gap while food CPI "
+    "remained elevated above ten percent adding pressure to the import bill and "
+    "squeezing NIM on floating-rate books. Hormuz tensions priced into oil not "
+    "supply — hedge exposure in the commodity-linked trade finance book before "
+    "the next print arrives and do not add duration to fixed-rate portfolios now."
+)
+
+
 def _fake_todays_call_ok():
     return MaxCallResult(
         raw_text="{}",
-        parsed={"text": "Policy held; reserves steady; eye Hormuz."},
+        parsed={"text": _FAKE_V4_CALL_TEXT, "byline": "Desk Editor · The Brief"},
         usage={}, total_cost_usd=0,
     )
 
@@ -125,7 +136,7 @@ def test_run_produces_v4_html_and_email(fixture_snapshot, today):
 
     assert "THE BRIEF" in email
     assert "TODAY'S CALL" in email
-    assert "Policy held; reserves steady; eye Hormuz." in email
+    assert "Bangladesh policy rate held steady" in email
     assert "TOP 3 SIGNALS" in email
     assert "Full edition" in email
 

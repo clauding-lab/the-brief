@@ -123,10 +123,21 @@ def _fake_risk_map():
     )
 
 
+_FAKE_CALL_TEXT = (
+    # V5 validator requires 60-100 words; this is ~80 words.
+    "Bangladesh foreign-exchange reserves climbed for a third straight week "
+    "as remittance inflows held firm, narrowing the current-account gap and "
+    "giving the central bank room to hold its policy rate steady into the next "
+    "quarter without triggering further taka depreciation against the dollar "
+    "while food inflation held above ten percent adding to imported pressure "
+    "from oil channels. Hedge the fixed-rate corporate book before next print."
+)
+
+
 def _fake_todays_call():
     return MaxCallResult(
         raw_text="{}",
-        parsed={"text": "Short valid editorial call."},
+        parsed={"text": _FAKE_CALL_TEXT, "byline": "Desk Editor · The Brief"},
         usage={}, total_cost_usd=0,
     )
 
@@ -178,7 +189,7 @@ def test_run_populates_risk_map_and_todays_call(fixture_snapshot, today):
     assert len(result.read_order) == 12
     assert set(result.read_order) == {"bb", "macro", "fx", "remit", "dse", "tbond", "iranwar", "comm", "banking", "dam", "fiscal", "nbr"}
     assert result.todays_call is not None
-    assert result.todays_call.text == "Short valid editorial call."
+    assert result.todays_call.text == _FAKE_CALL_TEXT
     assert result.todays_call.byline == "Desk Editor · The Brief"
 
 
@@ -210,4 +221,4 @@ def test_run_falls_back_when_risk_map_fails(fixture_snapshot, today):
     # Deterministic fallback must produce 12 coords (exec + headlines excluded)
     assert len(result.map_coords) == 12
     # Claude's todays_call still succeeded (valid response after fallback risk_map)
-    assert result.todays_call.text == "Short valid editorial call."
+    assert result.todays_call.text == _FAKE_CALL_TEXT
