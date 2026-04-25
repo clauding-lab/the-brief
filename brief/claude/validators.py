@@ -13,7 +13,7 @@ from typing import Any, Iterable
 
 from pydantic import ValidationError as _PydValidationError
 
-from brief.schema import MapCoord, TodaysCall
+from brief.schema import GridEntry, MapCoord, MapPoint, TodaysCall, TopPicks
 
 _VALID_WEIGHTS = {"high", "med", "low"}
 _VALID_DIRECTIONS = {"bull", "bear", "warn", "watch"}
@@ -235,3 +235,65 @@ def validate_todays_call(payload: Any) -> ValidationResult:
         return ValidationResult(False, reason="text contains Desk Editor byline")
 
     return ValidationResult(ok=True, value=TodaysCall(text=text, generated_at=datetime.now(timezone.utc)))
+
+
+def validate_top_picks(payload: Any, *, allowed_ids: set[str]) -> ValidationResult:
+    """Validate Claude's top_picks response (Call 1).
+
+    On success: ValidationResult.value = TopPicks(plotted=..., grid=..., front_of_book_id=...).
+    """
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+
+    plotted = payload.get("plotted")
+    grid = payload.get("grid")
+    fob = payload.get("front_of_book_id")
+
+    if not isinstance(plotted, list) or len(plotted) != 7:
+        return ValidationResult(False, reason="plotted must contain exactly 7 sections")
+    if not isinstance(grid, list) or len(grid) != 7:
+        return ValidationResult(False, reason="grid must contain exactly 7 sections")
+    if not isinstance(fob, str):
+        return ValidationResult(False, reason="front_of_book_id missing or not a string")
+
+    plotted_models: list[MapPoint] = []
+    for item in plotted:
+        if not _is_dict(item):
+            return ValidationResult(False, reason="plotted item not a dict")
+        for k in ("id", "x", "y", "r", "kind"):
+            if k not in item:
+                return ValidationResult(False, reason=f"plotted item missing {k}")
+        if item["id"] not in allowed_ids:
+            return ValidationResult(False, reason=f"unknown id in plotted: {item['id']!r}")
+        if item["kind"] not in {"event", "fresh", "slow", "anchor"}:
+            return ValidationResult(False, reason=f"bad kind: {item['kind']!r}")
+        try:
+            plotted_models.append(MapPoint(**item))
+        except Exception as e:
+            return ValidationResult(False, reason=f"plotted item invalid: {e}")
+
+    grid_models: list[GridEntry] = []
+    for item in grid:
+        if not _is_dict(item):
+            return ValidationResult(False, reason="grid item not a dict")
+        for k in ("id", "tldr"):
+            if k not in item:
+                return ValidationResult(False, reason=f"grid item missing {k}")
+        if item["id"] not in allowed_ids:
+            return ValidationResult(False, reason=f"unknown id in grid: {item['id']!r}")
+        word_count = len(str(item["tldr"]).split())
+        if word_count > 14:
+            return ValidationResult(False, reason=f"tldr too long ({word_count} words) for {item['id']!r}; cap is 12")
+        try:
+            grid_models.append(GridEntry(**item))
+        except Exception as e:
+            return ValidationResult(False, reason=f"grid item invalid: {e}")
+
+    plotted_ids = {p.id for p in plotted_models}
+    grid_ids = {g.id for g in grid_models}
+    if plotted_ids & grid_ids:
+        return ValidationResult(False, reason=f"plotted/grid overlap: {plotted_ids & grid_ids}")
+    if fob not in plotted_ids:
+        return ValidationResult(False, reason=f"front_of_book_id {fob!r} not in plotted")
+
+    return ValidationResult(True, value=TopPicks(plotted=plotted_models, grid=grid_models, front_of_book_id=fob))
