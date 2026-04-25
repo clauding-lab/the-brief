@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import traceback
 from datetime import date
 from pathlib import Path
@@ -57,11 +58,13 @@ def main(argv: list[str] | None = None) -> int:
     today = date.fromisoformat(ns.today) if ns.today else date.today()
     cfg = PipelineConfig(today=today)
 
+    started = time.monotonic()
     try:
         rr = run_with_mode(cfg, shadow=ns.shadow)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         return 1
+    elapsed = time.monotonic() - started
 
     if ns.dry_run:
         return 3
@@ -71,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     (ns.artifacts_dir / "email.txt").write_text(rr.email_text, encoding="utf-8")
 
     report = build_run_report(rr, shadow=ns.shadow)
+    report["duration_s"] = elapsed
 
     if ns.push_main or ns.shadow:
         branch = "main" if ns.push_main else f"shadow/{today.isoformat()}"

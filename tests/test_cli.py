@@ -174,3 +174,17 @@ def test_email_without_api_key_is_skipped(tmp_path, monkeypatch, fake_run_result
     monkeypatch.setattr("brief.cli.send_email", lambda **kw: sent.append(kw))
     cli.main(["run", f"--artifacts-dir={tmp_path}", "--push-main", "--email"])
     assert sent == []  # gracefully skipped
+
+
+def test_run_report_top_level_duration_s_is_populated(tmp_path, monkeypatch, fake_run_result):
+    """Top-level duration_s must reflect run_with_mode wallclock, not stay at 0.0."""
+    import time as _time
+
+    def slow_run(cfg, **kw):
+        _time.sleep(0.05)
+        return fake_run_result
+    monkeypatch.setattr(cli, "run", slow_run)
+    cli.main(["run", f"--artifacts-dir={tmp_path}"])
+    report = json.loads((tmp_path / "run_report.json").read_text())
+    assert report["duration_s"] >= 0.04, f"expected wallclock-derived duration_s, got {report['duration_s']}"
+    assert report["duration_s"] < 5.0  # sanity bound
