@@ -8,7 +8,8 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -22,6 +23,8 @@ class MaxCallResult:
     parsed: Any | None   # json.loads(raw_text) or None if result wasn't JSON
     usage: dict[str, Any]
     total_cost_usd: float | None
+    duration_s: float = 0.0
+    tokens: dict[str, int] = field(default_factory=lambda: {"input": 0, "output": 0})
 
 
 def run_max(
@@ -50,6 +53,7 @@ def run_max(
         "--tools", "",
         "--permission-mode", "bypassPermissions",
     ]
+    _t0 = time.monotonic()
     try:
         cp = subprocess.run(
             argv, capture_output=True, text=True, timeout=timeout_s, check=False,
@@ -79,9 +83,18 @@ def run_max(
     except json.JSONDecodeError:
         parsed = None
 
+    _duration = time.monotonic() - _t0
+    _usage = outer.get("usage") or {}
+    _tokens = {
+        "input": int(_usage.get("input_tokens") or 0),
+        "output": int(_usage.get("output_tokens") or 0),
+    }
+
     return MaxCallResult(
         raw_text=raw_text,
         parsed=parsed,
-        usage=outer.get("usage") or {},
+        usage=_usage,
         total_cost_usd=outer.get("total_cost_usd"),
+        duration_s=_duration,
+        tokens=_tokens,
     )

@@ -211,6 +211,7 @@ def call_risk_map_layout(
     today_iso: str,
     *,
     run_max_fn=None,
+    call_reports: list[dict] | None = None,
 ) -> tuple[list[MapCoord], list[str]] | None:
     """Call Claude for risk_map_layout. Returns (sections, read_order) on success, None on any failure."""
     import json as _json
@@ -233,10 +234,17 @@ def call_risk_map_layout(
             section_ids={s.id for s in _rm_sections},
             known_metric_ids={s.id: {m.id for m in s.metrics} for s in _rm_sections},
         )
+        if call_reports is not None:
+            call_reports.append({"name": "risk_map_layout",
+                                 "status": "ok" if v.ok else "invalid", "reason": v.reason,
+                                 "cost_usd": float(r.total_cost_usd or 0.0), "duration_s": float(r.duration_s), "tokens": r.tokens})
         if v.ok:
             return (v.value["sections"], v.value["read_order"])
         return None
-    except MaxCallError:
+    except MaxCallError as e:
+        if call_reports is not None:
+            call_reports.append({"name": "risk_map_layout", "status": "error", "reason": str(e),
+                                 "cost_usd": 0.0, "duration_s": 0.0, "tokens": {"input": 0, "output": 0}})
         return None
 
 
@@ -247,6 +255,7 @@ def call_todays_call(
     read_order: list[str],
     *,
     run_max_fn=None,
+    call_reports: list[dict] | None = None,
 ) -> TodaysCall | None:
     """Call Claude for todays_call. Returns TodaysCall on success, None on any failure."""
     import json as _json
@@ -267,10 +276,17 @@ def call_todays_call(
         })
         r = _run(prompt=prompt, timeout_s=45)
         v = validate_todays_call(r.parsed)
+        if call_reports is not None:
+            call_reports.append({"name": "todays_call",
+                                 "status": "ok" if v.ok else "invalid", "reason": v.reason,
+                                 "cost_usd": float(r.total_cost_usd or 0.0), "duration_s": float(r.duration_s), "tokens": r.tokens})
         if v.ok:
             return v.value
         return None
-    except MaxCallError:
+    except MaxCallError as e:
+        if call_reports is not None:
+            call_reports.append({"name": "todays_call", "status": "error", "reason": str(e),
+                                 "cost_usd": 0.0, "duration_s": 0.0, "tokens": {"input": 0, "output": 0}})
         return None
 
 
@@ -387,9 +403,11 @@ def run_pipeline(
         v = validate_curation(r.parsed, allowed_urls=allowed_urls)
         if v.ok:
             claude_outputs["headlines_curation"] = v.value
-        call_reports.append({"name": "headlines_curation", "status": "ok" if v.ok else "invalid", "reason": v.reason})
+        call_reports.append({"name": "headlines_curation", "status": "ok" if v.ok else "invalid", "reason": v.reason,
+                             "cost_usd": float(r.total_cost_usd or 0.0), "duration_s": float(r.duration_s), "tokens": r.tokens})
     except MaxCallError as e:
-        call_reports.append({"name": "headlines_curation", "status": "error", "reason": str(e)})
+        call_reports.append({"name": "headlines_curation", "status": "error", "reason": str(e),
+                             "cost_usd": 0.0, "duration_s": 0.0, "tokens": {"input": 0, "output": 0}})
 
     # Call 2 — exec_signals
     try:
@@ -404,9 +422,11 @@ def run_pipeline(
         v = validate_signals(r.parsed, allowed_anchors=allowed_anchors)
         if v.ok:
             claude_outputs["exec_signals"] = v.value
-        call_reports.append({"name": "exec_signals", "status": "ok" if v.ok else "invalid", "reason": v.reason})
+        call_reports.append({"name": "exec_signals", "status": "ok" if v.ok else "invalid", "reason": v.reason,
+                             "cost_usd": float(r.total_cost_usd or 0.0), "duration_s": float(r.duration_s), "tokens": r.tokens})
     except MaxCallError as e:
-        call_reports.append({"name": "exec_signals", "status": "error", "reason": str(e)})
+        call_reports.append({"name": "exec_signals", "status": "error", "reason": str(e),
+                             "cost_usd": 0.0, "duration_s": 0.0, "tokens": {"input": 0, "output": 0}})
 
     # Call 3 — bankerread_insights (fresh + stale variants)
     fresh_ids = {s.id for s in sections_v1 if s.freshness in ("fresh", "warning")}
@@ -427,7 +447,8 @@ def run_pipeline(
             v = validate_insights(r.parsed, allowed_section_ids=fresh_ids, stale=False)
             insights_full = v.value["insights"] if v.ok else {}
             call_reports.append({"name": "bankerread_full", "status": "ok" if v.ok else "invalid",
-                                 "reason": v.reason, "dropped": v.dropped})
+                                 "reason": v.reason, "dropped": v.dropped,
+                                 "cost_usd": float(r.total_cost_usd or 0.0), "duration_s": float(r.duration_s), "tokens": r.tokens})
         if stale_ids:
             stale_payload = {"ids": sorted(stale_ids)}
             prompt = _fill(_load_prompt("bankerread_stale.txt"), {
@@ -441,9 +462,11 @@ def run_pipeline(
             v = validate_insights(r.parsed, allowed_section_ids=stale_ids, stale=True)
             insights_stale = v.value["insights"] if v.ok else {}
             call_reports.append({"name": "bankerread_stale", "status": "ok" if v.ok else "invalid",
-                                 "reason": v.reason, "dropped": v.dropped})
+                                 "reason": v.reason, "dropped": v.dropped,
+                                 "cost_usd": float(r.total_cost_usd or 0.0), "duration_s": float(r.duration_s), "tokens": r.tokens})
     except MaxCallError as e:
-        call_reports.append({"name": "bankerread", "status": "error", "reason": str(e)})
+        call_reports.append({"name": "bankerread", "status": "error", "reason": str(e),
+                             "cost_usd": 0.0, "duration_s": 0.0, "tokens": {"input": 0, "output": 0}})
 
     claude_outputs["bankerread_full"] = insights_full
     claude_outputs["bankerread_stale"] = insights_stale
@@ -529,13 +552,15 @@ def run(
     """
     pr = run_pipeline(cfg, snapshot_override=snapshot_override)
 
-    risk_map_result = call_risk_map_layout(pr.sections, pr.claude_outputs, cfg.today.isoformat())
+    risk_map_result = call_risk_map_layout(pr.sections, pr.claude_outputs, cfg.today.isoformat(),
+                                           call_reports=pr.call_reports)
     if risk_map_result is None:
         map_coords, read_order = _fallback_risk_map_layout(pr.sections)
     else:
         map_coords, read_order = risk_map_result
 
-    todays_call = call_todays_call(pr.sections, pr.claude_outputs, map_coords, read_order)
+    todays_call = call_todays_call(pr.sections, pr.claude_outputs, map_coords, read_order,
+                                   call_reports=pr.call_reports)
     if todays_call is None:
         todays_call = _fallback_todays_call(read_order, pr.sections)
 

@@ -93,3 +93,17 @@ def test_run_max_defaults_to_plain_claude_when_no_env_var(monkeypatch):
         run_max(prompt="hi", timeout_s=60)
     argv = sp.call_args.args[0]
     assert argv[0] == "claude"
+
+
+def test_max_call_result_exposes_duration_and_tokens():
+    fake_stdout = json.dumps({
+        "result": '{"x":1}',
+        "usage": {"input_tokens": 100, "output_tokens": 50},
+        "total_cost_usd": 0.0042,
+    })
+    with patch("brief.claude.max_client.subprocess.run",
+               return_value=_fake_completed(fake_stdout)):
+        r = run_max(prompt="hi")
+    assert r.total_cost_usd == pytest.approx(0.0042)
+    assert r.duration_s >= 0
+    assert r.tokens == {"input": 100, "output": 50}
