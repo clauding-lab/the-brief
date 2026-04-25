@@ -122,14 +122,16 @@ def test_mapcoord_rejects_invalid_type():
         MapCoord(section_id="bb", x=5, y=5, r=30, type="invalid")
 
 
-def test_todays_call_rejects_text_over_400_chars():
+def test_todays_call_accepts_long_text():
+    # No length cap — spec allows 60-100 words (~700 chars at max)
+    from datetime import datetime, timezone
+    tc = TodaysCall(text="x" * 700, generated_at=datetime(2025, 1, 1, tzinfo=timezone.utc))
+    assert len(tc.text) == 700
+
+
+def test_todays_call_requires_generated_at():
     with pytest.raises(ValidationError):
-        TodaysCall(text="x" * 401)
-
-
-def test_todays_call_accepts_text_at_400_chars():
-    tc = TodaysCall(text="x" * 400)
-    assert tc.byline == "Desk Editor · The Brief"
+        TodaysCall(text="some text")
 
 
 def test_mapcoord_valid_with_hero_metric_id():

@@ -96,9 +96,9 @@ class MapCoord(BaseModel):
 
 
 class TodaysCall(BaseModel):
-    text: str = Field(max_length=400)
+    text: str
     byline: str = "Desk Editor · The Brief"
-    generated_at: datetime | None = None
+    generated_at: datetime
 
 
 class ExecSignal(BaseModel):

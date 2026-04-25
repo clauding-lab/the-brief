@@ -8,6 +8,7 @@ per section.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from pydantic import ValidationError as _PydValidationError
@@ -227,13 +228,10 @@ def validate_todays_call(payload: Any) -> ValidationResult:
     if not isinstance(text, str) or not text:
         return ValidationResult(False, reason="text missing or empty")
 
-    if len(text) > 400:
-        return ValidationResult(False, reason=f"text too long: {len(text)} chars")
-
     if '"' in text:
         return ValidationResult(False, reason="text contains double quote")
 
     if "Desk Editor" in text:
         return ValidationResult(False, reason="text contains Desk Editor byline")
 
-    return ValidationResult(ok=True, value=TodaysCall(text=text))
+    return ValidationResult(ok=True, value=TodaysCall(text=text, generated_at=datetime.now(timezone.utc)))

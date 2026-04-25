@@ -347,25 +347,26 @@ def _fallback_todays_call(
     sections_v2: list,
 ) -> TodaysCall:
     """Deterministic. Lead section's pull → freeform.text → safe default."""
+    now = datetime.now(timezone.utc)
     if not read_order:
-        return TodaysCall(text="No single call today — see Flow Index for the full read.")
+        return TodaysCall(text="No single call today — see Flow Index for the full read.", generated_at=now)
 
     by_id = {s.id: s for s in sections_v2}
     lead = by_id.get(read_order[0])
 
     if lead is None:
-        return TodaysCall(text="No single call today — see Flow Index for the full read.")
+        return TodaysCall(text="No single call today — see Flow Index for the full read.", generated_at=now)
 
     if lead.bankerread is not None:
         br = lead.bankerread
         if br.kind == "structured":
-            return TodaysCall(text=br.pull)
+            return TodaysCall(text=br.pull, generated_at=now)
         # freeform
         if br.pull:
-            return TodaysCall(text=br.pull)
-        return TodaysCall(text=br.text[:400])
+            return TodaysCall(text=br.pull, generated_at=now)
+        return TodaysCall(text=br.text, generated_at=now)
 
-    return TodaysCall(text="No single call today — see Flow Index for the full read.")
+    return TodaysCall(text="No single call today — see Flow Index for the full read.", generated_at=now)
 
 
 @_dc

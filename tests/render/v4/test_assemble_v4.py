@@ -39,6 +39,7 @@ ALL_PLACEHOLDERS = [
 
 def _minimal_run_result():
     """Build a minimal RunResult for assembler tests — no real Claude data."""
+    from datetime import datetime, timezone
     from brief.pipeline import RunResult
     from brief.schema import SectionData, TodaysCall
 
@@ -55,7 +56,7 @@ def _minimal_run_result():
         claude_outputs={},
         call_reports=[],
         map_coords=[],
-        todays_call=TodaysCall(text="Test call."),
+        todays_call=TodaysCall(text="Test call.", generated_at=datetime(2025, 1, 1, tzinfo=timezone.utc)),
         read_order=["bb"],
     )
 

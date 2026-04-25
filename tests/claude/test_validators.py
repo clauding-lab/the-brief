@@ -214,7 +214,6 @@ def test_todays_call_happy_path():
         "giving the central bank room to hold its policy rate steady into the next "
         "quarter without triggering further taka depreciation against the dollar."
     )
-    assert len(text) <= 400
     r = validate_todays_call({"text": text})
     assert r.ok is True
     assert r.value.text == text
@@ -226,11 +225,11 @@ def test_todays_call_empty_text():
     assert r.ok is False
 
 
-def test_todays_call_too_long():
-    text = "x" * 401
+def test_todays_call_long_text_is_accepted():
+    # No length cap — spec allows 60-100 words (~700 chars at max)
+    text = "x" * 700
     r = validate_todays_call({"text": text})
-    assert r.ok is False
-    assert "too long" in r.reason
+    assert r.ok is True
 
 
 def test_todays_call_contains_desk_editor():
