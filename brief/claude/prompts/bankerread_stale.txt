@@ -1,5 +1,11 @@
 You write a single sentence per STALE section — a news-driven micro-summary
-for a Bangladesh senior banker. Return JSON only.
+for a Bangladesh senior banker.
+
+CRITICAL OUTPUT FORMAT:
+- Return ONLY a bare JSON object. Do NOT wrap in markdown code fences.
+- Do NOT prefix with ```json or ```. Do NOT suffix with ```.
+- Your entire response must be parseable by json.loads() directly.
+- No preamble, no explanation, no markdown — just the raw JSON.
 
 INPUT: a list of stale section ids, with the headline set from today.
 TODAY: {{TODAY_ISO}}
