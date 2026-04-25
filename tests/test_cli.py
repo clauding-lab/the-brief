@@ -133,3 +133,44 @@ def test_post_discord_not_called_when_env_unset(tmp_path, monkeypatch, fake_run_
     monkeypatch.setattr(cli, "post_discord", lambda url, *, payload: calls.append(url) or 0)
     cli.main(["run", f"--artifacts-dir={tmp_path}"])
     assert len(calls) == 0
+
+
+def test_shadow_and_push_main_are_mutually_exclusive(tmp_path):
+    with pytest.raises(SystemExit):
+        cli.main(["run", f"--artifacts-dir={tmp_path}", "--shadow", "--push-main"])
+
+
+def test_push_main_calls_gitops_with_main_branch(tmp_path, monkeypatch, fake_run_result):
+    captured = {}
+    monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
+    monkeypatch.setattr("brief.cli.push_artifacts",
+                        lambda **kw: captured.update(kw) or
+                                      {"branch": "main", "sha": "abc1234",
+                                       "pushed": True})
+    cli.main(["run", f"--artifacts-dir={tmp_path}", "--push-main"])
+    assert captured["branch"] == "main"
+
+
+def test_email_flag_invokes_send_email(tmp_path, monkeypatch, fake_run_result):
+    sent = []
+    monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
+    monkeypatch.setattr("brief.cli.push_artifacts",
+                        lambda **kw: {"branch": "main", "sha": "abc1234", "pushed": True})
+    monkeypatch.setattr("brief.cli.send_email",
+                        lambda **kw: sent.append(kw))
+    monkeypatch.setenv("BREVO_API_KEY", "x")
+    monkeypatch.setenv("FROM_EMAIL", "adnan@example.com")
+    cli.main(["run", f"--artifacts-dir={tmp_path}", "--push-main", "--email"])
+    assert len(sent) == 1
+    assert sent[0]["from_email"] == "adnan@example.com"
+
+
+def test_email_without_api_key_is_skipped(tmp_path, monkeypatch, fake_run_result, capsys):
+    monkeypatch.delenv("BREVO_API_KEY", raising=False)
+    monkeypatch.setattr(cli, "run", lambda cfg, **kw: fake_run_result)
+    monkeypatch.setattr("brief.cli.push_artifacts",
+                        lambda **kw: {"branch": "main", "sha": "x", "pushed": True})
+    sent = []
+    monkeypatch.setattr("brief.cli.send_email", lambda **kw: sent.append(kw))
+    cli.main(["run", f"--artifacts-dir={tmp_path}", "--push-main", "--email"])
+    assert sent == []  # gracefully skipped
