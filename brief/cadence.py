@@ -15,6 +15,16 @@ _BDT = timezone(timedelta(hours=6))
 # Sun=6, Mon=0, Tue=1, Wed=2, Thu=3 → BD trading days
 _BD_TRADING_WEEKDAYS = {6, 0, 1, 2, 3}
 
+# ---------------------------------------------------------------------------
+# Sections that have NO legacy backfill source.
+# When all their metrics have value=None (empty history), they emit
+# "warming_up" instead of "unavailable" — signalling intentional accumulation,
+# not a data error. Expected to resolve after ~7 V4 pipeline runs.
+# ---------------------------------------------------------------------------
+SECTIONS_WITHOUT_LEGACY_BACKFILL: frozenset[str] = frozenset({
+    "banking", "macro", "dam", "remit", "fiscal", "nbr"
+})
+
 
 def now_bdt() -> datetime:
     """Clock seam for tests — replace via monkeypatch."""
@@ -81,14 +91,25 @@ def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessK
 
 
 def section_freshness(
-    metrics: Iterable[Metric], *, today: date | None = None
+    metrics: Iterable[Metric],
+    *,
+    today: date | None = None,
+    section_id: str | None = None,
 ) -> FreshnessKind:
-    """Section freshness = worst metric freshness (spec §4)."""
+    """Section freshness = worst metric freshness (spec §4).
+
+    section_id — when provided and the section belongs to
+    SECTIONS_WITHOUT_LEGACY_BACKFILL, "unavailable" is promoted to
+    "warming_up".  This signals intentional history accumulation rather than
+    a data error.  All other rankings (stale, warning, …) are unchanged.
+    """
     states = [metric_freshness(m, today=today) for m in metrics]
     # "pending" is reserved for externally-set overrides (e.g. a metric whose
     # next-release window has not passed yet); metric_freshness does not emit
     # it today but the priority tuple retains the slot for future/upstream use.
     for worst in ("unavailable", "stale", "pending", "warning"):
         if worst in states:
+            if worst == "unavailable" and section_id in SECTIONS_WITHOUT_LEGACY_BACKFILL:
+                return "warming_up"
             return cast(FreshnessKind, worst)
     return "fresh"

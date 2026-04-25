@@ -75,14 +75,19 @@ def fmt_num(
     return inner
 
 
-_VALID_STALENESS_STATES: frozenset[str] = frozenset({"fresh", "warn", "stale", "pending"})
+_VALID_STALENESS_STATES: frozenset[str] = frozenset(
+    {"fresh", "warn", "stale", "pending", "warming_up"}
+)
 
 
-def staleness_dot(state: Literal["fresh", "warn", "stale", "pending"]) -> str:
+def staleness_dot(
+    state: Literal["fresh", "warn", "stale", "pending", "warming_up"],
+) -> str:
     """Small colored staleness dot.
 
     Returns <span class="dot dot-{state}"></span>.
-    CSS maps the state class to color: fresh=green, warn=amber, stale=grey, pending=blue.
+    CSS maps the state class to color: fresh=green, warn=amber, stale=grey,
+    pending=blue, warming_up=amber (intentional placeholder — no legacy backfill).
     Raises ValueError for unknown state.
     """
     if state not in _VALID_STALENESS_STATES:
@@ -90,7 +95,9 @@ def staleness_dot(state: Literal["fresh", "warn", "stale", "pending"]) -> str:
             f"staleness_dot: unknown state {state!r}. "
             f"Valid states: {sorted(_VALID_STALENESS_STATES)}"
         )
-    return f'<span class="dot dot-{state}"></span>'
+    # Normalize underscore to hyphen for CSS class convention (dot-warming-up, not dot-warming_up)
+    css_state = state.replace("_", "-")
+    return f'<span class="dot dot-{css_state}"></span>'
 
 
 _VALID_CADENCES: frozenset[str] = frozenset(
@@ -257,7 +264,10 @@ def section_head(
     kicker     — e.g. "POLICY & RATES", mono uppercase.
     title_parts — list of (text, style) where style in {"plain", "italic-ox"}.
     dek        — sub-title paragraph, italic serif.
-    meta       — list of short strings rendered as pills (freshness, cadence, etc.).
+    meta       — list of pre-rendered HTML fragment strings embedded verbatim
+                 as pill content. Callers MUST pass trusted HTML (e.g. output
+                 of staleness_dot() or _freshness_pill_html()). Do NOT pass
+                 raw user strings here — they will not be escaped.
 
     Returns <header class="section-head">...</header>.
     """
@@ -283,11 +293,11 @@ def section_head(
     # Dek
     dek_html = f'<p class="section-dek">{_esc(dek)}</p>'
 
-    # Meta pills
+    # Meta pills — items are pre-rendered HTML fragments; embed verbatim.
     meta_html = ""
     if meta:
         pills = "".join(
-            f'<span class="meta-pill">{_esc(m)}</span>' for m in meta
+            f'<span class="meta-pill">{m}</span>' for m in meta
         )
         meta_html = f'<div class="section-meta">{pills}</div>'
 

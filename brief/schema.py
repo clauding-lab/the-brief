@@ -7,7 +7,7 @@ from typing import Annotated, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 CadenceKind = Literal["daily", "weekly", "monthly", "quarterly", "event"]
-FreshnessKind = Literal["fresh", "warning", "stale", "pending", "unavailable"]
+FreshnessKind = Literal["fresh", "warning", "stale", "pending", "unavailable", "warming_up"]
 DirectionKind = Literal["up", "down", "flat"]
 SignalKind = Literal["bull", "bear", "warn", "watch"]
 DeltaWindow = Literal["dod", "wow", "mom", "yoy"]

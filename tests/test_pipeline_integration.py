@@ -18,7 +18,7 @@ def test_gather_returns_14_sections(fixture_snapshot, today):
     ]
     for s in sections:
         assert isinstance(s, SectionData)
-        assert s.freshness in ("fresh", "warning", "stale", "pending", "unavailable")
+        assert s.freshness in ("fresh", "warning", "stale", "pending", "unavailable", "warming_up")
 
 
 from unittest.mock import patch

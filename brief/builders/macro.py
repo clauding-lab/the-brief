@@ -34,5 +34,5 @@ def build(ctx: BuilderContext) -> SectionData:
         id="macro",
         title="Macro & Inflation",
         metrics=metrics,
-        freshness=section_freshness(metrics, today=ctx.today),
+        freshness=section_freshness(metrics, today=ctx.today, section_id="macro"),
     )

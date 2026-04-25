@@ -31,5 +31,5 @@ def build(ctx: BuilderContext) -> SectionData:
         ))
     return SectionData(
         id="dam", title="DAM Food Prices", metrics=metrics,
-        freshness=section_freshness(metrics, today=ctx.today),
+        freshness=section_freshness(metrics, today=ctx.today, section_id="dam"),
     )

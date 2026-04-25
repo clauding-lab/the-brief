@@ -26,5 +26,5 @@ def test_builder_smokes(bid, ctx):
         "dam": "dam", "fiscal": "fiscal", "nbr": "nbr",
     }[bid]
     assert section.freshness in (
-        "fresh", "warning", "stale", "pending", "unavailable"
+        "fresh", "warning", "stale", "pending", "unavailable", "warming_up"
     )
