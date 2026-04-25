@@ -296,3 +296,59 @@ def validate_top_picks(payload: Any, *, allowed_ids: set[str]) -> ValidationResu
         return ValidationResult(False, reason=f"front_of_book_id {fob!r} not in plotted")
 
     return ValidationResult(True, value=TopPicks(plotted=plotted_models, grid=grid_models, front_of_book_id=fob))
+
+
+def validate_bankerread_structured(payload: Any) -> ValidationResult:
+    """Validate Claude's bankerread_structured response (V5 Call 4).
+
+    Handles variant='full' (4 structured fields) and variant='stale_micro' (meaning only).
+    """
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+    variant = payload.get("variant")
+    if variant not in {"full", "stale_micro"}:
+        return ValidationResult(False, reason=f"variant must be 'full' or 'stale_micro'; got {variant!r}")
+
+    pull = payload.get("pull_quote")
+    if not isinstance(pull, str) or len(pull.split()) > 20:
+        return ValidationResult(False, reason="pull_quote missing or > 20 words")
+    if '"' in pull:
+        return ValidationResult(False, reason="pull_quote contains double quote")
+
+    from brief.schema import BankerReadInsight
+
+    if variant == "full":
+        for fld in ("meaning", "action", "trigger", "focus"):
+            text = payload.get(fld)
+            if not isinstance(text, str):
+                return ValidationResult(False, reason=f"{fld} missing")
+            wc = len(text.split())
+            if wc < 60 or wc > 180:
+                return ValidationResult(False, reason=f"{fld} must be 60-180 words; got {wc}")
+            if '"' in text:
+                return ValidationResult(False, reason=f"{fld} contains double quote")
+        return ValidationResult(True, value=BankerReadInsight(
+            variant="full",
+            meaning=payload["meaning"],
+            action=payload["action"],
+            trigger=payload["trigger"],
+            focus=payload["focus"],
+            pull_quote=pull,
+            generated_at=datetime.now(timezone.utc),
+        ))
+
+    # stale_micro
+    text = payload.get("meaning")
+    if not isinstance(text, str):
+        return ValidationResult(False, reason="meaning missing")
+    wc = len(text.split())
+    if wc < 50 or wc > 110:
+        return ValidationResult(False, reason=f"stale_micro meaning must be 50-110 words; got {wc}")
+    if '"' in text:
+        return ValidationResult(False, reason="meaning contains double quote")
+    return ValidationResult(True, value=BankerReadInsight(
+        variant="stale_micro",
+        meaning=text,
+        pull_quote=pull,
+        generated_at=datetime.now(timezone.utc),
+    ))

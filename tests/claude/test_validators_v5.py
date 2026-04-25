@@ -113,3 +113,76 @@ def test_todays_call_rejects_double_quotes_in_text():
     result = validate_todays_call(payload)
     assert not result.ok
     assert "double quote" in result.reason.lower()
+
+
+# ---------------------------------------------------------------------------
+# Task 13: validate_bankerread_structured (V5 — Call 4) + stale variant
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_bankerread_structured
+
+
+def test_bankerread_structured_full_valid():
+    payload = {
+        "variant": "full",
+        "meaning": "word " * 90,
+        "action": "word " * 90,
+        "trigger": "word " * 90,
+        "focus": "word " * 90,
+        "pull_quote": "Concise editorial line.",
+    }
+    result = validate_bankerread_structured(payload)
+    assert result.ok
+    assert result.value.variant == "full"
+
+
+def test_bankerread_structured_stale_valid():
+    payload = {
+        "variant": "stale_micro",
+        "meaning": "word " * 80,
+        "pull_quote": "Concise editorial line.",
+    }
+    result = validate_bankerread_structured(payload)
+    assert result.ok
+    assert result.value.action is None
+
+
+def test_bankerread_structured_full_rejects_short_field():
+    payload = {
+        "variant": "full",
+        "meaning": "too short",
+        "action": "word " * 90,
+        "trigger": "word " * 90,
+        "focus": "word " * 90,
+        "pull_quote": "Quote",
+    }
+    result = validate_bankerread_structured(payload)
+    assert not result.ok
+    assert "meaning" in result.reason
+
+
+def test_bankerread_structured_rejects_double_quote():
+    payload = {
+        "variant": "full",
+        "meaning": ('word ' * 60) + '"x"',
+        "action": "word " * 90,
+        "trigger": "word " * 90,
+        "focus": "word " * 90,
+        "pull_quote": "x",
+    }
+    result = validate_bankerread_structured(payload)
+    assert not result.ok
+
+
+def test_bankerread_structured_rejects_long_pull_quote():
+    payload = {
+        "variant": "full",
+        "meaning": "word " * 90,
+        "action": "word " * 90,
+        "trigger": "word " * 90,
+        "focus": "word " * 90,
+        "pull_quote": "word " * 30,
+    }
+    result = validate_bankerread_structured(payload)
+    assert not result.ok
+    assert "pull_quote" in result.reason
