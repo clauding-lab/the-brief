@@ -204,3 +204,60 @@ def test_v4_email_handles_missing_todays_call(fixture_snapshot, today):
 
     # HTML still rendered without crash
     assert "<!-- SPLICE:" not in result.html
+
+
+@pytest.mark.integration
+def test_call_reports_include_cost_and_duration(fixture_snapshot, today):
+    """Every call_report entry must carry cost_usd (float), duration_s (float), and tokens (dict)."""
+    from brief.claude.max_client import MaxCallResult
+
+    known_cost = 0.0123
+    known_duration = 1.5
+    known_tokens = {"input": 200, "output": 80}
+
+    def _make_result(parsed):
+        return MaxCallResult(
+            raw_text="{}",
+            parsed=parsed,
+            usage={"input_tokens": 200, "output_tokens": 80},
+            total_cost_usd=known_cost,
+            duration_s=known_duration,
+            tokens=known_tokens,
+        )
+
+    _RISK_MAP_IDS_LOCAL = ["bb", "macro", "fx", "remit", "dse", "tbond", "iranwar", "comm", "banking", "dam", "fiscal", "nbr"]
+
+    responses = [
+        _make_result({"selected": [], "rationale_bullet": "x"}),
+        _make_result({"signals": [{"direction": "bull", "text": "ok", "section_anchor": "bb"}], "traffic_status": "neu"}),
+        _make_result({"insights": {"fx": ["one", "two", "three", "four"]}}),
+        _make_result({"insights": {"bb": ["stale note"]}}),
+        _make_result({
+            "sections": [
+                {"section_id": sid, "x": 3.0, "y": 5.0, "r": 30, "type": "slow", "hero_metric_id": None}
+                for sid in _RISK_MAP_IDS_LOCAL
+            ],
+            "read_order": list(_RISK_MAP_IDS_LOCAL),
+        }),
+        _make_result({"text": "Test call text."}),
+    ]
+
+    cfg = PipelineConfig(today=today, enable_history=False, enable_headlines=False)
+    with patch("brief.pipeline.run_max", side_effect=responses):
+        result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
+
+    assert len(result.call_reports) == 6, f"Expected 6 call_reports, got {len(result.call_reports)}"
+
+    total_cost = 0.0
+    for entry in result.call_reports:
+        assert "cost_usd" in entry, f"Missing cost_usd in {entry['name']}"
+        assert "duration_s" in entry, f"Missing duration_s in {entry['name']}"
+        assert "tokens" in entry, f"Missing tokens in {entry['name']}"
+        assert isinstance(entry["cost_usd"], float), f"cost_usd not float in {entry['name']}"
+        assert isinstance(entry["duration_s"], float), f"duration_s not float in {entry['name']}"
+        assert isinstance(entry["tokens"], dict), f"tokens not dict in {entry['name']}"
+        assert "input" in entry["tokens"]
+        assert "output" in entry["tokens"]
+        total_cost += entry["cost_usd"]
+
+    assert total_cost == pytest.approx(known_cost * 6)
