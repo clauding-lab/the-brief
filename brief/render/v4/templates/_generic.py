@@ -20,6 +20,7 @@ exposed at module level so binders and tests can import them if needed.
 from __future__ import annotations
 
 import html as _html
+from datetime import timedelta
 
 from brief.render.v4._jsx import (
     bankerread_aside,
@@ -59,6 +60,8 @@ _SECTION_META: dict[str, tuple[str, str, str]] = {
 _FRESHNESS_DOT_MAP: dict[str, str] = {
     "warning":     "warn",
     "unavailable": "stale",
+    # warming_up maps to its own dot state (amber, distinct from stale grey)
+    "warming_up":  "warming_up",
 }
 
 _FRESHNESS_PILL_TEXT: dict[str, str] = {
@@ -66,6 +69,8 @@ _FRESHNESS_PILL_TEXT: dict[str, str] = {
     "stale":       "STALE",
     "pending":     "NEXT RELEASE",
     "unavailable": "UNAVAILABLE",
+    # warming_up uses informational copy, not error copy
+    "warming_up":  "BUILDING HISTORY",
 }
 
 _FRESHNESS_PILL_CLASS: dict[str, str] = {
@@ -73,6 +78,8 @@ _FRESHNESS_PILL_CLASS: dict[str, str] = {
     "stale":       "stale",
     "pending":     "pending",
     "unavailable": "stale",
+    # warming_up gets its own amber/informational class, not the error red
+    "warming_up":  "warming-up",
 }
 
 
@@ -84,7 +91,7 @@ def _freshness_to_dot_state(freshness: str) -> str:
 def _freshness_pill_html(freshness: str, reason: str | None = None) -> str:
     """Return a freshness pill span, or '' for 'fresh'.
 
-    State classes: warn (amber), stale (grey), pending (blue).
+    State classes: warn (amber), stale (grey), pending (blue), warming-up (amber).
     If reason is provided it is set as the title attribute on the pill.
     """
     if freshness == "fresh":
@@ -181,6 +188,37 @@ def render_generic_section(
         return (
             f'<section class="section section-unavailable" id="{dom_id}">'
             '<div class="fresh-tag">Section Unavailable</div>'
+            "</section>"
+        )
+
+    # warming_up short-circuit — intentional placeholder, not an error.
+    # Return date is 7 days after the section's most recent metric as_of date,
+    # or 7 days after today if no metrics are present.
+    # This signals that the V4 pipeline is actively accumulating history.
+    if section.freshness == "warming_up":
+        if section.metrics:
+            base_date = max(m.as_of for m in section.metrics)
+        else:
+            from datetime import date as _date
+            import datetime as _dt
+            base_date = _date.today()
+        return_date = base_date + timedelta(days=7)
+        return_str = return_date.isoformat()
+        dot_html = staleness_dot("warming_up")
+        pill_html = _freshness_pill_html("warming_up")
+        head_html = section_head(
+            numeral=numeral,
+            kicker=kicker,
+            title_parts=[(title, "plain")],
+            dek=f"Building daily history — first trend on {return_str}.",
+            meta=[dot_html, pill_html],
+        )
+        return (
+            f'<section class="section section-warming-up" id="{dom_id}">'
+            f"{head_html}"
+            f'<div class="fresh-tag warming-up-tag">'
+            f"Building daily history — first trend on {return_str}."
+            f"</div>"
             "</section>"
         )
 

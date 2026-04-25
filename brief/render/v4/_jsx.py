@@ -75,14 +75,19 @@ def fmt_num(
     return inner
 
 
-_VALID_STALENESS_STATES: frozenset[str] = frozenset({"fresh", "warn", "stale", "pending"})
+_VALID_STALENESS_STATES: frozenset[str] = frozenset(
+    {"fresh", "warn", "stale", "pending", "warming_up"}
+)
 
 
-def staleness_dot(state: Literal["fresh", "warn", "stale", "pending"]) -> str:
+def staleness_dot(
+    state: Literal["fresh", "warn", "stale", "pending", "warming_up"],
+) -> str:
     """Small colored staleness dot.
 
     Returns <span class="dot dot-{state}"></span>.
-    CSS maps the state class to color: fresh=green, warn=amber, stale=grey, pending=blue.
+    CSS maps the state class to color: fresh=green, warn=amber, stale=grey,
+    pending=blue, warming_up=amber (intentional placeholder — no legacy backfill).
     Raises ValueError for unknown state.
     """
     if state not in _VALID_STALENESS_STATES:
@@ -90,7 +95,9 @@ def staleness_dot(state: Literal["fresh", "warn", "stale", "pending"]) -> str:
             f"staleness_dot: unknown state {state!r}. "
             f"Valid states: {sorted(_VALID_STALENESS_STATES)}"
         )
-    return f'<span class="dot dot-{state}"></span>'
+    # Normalize underscore to hyphen for CSS class convention (dot-warming-up, not dot-warming_up)
+    css_state = state.replace("_", "-")
+    return f'<span class="dot dot-{css_state}"></span>'
 
 
 _VALID_CADENCES: frozenset[str] = frozenset(

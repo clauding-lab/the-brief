@@ -25,5 +25,5 @@ def build(ctx: BuilderContext) -> SectionData:
     ]
     return SectionData(
         id="remit", title="Remittance", metrics=metrics,
-        freshness=section_freshness(metrics, today=ctx.today),
+        freshness=section_freshness(metrics, today=ctx.today, section_id="remit"),
     )
