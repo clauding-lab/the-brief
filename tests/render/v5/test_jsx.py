@@ -118,6 +118,16 @@ def test_systemic_risk_callout_renders_warning_class():
     assert "NPL world-high" in html
 
 
+def test_bankerread_panel_v5_v4_legacy_raises():
+    br = BankerReadInsight(
+        variant="v4_legacy",
+        sentences=["s1", "s2", "s3", "s4"],
+        generated_at=datetime.now(timezone.utc),
+    )
+    with pytest.raises(ValueError):
+        _jsx.bankerread_panel_v5(br, anchor="bb")
+
+
 def test_no_raw_html_in_news_summary_attack():
     """Defense: news summary must be HTML-escaped to prevent injection."""
     item = NewsItem(

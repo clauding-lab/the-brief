@@ -5,9 +5,6 @@ Reuses V4 helpers (`brief.render.v4._jsx.fmt_num`, `attr`, `_esc`, `_attr_esc`,
 """
 from __future__ import annotations
 
-import html
-from typing import Literal
-
 from brief.render.v4._jsx import _esc, _attr_esc, attr, fmt_num, sparkline_svg
 from brief.schema import (
     BankerReadInsight,
