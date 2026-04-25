@@ -62,6 +62,7 @@ def run_max(
     model: str = "claude-opus-4-7",
     timeout_s: int = 1800,
     claude_binary: str | None = None,
+    extended_thinking_budget: int | None = None,
 ) -> MaxCallResult:
     """Invoke the Claude Max CLI, return parsed result.
 
@@ -82,6 +83,8 @@ def run_max(
         "--tools", "",
         "--permission-mode", "bypassPermissions",
     ]
+    if extended_thinking_budget is not None:
+        argv += ["--thinking-budget", str(extended_thinking_budget)]
     _t0 = time.monotonic()
     try:
         cp = subprocess.run(

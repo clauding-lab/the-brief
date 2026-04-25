@@ -277,3 +277,33 @@ class TestRunMaxFenceStripping:
             r = run_max(prompt="test", timeout_s=60)
         # Assert -- raw_text unchanged; only parsed benefits from stripping
         assert r.raw_text == fenced
+
+
+# ---------------------------------------------------------------------------
+# extended_thinking_budget kwarg tests
+# ---------------------------------------------------------------------------
+
+def test_extended_thinking_budget_passes_thinking_flag():
+    fake_completed = _fake_completed(json.dumps({
+        "result": '{"ok": true}',
+        "total_cost_usd": 0.01,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
+        run_max(prompt="hi", extended_thinking_budget=12000)
+    args = mock_run.call_args.args[0]
+    assert "--thinking-budget" in args
+    idx = args.index("--thinking-budget")
+    assert args[idx + 1] == "12000"
+
+
+def test_extended_thinking_budget_default_omits_flag():
+    fake_completed = _fake_completed(json.dumps({
+        "result": "{}",
+        "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
+        run_max(prompt="hi")
+    args = mock_run.call_args.args[0]
+    assert "--thinking-budget" not in args
