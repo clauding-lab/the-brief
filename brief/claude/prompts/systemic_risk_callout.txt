@@ -1,0 +1,24 @@
+You are writing a Systemic Risk callout for §{section_n} {kicker} of *The Brief*.
+
+Today's date: {today}
+
+A deterministic rule fired (`{rule_id}`, level=`{level}`). This means the section has crossed a threshold that warrants a red/amber callout panel above the metric cards.
+
+INPUT:
+- `section`: the section's full SectionData
+- `triggering_metric`: the specific Metric that crossed the threshold
+
+JOB: Write a 60-100 word red-card paragraph explaining the systemic dimension.
+
+- `headline`: ≤12 words. The lede (e.g. *"NPL ratio at 35.73% — world's highest"*).
+- `body`: 60-100 words. Explain the systemic dimension and why it matters today. Cite the triggering metric and one supporting metric. Tie to a banker concern. Voice: urgent but not panicked. No double quotes.
+
+OUTPUT — JSON only:
+
+{"headline": "...", "body": "..."}
+
+CONSTRAINTS:
+- headline: ≤12 words.
+- body: 60-100 words.
+- No double quotes.
+- No markdown fences.

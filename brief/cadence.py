@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterable, cast
 
-from brief.schema import CadenceKind, FreshnessKind, Metric
+from brief.schema import CadenceKind, FreshnessKind, Metric, SectionData
 
 _BDT = timezone(timedelta(hours=6))
 
@@ -113,3 +113,64 @@ def section_freshness(
                 return "warming_up"
             return cast(FreshnessKind, worst)
     return "fresh"
+
+
+# ---------------------------------------------------------------------------
+# Systemic-risk rules — deterministic predicates that fire `risk_active=True`
+# on a section when satisfied. The Call 5 (systemic_risk_callout) prompt only
+# runs for sections where one rule fires.
+# ---------------------------------------------------------------------------
+from typing import Callable
+
+RiskRule = Callable[[SectionData], tuple[bool, str, str]]
+
+
+def _by_id(metrics: list[Metric], metric_id: str) -> Metric | None:
+    return next((m for m in metrics if m.id == metric_id), None)
+
+
+def banking_npl_rule(section: SectionData) -> tuple[bool, str, str]:
+    npl = _by_id(section.metrics, "banking_npl_pct")
+    if npl is None or not isinstance(npl.value, (int, float)):
+        return (False, "warning", "banking_npl")
+    if npl.value >= 30.0:
+        return (True, "critical", "banking_npl_above_30")
+    if npl.value >= 20.0:
+        return (True, "warning", "banking_npl_above_20")
+    return (False, "warning", "banking_npl")
+
+
+def fx_reserves_rule(section: SectionData) -> tuple[bool, str, str]:
+    res = _by_id(section.metrics, "bb_gross_reserves")
+    if res is None or not isinstance(res.value, (int, float)):
+        return (False, "warning", "fx_reserves")
+    if res.value < 32.0:
+        return (True, "critical", "fx_reserves_below_32bn")
+    if res.value < 34.0:
+        return (True, "warning", "fx_reserves_below_34bn")
+    return (False, "warning", "fx_reserves")
+
+
+def fx_usd_bdt_rule(section: SectionData) -> tuple[bool, str, str]:
+    fx = _by_id(section.metrics, "fx_usd_bdt")
+    if fx is None or not isinstance(fx.value, (int, float)):
+        return (False, "warning", "fx_usd_bdt")
+    if fx.value > 124.0:
+        return (True, "critical", "fx_usd_bdt_above_124")
+    return (False, "warning", "fx_usd_bdt")
+
+
+SECTION_RULES: dict[str, list[RiskRule]] = {
+    "banking": [banking_npl_rule],
+    "bb":      [fx_reserves_rule],
+    "fx":      [fx_usd_bdt_rule, fx_reserves_rule],
+}
+
+
+def evaluate_risk_rules(section: SectionData) -> tuple[bool, str | None, str | None]:
+    """Return (risk_active, level, rule_id). First-fired rule wins (in declared order)."""
+    for rule in SECTION_RULES.get(section.id, []):
+        fired, level, rid = rule(section)
+        if fired:
+            return (True, level, rid)
+    return (False, None, None)

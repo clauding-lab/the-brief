@@ -352,3 +352,28 @@ def validate_bankerread_structured(payload: Any) -> ValidationResult:
         pull_quote=pull,
         generated_at=datetime.now(timezone.utc),
     ))
+
+
+def validate_systemic_risk_callout(
+    payload: Any, *, expected_level: str, rule_id: str
+) -> ValidationResult:
+    """Validate Claude's systemic_risk_callout response (V5 Call 5)."""
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+    headline = payload.get("headline")
+    body = payload.get("body")
+    if not isinstance(headline, str) or len(headline.split()) > 12:
+        return ValidationResult(False, reason="headline missing or > 12 words")
+    if not isinstance(body, str):
+        return ValidationResult(False, reason="body missing")
+    bw = len(body.split())
+    if bw < 50 or bw > 110:
+        return ValidationResult(False, reason=f"body must be 50-110 words; got {bw}")
+    if '"' in headline + body:
+        return ValidationResult(False, reason="contains double quote")
+
+    from brief.schema import SystemicRisk
+
+    return ValidationResult(True, value=SystemicRisk(
+        headline=headline, body=body, level=expected_level, rule_id=rule_id
+    ))

@@ -186,3 +186,29 @@ def test_bankerread_structured_rejects_long_pull_quote():
     result = validate_bankerread_structured(payload)
     assert not result.ok
     assert "pull_quote" in result.reason
+
+
+# ---------------------------------------------------------------------------
+# Task 14: validate_systemic_risk_callout (V5 — Call 5)
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_systemic_risk_callout
+
+
+def test_systemic_risk_callout_valid():
+    payload = {"headline": "NPL world-high", "body": "word " * 80}
+    result = validate_systemic_risk_callout(payload, expected_level="critical", rule_id="banking_npl_above_30")
+    assert result.ok
+    assert result.value.level == "critical"
+
+
+def test_systemic_risk_callout_rejects_long_headline():
+    payload = {"headline": "word " * 20, "body": "word " * 80}
+    result = validate_systemic_risk_callout(payload, expected_level="warning", rule_id="x")
+    assert not result.ok
+
+
+def test_systemic_risk_callout_rejects_short_body():
+    payload = {"headline": "Tight", "body": "too short"}
+    result = validate_systemic_risk_callout(payload, expected_level="warning", rule_id="x")
+    assert not result.ok
