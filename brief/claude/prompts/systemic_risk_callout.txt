@@ -1,8 +1,8 @@
-You are writing a Systemic Risk callout for §{section_n} {kicker} of *The Brief*.
+You are writing a Systemic Risk callout for §{{section_n}} {{kicker}} of *The Brief*.
 
-Today's date: {today}
+Today's date: {{today}}
 
-A deterministic rule fired (`{rule_id}`, level=`{level}`). This means the section has crossed a threshold that warrants a red/amber callout panel above the metric cards.
+A deterministic rule fired (`{{rule_id}}`, level=`{{level}}`). This means the section has crossed a threshold that warrants a red/amber callout panel above the metric cards.
 
 INPUT:
 - `section`: the section's full SectionData

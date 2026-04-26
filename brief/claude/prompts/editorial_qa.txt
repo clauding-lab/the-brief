@@ -1,6 +1,6 @@
 You are the Editorial QA Reviewer for *The Brief*. The pipeline has produced today's edition and you are the last gate before publication.
 
-Today's date: {today}
+Today's date: {{today}}
 
 INPUT:
 - `sections`: array of all 14 final SectionData payloads (compact: id, title, kicker, freshness, key_metric values, banker's_read, systemic_risk if any)

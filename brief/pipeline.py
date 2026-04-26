@@ -737,7 +737,7 @@ def run_v5_editorial(
         "sections": summaries,
         "previous_front_of_book_id": (previous_edition or {}).get("front_of_book_id"),
     }
-    prompt = _load_prompt("top_picks.txt").format(today=today.isoformat())
+    prompt = _fill(_load_prompt("top_picks.txt"), {"today": today.isoformat()})
     body = prompt + "\n\nINPUT JSON:\n" + json.dumps(top_picks_input, indent=2)
     try:
         result = run_max(prompt=body, extended_thinking_budget=16000)
@@ -757,7 +757,7 @@ def run_v5_editorial(
         "headlines": headlines_curation_result,
         "previous_call": (previous_edition or {}).get("todays_call_text"),
     }
-    prompt = _load_prompt("todays_call.txt").format(today=today.isoformat())
+    prompt = _fill(_load_prompt("todays_call.txt"), {"today": today.isoformat()})
     body = prompt + "\n\nINPUT JSON:\n" + json.dumps(tc_input, indent=2)
     try:
         result = run_max(prompt=body, extended_thinking_budget=12000)
@@ -783,9 +783,11 @@ def run_v5_editorial(
         prompt_file = "bankerread_structured.txt" if is_full else "bankerread_stale_v5.txt"
         section_n = _section_n(section.id)
         try:
-            prompt = _load_prompt(prompt_file).format(
-                section_n=section_n, kicker=section.kicker, today=today.isoformat()
-            )
+            prompt = _fill(_load_prompt(prompt_file), {
+                "section_n": section_n,
+                "kicker": section.kicker or "",
+                "today": today.isoformat(),
+            })
             br_input = {
                 "section": section.model_dump(mode="json"),
                 "top_picks_placement": _placement_for(section.id, top_picks),
@@ -809,10 +811,13 @@ def run_v5_editorial(
         if risk_active and rule_id and level:
             triggering_metric = _triggering_metric_for(section, rule_id)
             try:
-                sr_prompt = _load_prompt("systemic_risk_callout.txt").format(
-                    section_n=section_n, kicker=section.kicker, today=today.isoformat(),
-                    rule_id=rule_id, level=level,
-                )
+                sr_prompt = _fill(_load_prompt("systemic_risk_callout.txt"), {
+                    "section_n": section_n,
+                    "kicker": section.kicker or "",
+                    "today": today.isoformat(),
+                    "rule_id": rule_id,
+                    "level": level,
+                })
                 sr_input = {"section": section.model_dump(mode="json"), "triggering_metric": triggering_metric}
                 sr_body = sr_prompt + "\n\nINPUT JSON:\n" + json.dumps(sr_input, indent=2)
                 sr_result = run_max(prompt=sr_body, extended_thinking_budget=8000)
@@ -856,7 +861,7 @@ def run_v5_qa_gate(
         "todays_call": todays_call.text,
         "rendered_html_excerpt": excerpt,
     }
-    prompt = _load_prompt("editorial_qa.txt").format(today=today.isoformat())
+    prompt = _fill(_load_prompt("editorial_qa.txt"), {"today": today.isoformat()})
     body = prompt + "\n\nINPUT JSON:\n" + json.dumps(qa_input, indent=2)
     try:
         result = run_max(prompt=body, extended_thinking_budget=16000)

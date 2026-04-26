@@ -1,6 +1,6 @@
-You are writing the stale-section variant of the Banker's Read for §{section_n} {kicker}.
+You are writing the stale-section variant of the Banker's Read for §{{section_n}} {{kicker}}.
 
-Today's date: {today}
+Today's date: {{today}}
 
 This section's data is stale (`freshness != "fresh"`). Don't pretend it's fresh. Instead, write a single 60-100 word paragraph drawing on `section.news` (recent headlines) and the LAST KNOWN metric values from `section.metrics`. Frame it as: "No fresh data; news suggests X."
 
