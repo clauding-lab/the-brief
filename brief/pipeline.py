@@ -607,6 +607,103 @@ def run(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Renderer dispatch — render_index_html
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _v4_render_section_stub(section: SectionData) -> str:
+    """V4 fallback for sections without V5 templates yet.
+
+    Returns a minimal V4-compatible section HTML stub.
+    The full V4 renderer is in brief/render/v4/; for the pilot we only need
+    a placeholder that doesn't break the page.
+    """
+    return (
+        f'<section id="section-{section.id}" class="section-v4-stub">'
+        f"<h2>{section.title}</h2>"
+        f"<p>(V4 fallback — pending V5 migration)</p>"
+        f"</section>"
+    )
+
+
+def render_index_html(
+    *,
+    sections: list[SectionData],
+    today: date,
+    today_label: str,
+    live: dict,
+    run_meta: dict,
+    headlines_curation_result: Any,
+    previous_edition: dict | None = None,
+) -> tuple[str, dict]:
+    """Render the full index.html.
+
+    Mode chosen by BRIEF_RENDERER env var (default: v4).
+    Returns (html_string, render_meta_dict).
+
+    V5 meta includes: renderer_mode, qa (EditorialQAResult serialised).
+    V4 meta includes: renderer_mode only.
+    """
+    mode = renderer_mode()
+
+    if mode == "v5":
+        from brief.render.v5.assemble import assemble_v5
+        from brief.render.v5.templates.section_bb import render_section_bb
+
+        # Run V5 editorial calls (Calls 1, 3, 4, 5)
+        top_picks, todays_call, bankerreads, systemic_risks = run_v5_editorial(
+            sections=sections,
+            today=today,
+            headlines_curation_result=headlines_curation_result,
+            previous_edition=previous_edition,
+        )
+        # Attach editorial outputs to sections
+        for s in sections:
+            s.bankerread = bankerreads.get(s.id)
+            s.systemic_risk = systemic_risks.get(s.id)
+
+        section_renderers: dict = {"bb": render_section_bb}
+
+        html = assemble_v5(
+            sections=sections,
+            section_renderers=section_renderers,
+            v4_renderer_fallback=_v4_render_section_stub,
+            top_picks=top_picks,
+            todays_call=todays_call,
+            live=live,
+            run_meta=run_meta,
+            today_label=today_label,
+        )
+
+        # Run Call 6 QA gate
+        qa_result = run_v5_qa_gate(
+            sections=sections,
+            todays_call=todays_call,
+            top_picks=top_picks,
+            rendered_html=html,
+            today=today,
+        )
+        return html, {"qa": qa_result.model_dump(mode="json"), "renderer_mode": "v5"}
+
+    # V4 path — unchanged
+    from brief.render.v4.assemble import assemble_brief as _assemble_v4
+
+    # Construct a minimal RunResult-like object for the V4 assembler
+    _rr = RunResult(
+        sections=sections,
+        html="",
+        claude_outputs={},
+        call_reports=[],
+        map_coords=[],
+        todays_call=None,
+        read_order=[],
+        email_text="",
+    )
+    html = _assemble_v4(_rr)
+    return html, {"renderer_mode": "v4"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # V5 Editorial Pipeline — Calls 1, 3, 4, 5, 6
 # ─────────────────────────────────────────────────────────────────────────────
 

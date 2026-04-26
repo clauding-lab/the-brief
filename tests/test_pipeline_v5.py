@@ -1,16 +1,27 @@
 """V5 pipeline integration tests with mocked run_max."""
 import os
 from datetime import date, datetime, timezone
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from brief.pipeline import (
     _placement_for,
     _section_n,
     _strip_css_and_script,
     _top_picks_fallback,
+    render_index_html,
     renderer_mode,
 )
-from brief.schema import GridEntry, MapPoint, Metric, SectionData, TopPicks
+from brief.schema import (
+    BankerReadInsight,
+    EditorialQAResult,
+    GridEntry,
+    MapPoint,
+    Metric,
+    QAIssue,
+    SectionData,
+    TodaysCall,
+    TopPicks,
+)
 
 
 def _section(id_: str, freshness: str = "fresh", with_metric: bool = True) -> SectionData:
@@ -70,3 +81,76 @@ def test_renderer_mode_v5_explicit():
 def test_renderer_mode_uppercase_normalized():
     with patch.dict(os.environ, {"BRIEF_RENDERER": "V5"}, clear=True):
         assert renderer_mode() == "v5"
+
+
+# ---------------------------------------------------------------------------
+# render_index_html dispatch tests
+# ---------------------------------------------------------------------------
+
+
+def _stub_section(id_: str) -> SectionData:
+    return SectionData(
+        id=id_, title=f"{id_} title", kicker=id_, tldr="",
+        metrics=[], news=[], freshness="warming_up",
+    )
+
+
+def _stub_top_picks() -> TopPicks:
+    plotted = [MapPoint(id=f"s{i}", x=1, y=1, r=10, kind="fresh") for i in range(7)]
+    grid = [GridEntry(id=f"g{i}", tldr=f"tldr {i}") for i in range(7)]
+    return TopPicks(plotted=plotted, grid=grid, front_of_book_id="s0")
+
+
+def test_render_index_html_v5_returns_meta_with_qa():
+    """V5 dispatch path: returns (html, meta) where meta has renderer_mode and qa."""
+    sections = [_stub_section(f"s{i}") for i in range(7)] + [_stub_section(f"g{i}") for i in range(7)]
+    fake_qa = EditorialQAResult(status="pass", issues=[], shippable=True)
+    fake_picks = _stub_top_picks()
+    fake_call = TodaysCall(text="word " * 80, generated_at=datetime.now(timezone.utc))
+
+    with patch.dict(os.environ, {"BRIEF_RENDERER": "v5"}, clear=False):
+        with patch("brief.pipeline.run_v5_editorial", return_value=(fake_picks, fake_call, {}, {})) as mock_v5:
+            with patch("brief.pipeline.run_v5_qa_gate", return_value=fake_qa):
+                html, meta = render_index_html(
+                    sections=sections,
+                    today=date(2026, 4, 21),
+                    today_label="Tue 21 Apr 2026",
+                    live={"usd_bdt": 122.7, "dsex": 5232, "brent_usd": 95.1, "reserves_bn_usd": 34.12,
+                          "generated_at": datetime.now(timezone.utc), "next_update_label": "18:00 CLOSE"},
+                    run_meta={"vol": "II", "issue": 412, "sources_used": ["BB"], "render_duration_s": 0, "total_cost_usd": 0.0},
+                    headlines_curation_result={"selected": [], "rationale_bullet": ""},
+                )
+
+    assert meta["renderer_mode"] == "v5"
+    assert meta["qa"]["shippable"] is True
+    assert "<!DOCTYPE html>" in html
+    mock_v5.assert_called_once()
+
+
+def test_render_index_html_v5_qa_block_returns_unshippable():
+    """V5 dispatch path: qa.shippable=False is reflected in meta; caller decides what to do."""
+    sections = [_stub_section(f"s{i}") for i in range(7)] + [_stub_section(f"g{i}") for i in range(7)]
+    fake_qa = EditorialQAResult(
+        status="block",
+        issues=[QAIssue(section_id="bb", severity="block", message="missing pull_quote")],
+        shippable=False,
+    )
+    fake_picks = _stub_top_picks()
+    fake_call = TodaysCall(text="word " * 80, generated_at=datetime.now(timezone.utc))
+
+    with patch.dict(os.environ, {"BRIEF_RENDERER": "v5"}, clear=False):
+        with patch("brief.pipeline.run_v5_editorial", return_value=(fake_picks, fake_call, {}, {})):
+            with patch("brief.pipeline.run_v5_qa_gate", return_value=fake_qa):
+                html, meta = render_index_html(
+                    sections=sections,
+                    today=date(2026, 4, 21),
+                    today_label="Tue 21 Apr 2026",
+                    live={"usd_bdt": 122.7, "dsex": 5232, "brent_usd": 95.1, "reserves_bn_usd": 34.12,
+                          "generated_at": datetime.now(timezone.utc), "next_update_label": "18:00 CLOSE"},
+                    run_meta={"vol": "II", "issue": 412, "sources_used": ["BB"], "render_duration_s": 0, "total_cost_usd": 0.0},
+                    headlines_curation_result={"selected": [], "rationale_bullet": ""},
+                )
+
+    assert meta["renderer_mode"] == "v5"
+    assert meta["qa"]["shippable"] is False
+    assert len(meta["qa"]["issues"]) == 1
