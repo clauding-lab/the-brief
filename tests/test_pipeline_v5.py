@@ -154,3 +154,54 @@ def test_render_index_html_v5_qa_block_returns_unshippable():
     assert meta["renderer_mode"] == "v5"
     assert meta["qa"]["shippable"] is False
     assert len(meta["qa"]["issues"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# pipeline.run() dispatches to V5 path when BRIEF_RENDERER=v5
+# ---------------------------------------------------------------------------
+
+
+def test_pipeline_run_dispatches_to_v5_when_env_set():
+    """When BRIEF_RENDERER=v5, pipeline.run() must invoke render_index_html (V5 path)
+    and return a RunResult with the V5 HTML, NOT call render_v4."""
+    from brief.pipeline import PipelineConfig, run
+
+    sections = [_stub_section(f"s{i}") for i in range(14)]
+
+    def fake_render_index_html(**kwargs):
+        return ("<!DOCTYPE html><html><body>V5 OUTPUT</body></html>",
+                {"renderer_mode": "v5", "qa": {"shippable": True, "status": "pass", "issues": []}})
+
+    with patch.dict(os.environ, {"BRIEF_RENDERER": "v5"}, clear=False):
+        with patch("brief.pipeline.gather", return_value=sections):
+            with patch("brief.pipeline._run_v5_headlines_curation",
+                       return_value=({"selected": [], "rationale_bullet": ""}, [])):
+                with patch("brief.pipeline.render_index_html",
+                           side_effect=fake_render_index_html) as mock_render:
+                    with patch("brief.pipeline.render_v4") as mock_v4:
+                        cfg = PipelineConfig(today=date(2026, 4, 26))
+                        rr = run(cfg)
+
+    assert "V5 OUTPUT" in rr.html
+    assert rr.sections == sections
+    mock_render.assert_called_once()
+    mock_v4.assert_not_called()
+
+
+def test_pipeline_run_default_v4_path_unchanged():
+    """When BRIEF_RENDERER is unset (default v4), pipeline.run() must NOT invoke
+    render_index_html. V4 path stays intact."""
+    from brief.pipeline import PipelineConfig, run
+
+    with patch.dict(os.environ, {}, clear=True):
+        with patch("brief.pipeline.render_index_html") as mock_render:
+            with patch("brief.pipeline.run_pipeline") as mock_pipeline:
+                # Stop run() early — we only need to verify v5 path NOT taken
+                mock_pipeline.side_effect = RuntimeError("v4 path was reached as expected")
+                cfg = PipelineConfig(today=date(2026, 4, 26))
+                try:
+                    run(cfg)
+                except RuntimeError as e:
+                    assert "v4 path was reached" in str(e)
+
+    mock_render.assert_not_called()

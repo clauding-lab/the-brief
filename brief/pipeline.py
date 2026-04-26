@@ -563,7 +563,11 @@ def run(
     shell_path: _Path | str | None = None,
     snapshot_override: EconDeltaSnapshot | None = None,
 ) -> RunResult:
-    """Run the full pipeline and render V4 HTML + email digest.
+    """Run the full pipeline and render HTML + email digest.
+
+    Dispatches on BRIEF_RENDERER env var: 'v5' takes the V5 magazine path
+    (render_index_html → assemble_v5 + V5 editorial calls + QA gate);
+    anything else (default 'v4') takes the legacy V4 path.
 
     Parameters
     ----------
@@ -576,6 +580,9 @@ def run(
     snapshot_override:
         Optional EconDeltaSnapshot to use instead of loading from disk.
     """
+    if renderer_mode() == "v5":
+        return _run_v5(cfg, snapshot_override=snapshot_override)
+
     pr = run_pipeline(cfg, snapshot_override=snapshot_override)
 
     risk_map_result = call_risk_map_layout(pr.sections, pr.claude_outputs, cfg.today.isoformat(),
@@ -977,3 +984,125 @@ def _strip_css_and_script(html: str) -> str:
     s = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL)
     s = re.sub(r"<script[^>]*>.*?</script>", "", s, flags=re.DOTALL)
     return s
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# V5 pipeline.run() entrypoint
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _run_v5_headlines_curation(
+    sections: list[SectionData],
+) -> tuple[dict | None, list[dict]]:
+    """Run V4 headlines_curation Call (still used by V5 to feed render_index_html).
+
+    Returns (curation_result_or_None, [call_report_entry]).
+    Never raises; on failure, returns (None, [error_report]).
+    """
+    import json as _json
+
+    by_id = {s.id: s for s in sections}
+    headlines_section = by_id.get("headlines")
+    raw_headlines = list(headlines_section.news) if headlines_section else []
+    allowed_urls = {h.url for h in raw_headlines}
+
+    try:
+        prompt = _fill(_load_prompt("headlines_curation.txt"), {
+            "HEADLINES_JSON": _json.dumps(
+                [{"title": h.title, "url": h.url, "source": h.source,
+                  "published": h.published.isoformat()} for h in raw_headlines]
+            ),
+        })
+        r = run_max(prompt=prompt, timeout_s=600)
+        v = validate_curation(r.parsed, allowed_urls=allowed_urls)
+        result = v.value if v.ok else None
+        report = {
+            "name": "headlines_curation",
+            "status": "ok" if v.ok else "invalid",
+            "reason": v.reason,
+            "cost_usd": float(r.total_cost_usd or 0.0),
+            "duration_s": float(r.duration_s),
+            "tokens": r.tokens,
+        }
+        return result, [report]
+    except MaxCallError as e:
+        return None, [{
+            "name": "headlines_curation",
+            "status": "error",
+            "reason": str(e),
+            "cost_usd": 0.0,
+            "duration_s": 0.0,
+            "tokens": {"input": 0, "output": 0},
+        }]
+
+
+def _v5_metric_value(section: SectionData | None, metric_id: str) -> Any:
+    if section is None:
+        return None
+    for m in section.metrics:
+        if m.id == metric_id:
+            return m.value
+    return None
+
+
+def _run_v5(
+    cfg: PipelineConfig,
+    *,
+    snapshot_override: EconDeltaSnapshot | None = None,
+) -> RunResult:
+    """V5 pipeline path — gather → headlines_curation → render_index_html.
+
+    Internally fires V5 Calls 1, 3, 4, 5, 6 via render_index_html() →
+    run_v5_editorial() + run_v5_qa_gate(). Returns a RunResult shaped for
+    the CLI/run_report consumers; email_text is empty (V5 has no email yet).
+    """
+    sections = gather(cfg, snapshot_override=snapshot_override)
+    by_id = {s.id: s for s in sections}
+
+    headlines_curation_result, call_reports = _run_v5_headlines_curation(sections)
+
+    live = {
+        "usd_bdt": _v5_metric_value(by_id.get("fx"), "fx_usd_bdt_mid"),
+        "dsex": _v5_metric_value(by_id.get("dse"), "dse_dsex_close"),
+        "brent_usd": _v5_metric_value(by_id.get("iranwar"), "iranwar_brent_spot"),
+        "reserves_bn_usd": _v5_metric_value(by_id.get("bb"), "bb_gross_reserves"),
+        "generated_at": now_bdt(),
+        "next_update_label": "18:00 BDT CLOSE",
+    }
+
+    today_label = cfg.today.strftime("%a %d %b %Y")
+    sources_used = sorted({m.source for s in sections for m in s.metrics if m.source})
+    issue_no = (cfg.today - date(2026, 1, 1)).days + 1
+
+    run_meta = {
+        "vol": "II",
+        "issue": issue_no,
+        "sources_used": sources_used,
+        "render_duration_s": 0,
+        "total_cost_usd": 0.0,
+    }
+
+    html, render_meta = render_index_html(
+        sections=sections,
+        today=cfg.today,
+        today_label=today_label,
+        live=live,
+        run_meta=run_meta,
+        headlines_curation_result=headlines_curation_result,
+        previous_edition=None,
+    )
+
+    claude_outputs: dict[str, Any] = {"v5_render_meta": render_meta}
+    if headlines_curation_result is not None:
+        claude_outputs["headlines_curation"] = headlines_curation_result
+
+    return RunResult(
+        sections=sections,
+        html=html,
+        claude_outputs=claude_outputs,
+        call_reports=call_reports,
+        map_coords=[],
+        todays_call=None,
+        read_order=[],
+        email_text="",
+    )
