@@ -208,6 +208,77 @@ def test_pipeline_run_default_v4_path_unchanged():
 
 
 # ---------------------------------------------------------------------------
+# Section adapter — fills kicker/tldr when V4 builders leave them empty
+# ---------------------------------------------------------------------------
+
+
+def test_v5_apply_section_adapter_fills_empty_kicker():
+    from brief.pipeline import _v5_apply_section_adapter
+
+    s = _section("bb")  # _section() helper sets kicker=id_, but synthesize check needs empty
+    s.kicker = ""  # simulate V4 builder default
+    _v5_apply_section_adapter([s])
+
+    assert s.kicker != ""
+    assert s.kicker.isupper()  # kickers render uppercase, store uppercase
+
+
+def test_v5_apply_section_adapter_preserves_existing_kicker():
+    from brief.pipeline import _v5_apply_section_adapter
+
+    s = _section("bb")
+    s.kicker = "CUSTOM KICKER"
+    _v5_apply_section_adapter([s])
+
+    assert s.kicker == "CUSTOM KICKER"
+
+
+def test_v5_apply_section_adapter_synthesises_tldr_from_primary_metric():
+    from brief.pipeline import _v5_apply_section_adapter
+    from brief.schema import Delta, Metric, SectionData
+
+    s = SectionData(
+        id="fx", title="FX & Reserves", kicker="FX", tldr="",
+        metrics=[Metric(
+            id="fx_usd_bdt", label="USD/BDT mid", value=122.7, unit="BDT",
+            as_of=date(2026, 4, 21), source="BB", cadence="daily",
+            delta=Delta(value=0.34, direction="up", window="dod"),
+        )],
+        news=[], freshness="fresh",
+    )
+    _v5_apply_section_adapter([s])
+
+    # Synthesized tldr should mention the primary metric label and value
+    assert "USD/BDT mid" in s.tldr
+    assert "122.7" in s.tldr
+
+
+def test_v5_apply_section_adapter_falls_back_when_no_metrics():
+    """Sections without metrics (e.g. headlines) get a non-empty fallback tldr."""
+    from brief.pipeline import _v5_apply_section_adapter
+    from brief.schema import SectionData
+
+    s = SectionData(
+        id="headlines", title="Headlines", kicker="", tldr="",
+        metrics=[], news=[], freshness="fresh",
+    )
+    _v5_apply_section_adapter([s])
+
+    assert s.tldr != ""
+    assert s.kicker != ""
+
+
+def test_v5_apply_section_adapter_preserves_existing_tldr():
+    from brief.pipeline import _v5_apply_section_adapter
+
+    s = _section("bb")
+    s.tldr = "Custom tldr"
+    _v5_apply_section_adapter([s])
+
+    assert s.tldr == "Custom tldr"
+
+
+# ---------------------------------------------------------------------------
 # call_reports observability — V5 calls must emit per-call cost/duration
 # ---------------------------------------------------------------------------
 

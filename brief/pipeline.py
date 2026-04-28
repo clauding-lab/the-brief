@@ -1020,6 +1020,53 @@ def _section_n(section_id: str) -> str:
     return mapping.get(section_id, "??")
 
 
+# Editorial kickers shown in V5 section headers, top-of-book pull-quotes,
+# risk-map labels, and grid cards. V4 builders predate the kicker field, so
+# the adapter below fills these in if the builder left kicker empty.
+_V5_KICKER_BY_ID: dict[str, str] = {
+    "headlines": "HEADLINES",
+    "bb":        "POLICY & RATES",
+    "macro":     "MACRO",
+    "fx":        "FX & RESERVES",
+    "remit":     "REMITTANCES",
+    "dse":       "EQUITIES",
+    "tbond":     "TREASURY",
+    "iranwar":   "GLOBAL OIL",
+    "banking":   "BANKING",
+    "comm":      "COMMODITIES",
+    "fiscal":    "FISCAL",
+    "nbr":       "TAX & CUSTOMS",
+    "dam":       "FOOD PRICES",
+    "exec":      "EXEC SIGNALS",
+}
+
+
+def _v5_synthesize_tldr(s: SectionData) -> str:
+    """Build a one-line tldr from the section's primary metric.
+    Falls back to a freshness-aware message when no metric is available."""
+    if s.metrics:
+        m = s.metrics[0]
+        delta = ""
+        if m.delta is not None:
+            sign = "+" if m.delta.value >= 0 else ""
+            delta = f" ({sign}{m.delta.value:.2f}%)"
+        unit = f" {m.unit}" if m.unit else ""
+        return f"{m.label}: {m.value}{unit}{delta}"
+    if s.freshness == "fresh":
+        return s.title
+    return f"{s.title} — awaiting fresh data"
+
+
+def _v5_apply_section_adapter(sections: list[SectionData]) -> None:
+    """Fill in V5 section header fields (kicker, tldr) where V4 builders
+    leave them empty. Mutates sections in place. No-op for fields already set."""
+    for s in sections:
+        if not s.kicker:
+            s.kicker = _V5_KICKER_BY_ID.get(s.id, s.title.upper())
+        if not s.tldr:
+            s.tldr = _v5_synthesize_tldr(s)
+
+
 def _placement_for(section_id: str, picks: TopPicks) -> dict:
     plotted = any(p.id == section_id for p in picks.plotted)
     grid = any(g.id == section_id for g in picks.grid)
@@ -1142,6 +1189,7 @@ def _run_v5(
     the CLI/run_report consumers; email_text is empty (V5 has no email yet).
     """
     sections = gather(cfg, snapshot_override=snapshot_override)
+    _v5_apply_section_adapter(sections)
     by_id = {s.id: s for s in sections}
 
     call_reports: list[dict] = []
