@@ -642,6 +642,7 @@ def render_index_html(
     run_meta: dict,
     headlines_curation_result: Any,
     previous_edition: dict | None = None,
+    call_reports: list[dict] | None = None,
 ) -> tuple[str, dict]:
     """Render the full index.html.
 
@@ -650,6 +651,8 @@ def render_index_html(
 
     V5 meta includes: renderer_mode, qa (EditorialQAResult serialised).
     V4 meta includes: renderer_mode only.
+    When call_reports is provided in V5 mode, per-call observability entries
+    are appended for run_v5_editorial and run_v5_qa_gate.
     """
     mode = renderer_mode()
 
@@ -663,6 +666,7 @@ def render_index_html(
             today=today,
             headlines_curation_result=headlines_curation_result,
             previous_edition=previous_edition,
+            call_reports=call_reports,
         )
         # Attach editorial outputs to sections
         for s in sections:
@@ -689,6 +693,7 @@ def render_index_html(
             top_picks=top_picks,
             rendered_html=html,
             today=today,
+            call_reports=call_reports,
         )
         return html, {"qa": qa_result.model_dump(mode="json"), "renderer_mode": "v5"}
 
@@ -715,17 +720,58 @@ def render_index_html(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _record_v5_call_ok(
+    call_reports: list[dict] | None,
+    name: str,
+    *,
+    result: MaxCallResult,
+    status: str,
+    reason: str | None = None,
+) -> None:
+    """Append a V5 Claude-call entry to call_reports (no-op if None)."""
+    if call_reports is None:
+        return
+    call_reports.append({
+        "name": name,
+        "status": status,
+        "reason": reason,
+        "cost_usd": float(result.total_cost_usd or 0.0),
+        "duration_s": float(result.duration_s),
+        "tokens": result.tokens,
+    })
+
+
+def _record_v5_call_error(
+    call_reports: list[dict] | None,
+    name: str,
+    reason: str,
+) -> None:
+    """Append a V5 Claude-call error entry to call_reports (no-op if None)."""
+    if call_reports is None:
+        return
+    call_reports.append({
+        "name": name,
+        "status": "error",
+        "reason": reason,
+        "cost_usd": 0.0,
+        "duration_s": 0.0,
+        "tokens": {"input": 0, "output": 0},
+    })
+
+
 def run_v5_editorial(
     *,
     sections: list[SectionData],
     today: date,
     headlines_curation_result,  # output of existing V4 Call 2
     previous_edition: dict | None = None,
+    call_reports: list[dict] | None = None,
 ) -> tuple[TopPicks, TodaysCall, dict[str, BankerReadInsight | None], dict[str, SystemicRisk | None]]:
     """Run Calls 1, 3, 4, 5 against all 14 sections.
 
     Returns: (top_picks, todays_call, bankerreads_by_id, systemic_risks_by_id).
     Per-section failures fall back to previous edition where available; never raise.
+    When call_reports is provided, each Claude call appends an observability entry.
     """
     section_by_id = {s.id: s for s in sections}
     allowed_ids = set(section_by_id.keys())
@@ -744,10 +790,16 @@ def run_v5_editorial(
         if result.parsed is not None:
             v = validate_top_picks(result.parsed, allowed_ids=allowed_ids)
             top_picks = v.value if v.ok else _top_picks_fallback(sections)
+            _record_v5_call_ok(call_reports, "top_picks", result=result,
+                               status="ok" if v.ok else "invalid",
+                               reason=None if v.ok else v.reason)
         else:
             top_picks = _top_picks_fallback(sections)
-    except Exception:
+            _record_v5_call_ok(call_reports, "top_picks", result=result,
+                               status="invalid", reason="result.parsed is None")
+    except Exception as e:
         top_picks = _top_picks_fallback(sections)
+        _record_v5_call_error(call_reports, "top_picks", str(e))
 
     # ---- Call 3: todays_call ----
     plotted_sections = [section_by_id[p.id] for p in top_picks.plotted if p.id in section_by_id]
@@ -764,10 +816,16 @@ def run_v5_editorial(
         if result.parsed is not None:
             v = validate_todays_call(result.parsed)
             todays_call = v.value if v.ok else _todays_call_fallback(previous_edition)
+            _record_v5_call_ok(call_reports, "todays_call", result=result,
+                               status="ok" if v.ok else "invalid",
+                               reason=None if v.ok else v.reason)
         else:
             todays_call = _todays_call_fallback(previous_edition)
-    except Exception:
+            _record_v5_call_ok(call_reports, "todays_call", result=result,
+                               status="invalid", reason="result.parsed is None")
+    except Exception as e:
         todays_call = _todays_call_fallback(previous_edition)
+        _record_v5_call_error(call_reports, "todays_call", str(e))
 
     # ---- Call 4 (×14) + Call 5 (conditional, ×N) ----
     bankerreads: dict[str, BankerReadInsight | None] = {}
@@ -800,8 +858,15 @@ def run_v5_editorial(
                 v = validate_bankerread_structured(result.parsed)
                 if v.ok:
                     br = v.value
-        except Exception:
+                _record_v5_call_ok(call_reports, f"bankerread:{section.id}", result=result,
+                                   status="ok" if v.ok else "invalid",
+                                   reason=None if v.ok else v.reason)
+            else:
+                _record_v5_call_ok(call_reports, f"bankerread:{section.id}", result=result,
+                                   status="invalid", reason="result.parsed is None")
+        except Exception as e:
             br = None
+            _record_v5_call_error(call_reports, f"bankerread:{section.id}", str(e))
 
         if br is None:
             br = (previous_edition or {}).get("bankerreads", {}).get(section.id)  # carry-over
@@ -825,8 +890,15 @@ def run_v5_editorial(
                     v = validate_systemic_risk_callout(sr_result.parsed, expected_level=level, rule_id=rule_id)
                     if v.ok:
                         sr = v.value
-            except Exception:
+                    _record_v5_call_ok(call_reports, f"systemic_risk:{section.id}", result=sr_result,
+                                       status="ok" if v.ok else "invalid",
+                                       reason=None if v.ok else v.reason)
+                else:
+                    _record_v5_call_ok(call_reports, f"systemic_risk:{section.id}", result=sr_result,
+                                       status="invalid", reason="result.parsed is None")
+            except Exception as e:
                 sr = None
+                _record_v5_call_error(call_reports, f"systemic_risk:{section.id}", str(e))
 
         return (section.id, br, sr)
 
@@ -850,8 +922,10 @@ def run_v5_qa_gate(
     top_picks: TopPicks,
     rendered_html: str,
     today: date,
+    call_reports: list[dict] | None = None,
 ) -> EditorialQAResult:
-    """Call 6 — pre-flight QA. Returns a result that may block the ship."""
+    """Call 6 — pre-flight QA. Returns a result that may block the ship.
+    When call_reports is provided, the editorial_qa entry is appended."""
     # Strip CSS/script from rendered HTML to fit token budget
     excerpt = _strip_css_and_script(rendered_html)[:24000]  # rough char cap
     qa_input = {
@@ -865,7 +939,8 @@ def run_v5_qa_gate(
     body = prompt + "\n\nINPUT JSON:\n" + json.dumps(qa_input, indent=2)
     try:
         result = run_max(prompt=body)
-    except Exception:
+    except Exception as e:
+        _record_v5_call_error(call_reports, "editorial_qa", str(e))
         # Never block on QA infrastructure failure
         return EditorialQAResult(
             status="pass",
@@ -873,12 +948,17 @@ def run_v5_qa_gate(
             shippable=True,
         )
     if result.parsed is None:
+        _record_v5_call_ok(call_reports, "editorial_qa", result=result,
+                           status="invalid", reason="result.parsed is None")
         return EditorialQAResult(
             status="pass",
             issues=[QAIssue(section_id=None, severity="warn", message="QA call returned no parsed output; defaulted to ship")],
             shippable=True,
         )
     v = validate_editorial_qa(result.parsed)
+    _record_v5_call_ok(call_reports, "editorial_qa", result=result,
+                       status="ok" if v.ok else "invalid",
+                       reason=None if v.ok else v.reason)
     if not v.ok:
         return EditorialQAResult(
             status="pass",
@@ -1064,7 +1144,9 @@ def _run_v5(
     sections = gather(cfg, snapshot_override=snapshot_override)
     by_id = {s.id: s for s in sections}
 
-    headlines_curation_result, call_reports = _run_v5_headlines_curation(sections)
+    call_reports: list[dict] = []
+    headlines_curation_result, headline_reports = _run_v5_headlines_curation(sections)
+    call_reports.extend(headline_reports)
 
     live = {
         "usd_bdt": _v5_metric_value(by_id.get("fx"), "fx_usd_bdt_mid"),
@@ -1095,6 +1177,7 @@ def _run_v5(
         run_meta=run_meta,
         headlines_curation_result=headlines_curation_result,
         previous_edition=None,
+        call_reports=call_reports,
     )
 
     claude_outputs: dict[str, Any] = {"v5_render_meta": render_meta}

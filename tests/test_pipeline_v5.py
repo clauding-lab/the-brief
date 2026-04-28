@@ -205,3 +205,138 @@ def test_pipeline_run_default_v4_path_unchanged():
                     assert "v4 path was reached" in str(e)
 
     mock_render.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# call_reports observability — V5 calls must emit per-call cost/duration
+# ---------------------------------------------------------------------------
+
+
+def _fake_max_result(parsed=None, cost=0.05, duration=1.5, tokens=None):
+    """Build a MaxCallResult-shaped object for mocking run_max returns."""
+    from brief.claude.max_client import MaxCallResult
+    return MaxCallResult(
+        raw_text="{}",
+        parsed=parsed,
+        usage={"input_tokens": 100, "output_tokens": 50},
+        total_cost_usd=cost,
+        duration_s=duration,
+        tokens=tokens or {"input": 100, "output": 50},
+    )
+
+
+def test_run_v5_editorial_records_call_report_per_run_max():
+    """Each Claude call in run_v5_editorial appends an entry to call_reports.
+    With 2 sections and parsed=None on every call, expected entries:
+      - top_picks (1)
+      - todays_call (1)
+      - bankerread:<id> per section (2)
+    No systemic_risk entries (test sections don't trigger risk rules).
+    """
+    from brief.pipeline import run_v5_editorial
+
+    sections = [_section("s0"), _section("s1")]
+    call_reports: list[dict] = []
+
+    with patch("brief.pipeline.run_max", return_value=_fake_max_result(parsed=None)):
+        run_v5_editorial(
+            sections=sections,
+            today=date(2026, 4, 21),
+            headlines_curation_result={"selected": [], "rationale_bullet": ""},
+            call_reports=call_reports,
+        )
+
+    names = [r["name"] for r in call_reports]
+    assert "top_picks" in names
+    assert "todays_call" in names
+    assert "bankerread:s0" in names
+    assert "bankerread:s1" in names
+    assert len(call_reports) == 4
+
+    # Each entry has the V4-compatible shape
+    for r in call_reports:
+        assert set(r.keys()) >= {"name", "status", "reason", "cost_usd", "duration_s", "tokens"}
+        assert r["cost_usd"] == 0.05
+        assert r["duration_s"] == 1.5
+
+
+def test_run_v5_editorial_records_error_when_run_max_raises():
+    from brief.pipeline import run_v5_editorial
+    from brief.claude.max_client import MaxCallError
+
+    sections = [_section("s0")]
+    call_reports: list[dict] = []
+
+    with patch("brief.pipeline.run_max", side_effect=MaxCallError("boom")):
+        run_v5_editorial(
+            sections=sections,
+            today=date(2026, 4, 21),
+            headlines_curation_result={"selected": [], "rationale_bullet": ""},
+            call_reports=call_reports,
+        )
+
+    error_reports = [r for r in call_reports if r["status"] == "error"]
+    assert len(error_reports) >= 3  # top_picks + todays_call + bankerread:s0
+    assert all("boom" in (r["reason"] or "") for r in error_reports)
+
+
+def test_run_v5_editorial_call_reports_optional():
+    """Omitting call_reports (None) must not raise — back-compat for any caller
+    that doesn't care about observability."""
+    from brief.pipeline import run_v5_editorial
+
+    with patch("brief.pipeline.run_max", return_value=_fake_max_result(parsed=None)):
+        run_v5_editorial(
+            sections=[_section("s0")],
+            today=date(2026, 4, 21),
+            headlines_curation_result={"selected": [], "rationale_bullet": ""},
+        )  # no call_reports kwarg — must not raise
+
+
+def test_run_v5_qa_gate_records_call_report():
+    from brief.pipeline import run_v5_qa_gate
+
+    sections = [_section("s0")]
+    call_reports: list[dict] = []
+
+    with patch("brief.pipeline.run_max", return_value=_fake_max_result(parsed=None)):
+        run_v5_qa_gate(
+            sections=sections,
+            today=date(2026, 4, 21),
+            todays_call=TodaysCall(text="word " * 80, generated_at=datetime.now(timezone.utc)),
+            top_picks=_stub_top_picks(),
+            rendered_html="<html></html>",
+            call_reports=call_reports,
+        )
+
+    qa_reports = [r for r in call_reports if r["name"] == "editorial_qa"]
+    assert len(qa_reports) == 1
+    assert qa_reports[0]["cost_usd"] == 0.05
+
+
+def test_render_index_html_v5_threads_call_reports_to_helpers():
+    """render_index_html (V5 path) must forward call_reports to both
+    run_v5_editorial and run_v5_qa_gate so per-call entries surface."""
+    sections = [_stub_section(f"s{i}") for i in range(7)] + [_stub_section(f"g{i}") for i in range(7)]
+    fake_qa = EditorialQAResult(status="pass", issues=[], shippable=True)
+    fake_picks = _stub_top_picks()
+    fake_call = TodaysCall(text="word " * 80, generated_at=datetime.now(timezone.utc))
+    call_reports: list[dict] = []
+
+    with patch.dict(os.environ, {"BRIEF_RENDERER": "v5"}, clear=False):
+        with patch("brief.pipeline.run_v5_editorial",
+                   return_value=(fake_picks, fake_call, {}, {})) as mock_editorial:
+            with patch("brief.pipeline.run_v5_qa_gate", return_value=fake_qa) as mock_qa:
+                render_index_html(
+                    sections=sections,
+                    today=date(2026, 4, 21),
+                    today_label="Tue 21 Apr 2026",
+                    live={"usd_bdt": 122.7, "dsex": 5232, "brent_usd": 95.1, "reserves_bn_usd": 34.12,
+                          "generated_at": datetime.now(timezone.utc), "next_update_label": "18:00 CLOSE"},
+                    run_meta={"vol": "II", "issue": 412, "sources_used": ["BB"], "render_duration_s": 0, "total_cost_usd": 0.0},
+                    headlines_curation_result={"selected": [], "rationale_bullet": ""},
+                    call_reports=call_reports,
+                )
+
+    assert mock_editorial.call_args.kwargs["call_reports"] is call_reports
+    assert mock_qa.call_args.kwargs["call_reports"] is call_reports
