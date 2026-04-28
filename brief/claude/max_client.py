@@ -62,7 +62,7 @@ def run_max(
     model: str = "claude-opus-4-7",
     timeout_s: int = 1800,
     claude_binary: str | None = None,
-    extended_thinking_budget: int | None = None,
+    effort: str = "xhigh",
 ) -> MaxCallResult:
     """Invoke the Claude Max CLI, return parsed result.
 
@@ -82,21 +82,8 @@ def run_max(
         "--no-session-persistence",
         "--tools", "",
         "--permission-mode", "bypassPermissions",
+        "--effort", effort,
     ]
-    # Map token-budget intent to claude CLI's --effort levels.
-    # The CLI doesn't accept a raw token budget; effort buckets thinking depth.
-    if extended_thinking_budget is not None:
-        if extended_thinking_budget >= 16000:
-            effort = "max"
-        elif extended_thinking_budget >= 10000:
-            effort = "xhigh"
-        elif extended_thinking_budget >= 5000:
-            effort = "high"
-        elif extended_thinking_budget >= 2000:
-            effort = "medium"
-        else:
-            effort = "low"
-        argv += ["--effort", effort]
     _t0 = time.monotonic()
     try:
         cp = subprocess.run(

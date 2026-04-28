@@ -280,54 +280,44 @@ class TestRunMaxFenceStripping:
 
 
 # ---------------------------------------------------------------------------
-# extended_thinking_budget kwarg tests
+# Model + effort defaults
 # ---------------------------------------------------------------------------
 
-def test_extended_thinking_budget_maps_to_effort_flag():
-    """The Claude CLI uses --effort (low/medium/high/xhigh/max), not raw token
-    budgets. run_max() maps token thresholds to effort buckets."""
+def test_run_max_defaults_to_opus_4_7():
     fake_completed = _fake_completed(json.dumps({
-        "result": '{"ok": true}',
-        "total_cost_usd": 0.01,
-        "usage": {"input_tokens": 1, "output_tokens": 1},
-    }))
-    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
-        run_max(prompt="hi", extended_thinking_budget=12000)
-    args = mock_run.call_args.args[0]
-    assert "--effort" in args
-    idx = args.index("--effort")
-    assert args[idx + 1] == "xhigh"  # 12000 → xhigh bucket
-
-
-def test_extended_thinking_budget_default_omits_flag():
-    fake_completed = _fake_completed(json.dumps({
-        "result": "{}",
-        "total_cost_usd": 0.0,
+        "result": "{}", "total_cost_usd": 0.0,
         "usage": {"input_tokens": 1, "output_tokens": 1},
     }))
     with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
         run_max(prompt="hi")
     args = mock_run.call_args.args[0]
-    assert "--effort" not in args
+    assert "--model" in args
+    idx = args.index("--model")
+    assert args[idx + 1] == "claude-opus-4-7"
+
+
+def test_run_max_defaults_to_xhigh_effort():
+    fake_completed = _fake_completed(json.dumps({
+        "result": "{}", "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
+        run_max(prompt="hi")
+    args = mock_run.call_args.args[0]
+    assert "--effort" in args
+    idx = args.index("--effort")
+    assert args[idx + 1] == "xhigh"
+    # Legacy --thinking-budget flag must never appear (CLI v2.1.119 rejects it).
     assert "--thinking-budget" not in args
 
 
-def test_extended_thinking_budget_buckets():
-    """Spot-check the four breakpoints between effort levels."""
-    cases = [
-        (16000, "max"),
-        (10000, "xhigh"),
-        (5000, "high"),
-        (2000, "medium"),
-        (500, "low"),
-    ]
-    for budget, expected_effort in cases:
-        fake_completed = _fake_completed(json.dumps({
-            "result": "{}", "total_cost_usd": 0.0,
-            "usage": {"input_tokens": 1, "output_tokens": 1},
-        }))
-        with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
-            run_max(prompt="hi", extended_thinking_budget=budget)
-        args = mock_run.call_args.args[0]
-        idx = args.index("--effort")
-        assert args[idx + 1] == expected_effort, f"budget={budget} → expected {expected_effort}, got {args[idx + 1]}"
+def test_run_max_effort_kwarg_overrides_default():
+    fake_completed = _fake_completed(json.dumps({
+        "result": "{}", "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
+        run_max(prompt="hi", effort="medium")
+    args = mock_run.call_args.args[0]
+    idx = args.index("--effort")
+    assert args[idx + 1] == "medium"

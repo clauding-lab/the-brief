@@ -740,7 +740,7 @@ def run_v5_editorial(
     prompt = _fill(_load_prompt("top_picks.txt"), {"today": today.isoformat()})
     body = prompt + "\n\nINPUT JSON:\n" + json.dumps(top_picks_input, indent=2)
     try:
-        result = run_max(prompt=body, extended_thinking_budget=16000)
+        result = run_max(prompt=body)
         if result.parsed is not None:
             v = validate_top_picks(result.parsed, allowed_ids=allowed_ids)
             top_picks = v.value if v.ok else _top_picks_fallback(sections)
@@ -760,7 +760,7 @@ def run_v5_editorial(
     prompt = _fill(_load_prompt("todays_call.txt"), {"today": today.isoformat()})
     body = prompt + "\n\nINPUT JSON:\n" + json.dumps(tc_input, indent=2)
     try:
-        result = run_max(prompt=body, extended_thinking_budget=12000)
+        result = run_max(prompt=body)
         if result.parsed is not None:
             v = validate_todays_call(result.parsed)
             todays_call = v.value if v.ok else _todays_call_fallback(previous_edition)
@@ -794,7 +794,7 @@ def run_v5_editorial(
                 "previous_bankerread": (previous_edition or {}).get("bankerreads", {}).get(section.id),
             }
             body = prompt + "\n\nINPUT JSON:\n" + json.dumps(br_input, indent=2)
-            result = run_max(prompt=body, extended_thinking_budget=12000)
+            result = run_max(prompt=body)
             br: BankerReadInsight | None = None
             if result.parsed is not None:
                 v = validate_bankerread_structured(result.parsed)
@@ -820,7 +820,7 @@ def run_v5_editorial(
                 })
                 sr_input = {"section": section.model_dump(mode="json"), "triggering_metric": triggering_metric}
                 sr_body = sr_prompt + "\n\nINPUT JSON:\n" + json.dumps(sr_input, indent=2)
-                sr_result = run_max(prompt=sr_body, extended_thinking_budget=8000)
+                sr_result = run_max(prompt=sr_body)
                 if sr_result.parsed is not None:
                     v = validate_systemic_risk_callout(sr_result.parsed, expected_level=level, rule_id=rule_id)
                     if v.ok:
@@ -864,7 +864,7 @@ def run_v5_qa_gate(
     prompt = _fill(_load_prompt("editorial_qa.txt"), {"today": today.isoformat()})
     body = prompt + "\n\nINPUT JSON:\n" + json.dumps(qa_input, indent=2)
     try:
-        result = run_max(prompt=body, extended_thinking_budget=16000)
+        result = run_max(prompt=body)
     except Exception:
         # Never block on QA infrastructure failure
         return EditorialQAResult(
