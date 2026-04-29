@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -25,7 +25,7 @@ def _fx_section(*, with_metrics: bool = True, with_news: bool = True, hero_value
     if with_news:
         news = [
             NewsItem(title="Taka steady against dollar mid-week", url="https://example.com/fx1",
-                     source="Daily Star", published=date(2026, 4, 28)),
+                     source="Daily Star", published=datetime(2026, 4, 28, tzinfo=timezone.utc)),
         ]
     return SectionData(
         id="fx", title="Foreign Exchange",
@@ -44,6 +44,7 @@ def test_section_fx_renders_with_full_metrics():
     assert "122.50" in html  # hero value
     assert "USD/BDT" in html
     assert "EUR/BDT" in html
+    assert "GBP/BDT" in html
 
 
 def test_section_fx_renders_with_no_metrics():
