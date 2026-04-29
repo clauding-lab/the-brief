@@ -645,6 +645,10 @@ def render_index_html(
     if mode == "v5":
         from brief.render.v5.assemble import assemble_v5
         from brief.render.v5.templates.section_bb import render_section_bb
+        from brief.render.v5.templates.section_fx import render_section_fx
+        from brief.render.v5.templates.section_macro import render_section_macro
+        from brief.render.v5.templates.section_nbr import render_section_nbr
+        from brief.render.v5.templates.section_remit import render_section_remit
 
         # Run V5 editorial calls (Calls 1, 3, 4, 5)
         top_picks, todays_call, bankerreads, systemic_risks = run_v5_editorial(
@@ -659,7 +663,13 @@ def render_index_html(
             s.bankerread = bankerreads.get(s.id)
             s.systemic_risk = systemic_risks.get(s.id)
 
-        section_renderers: dict = {"bb": render_section_bb}
+        section_renderers: dict = {
+            "bb": render_section_bb,
+            "fx": render_section_fx,
+            "macro": render_section_macro,
+            "remit": render_section_remit,
+            "nbr": render_section_nbr,
+        }
 
         html = assemble_v5(
             sections=sections,
