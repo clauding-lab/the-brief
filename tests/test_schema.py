@@ -57,6 +57,7 @@ from brief.schema import (
     BankerReadFreeform,
     BankerReadInsight,
     BankerReadStructured,
+    BankerReadUnion,
     ExecSignal,
     MapCoord,
     NewsItem,
@@ -98,7 +99,7 @@ def test_bankerread_freeform_validates_with_only_text():
 
 def test_discriminator_routes_correctly_on_kind_field():
     from pydantic import TypeAdapter
-    ta = TypeAdapter(BankerReadInsight)
+    ta = TypeAdapter(BankerReadUnion)
     structured = ta.validate_python({"kind": "structured", "meaning": "a", "action": "b",
                                      "trigger": "c", "focus": "d", "pull": "a"})
     assert isinstance(structured, BankerReadStructured)
@@ -121,14 +122,16 @@ def test_mapcoord_rejects_invalid_type():
         MapCoord(section_id="bb", x=5, y=5, r=30, type="invalid")
 
 
-def test_todays_call_rejects_text_over_400_chars():
+def test_todays_call_accepts_long_text():
+    # No length cap — spec allows 60-100 words (~700 chars at max)
+    from datetime import datetime, timezone
+    tc = TodaysCall(text="x" * 700, generated_at=datetime(2025, 1, 1, tzinfo=timezone.utc))
+    assert len(tc.text) == 700
+
+
+def test_todays_call_requires_generated_at():
     with pytest.raises(ValidationError):
-        TodaysCall(text="x" * 401)
-
-
-def test_todays_call_accepts_text_at_400_chars():
-    tc = TodaysCall(text="x" * 400)
-    assert tc.byline == "Desk Editor · The Brief"
+        TodaysCall(text="some text")
 
 
 def test_mapcoord_valid_with_hero_metric_id():
@@ -151,3 +154,110 @@ def test_news_item_parses_isoformat():
         published=datetime(2026, 4, 21, 6, 0, tzinfo=timezone.utc),
     )
     assert n.source == "DS"
+
+
+# ---------------------------------------------------------------------------
+# V5 schema additions
+# ---------------------------------------------------------------------------
+
+from brief.schema import (
+    GridEntry,
+    MapPoint,
+    QAIssue,
+    EditorialQAResult,
+    SystemicRisk,
+    TopPicks,
+)
+
+
+def test_systemic_risk_validates():
+    risk = SystemicRisk(
+        headline="NPL ratio at world high",
+        body="x" * 80,
+        level="critical",
+        rule_id="banking_npl_above_30",
+    )
+    assert risk.level == "critical"
+
+
+def test_systemic_risk_rejects_bad_level():
+    with pytest.raises(ValidationError):
+        SystemicRisk(headline="x", body="y", level="catastrophic", rule_id="r")
+
+
+def test_map_point_validates():
+    point = MapPoint(id="bb", x=1.2, y=6.0, r=24, kind="anchor")
+    assert point.kind == "anchor"
+
+
+def test_top_picks_holds_seven_each():
+    plotted = [MapPoint(id=f"s{i}", x=1.0, y=1.0, r=10, kind="fresh") for i in range(7)]
+    grid = [GridEntry(id=f"g{i}", tldr="placeholder") for i in range(7)]
+    picks = TopPicks(plotted=plotted, grid=grid, front_of_book_id="s0")
+    assert len(picks.plotted) == 7
+    assert len(picks.grid) == 7
+
+
+def test_todays_call_default_byline():
+    call = TodaysCall(text="x" * 60, generated_at=datetime.now(timezone.utc))
+    assert call.byline == "Desk Editor · The Brief"
+
+
+def test_editorial_qa_result_shippable_flag():
+    result = EditorialQAResult(
+        status="block",
+        issues=[QAIssue(section_id="bb", severity="block", message="empty banker read")],
+        shippable=False,
+    )
+    assert result.shippable is False
+
+
+def test_bankerread_v5_full_variant():
+    br = BankerReadInsight(
+        variant="full",
+        meaning="m" * 80,
+        action="a" * 80,
+        trigger="t" * 80,
+        focus="f" * 80,
+        pull_quote="quotable line",
+        generated_at=datetime.now(timezone.utc),
+    )
+    assert br.sentences is None
+    assert br.variant == "full"
+
+
+def test_bankerread_v4_legacy_variant_still_works():
+    br = BankerReadInsight(
+        variant="v4_legacy",
+        sentences=["s1", "s2", "s3", "s4"],
+        generated_at=datetime.now(timezone.utc),
+    )
+    assert br.sentences == ["s1", "s2", "s3", "s4"]
+    assert br.meaning is None
+
+
+def test_bankerread_stale_micro_variant():
+    br = BankerReadInsight(
+        variant="stale_micro",
+        meaning="single paragraph " * 8,
+        pull_quote="stale-day quotable",
+        generated_at=datetime.now(timezone.utc),
+    )
+    assert br.action is None
+    assert br.trigger is None
+    assert br.focus is None
+
+
+def test_section_data_v5_optional_fields_default_safe():
+    section = SectionData(
+        id="bb",
+        title="Bangladesh Bank",
+        kicker="Policy & rates",
+        tldr="Held again.",
+        metrics=[],
+        news=[],
+        freshness="fresh",
+    )
+    assert section.systemic_risk is None
+    assert section.risk_active is False
+    assert section.history_values is None

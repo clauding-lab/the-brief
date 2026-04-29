@@ -8,11 +8,12 @@ per section.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from pydantic import ValidationError as _PydValidationError
 
-from brief.schema import MapCoord, TodaysCall
+from brief.schema import GridEntry, MapCoord, MapPoint, TodaysCall, TopPicks
 
 _VALID_WEIGHTS = {"high", "med", "low"}
 _VALID_DIRECTIONS = {"bull", "bear", "warn", "watch"}
@@ -216,24 +217,204 @@ def validate_risk_map_layout(
 
 
 def validate_todays_call(payload: Any) -> ValidationResult:
-    """Validate Claude's todays_call response.
+    """Validate Claude's todays_call response (V5 contract).
 
-    On success: ValidationResult.value = TodaysCall(text=..., byline="Desk Editor · The Brief").
+    On success: ValidationResult.value = TodaysCall(text=..., byline=...).
+    V5: enforces 60-100 word count; rejects double quotes; accepts byline in payload.
+    """
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+    text = payload.get("text")
+    byline = payload.get("byline", "Desk Editor · The Brief")
+    if not isinstance(text, str):
+        return ValidationResult(False, reason="text missing or not a string")
+    word_count = len(text.split())
+    if word_count < 60 or word_count > 100:
+        return ValidationResult(False, reason=f"text must be 60-100 words; got {word_count}")
+    if '"' in text:
+        return ValidationResult(False, reason="text contains double quote (template-breaking)")
+    return ValidationResult(True, value=TodaysCall(text=text, byline=byline, generated_at=datetime.now(timezone.utc)))
+
+
+def validate_top_picks(payload: Any, *, allowed_ids: set[str]) -> ValidationResult:
+    """Validate Claude's top_picks response (Call 1).
+
+    On success: ValidationResult.value = TopPicks(plotted=..., grid=..., front_of_book_id=...).
     """
     if not _is_dict(payload):
         return ValidationResult(False, reason="payload not a dict")
 
-    text = payload.get("text")
-    if not isinstance(text, str) or not text:
-        return ValidationResult(False, reason="text missing or empty")
+    plotted = payload.get("plotted")
+    grid = payload.get("grid")
+    fob = payload.get("front_of_book_id")
 
-    if len(text) > 400:
-        return ValidationResult(False, reason=f"text too long: {len(text)} chars")
+    if not isinstance(plotted, list) or len(plotted) != 7:
+        return ValidationResult(False, reason="plotted must contain exactly 7 sections")
+    if not isinstance(grid, list) or len(grid) != 7:
+        return ValidationResult(False, reason="grid must contain exactly 7 sections")
+    if not isinstance(fob, str):
+        return ValidationResult(False, reason="front_of_book_id missing or not a string")
 
+    plotted_models: list[MapPoint] = []
+    for item in plotted:
+        if not _is_dict(item):
+            return ValidationResult(False, reason="plotted item not a dict")
+        for k in ("id", "x", "y", "r", "kind"):
+            if k not in item:
+                return ValidationResult(False, reason=f"plotted item missing {k}")
+        if item["id"] not in allowed_ids:
+            return ValidationResult(False, reason=f"unknown id in plotted: {item['id']!r}")
+        if item["kind"] not in {"event", "fresh", "slow", "anchor"}:
+            return ValidationResult(False, reason=f"bad kind: {item['kind']!r}")
+        try:
+            plotted_models.append(MapPoint(**item))
+        except Exception as e:
+            return ValidationResult(False, reason=f"plotted item invalid: {e}")
+
+    grid_models: list[GridEntry] = []
+    for item in grid:
+        if not _is_dict(item):
+            return ValidationResult(False, reason="grid item not a dict")
+        for k in ("id", "tldr"):
+            if k not in item:
+                return ValidationResult(False, reason=f"grid item missing {k}")
+        if item["id"] not in allowed_ids:
+            return ValidationResult(False, reason=f"unknown id in grid: {item['id']!r}")
+        word_count = len(str(item["tldr"]).split())
+        if word_count > 14:
+            return ValidationResult(False, reason=f"tldr too long ({word_count} words) for {item['id']!r}; cap is 12")
+        try:
+            grid_models.append(GridEntry(**item))
+        except Exception as e:
+            return ValidationResult(False, reason=f"grid item invalid: {e}")
+
+    plotted_ids = {p.id for p in plotted_models}
+    grid_ids = {g.id for g in grid_models}
+    if plotted_ids & grid_ids:
+        return ValidationResult(False, reason=f"plotted/grid overlap: {plotted_ids & grid_ids}")
+    if fob not in plotted_ids:
+        return ValidationResult(False, reason=f"front_of_book_id {fob!r} not in plotted")
+
+    return ValidationResult(True, value=TopPicks(plotted=plotted_models, grid=grid_models, front_of_book_id=fob))
+
+
+def validate_bankerread_structured(payload: Any) -> ValidationResult:
+    """Validate Claude's bankerread_structured response (V5 Call 4).
+
+    Handles variant='full' (4 structured fields) and variant='stale_micro' (meaning only).
+    """
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+    variant = payload.get("variant")
+    if variant not in {"full", "stale_micro"}:
+        return ValidationResult(False, reason=f"variant must be 'full' or 'stale_micro'; got {variant!r}")
+
+    pull = payload.get("pull_quote")
+    if not isinstance(pull, str) or len(pull.split()) > 20:
+        return ValidationResult(False, reason="pull_quote missing or > 20 words")
+    if '"' in pull:
+        return ValidationResult(False, reason="pull_quote contains double quote")
+
+    from brief.schema import BankerReadInsight
+
+    if variant == "full":
+        for fld in ("meaning", "action", "trigger", "focus"):
+            text = payload.get(fld)
+            if not isinstance(text, str):
+                return ValidationResult(False, reason=f"{fld} missing")
+            wc = len(text.split())
+            if wc < 60 or wc > 180:
+                return ValidationResult(False, reason=f"{fld} must be 60-180 words; got {wc}")
+            if '"' in text:
+                return ValidationResult(False, reason=f"{fld} contains double quote")
+        return ValidationResult(True, value=BankerReadInsight(
+            variant="full",
+            meaning=payload["meaning"],
+            action=payload["action"],
+            trigger=payload["trigger"],
+            focus=payload["focus"],
+            pull_quote=pull,
+            generated_at=datetime.now(timezone.utc),
+        ))
+
+    # stale_micro
+    text = payload.get("meaning")
+    if not isinstance(text, str):
+        return ValidationResult(False, reason="meaning missing")
+    wc = len(text.split())
+    if wc < 50 or wc > 110:
+        return ValidationResult(False, reason=f"stale_micro meaning must be 50-110 words; got {wc}")
     if '"' in text:
-        return ValidationResult(False, reason="text contains double quote")
+        return ValidationResult(False, reason="meaning contains double quote")
+    return ValidationResult(True, value=BankerReadInsight(
+        variant="stale_micro",
+        meaning=text,
+        pull_quote=pull,
+        generated_at=datetime.now(timezone.utc),
+    ))
 
-    if "Desk Editor" in text:
-        return ValidationResult(False, reason="text contains Desk Editor byline")
 
-    return ValidationResult(ok=True, value=TodaysCall(text=text))
+def validate_systemic_risk_callout(
+    payload: Any, *, expected_level: str, rule_id: str
+) -> ValidationResult:
+    """Validate Claude's systemic_risk_callout response (V5 Call 5)."""
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+    headline = payload.get("headline")
+    body = payload.get("body")
+    if not isinstance(headline, str) or len(headline.split()) > 12:
+        return ValidationResult(False, reason="headline missing or > 12 words")
+    if not isinstance(body, str):
+        return ValidationResult(False, reason="body missing")
+    bw = len(body.split())
+    if bw < 50 or bw > 110:
+        return ValidationResult(False, reason=f"body must be 50-110 words; got {bw}")
+    if '"' in headline + body:
+        return ValidationResult(False, reason="contains double quote")
+
+    from brief.schema import SystemicRisk
+
+    return ValidationResult(True, value=SystemicRisk(
+        headline=headline, body=body, level=expected_level, rule_id=rule_id
+    ))
+
+
+def validate_editorial_qa(payload: Any) -> ValidationResult:
+    """Validate Claude's editorial_qa response (V5 Call 6 — pre-flight gate)."""
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+    status = payload.get("status")
+    if status not in {"pass", "block"}:
+        return ValidationResult(False, reason=f"status must be 'pass' or 'block'; got {status!r}")
+    issues_raw = payload.get("issues", [])
+    if not isinstance(issues_raw, list):
+        return ValidationResult(False, reason="issues not a list")
+    shippable = payload.get("shippable")
+    if not isinstance(shippable, bool):
+        return ValidationResult(False, reason="shippable not a bool")
+
+    from brief.schema import EditorialQAResult, QAIssue
+
+    issues = []
+    for item in issues_raw:
+        if not _is_dict(item):
+            return ValidationResult(False, reason="issue not a dict")
+        if item.get("severity") not in {"info", "warn", "block"}:
+            return ValidationResult(False, reason=f"bad severity: {item.get('severity')!r}")
+        if not isinstance(item.get("message"), str):
+            return ValidationResult(False, reason="issue.message not a string")
+        issues.append(QAIssue(
+            section_id=item.get("section_id"),
+            severity=item["severity"],
+            message=item["message"],
+        ))
+
+    has_block_severity = any(i.severity == "block" for i in issues)
+    expected_shippable = (status == "pass") and (not has_block_severity)
+    if shippable != expected_shippable:
+        return ValidationResult(
+            False,
+            reason=f"shippable={shippable} inconsistent with status={status!r} + issues",
+        )
+
+    return ValidationResult(True, value=EditorialQAResult(status=status, issues=issues, shippable=shippable))

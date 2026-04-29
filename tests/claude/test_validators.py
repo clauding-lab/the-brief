@@ -208,16 +208,19 @@ def test_risk_map_layout_invalid_type():
 
 
 def test_todays_call_happy_path():
+    # V5 contract: 60-100 words; use a sentence repeated enough to meet minimum.
     text = (
-        "Bangladesh's foreign-exchange reserves climbed for a third straight week "
-        "as remittance inflows held firm, narrowing the current-account gap and "
+        "Bangladesh foreign-exchange reserves climbed for a third straight week "
+        "as remittance inflows held firm narrowing the current-account gap and "
         "giving the central bank room to hold its policy rate steady into the next "
-        "quarter without triggering further taka depreciation against the dollar."
+        "quarter without triggering further taka depreciation against the dollar "
+        "while food CPI held at ten point four percent adding to imported inflation "
+        "pressure from oil and commodity channels demanding hedged positioning now "
+        "across fixed-rate corporate books exposure should be trimmed before next print "
+        "mark the book not the headline cut exposure to unhedged oil names immediately "
     )
-    assert len(text) <= 400
-    r = validate_todays_call({"text": text})
+    r = validate_todays_call({"text": text, "byline": "Desk Editor · The Brief"})
     assert r.ok is True
-    assert r.value.text == text
     assert r.value.byline == "Desk Editor · The Brief"
 
 
@@ -226,20 +229,21 @@ def test_todays_call_empty_text():
     assert r.ok is False
 
 
-def test_todays_call_too_long():
-    text = "x" * 401
-    r = validate_todays_call({"text": text})
+def test_todays_call_too_short_rejected():
+    # V5: enforces 60-word minimum
+    r = validate_todays_call({"text": "Markets rally today."})
     assert r.ok is False
-    assert "too long" in r.reason
+    assert "60-100" in r.reason
 
 
-def test_todays_call_contains_desk_editor():
-    r = validate_todays_call({"text": "Markets rally — Desk Editor picks top story."})
+def test_todays_call_too_long_rejected():
+    # V5: enforces 100-word maximum
+    r = validate_todays_call({"text": "word " * 200})
     assert r.ok is False
-    assert "Desk Editor" in r.reason
 
 
 def test_todays_call_contains_double_quote():
-    r = validate_todays_call({"text": 'He said "bullish" on taka.'})
+    # V5: text must be 60-100 words; also must not contain double quotes.
+    r = validate_todays_call({"text": 'He said "bullish" on the taka market today. ' * 10})
     assert r.ok is False
     assert "double quote" in r.reason

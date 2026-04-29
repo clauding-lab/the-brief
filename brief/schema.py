@@ -54,10 +54,36 @@ class BankerReadFreeform(BaseModel):
     pull: str | None = None
 
 
-BankerReadInsight = Annotated[
+# V4 legacy discriminated union — kept for back-compat with V4 templates and tests.
+BankerReadUnion = Annotated[
     Union[BankerReadStructured, BankerReadFreeform],
     Field(discriminator="kind"),
 ]
+
+# Backward-compat alias so any existing import of BankerReadInsight as the
+# discriminated union still works at the TypeAdapter level.  The new
+# BankerReadInsight *class* is defined below and shadows this at module level;
+# code that does `from brief.schema import BankerReadInsight` will get the
+# class.  Code that used the union as a type annotation should migrate to
+# BankerReadUnion.
+_BankerReadLegacyUnion = BankerReadUnion
+
+
+class BankerReadInsight(BaseModel):
+    """Banker's read insight, multi-variant.
+
+    V5 path: variant in {"full", "stale_micro"} with structured fields.
+    V4 path: variant == "v4_legacy" with `sentences: list[str]`.
+    Templates branch on `variant`.
+    """
+    sentences: list[str] | None = None
+    meaning: str | None = None
+    action: str | None = None
+    trigger: str | None = None
+    focus: str | None = None
+    pull_quote: str | None = None
+    generated_at: datetime
+    variant: Literal["full", "stale_micro", "v4_legacy"] = "full"
 
 
 class MapCoord(BaseModel):
@@ -70,8 +96,9 @@ class MapCoord(BaseModel):
 
 
 class TodaysCall(BaseModel):
-    text: str = Field(max_length=400)
+    text: str
     byline: str = "Desk Editor · The Brief"
+    generated_at: datetime
 
 
 class ExecSignal(BaseModel):
@@ -83,13 +110,65 @@ class ExecSignal(BaseModel):
 class SectionData(BaseModel):
     id: str
     title: str
+    kicker: str = ""             # V5 — back-compat default empty
+    tldr: str = ""               # V5 — back-compat default empty
     metrics: list[Metric] = Field(default_factory=list)
     news: list[NewsItem] = Field(default_factory=list)
     freshness: FreshnessKind
     freshness_reason: Optional[str] = None
-    bankerread: Optional[BankerReadInsight] = None
+    # Accept V5 BankerReadInsight, V4 BankerReadStructured, or V4 BankerReadFreeform
+    bankerread: Optional[Union[BankerReadInsight, BankerReadStructured, BankerReadFreeform]] = None
     exec_signals: Optional[list[ExecSignal]] = None
     pull: str | None = None
     degraded_breadth: bool = False
     degraded_sector_heat: bool = False
     extras: dict = Field(default_factory=dict)
+    systemic_risk: Optional["SystemicRisk"] = None  # V5
+    risk_active: bool = False                        # V5
+    history_values: list[float] | None = None        # V5
+
+
+# ---------------------------------------------------------------------------
+# V5 new types
+# ---------------------------------------------------------------------------
+
+class SystemicRisk(BaseModel):
+    headline: str
+    body: str
+    level: Literal["warning", "critical"]
+    rule_id: str  # which deterministic rule fired (e.g. "banking_npl_above_30")
+
+
+class MapPoint(BaseModel):
+    id: str
+    x: float
+    y: float
+    r: float
+    kind: Literal["event", "fresh", "slow", "anchor"]
+
+
+class GridEntry(BaseModel):
+    id: str
+    tldr: str  # ≤ 12 words; validator at validator-layer enforces
+
+
+class TopPicks(BaseModel):
+    plotted: list[MapPoint]
+    grid: list[GridEntry]
+    front_of_book_id: str
+
+
+class QAIssue(BaseModel):
+    section_id: str | None = None
+    severity: Literal["info", "warn", "block"]
+    message: str
+
+
+class EditorialQAResult(BaseModel):
+    status: Literal["pass", "block"]
+    issues: list[QAIssue] = []
+    shippable: bool
+
+
+# Resolve forward reference for SectionData.systemic_risk
+SectionData.model_rebuild()

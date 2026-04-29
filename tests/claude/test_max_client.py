@@ -277,3 +277,47 @@ class TestRunMaxFenceStripping:
             r = run_max(prompt="test", timeout_s=60)
         # Assert -- raw_text unchanged; only parsed benefits from stripping
         assert r.raw_text == fenced
+
+
+# ---------------------------------------------------------------------------
+# Model + effort defaults
+# ---------------------------------------------------------------------------
+
+def test_run_max_defaults_to_opus_4_7():
+    fake_completed = _fake_completed(json.dumps({
+        "result": "{}", "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
+        run_max(prompt="hi")
+    args = mock_run.call_args.args[0]
+    assert "--model" in args
+    idx = args.index("--model")
+    assert args[idx + 1] == "claude-opus-4-7"
+
+
+def test_run_max_defaults_to_high_effort():
+    fake_completed = _fake_completed(json.dumps({
+        "result": "{}", "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
+        run_max(prompt="hi")
+    args = mock_run.call_args.args[0]
+    assert "--effort" in args
+    idx = args.index("--effort")
+    assert args[idx + 1] == "high"
+    # Legacy --thinking-budget flag must never appear (CLI v2.1.119 rejects it).
+    assert "--thinking-budget" not in args
+
+
+def test_run_max_effort_kwarg_overrides_default():
+    fake_completed = _fake_completed(json.dumps({
+        "result": "{}", "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed) as mock_run:
+        run_max(prompt="hi", effort="medium")
+    args = mock_run.call_args.args[0]
+    idx = args.index("--effort")
+    assert args[idx + 1] == "medium"

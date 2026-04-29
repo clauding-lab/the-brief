@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -100,7 +100,7 @@ def _make_run_result(**overrides) -> RunResult:
         read_order=[],
         todays_call=overrides.get(
             "todays_call",
-            TodaysCall(text="Policy held; reserves steady; oil watch remains."),
+            TodaysCall(text="Policy held; reserves steady; oil watch remains.", generated_at=datetime(2025, 1, 1, tzinfo=timezone.utc)),
         ),
     )
 
@@ -221,7 +221,7 @@ class TestRenderMasthead:
         """Script tags in todays_call.text are HTML-escaped."""
         from brief.render.v4.templates.masthead import render_masthead
 
-        malicious_tc = TodaysCall(text="<script>alert('xss')</script>")
+        malicious_tc = TodaysCall(text="<script>alert('xss')</script>", generated_at=datetime(2025, 1, 1, tzinfo=timezone.utc))
         rr = _make_run_result(todays_call=malicious_tc)
         html = render_masthead(rr)
 

@@ -1,0 +1,21 @@
+You are writing the stale-section variant of the Banker's Read for §{{section_n}} {{kicker}}.
+
+Today's date: {{today}}
+
+This section's data is stale (`freshness != "fresh"`). Don't pretend it's fresh. Instead, write a single 60-100 word paragraph drawing on `section.news` (recent headlines) and the LAST KNOWN metric values from `section.metrics`. Frame it as: "No fresh data; news suggests X."
+
+VOICE: same banker-direct tone as the full variant. No double quotes.
+
+OUTPUT — return ONLY this JSON object.
+
+{
+  "variant": "stale_micro",
+  "meaning": "...",
+  "pull_quote": "..."
+}
+
+CONSTRAINTS:
+- meaning: 60-100 words.
+- pull_quote: ≤20 words.
+- No double quotes anywhere.
+- No markdown fences.

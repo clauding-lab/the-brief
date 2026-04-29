@@ -62,6 +62,7 @@ def run_max(
     model: str = "claude-opus-4-7",
     timeout_s: int = 1800,
     claude_binary: str | None = None,
+    effort: str = "high",
 ) -> MaxCallResult:
     """Invoke the Claude Max CLI, return parsed result.
 
@@ -81,6 +82,7 @@ def run_max(
         "--no-session-persistence",
         "--tools", "",
         "--permission-mode", "bypassPermissions",
+        "--effort", effort,
     ]
     _t0 = time.monotonic()
     try:

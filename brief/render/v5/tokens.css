@@ -1,0 +1,28 @@
+/* V5 design tokens — must mirror brief/render/v5/_tokens.py. */
+:root {
+  --ox: #6b1f27;
+  --ox-dim: #8b3540;
+  --ink-1: #171310;
+  --ink-2: #3a322d;
+  --ink-3: #777;
+  --ink-4: #aaa;
+  --paper-1: #faf6ee;
+  --paper-2: #f1ead9;
+  --paper-3: #e8e1cd;
+  --gold: #c89a3f;
+  --red: #a83a3a;
+  --green: #3a8f4f;
+  --ink-inverse: #f5f0e8;
+
+  --font-serif-display: 'Source Serif 4', Georgia, serif;
+  --font-serif-text:    'Source Serif 4', Georgia, serif;
+  --font-mono:          'JetBrains Mono', Menlo, monospace;
+  --font-sans:          'Inter', system-ui, sans-serif;
+
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+}
