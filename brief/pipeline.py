@@ -645,10 +645,15 @@ def render_index_html(
     if mode == "v5":
         from brief.render.v5.assemble import assemble_v5
         from brief.render.v5.templates.section_bb import render_section_bb
+        from brief.render.v5.templates.section_comm import render_section_comm
+        from brief.render.v5.templates.section_dam import render_section_dam
+        from brief.render.v5.templates.section_dse import render_section_dse
+        from brief.render.v5.templates.section_fiscal import render_section_fiscal
         from brief.render.v5.templates.section_fx import render_section_fx
         from brief.render.v5.templates.section_macro import render_section_macro
         from brief.render.v5.templates.section_nbr import render_section_nbr
         from brief.render.v5.templates.section_remit import render_section_remit
+        from brief.render.v5.templates.section_tbond import render_section_tbond
 
         # Run V5 editorial calls (Calls 1, 3, 4, 5)
         top_picks, todays_call, bankerreads, systemic_risks = run_v5_editorial(
@@ -665,10 +670,15 @@ def render_index_html(
 
         section_renderers: dict = {
             "bb": render_section_bb,
+            "comm": render_section_comm,
+            "dam": render_section_dam,
+            "dse": render_section_dse,
+            "fiscal": render_section_fiscal,
             "fx": render_section_fx,
             "macro": render_section_macro,
-            "remit": render_section_remit,
             "nbr": render_section_nbr,
+            "remit": render_section_remit,
+            "tbond": render_section_tbond,
         }
 
         html = assemble_v5(
