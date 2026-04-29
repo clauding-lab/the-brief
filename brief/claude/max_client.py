@@ -62,7 +62,7 @@ def run_max(
     model: str = "claude-opus-4-7",
     timeout_s: int = 1800,
     claude_binary: str | None = None,
-    effort: str = "xhigh",
+    effort: str = "high",
 ) -> MaxCallResult:
     """Invoke the Claude Max CLI, return parsed result.
 

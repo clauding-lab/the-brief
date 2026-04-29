@@ -296,7 +296,7 @@ def test_run_max_defaults_to_opus_4_7():
     assert args[idx + 1] == "claude-opus-4-7"
 
 
-def test_run_max_defaults_to_xhigh_effort():
+def test_run_max_defaults_to_high_effort():
     fake_completed = _fake_completed(json.dumps({
         "result": "{}", "total_cost_usd": 0.0,
         "usage": {"input_tokens": 1, "output_tokens": 1},
@@ -306,7 +306,7 @@ def test_run_max_defaults_to_xhigh_effort():
     args = mock_run.call_args.args[0]
     assert "--effort" in args
     idx = args.index("--effort")
-    assert args[idx + 1] == "xhigh"
+    assert args[idx + 1] == "high"
     # Legacy --thinking-budget flag must never appear (CLI v2.1.119 rejects it).
     assert "--thinking-budget" not in args
 
