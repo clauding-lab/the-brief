@@ -63,7 +63,7 @@ def test_section_exec_renders_with_one_signal():
     assert "Solo signal." in html
     assert "→ §02" in html
     # Only one li
-    assert html.count('class="exec-signal ') == 1
+    assert html.count('<li class="exec-signal ') == 1
 
 
 def test_section_exec_no_threshold_badge_in_render():
