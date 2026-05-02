@@ -5,6 +5,9 @@ Reuses V4 helpers (`brief.render.v4._jsx.fmt_num`, `attr`, `_esc`, `_attr_esc`,
 """
 from __future__ import annotations
 
+from datetime import date
+
+from brief.cadence import metric_aging, now_bdt
 from brief.render.v4._jsx import _esc, _attr_esc, attr, fmt_num, sparkline_svg
 from brief.schema import (
     BankerReadInsight,
@@ -67,8 +70,33 @@ def pull_quote_card(text: str) -> str:
     return f'<div class="pull-quote-card"><em>{_esc(text)}</em></div>'
 
 
-def metric_hero_card(metric: Metric, *, badge: str | None = None, supporting: str | None = None) -> str:
-    """Big-display metric card with status badge and supporting text."""
+def _relative_date_label(as_of: date, today: date) -> str:
+    """Render a metric's age as a short human label for the meta footer."""
+    delta = (today - as_of).days
+    if delta <= 0:
+        return "today"
+    if delta == 1:
+        return "yesterday"
+    if delta < 14:
+        return f"{delta}d ago"
+    return as_of.strftime("%-d %b")
+
+
+def metric_hero_card(
+    metric: Metric,
+    *,
+    badge: str | None = None,
+    supporting: str | None = None,
+    today: date | None = None,
+) -> str:
+    """Big-display metric card with status badge, supporting text, and meta footer.
+
+    The meta footer (source · date · optional AGING chip) only renders when
+    the metric has a value — placeholders/null metrics keep the bare card shape.
+    """
+    if today is None:
+        today = now_bdt().date()
+
     badge_html = ""
     if badge:
         badge_html = f'<span class="metric-badge">{_esc(badge)}</span>'
@@ -80,12 +108,28 @@ def metric_hero_card(metric: Metric, *, badge: str | None = None, supporting: st
         if isinstance(metric.value, (int, float))
         else _esc(str(metric.value))
     )
+
+    meta_html = ""
+    if metric.value is not None:
+        rel = _relative_date_label(metric.as_of, today)
+        aging_chip = ""
+        if metric_aging(metric, today=today):
+            aging_chip = '<span class="metric-aging-chip">AGING</span>'
+        meta_html = (
+            '<div class="metric-meta">'
+            f'<span class="metric-source">{_esc(metric.source)}</span>'
+            f' · <span class="metric-asof">{_esc(rel)}</span>'
+            f'{aging_chip}'
+            '</div>'
+        )
+
     return (
         '<div class="metric-card metric-card-hero">'
         f'<div class="metric-label">{_esc(metric.label)}</div>'
         f'<div class="metric-value">{value_html}</div>'
         f'{badge_html}'
         f'{supporting_html}'
+        f'{meta_html}'
         '</div>'
     )
 

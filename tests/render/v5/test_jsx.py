@@ -61,6 +61,67 @@ def test_metric_hero_card_with_status_badge():
     assert "World's highest" in html
 
 
+def test_metric_hero_card_renders_aging_chip_when_warning():
+    # monthly cadence, 40 days old → warning band → AGING chip
+    metric = Metric(
+        id="cpi_food",
+        label="CPI Food",
+        value=10.4,
+        unit="%",
+        as_of=date(2026, 3, 12),
+        source="BBS",
+        cadence="monthly",
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    assert 'class="metric-aging-chip"' in html
+    assert "AGING" in html
+
+
+def test_metric_hero_card_no_aging_chip_when_fresh():
+    metric = Metric(
+        id="cpi_food",
+        label="CPI Food",
+        value=10.4,
+        unit="%",
+        as_of=date(2026, 4, 15),  # 6 days, well within fresh
+        source="BBS",
+        cadence="monthly",
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    assert "metric-aging-chip" not in html
+
+
+def test_metric_hero_card_renders_source_meta():
+    metric = Metric(
+        id="cpi_food",
+        label="CPI Food",
+        value=10.4,
+        unit="%",
+        as_of=date(2026, 4, 15),
+        source="BBS",
+        cadence="monthly",
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    # source/date footer is the anchor for the AGING chip per V1 mockup
+    assert 'class="metric-meta"' in html
+    assert "BBS" in html
+
+
+def test_metric_hero_card_no_meta_when_value_none():
+    # Don't render meta line when there's nothing to show
+    metric = Metric(
+        id="cpi_food",
+        label="CPI Food",
+        value=None,
+        unit="%",
+        as_of=date(2026, 4, 15),
+        source="BBS",
+        cadence="monthly",
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    assert "metric-meta" not in html
+
+
 def test_news_bullet_renders_source_and_date():
     item = NewsItem(
         title="NPL ratio at 35.73%",

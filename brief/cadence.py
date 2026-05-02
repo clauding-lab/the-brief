@@ -90,6 +90,16 @@ def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessK
     return "unavailable"
 
 
+def metric_aging(metric: Metric, *, today: date | None = None) -> bool:
+    """True when the metric is past its fresh threshold but not yet stale.
+
+    Surfaces in the render layer as an "AGING" chip — signal that the
+    reading is older than ideal but still usable. False for fresh, stale,
+    unavailable, and pending states (and for value=None metrics).
+    """
+    return metric_freshness(metric, today=today) == "warning"
+
+
 def section_freshness(
     metrics: Iterable[Metric],
     *,

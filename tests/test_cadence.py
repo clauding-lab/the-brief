@@ -1,6 +1,12 @@
 from datetime import date, datetime, timezone, timedelta
 
-from brief.cadence import is_bd_trading_day, metric_freshness, section_freshness, trading_days_between
+from brief.cadence import (
+    is_bd_trading_day,
+    metric_aging,
+    metric_freshness,
+    section_freshness,
+    trading_days_between,
+)
 from brief.schema import CadenceKind, Metric
 
 
@@ -151,3 +157,35 @@ def test_section_freshness_warning_only():
         _m("b", date(2026, 3, 12), "monthly"),   # warning (40 days; monthly: ≤35 fresh, ≤45 warning)
     ]
     assert section_freshness(metrics, today=today) == "warning"
+
+
+# ── metric_aging ─────────────────────────────────────────────────────────────
+
+def test_metric_aging_false_when_fresh():
+    today = date(2026, 4, 21)
+    metric = _m("cpi", date(2026, 4, 1), "monthly")  # 20 days < 35 fresh
+    assert metric_aging(metric, today=today) is False
+
+
+def test_metric_aging_true_when_warning_band():
+    today = date(2026, 4, 21)
+    metric = _m("cpi", date(2026, 3, 12), "monthly")  # 40 days → warning
+    assert metric_aging(metric, today=today) is True
+
+
+def test_metric_aging_false_when_stale():
+    today = date(2026, 4, 21)
+    metric = _m("cpi", date(2026, 2, 1), "monthly")  # 79 days → stale
+    assert metric_aging(metric, today=today) is False
+
+
+def test_metric_aging_false_when_value_none():
+    today = date(2026, 4, 21)
+    metric = _m("cpi", date(2026, 3, 12), "monthly", value=None)
+    assert metric_aging(metric, today=today) is False
+
+
+def test_metric_aging_quarterly_warning_band():
+    today = date(2026, 4, 21)
+    metric = _m("npl", date(2026, 1, 1), "quarterly")  # 110 days → warning (≤120)
+    assert metric_aging(metric, today=today) is True
