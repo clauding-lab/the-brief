@@ -122,6 +122,49 @@ def test_metric_hero_card_no_meta_when_value_none():
     assert "metric-meta" not in html
 
 
+def test_metric_hero_card_renders_sparkline_when_enough_history():
+    metric = Metric(
+        id="cpi", label="CPI", value=10.0, unit="%",
+        as_of=date(2026, 4, 15), source="BBS", cadence="monthly",
+        history_values=[8.0, 8.5, 9.0, 9.5, 10.0, 10.2, 10.0],
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    assert "<svg" in html
+    assert 'class="sparkline"' in html
+    assert 'class="metric-sparkline' in html
+
+
+def test_metric_hero_card_no_sparkline_below_minimum_points():
+    metric = Metric(
+        id="cpi", label="CPI", value=10.0, unit="%",
+        as_of=date(2026, 4, 15), source="BBS", cadence="monthly",
+        history_values=[8.0, 9.0, 10.0],  # only 3
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    assert "metric-sparkline" not in html
+
+
+def test_metric_hero_card_no_sparkline_when_history_none():
+    metric = Metric(
+        id="cpi", label="CPI", value=10.0, unit="%",
+        as_of=date(2026, 4, 15), source="BBS", cadence="monthly",
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    assert "metric-sparkline" not in html
+
+
+def test_metric_hero_card_hero_flag_uses_oxblood_stroke():
+    metric = Metric(
+        id="cpi", label="CPI", value=10.0, unit="%",
+        as_of=date(2026, 4, 15), source="BBS", cadence="monthly", hero=True,
+        history_values=[8.0, 8.5, 9.0, 9.5, 10.0, 10.2, 10.0],
+    )
+    html = _jsx.metric_hero_card(metric, today=date(2026, 4, 21))
+    # hero cards get the oxblood (#6b1f27) stroke; non-hero gets default
+    assert 'stroke="#6b1f27"' in html
+    assert "metric-sparkline-hero" in html
+
+
 def test_source_badge_known_code_uses_css_class():
     html = _jsx.source_badge("REU")
     assert 'class="source-badge source-badge-reu"' in html

@@ -335,6 +335,11 @@ body.brief-v5 {
 .metric-meta { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-top: var(--space-sm); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .metric-meta .metric-source { font-weight: 600; letter-spacing: 0.04em; }
 .metric-aging-chip { display: inline-block; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; padding: 2px 6px; background: rgba(200,154,63,0.18); color: var(--gold); border: 1px solid var(--gold); }
+.metric-sparkline { margin: var(--space-xs) 0 var(--space-sm); max-width: 140px; }
+.metric-sparkline svg { display: block; width: 100%; height: auto; }
+.metric-sparkline-hero svg .sparkline,
+.metric-sparkline-hero svg polyline { stroke-width: 2; }
+.metric-sparkline-supporting svg polyline { opacity: 0.7; }
 
 .systemic-risk { background: rgba(168,58,58,0.06); border: 2px solid var(--red); padding: var(--space-md); margin: var(--space-md) 0; display: grid; grid-template-columns: 24px 1fr; gap: var(--space-sm); }
 .systemic-risk-warning { border-color: var(--gold); background: rgba(200,154,63,0.08); }

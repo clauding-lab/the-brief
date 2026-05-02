@@ -125,10 +125,22 @@ def metric_hero_card(
             '</div>'
         )
 
+    sparkline_html = ""
+    if metric.history_values and len(metric.history_values) >= 7:
+        # hero metrics get the brand oxblood stroke; supporting cards get a softer ink
+        stroke = "#6b1f27" if metric.hero else "#444"
+        variant_cls = "metric-sparkline-hero" if metric.hero else "metric-sparkline-supporting"
+        sparkline_html = (
+            f'<div class="metric-sparkline {variant_cls}">'
+            + sparkline_svg(metric.history_values, color=stroke, w=140, h=28)
+            + '</div>'
+        )
+
     return (
         '<div class="metric-card metric-card-hero">'
         f'<div class="metric-label">{_esc(metric.label)}</div>'
         f'<div class="metric-value">{value_html}</div>'
+        f'{sparkline_html}'
         f'{badge_html}'
         f'{supporting_html}'
         f'{meta_html}'
