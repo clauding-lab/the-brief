@@ -267,7 +267,11 @@ body.brief-v5 {
 .grid-card-tldr { flex: 1; font-size: 13px; }
 .grid-card-arrow { color: var(--ox); }
 
-.section.section-v5 { padding: var(--space-xl) var(--space-2xl); border-top: 1px solid var(--ink-4); }
+/* Section chapters get NO horizontal padding — they inherit .page's 40px
+   so their content edge aligns with the masthead, map row, and flow-idx
+   outer edges. (Previously had var(--space-2xl) = 64px which pushed
+   chapter content 40px further inset than the upper segments.) */
+.section.section-v5 { padding: var(--space-xl) 0; border-top: 1px solid var(--ink-4); }
 .sec-header { display: flex; align-items: baseline; gap: var(--space-md); }
 .sec-numeral { font-family: var(--font-serif-display); font-size: 64px; font-weight: 900; color: var(--ox); }
 .sec-kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-3); }

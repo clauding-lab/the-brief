@@ -127,23 +127,53 @@ def _read_first_diagonal() -> str:
 
 
 def _bubbles(picks: TopPicks, sections: dict[str, dict[str, Any]]) -> str:
-    """Bubbles with section number INSIDE and kicker label ABOVE."""
-    parts = []
+    """Bubbles with section number INSIDE and kicker label ABOVE.
+
+    Visual radius is now 0.7× the data-space r (was 0.5×) — bubbles read
+    cleaner at the 320px max-height the SVG scales to.
+
+    Label collision avoidance: if another bubble's label would land within
+    a 36px vertical band of this one (and within 70px horizontally), drop
+    this label below the bubble instead of above. Greedy single-pass — not
+    perfect, but handles most common clusters in the upper-left quadrant.
+    """
+    # Compute visual positions first so we can detect collisions
+    placed: list[dict] = []
     for p in picks.plotted:
         cx, cy = _x(p.x), _y(p.y)
-        r = p.r / 2  # mockup uses p.r/2 — visual radius is half the data-space r
+        r = p.r * 0.7  # was /2 (=0.5); larger reads better at small SVG heights
+        placed.append({"point": p, "cx": cx, "cy": cy, "r": r})
+
+    parts = []
+    for i, item in enumerate(placed):
+        p = item["point"]
+        cx, cy, r = item["cx"], item["cy"], item["r"]
         meta = sections.get(p.id, {"kicker": p.id, "n": ""})
         kicker_short = str(meta["kicker"]).split(" · ")[0]
         fill = _KIND_FILL.get(p.kind, "#171310")
         num_fill = _KIND_LABEL_FILL.get(p.kind, "#f7f3e9")
+
+        # Default label position: ABOVE the bubble
+        label_y = cy - r - 10
+        # Check if another bubble's label would collide with this one
+        for j, other in enumerate(placed):
+            if i == j:
+                continue
+            ocx, ocy, orad = other["cx"], other["cy"], other["r"]
+            o_label_y = ocy - orad - 10
+            if abs(cx - ocx) < 70 and abs(label_y - o_label_y) < 18:
+                # Collision detected — drop OUR label BELOW the bubble
+                label_y = cy + r + 18
+                break
+
         parts.append(
             f'<g class="rm-bubble rm-{_attr_esc(p.kind)}" data-id="{_attr_esc(p.id)}">'
-            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{fill}" opacity="0.88"/>'
-            f'<text x="{cx:.1f}" y="{cy + 3.5:.1f}" text-anchor="middle" '
-            f'font-family="JetBrains Mono,monospace" font-weight="700" font-size="10" '
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{fill}" opacity="0.92"/>'
+            f'<text x="{cx:.1f}" y="{cy + 4.5:.1f}" text-anchor="middle" '
+            f'font-family="JetBrains Mono,monospace" font-weight="700" font-size="12" '
             f'fill="{num_fill}">§{_esc(meta["n"])}</text>'
-            f'<text x="{cx:.1f}" y="{cy - r - 8:.1f}" text-anchor="middle" '
-            f'font-family="Source Serif 4,serif" font-weight="600" font-size="12" fill="#171310">'
+            f'<text x="{cx:.1f}" y="{label_y:.1f}" text-anchor="middle" '
+            f'font-family="Source Serif 4,serif" font-weight="600" font-size="13" fill="#171310">'
             f'{_esc(kicker_short)}</text>'
             f'</g>'
         )
