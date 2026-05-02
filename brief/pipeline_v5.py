@@ -588,11 +588,13 @@ def _run_v5_headlines_layout(
          "published": h.published.isoformat()}
         for h in raw_headlines if h.url in curated_urls
     ]
-    if len(pool) < 8:
+    # Need at least 1 lead + 2 right-rail = 3 headlines to form a usable
+    # newspaper layout. Below that, fall back to the simple grid.
+    if len(pool) < 3:
         return None, [{
             "name": "headlines_layout_v5",
             "status": "skipped",
-            "reason": f"pool too small ({len(pool)} < 8)",
+            "reason": f"pool too small ({len(pool)} < 3)",
             "cost_usd": 0.0,
             "duration_s": 0.0,
             "tokens": {"input": 0, "output": 0},

@@ -7,8 +7,12 @@ INPUT:
 YOUR JOB:
 Pick ONE lead story and decompose it into 3 short "key points for the book"
 that translate the headline into actionable banker-speak (exposure lines,
-hedge demand, policy timing). Then pick the next 4 most newsworthy stories
-for a right rail, and 3 secondary stories for the bottom row.
+hedge demand, policy timing). Then pick the next 2-4 most newsworthy stories
+for a right rail, and 0-3 secondary stories for the bottom row.
+
+POOL-SIZE GUIDANCE: aim for 4 right-rail and 3 secondary on full-news days.
+On light-news days (pool < 8), fill right_rail first (target 2-4), then
+secondary with whatever remains. Never repeat a URL across buckets.
 
 KEY POINTS RULES (lead only):
 - Exactly 3 bullets.
@@ -35,8 +39,8 @@ OUTPUT SCHEMA (strict JSON, no markdown fences, no prose):
       "BSEC <b>policy pricing review</b> at 10:00 BDT; corporate hedge demand likely spikes."
     ]
   },
-  "right_rail": ["https://…", "https://…", "https://…", "https://…"],
-  "secondary": ["https://…", "https://…", "https://…"]
+  "right_rail": ["https://…", "https://…", "https://…", "https://…"],   // 2-4 items
+  "secondary": ["https://…", "https://…", "https://…"]                   // 0-3 items
 }
 
 POOL:

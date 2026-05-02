@@ -53,6 +53,17 @@ def push_artifacts(
 
     pushed = False
     if not dry_run:
-        _git(repo_dir, "push", "origin", branch)
+        # Shadow branches are throwaway dated scratch branches — re-running a
+        # render on the same calendar day rebuilds the branch from origin/main
+        # so the local history doesn't match what's on the remote, and a
+        # plain push gets rejected as non-fast-forward. Force-with-lease is
+        # safe here: the lease check still rejects if someone else has pushed
+        # to the same shadow branch concurrently.
+        # Main pushes stay fast-forward-only — guarded by the merge-base check
+        # earlier in this function.
+        if branch == "main":
+            _git(repo_dir, "push", "origin", branch)
+        else:
+            _git(repo_dir, "push", "--force-with-lease", "origin", branch)
         pushed = True
     return {"branch": branch, "sha": sha[:7], "pushed": pushed}

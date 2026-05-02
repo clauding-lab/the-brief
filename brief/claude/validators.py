@@ -87,17 +87,19 @@ def validate_headlines_layout(
             return ValidationResult(False, reason=f"key_point {i} too long (>25 words)")
 
     # ── right rail ───────────────────────────────────────────────────────────
+    # Accept 2-4 items so low-headline days can still produce a layout.
     right_rail = payload.get("right_rail")
-    if not isinstance(right_rail, list) or len(right_rail) != 4:
-        return ValidationResult(False, reason="right_rail must be a list of 4 urls")
+    if not isinstance(right_rail, list) or not (2 <= len(right_rail) <= 4):
+        return ValidationResult(False, reason="right_rail must be a list of 2-4 urls")
     for u in right_rail:
         if u not in allowed_urls:
             return ValidationResult(False, reason=f"unknown right_rail url: {u!r}")
 
     # ── secondary ────────────────────────────────────────────────────────────
-    secondary = payload.get("secondary")
-    if not isinstance(secondary, list) or len(secondary) != 3:
-        return ValidationResult(False, reason="secondary must be a list of 3 urls")
+    # Accept 0-3 items — secondary block disappears on light news days.
+    secondary = payload.get("secondary", [])
+    if not isinstance(secondary, list) or len(secondary) > 3:
+        return ValidationResult(False, reason="secondary must be a list of 0-3 urls")
     for u in secondary:
         if u not in allowed_urls:
             return ValidationResult(False, reason=f"unknown secondary url: {u!r}")

@@ -71,18 +71,37 @@ def test_rejects_non_string_key_points():
     assert not r.ok
 
 
-def test_rejects_wrong_right_rail_count():
+def test_accepts_minimum_right_rail_count():
+    """2 items is the floor — light-news day."""
     r = validate_headlines_layout(
         _payload(right_rail=["https://example.com/h2", "https://example.com/h3"]),
+        allowed_urls=_URLS,
+    )
+    assert r.ok, r.reason
+    assert len(r.value["right_rail"]) == 2
+
+
+def test_rejects_too_few_right_rail_items():
+    r = validate_headlines_layout(
+        _payload(right_rail=["https://example.com/h2"]),
         allowed_urls=_URLS,
     )
     assert not r.ok
     assert "right_rail" in r.reason
 
 
-def test_rejects_wrong_secondary_count():
+def test_accepts_empty_secondary():
+    """0 items in secondary is OK on a light-news day."""
+    r = validate_headlines_layout(_payload(secondary=[]), allowed_urls=_URLS)
+    assert r.ok, r.reason
+
+
+def test_rejects_too_many_secondary_items():
     r = validate_headlines_layout(
-        _payload(secondary=["https://example.com/h6", "https://example.com/h7"]),
+        _payload(secondary=[
+            "https://example.com/h6", "https://example.com/h7",
+            "https://example.com/h8", "https://example.com/h9",
+        ]),
         allowed_urls=_URLS,
     )
     assert not r.ok
