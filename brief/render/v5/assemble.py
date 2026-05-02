@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from brief.render.v5.chrome.colophon import render_colophon
+from brief.render.v5.chrome.flow_index import render_flow_index
 from brief.render.v5.chrome.front_of_book import render_front_of_book
 from brief.render.v5.chrome.live_banner import render_live_banner
 from brief.render.v5.chrome.masthead import render_masthead
 from brief.render.v5.chrome.risk_map import render_risk_map
-from brief.render.v5.chrome.secondary_grid import render_secondary_grid
+from brief.render.v5.chrome.secondary_grid import render_secondary_grid  # retained for back-compat; not rendered in V5 flow
 from brief.schema import SectionData, TodaysCall, TopPicks
 
 V5_DIR = Path(__file__).parent
@@ -52,7 +53,14 @@ def assemble_v5(
         fob_html = render_front_of_book(fob_section, section_n=_section_n(fob_section.id))
     body_parts.append(f'<div class="map-row">{risk_map_html}{fob_html}</div>')
 
-    body_parts.append(render_secondary_grid(picks=top_picks, sections=section_by_id))
+    # Flow index: 'The flow — as plotted'. Replaces the V4 'ALSO TODAY · 7 sections
+    # not on the map' secondary grid (which is now retired from the front-of-book).
+    section_titles = {sid: s.title for sid, s in section_by_id.items()}
+    body_parts.append(render_flow_index(
+        picks=top_picks,
+        sections=sections_lookup,
+        section_titles=section_titles,
+    ))
 
     plotted_ids_in_order = [top_picks.front_of_book_id] + [
         p.id for p in top_picks.plotted if p.id != top_picks.front_of_book_id

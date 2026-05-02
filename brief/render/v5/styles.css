@@ -189,6 +189,69 @@ body.brief-v5 {
 }
 .fob-jump:hover { color: var(--ink-1); border-bottom-color: var(--ink-1); }
 
+/* ---- Flow index — 'The flow, as plotted' table-of-contents strip ---- */
+.flow-idx {
+  margin-top: 28px;
+  padding: 22px 24px;
+  border: 1px solid var(--paper-3);
+  background: var(--paper-2);
+  border-radius: 2px;
+}
+.flow-idx .fi-h {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 12px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+}
+.flow-idx .fi-h .t {
+  font-family: var(--font-serif-display); font-style: italic; font-weight: 700;
+  font-size: 20px; color: var(--ink-1);
+  letter-spacing: -0.005em; text-transform: none;
+}
+.flow-idx .fi-h .t em { font-style: italic; color: var(--ink-1); }
+.flow-idx ol {
+  list-style: none; padding: 0; margin: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+}
+.flow-idx li {
+  padding: 0;
+  border-right: 1px solid var(--paper-3);
+  transition: background .15s;
+}
+.flow-idx li:last-child { border-right: 0; }
+.flow-idx li:hover { background: rgba(107,31,39,0.06); }
+.flow-idx .fi-jump {
+  display: block; padding: 10px 12px 10px 0;
+  text-decoration: none; color: inherit; cursor: pointer;
+}
+.flow-idx li .rank {
+  font-family: var(--font-serif-display); font-weight: 900; font-style: italic;
+  font-size: 28px; line-height: 0.9; color: var(--ox);
+  font-variation-settings: "opsz" 60;
+}
+.flow-idx li .kicker {
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+  margin-top: 6px;
+}
+.flow-idx li .sec {
+  font-family: var(--font-serif-display); font-weight: 700;
+  font-size: 14.5px; line-height: 1.15; letter-spacing: -0.005em;
+  margin-top: 2px;
+  text-wrap: balance;
+  color: var(--ink-1);
+}
+@media (max-width: 900px) {
+  .flow-idx ol { grid-template-columns: repeat(4, 1fr); }
+  .flow-idx li:nth-child(4n) { border-right: 0; }
+}
+@media (max-width: 560px) {
+  .flow-idx ol { grid-template-columns: repeat(2, 1fr); }
+  .flow-idx li:nth-child(2n) { border-right: 0; }
+}
+
 .secondary-grid { padding: var(--space-lg) var(--space-2xl); }
 .sg-header { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.05em; }
 .sg-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md); margin-top: var(--space-md); }
