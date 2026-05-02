@@ -92,7 +92,39 @@ def gather(
                 freshness="unavailable",
                 freshness_reason=f"builder error: {type(e).__name__}: {e}",
             ))
+
+    _enrich_metric_history(sections, history, today=cfg.today)
     return sections
+
+
+def _enrich_metric_history(
+    sections: list[SectionData],
+    history: Optional[MetricHistoryClient],
+    *,
+    today: date,
+    days: int = 14,
+) -> None:
+    """Best-effort: pull last-N readings for every metric and attach to
+    `Metric.history_values`. Powers V5 sparklines and the yield-curve hero.
+
+    No-ops when history is unavailable; sparkline render handles missing
+    history by emitting nothing.
+    """
+    if history is None:
+        return
+    all_ids = list({m.id for s in sections for m in s.metrics})
+    if not all_ids:
+        return
+    try:
+        history_map = history.get_history_window(all_ids, days=days, today=today)
+    except Exception as e:  # network / parse — render must not fail
+        _log.warning("history window fetch failed: %s: %s", type(e).__name__, e)
+        return
+    for s in sections:
+        for m in s.metrics:
+            vals = history_map.get(m.id)
+            if vals:
+                m.history_values = vals
 
 
 import json

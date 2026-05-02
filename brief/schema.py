@@ -31,6 +31,7 @@ class Metric(BaseModel):
     delta: Optional[Delta] = None
     hero: bool = False
     stale: bool = False  # True when value is from history fallback, not today
+    history_values: list[float] | None = None  # last-N chronological readings; populated post-build for sparklines
 
 
 class NewsItem(BaseModel):

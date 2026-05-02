@@ -18,6 +18,16 @@ def test_metric_minimal_valid():
     assert m.id == "bb_policy_rate"
     assert m.delta is None
     assert m.source_url is None
+    assert m.history_values is None  # default — populated by pipeline post-build
+
+
+def test_metric_accepts_history_values():
+    m = Metric(
+        id="x", label="x", value=1.0, unit="%",
+        as_of=date(2026, 4, 1), source="t", cadence="daily",
+        history_values=[1.0, 1.2, 0.9, 1.1, 1.3],
+    )
+    assert m.history_values == [1.0, 1.2, 0.9, 1.1, 1.3]
 
 
 def test_metric_accepts_str_value():

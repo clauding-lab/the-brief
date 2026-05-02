@@ -9,8 +9,8 @@ import json as _json
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import date
-from typing import Any, Protocol, runtime_checkable
+from datetime import date, timedelta
+from typing import Any, Protocol, Sequence, runtime_checkable
 
 
 @dataclass(frozen=True)
@@ -79,6 +79,44 @@ class MetricHistoryClient:
             value=row["value"],
             source=row["source"],
         )
+
+    def get_history_window(
+        self,
+        metric_ids: Sequence[str],
+        *,
+        days: int = 14,
+        today: date | None = None,
+    ) -> dict[str, list[float]]:
+        """Batched fetch of last `days` chronological readings for many metric ids.
+
+        Returns a dict keyed by metric_id with values ordered oldest-to-newest.
+        Non-numeric and null values are filtered out (sparkline-friendly).
+        Returns an empty dict on empty input or HTTP failure — best-effort,
+        the render layer treats missing history as no sparkline.
+        """
+        if not metric_ids:
+            return {}
+        if today is None:
+            today = date.today()
+        cutoff = today - timedelta(days=days)
+        ids_csv = ",".join(metric_ids)
+        q = urllib.parse.urlencode({
+            "metric_id": f"in.({ids_csv})",
+            "as_of":     f"gte.{cutoff.isoformat()}",
+            "select":    "metric_id,as_of,value",
+            "order":     "metric_id,as_of.asc",
+        })
+        url = f"{self.url}/rest/v1/metric_history?{q}"
+        status, body = self.http.get(url, headers=self._headers())
+        if status != 200 or not body:
+            return {}
+        out: dict[str, list[float]] = {}
+        for row in body:
+            v = row.get("value")
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                continue
+            out.setdefault(row["metric_id"], []).append(float(v))
+        return out
 
     def upsert_many(self, rows: list[HistoryRow]) -> bool:
         if not rows:
