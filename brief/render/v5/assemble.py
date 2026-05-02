@@ -62,11 +62,13 @@ def assemble_v5(
         section_titles=section_titles,
     ))
 
-    plotted_ids_in_order = [top_picks.front_of_book_id] + [
-        p.id for p in top_picks.plotted if p.id != top_picks.front_of_book_id
-    ]
-    grid_ids = [g.id for g in top_picks.grid]
-    full_order = plotted_ids_in_order + grid_ids
+    # Chapters render in numeric §01 → §14 order — the flow index above already
+    # surfaces today's editorial priority. The chapter body is the reference
+    # ordering (banker reads left-to-right by section number).
+    plotted_ids = {top_picks.front_of_book_id, *(p.id for p in top_picks.plotted)}
+    grid_ids = {g.id for g in top_picks.grid}
+    all_ids = plotted_ids | grid_ids
+    full_order = sorted(all_ids, key=lambda sid: _section_n(sid))
 
     for sid in full_order:
         section = section_by_id.get(sid)

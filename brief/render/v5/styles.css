@@ -39,7 +39,10 @@ body.brief-v5 {
   padding-bottom: 10px; border-bottom: 1px solid var(--ink-1);
 }
 .mast-meta-left, .mast-meta-center, .mast-meta-right { display: inline-flex; gap: 8px; }
-.mast-grid { display: grid; grid-template-columns: 1fr 360px; gap: 40px; align-items: end; padding: 22px 0 20px; border-bottom: 3px double var(--ink-1); }
+/* Mast-grid uses the SAME column ratio as .map-row below so today's call
+   right-aligns with the section-snapshot panel. Both 1.6fr 1fr means the
+   right columns are exactly the same pixel width, no offset. */
+.mast-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 32px; align-items: end; padding: 22px 0 20px; border-bottom: 3px double var(--ink-1); }
 .mast-title {
   font-family: var(--font-serif-display);
   font-size: clamp(72px, 12vw, 148px);
@@ -50,6 +53,7 @@ body.brief-v5 {
 }
 .mt-the { color: var(--ink-1); }
 .mt-brief { color: var(--ox); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
+.mt-comma { color: var(--ink-1); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
 .mt-plotted { color: var(--ink-1); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
 .mast-dek {
   font-family: var(--font-serif-text); font-style: italic;
