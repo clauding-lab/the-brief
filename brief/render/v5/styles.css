@@ -2,7 +2,8 @@
 
 * { box-sizing: border-box; }
 body.brief-v5 {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 1240px;
   font-family: var(--font-serif-text);
   color: var(--ink-1);
   background: var(--paper-1);
@@ -36,7 +37,26 @@ body.brief-v5 {
 .tc-text { font-size: 18px; line-height: 1.5; margin: var(--space-sm) 0; }
 .tc-byline { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
 
-.risk-map { padding: var(--space-lg) var(--space-2xl); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xl); align-items: start; }
+/* Narrow-width: today's call drops below the title, map row stacks. Mockup
+   threshold is ~960px; matching that gives the same graceful resize behavior. */
+@media (max-width: 960px) {
+  .mast-grid { grid-template-columns: 1fr; gap: var(--space-lg); }
+  .mast-title { font-size: clamp(56px, 12vw, 96px); }
+  .map-row { grid-template-columns: 1fr; gap: var(--space-lg); }
+  .todays-call { padding-left: var(--space-md); }
+}
+@media (max-width: 600px) {
+  .masthead, .map-row, .secondary-grid, .colophon { padding-left: var(--space-md); padding-right: var(--space-md); }
+  .section.section-v5 { padding-left: var(--space-md); padding-right: var(--space-md); }
+}
+
+/* The map row is the 2-up: risk map LEFT, front-of-book section snapshot RIGHT.
+   Risk map itself is a single block (header + svg + legend stacked); front-of-book
+   is its own column. Collapses to 1-col below 960px. */
+.map-row { padding: var(--space-lg) var(--space-2xl); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xl); align-items: start; }
+.risk-map { display: flex; flex-direction: column; gap: var(--space-sm); }
+.rm-header { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--ox); letter-spacing: 0.05em; }
+.rm-eyebrow-right { color: var(--ink-3); }
 .rm-svg { width: 100%; height: auto; aspect-ratio: 4/3; background: var(--paper-2); }
 .rm-quad-bg { fill: rgba(107,31,39,0.04); }
 .rm-quad-bg.q-event { fill: rgba(107,31,39,0.10); }

@@ -43,7 +43,10 @@ def assemble_v5(
     ))
 
     risk_map_html = render_risk_map(picks=top_picks, sections=sections_lookup, today_label=today_label)
-    fob_section = section_by_id.get(top_picks.front_of_book_id)
+    # FOB pinned to iranwar for now (per editorial decision 2026-05-02). Falls
+    # back to whatever Claude's top_picks.front_of_book_id selected if iranwar
+    # isn't in today's section_by_id.
+    fob_section = section_by_id.get("iranwar") or section_by_id.get(top_picks.front_of_book_id)
     fob_html = ""
     if fob_section is not None:
         fob_html = render_front_of_book(fob_section, section_n=_section_n(fob_section.id))
