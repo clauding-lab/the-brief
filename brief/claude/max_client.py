@@ -81,6 +81,13 @@ def run_max(
         "--output-format", "json",
         "--no-session-persistence",
         "--tools", "",
+        # Without --strict-mcp-config the CLI loads any user-installed MCP
+        # plugins (e.g. the Discord-bot plugin on Hetzner) and the agent
+        # treats prompts as conversational — routing the response to the
+        # Discord channel instead of stdout. This flag tells Claude to
+        # use ONLY MCP servers passed via --mcp-config; we pass none, so
+        # zero MCP tools load. Pure stdout JSON, no side channels.
+        "--strict-mcp-config",
         "--permission-mode", "bypassPermissions",
         "--effort", effort,
     ]
