@@ -270,7 +270,10 @@ def call_risk_map_layout(
         prompt = _fill(_load_prompt("risk_map_layout.txt"), {
             "INPUT_JSON": _json.dumps(payload, default=str),
         })
-        r = _run(prompt=prompt, timeout_s=45)
+        # Opus 4.6 high-effort calls of this prompt size empirically run
+        # 30-60s; 45s ate every cold-cache attempt. 300s gives a 5x ceiling
+        # while staying well inside the brief.service 20-min hard cap.
+        r = _run(prompt=prompt, timeout_s=300)
         _rm_sections = _risk_map_sections(sections_v2)
         v = validate_risk_map_layout(
             r.parsed,
@@ -317,7 +320,9 @@ def call_todays_call(
             ),
             "EXEC_SIGNALS_JSON": _json.dumps(claude_outputs.get("exec_signals", {}), default=str),
         })
-        r = _run(prompt=prompt, timeout_s=45)
+        # Same reason as risk_map_layout — 45s was too tight for Opus 4.6
+        # high-effort. 300s gives generous headroom inside the 20-min cap.
+        r = _run(prompt=prompt, timeout_s=300)
         v = validate_todays_call(r.parsed)
         if call_reports is not None:
             call_reports.append({"name": "todays_call",
