@@ -42,9 +42,9 @@ def test_bb_fresh_with_reserves_and_event_rates():
     assert reserves.delta is not None
     assert reserves.delta.direction == "up"
     assert reserves.delta.window == "wow"
-    history.upsert_many.assert_called_once_with([
-        HistoryRow("bb_gross_reserves", date(2026, 4, 14), 34.1166, "BB"),
-    ])
+    # Historical persistence moved upstream to EconDelta — the bb builder
+    # no longer writes to history. See econdelta/docs/data-contract.md.
+    history.upsert_many.assert_not_called()
 
 
 def test_bb_handles_missing_reserves():

@@ -7,7 +7,6 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from brief.cadence import section_freshness
-from brief.history import HistoryRow
 from brief.schema import Delta, Metric, SectionData
 from . import BuilderContext
 
@@ -74,11 +73,10 @@ def build(ctx: BuilderContext) -> SectionData:
     )
     metrics.append(reserves_metric)
 
-    # Upsert fresh reserves into history for next run
-    if ctx.history is not None and reserves_val is not None:
-        ctx.history.upsert_many([
-            HistoryRow("bb_gross_reserves", reserves_as_of, float(reserves_val), "BB"),
-        ])
+    # NOTE: Historical persistence of bb_gross_reserves moved upstream to
+    # EconDelta's aggregate_latest.py (utils/supabase_writer) — every numeric
+    # snapshot value is now upserted to metric_history at 06:10 BDT daily.
+    # See econdelta/docs/data-contract.md.
 
     freshness = section_freshness(metrics, today=ctx.today)
     return SectionData(

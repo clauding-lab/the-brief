@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 
 from brief.cadence import section_freshness
-from brief.history import HttpClient, UrllibHttp, HistoryRow
+from brief.history import HttpClient, UrllibHttp
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -273,12 +273,10 @@ def build(ctx: BuilderContext) -> SectionData:
         for (mid, label, src_key, unit) in _SPEC
     ]
 
-    # Upsert DSEX close for history + downstream chart delta
-    dsex = ctx.snapshot.get("dsex")
-    if ctx.history is not None and dsex is not None:
-        ctx.history.upsert_many([
-            HistoryRow("dse_dsex_close", ctx.today, float(dsex), "DSE"),
-        ])
+    # NOTE: Historical persistence of dse_dsex_close moved upstream to
+    # EconDelta's aggregate_latest.py — every numeric snapshot value is
+    # upserted to metric_history at 06:10 BDT daily. See
+    # econdelta/docs/data-contract.md.
 
     section = SectionData(
         id="dse",

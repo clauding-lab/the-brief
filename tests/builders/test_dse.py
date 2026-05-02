@@ -28,9 +28,9 @@ def test_dse_fresh_has_seven_metrics():
     assert {"dse_dsex_close", "dse_dsex_change_pct", "dse_ds30",
             "dse_dses", "dse_turnover_crore", "dse_advancing",
             "dse_declining"}.issubset(ids)
-    ctx.history.upsert_many.assert_called_once_with([
-        HistoryRow("dse_dsex_close", date(2026, 4, 21), 5232.49, "DSE"),
-    ])
+    # Historical persistence moved upstream to EconDelta — the dse builder
+    # no longer writes to history. See econdelta/docs/data-contract.md.
+    ctx.history.upsert_many.assert_not_called()
 
 
 def test_dse_saturday_run_with_same_day_data_is_fresh():
