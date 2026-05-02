@@ -165,6 +165,63 @@ def test_metric_hero_card_hero_flag_uses_oxblood_stroke():
     assert "metric-sparkline-hero" in html
 
 
+# ── line_chart_svg (Phase 2.3) ──────────────────────────────────────────────
+
+def test_line_chart_svg_renders_path_with_labels():
+    series = [11.85, 12.05, 12.20, 12.40, 12.60, 12.92]
+    labels = ["3M", "6M", "1Y", "2Y", "5Y", "10Y"]
+    html = _jsx.line_chart_svg(series, x_labels=labels, y_min=11.5, y_max=13.2,
+                               w=520, h=220)
+    assert "<svg" in html
+    assert 'viewBox="0 0 520 220"' in html
+    # Each label rendered as text
+    for lab in labels:
+        assert f">{lab}<" in html
+    # Path opens with M then has 5 L commands (6 points)
+    assert html.count(' L') == 5
+
+
+def test_line_chart_svg_with_comparison_renders_dashed_line():
+    series = [11.85, 12.05, 12.20]
+    prev = [11.76, 11.96, 12.12]
+    html = _jsx.line_chart_svg(
+        series, x_labels=["3M", "6M", "1Y"],
+        y_min=11.5, y_max=13.0,
+        comparison_series=prev,
+    )
+    # Comparison uses stroke-dasharray for the dashed line
+    assert "stroke-dasharray" in html
+    # Two <path> elements: comparison + main
+    assert html.count("<path") == 2
+
+
+def test_line_chart_svg_returns_empty_on_too_few_points():
+    assert _jsx.line_chart_svg([12.0], x_labels=["3M"], y_min=10, y_max=14) == ""
+    assert _jsx.line_chart_svg([], x_labels=[], y_min=10, y_max=14) == ""
+
+
+def test_line_chart_svg_skips_none_values():
+    series = [11.85, None, 12.20, None, 12.60, 12.92]
+    labels = ["3M", "6M", "1Y", "2Y", "5Y", "10Y"]
+    html = _jsx.line_chart_svg(series, x_labels=labels, y_min=11.5, y_max=13.2)
+    # Gaps split the path: M at i=0, M at i=2, M at i=4, L at i=5
+    # Path is "M…M…M…L…" — 1 L, 3 Ms in the d attribute
+    assert html.count(' L') == 1
+    # 4 non-None values → 4 dot markers
+    assert html.count("<circle") == 4
+    # All 6 labels still rendered (hide nothing on the x-axis)
+    for lab in labels:
+        assert f">{lab}<" in html
+
+
+def test_line_chart_svg_auto_min_max_when_omitted():
+    series = [11.0, 12.0, 13.0]
+    html = _jsx.line_chart_svg(series, x_labels=["a", "b", "c"])
+    # Falls back to data min/max — chart still renders
+    assert "<svg" in html
+    assert "<path" in html
+
+
 def test_source_badge_known_code_uses_css_class():
     html = _jsx.source_badge("REU")
     assert 'class="source-badge source-badge-reu"' in html

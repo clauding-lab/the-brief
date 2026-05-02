@@ -30,6 +30,7 @@ __all__ = [
     "metric_hero_card",
     "news_bullet",
     "source_badge",
+    "line_chart_svg",
     "bankerread_panel_v5",
     "systemic_risk_callout",
 ]
@@ -178,6 +179,124 @@ def news_bullet(item: NewsItem, *, summary: str = "") -> str:
         f' <span class="news-date">{_esc(pub_label)}</span>'
         '</div>'
         '</li>'
+    )
+
+
+def line_chart_svg(
+    series: list[float | None],
+    *,
+    x_labels: list[str],
+    y_min: float | None = None,
+    y_max: float | None = None,
+    w: int = 520,
+    h: int = 220,
+    pad: int = 36,
+    comparison_series: list[float | None] | None = None,
+    color: str = "#6b1f27",
+    comparison_color: str = "#999",
+) -> str:
+    """Multi-point line chart with axis ticks and dot markers.
+
+    Skips None values when drawing the path (gap rendering, not interpolated).
+    Returns "" when fewer than 2 non-None points are available.
+
+    Useful for the yield curve hero (§07 T-Bond) — and any future series
+    where today's reading is plotted against a comparison.
+    """
+    # Need at least 2 valid (i, value) pairs to draw a line
+    valid = [(i, v) for i, v in enumerate(series) if isinstance(v, (int, float))]
+    if len(valid) < 2:
+        return ""
+
+    # Auto-derive bounds when not specified
+    all_known = [v for v in series if isinstance(v, (int, float))]
+    if comparison_series:
+        all_known += [v for v in comparison_series if isinstance(v, (int, float))]
+    if y_min is None:
+        y_min = min(all_known)
+    if y_max is None:
+        y_max = max(all_known)
+    if y_max == y_min:
+        y_max = y_min + 1.0  # avoid div-by-zero on flat data
+
+    inner_w = w - 2 * pad
+    inner_h = h - 2 * pad
+    n = len(series)
+
+    def _x(i: int) -> float:
+        return pad + (i / max(n - 1, 1)) * inner_w
+
+    def _y(v: float) -> float:
+        return pad + (1 - (v - y_min) / (y_max - y_min)) * inner_h
+
+    def _path(values: list[float | None]) -> str:
+        d_parts: list[str] = []
+        first = True
+        for i, v in enumerate(values):
+            if not isinstance(v, (int, float)):
+                first = True  # break the path at the gap
+                continue
+            cmd = "M" if first else " L"
+            d_parts.append(f"{cmd}{_x(i):.1f},{_y(v):.1f}")
+            first = False
+        return "".join(d_parts)
+
+    # 4 horizontal gridlines evenly spaced between y_min and y_max
+    gridline_html: list[str] = []
+    grid_steps = 4
+    for k in range(grid_steps + 1):
+        gv = y_min + (y_max - y_min) * k / grid_steps
+        gy = _y(gv)
+        gridline_html.append(
+            f'<line x1="{pad}" y1="{gy:.1f}" x2="{w - pad}" y2="{gy:.1f}" '
+            f'stroke="#ddd" stroke-width="0.5"/>'
+        )
+        gridline_html.append(
+            f'<text x="{pad - 6}" y="{gy + 3:.1f}" text-anchor="end" '
+            f'font-family="monospace" font-size="10" fill="#888">'
+            f'{gv:.2f}</text>'
+        )
+
+    # x-axis labels
+    label_html: list[str] = []
+    for i, lab in enumerate(x_labels[:n]):
+        label_html.append(
+            f'<text x="{_x(i):.1f}" y="{h - pad + 18}" text-anchor="middle" '
+            f'font-family="monospace" font-size="10" fill="#888">{_attr_esc(lab)}</text>'
+        )
+
+    # Optional comparison line (rendered first so it sits behind the main line)
+    cmp_path_html = ""
+    if comparison_series:
+        cmp_d = _path(list(comparison_series))
+        if cmp_d:
+            cmp_path_html = (
+                f'<path d="{cmp_d}" fill="none" stroke="{comparison_color}" '
+                f'stroke-width="1.5" stroke-dasharray="3 4"/>'
+            )
+
+    main_d = _path(series)
+    main_path_html = (
+        f'<path d="{main_d}" fill="none" stroke="{color}" stroke-width="2.5"/>'
+    )
+
+    # Dot markers on the main series
+    dots_html: list[str] = []
+    for i, v in enumerate(series):
+        if isinstance(v, (int, float)):
+            dots_html.append(
+                f'<circle cx="{_x(i):.1f}" cy="{_y(v):.1f}" r="3.5" fill="{color}"/>'
+            )
+
+    return (
+        f'<svg width="100%" viewBox="0 0 {w} {h}" '
+        f'xmlns="http://www.w3.org/2000/svg" class="line-chart">'
+        + "".join(gridline_html)
+        + "".join(label_html)
+        + cmp_path_html
+        + main_path_html
+        + "".join(dots_html)
+        + '</svg>'
     )
 
 

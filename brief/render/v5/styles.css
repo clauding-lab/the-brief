@@ -341,6 +341,18 @@ body.brief-v5 {
 .metric-sparkline-hero svg polyline { stroke-width: 2; }
 .metric-sparkline-supporting svg polyline { opacity: 0.7; }
 
+/* ── §07 T-Bond yield-curve hero (Phase 2.3) ────────────────────────────── */
+.tbond-tbills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg); }
+.tbond-bond-chart { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-lg); align-items: stretch; }
+.tbond-bonds { display: flex; flex-direction: column; gap: var(--space-md); }
+.yield-curve-chart { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-md) calc(var(--space-md) + 4px); }
+.yc-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.yield-curve-chart svg.line-chart { width: 100%; height: auto; display: block; }
+@media (max-width: 960px) {
+  .tbond-tbills { grid-template-columns: 1fr; }
+  .tbond-bond-chart { grid-template-columns: 1fr; }
+}
+
 .systemic-risk { background: rgba(168,58,58,0.06); border: 2px solid var(--red); padding: var(--space-md); margin: var(--space-md) 0; display: grid; grid-template-columns: 24px 1fr; gap: var(--space-sm); }
 .systemic-risk-warning { border-color: var(--gold); background: rgba(200,154,63,0.08); }
 .systemic-risk-icon { font-size: 18px; }
