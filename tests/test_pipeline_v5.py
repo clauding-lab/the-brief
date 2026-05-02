@@ -296,6 +296,83 @@ def _fake_max_result(parsed=None, cost=0.05, duration=1.5, tokens=None):
     )
 
 
+def test_run_v5_editorial_call_2_populates_exec_signals():
+    """Phase 2.2: Call 2 (exec_signals) fires between top_picks and todays_call.
+
+    Valid signals payload mutates exec_section.exec_signals and bumps
+    its freshness from 'pending' to 'fresh'. Emits an exec_signals
+    entry in call_reports.
+    """
+    from brief.pipeline import run_v5_editorial
+
+    sections = [
+        _section("bb", "fresh"),
+        _section("exec", "pending"),
+    ]
+    call_reports: list[dict] = []
+
+    exec_payload = {
+        "signals": [
+            {"direction": "bull", "text": "BB reserves up 0.3bn WoW", "section_anchor": "bb"},
+            {"direction": "warn", "text": "BB liquidity ratio at 8.5%", "section_anchor": "bb"},
+        ],
+        "traffic_status": "neu",
+    }
+
+    def fake_run_max(prompt=None, **kwargs):
+        # Detect the exec_signals prompt by its unique copy
+        if prompt and "Bangladesh signals" in prompt and "traffic_status" in prompt:
+            return _fake_max_result(parsed=exec_payload)
+        return _fake_max_result(parsed=None)
+
+    with patch("brief.pipeline.run_max", side_effect=fake_run_max):
+        run_v5_editorial(
+            sections=sections,
+            today=date(2026, 4, 21),
+            headlines_curation_result={"selected": [], "rationale_bullet": ""},
+            call_reports=call_reports,
+        )
+
+    names = [r["name"] for r in call_reports]
+    assert "exec_signals" in names
+
+    exec_section = next(s for s in sections if s.id == "exec")
+    assert exec_section.exec_signals is not None
+    assert len(exec_section.exec_signals) == 2
+    assert exec_section.exec_signals[0].direction == "bull"
+    assert exec_section.exec_signals[0].text == "BB reserves up 0.3bn WoW"
+    # Successful Call 2 promotes the section from pending → fresh
+    assert exec_section.freshness == "fresh"
+
+
+def test_run_v5_editorial_call_2_invalid_payload_leaves_exec_pending():
+    from brief.pipeline import run_v5_editorial
+
+    sections = [_section("bb", "fresh"), _section("exec", "pending")]
+    call_reports: list[dict] = []
+
+    def fake_run_max(prompt=None, **kwargs):
+        if prompt and "Bangladesh signals" in prompt:
+            # malformed: signals isn't a list
+            return _fake_max_result(parsed={"signals": "oops", "traffic_status": "neu"})
+        return _fake_max_result(parsed=None)
+
+    with patch("brief.pipeline.run_max", side_effect=fake_run_max):
+        run_v5_editorial(
+            sections=sections,
+            today=date(2026, 4, 21),
+            headlines_curation_result={"selected": [], "rationale_bullet": ""},
+            call_reports=call_reports,
+        )
+
+    exec_section = next(s for s in sections if s.id == "exec")
+    assert exec_section.exec_signals is None
+    assert exec_section.freshness == "pending"  # unchanged
+    # Call still recorded as invalid, not error
+    rec = next(r for r in call_reports if r["name"] == "exec_signals")
+    assert rec["status"] == "invalid"
+
+
 def test_run_v5_editorial_records_call_report_per_run_max():
     """Each Claude call in run_v5_editorial appends an entry to call_reports.
     With 2 sections and parsed=None on every call, expected entries:

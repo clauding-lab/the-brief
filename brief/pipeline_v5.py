@@ -22,11 +22,13 @@ from typing import Any
 
 from brief.cadence import evaluate_risk_rules, now_bdt
 from brief.claude.max_client import MaxCallError, MaxCallResult
+from brief.builders import SPINE_BUILDER_IDS
 from brief.claude.validators import (
     validate_bankerread_structured,
     validate_curation,
     validate_editorial_qa,
     validate_headlines_layout,
+    validate_signals,
     validate_systemic_risk_callout,
     validate_top_picks,
 )
@@ -35,6 +37,7 @@ from brief.econdelta import EconDeltaSnapshot
 from brief.schema import (
     BankerReadInsight,
     EditorialQAResult,
+    ExecSignal,
     GridEntry,
     MapPoint,
     QAIssue,
@@ -142,6 +145,46 @@ def run_v5_editorial(
     except Exception as e:
         top_picks = _top_picks_fallback(sections)
         _record_v5_call_error(call_reports, "top_picks", str(e))
+
+    # ---- Call 2: exec_signals (Phase 2.2 V5 restoration) ----
+    # Mutates exec_section.exec_signals + freshness in place; does nothing
+    # when the exec section is absent or the call returns invalid output.
+    exec_section = section_by_id.get("exec")
+    if exec_section is not None:
+        spine_payload = [
+            _pipeline._section_to_json(s) for s in sections
+            if s.id in SPINE_BUILDER_IDS and s.freshness in ("fresh", "warning")
+        ]
+        prompt = _pipeline._fill(_pipeline._load_prompt("exec_signals.txt"), {
+            "TODAY_ISO": today.isoformat(),
+            "SECTIONS_JSON": json.dumps(spine_payload, default=str),
+        })
+        try:
+            result = _pipeline.run_max(prompt=prompt, timeout_s=900)
+            if result.parsed is not None:
+                v = validate_signals(result.parsed, allowed_anchors=allowed_ids)
+                if v.ok:
+                    parsed_signals = []
+                    for s in v.value.get("signals", []):
+                        try:
+                            parsed_signals.append(ExecSignal(
+                                direction=s["direction"],
+                                text=s["text"],
+                                section_anchor=s["section_anchor"],
+                            ))
+                        except (KeyError, TypeError, ValueError):
+                            continue
+                    if parsed_signals:
+                        exec_section.exec_signals = parsed_signals
+                        exec_section.freshness = "fresh"
+                _record_v5_call_ok(call_reports, "exec_signals", result=result,
+                                   status="ok" if v.ok else "invalid",
+                                   reason=None if v.ok else v.reason)
+            else:
+                _record_v5_call_ok(call_reports, "exec_signals", result=result,
+                                   status="invalid", reason="result.parsed is None")
+        except Exception as e:
+            _record_v5_call_error(call_reports, "exec_signals", str(e))
 
     # ---- Call 3: todays_call ----
     plotted_sections = [section_by_id[p.id] for p in top_picks.plotted if p.id in section_by_id]
