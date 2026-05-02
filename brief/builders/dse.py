@@ -33,6 +33,19 @@ _BREADTH_URL = "https://www.dsebd.org/"
 _SECTOR_URL = "https://www.dsebd.org/sector_indices.php"
 _SECTORS = ["Banks", "NBFI", "Textile", "Pharma", "Fuel", "Telecom", "Food", "IT"]
 
+# Phase 3.1: per-sector keys EconDelta writes to Supabase metric_history.
+# Order matches the V1 mockup's heatmap layout (4×2 grid, row-major).
+_SECTOR_HEAT_KEYS: tuple[tuple[str, str], ...] = (
+    ("Banks",   "dse_sector_heat_banks"),
+    ("NBFI",    "dse_sector_heat_nbfi"),
+    ("Textile", "dse_sector_heat_textile"),
+    ("Pharma",  "dse_sector_heat_pharma"),
+    ("Fuel",    "dse_sector_heat_fuel"),
+    ("Telecom", "dse_sector_heat_telecom"),
+    ("Food",    "dse_sector_heat_food"),
+    ("IT",      "dse_sector_heat_it"),
+)
+
 # Browser-like User-Agent required; dsebd.org blocks plain urllib requests.
 _BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -313,27 +326,42 @@ def build(ctx: BuilderContext) -> SectionData:
             section.degraded_breadth = False
             section.extras["breadth_unchanged"] = breadth.unchanged
 
-    # Sector heat: Phase 3.1 sources from EconDelta's compute-from-constituents
-    # output (`dse_sector_heat: dict[sector_name, pct_change]`) when present.
-    # Falls back to the legacy DSE direct scrape (dead endpoint as of 2026-04;
-    # kept in case it's restored).
-    snap_heat = ctx.snapshot.get("dse_sector_heat")
-    if isinstance(snap_heat, dict) and snap_heat:
+    # Sector heat (Phase 3.1): Option A — EconDelta computes from constituents
+    # and writes 8 numeric keys to Supabase metric_history (one per sector).
+    # We reconstruct the {sector: pct} dict here. Falls back to:
+    #  (a) snapshot's dse_sector_heat dict if a local latest.json carries it,
+    #  (b) the legacy DSE direct scrape (HTTP 404 since 2026-04).
+    section.degraded_sector_heat = True
+    sector_heat_rows: list[dict] = []
+    if ctx.history is not None:
+        for sector_label, key in _SECTOR_HEAT_KEYS:
+            row = ctx.history.get_latest(key)
+            if row is None or not isinstance(row.value, (int, float)):
+                continue
+            sector_heat_rows.append({
+                "sector": sector_label,
+                "pct": float(row.value),
+                "as_of": row.as_of.isoformat(),
+            })
+    if sector_heat_rows:
         section.degraded_sector_heat = False
-        section.extras["sector_heat"] = [
-            {"sector": sec, "pct": pct, "as_of": ctx.today.isoformat()}
-            for sec, pct in snap_heat.items()
-            if isinstance(pct, (int, float))
-        ]
+        section.extras["sector_heat"] = sector_heat_rows
     else:
-        heat = scrape_sector_heat()
-        if heat is None:
-            section.degraded_sector_heat = True
-        else:
+        snap_heat = ctx.snapshot.get("dse_sector_heat")
+        if isinstance(snap_heat, dict) and snap_heat:
             section.degraded_sector_heat = False
             section.extras["sector_heat"] = [
-                {"sector": sp.sector, "pct": sp.pct, "as_of": sp.as_of.isoformat()}
-                for sp in heat
+                {"sector": sec, "pct": pct, "as_of": ctx.today.isoformat()}
+                for sec, pct in snap_heat.items()
+                if isinstance(pct, (int, float))
             ]
+        else:
+            heat = scrape_sector_heat()
+            if heat is not None:
+                section.degraded_sector_heat = False
+                section.extras["sector_heat"] = [
+                    {"sector": sp.sector, "pct": sp.pct, "as_of": sp.as_of.isoformat()}
+                    for sp in heat
+                ]
 
     return section
