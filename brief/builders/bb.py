@@ -54,9 +54,20 @@ def build(ctx: BuilderContext) -> SectionData:
     except ValueError:
         reserves_as_of = ctx.today
 
+    # Snapshot empty? Fall back to last reading from Supabase metric_history.
+    # EconDelta upserts bb_gross_reserves daily, so history is the safety net
+    # for non-trading-day or scrape-failure cycles.
+    is_stale = False
+    if reserves_val is None and ctx.history is not None:
+        last = ctx.history.get_latest("bb_gross_reserves")
+        if last is not None:
+            reserves_val = last.value
+            reserves_as_of = last.as_of
+            is_stale = True
+
     prev = (
         ctx.history.get_latest("bb_gross_reserves")
-        if (ctx.history is not None and reserves_val is not None)
+        if (ctx.history is not None and reserves_val is not None and not is_stale)
         else None
     )
 
@@ -69,7 +80,8 @@ def build(ctx: BuilderContext) -> SectionData:
         source="BB",
         source_url="https://www.bb.org.bd/",
         cadence="weekly",
-        delta=_reserves_delta(reserves_val, prev) if reserves_val is not None else None,
+        delta=_reserves_delta(reserves_val, prev) if reserves_val is not None and not is_stale else None,
+        stale=is_stale,
     )
     metrics.append(reserves_metric)
 

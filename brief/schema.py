@@ -30,6 +30,7 @@ class Metric(BaseModel):
     cadence: CadenceKind
     delta: Optional[Delta] = None
     hero: bool = False
+    stale: bool = False  # True when value is from history fallback, not today
 
 
 class NewsItem(BaseModel):

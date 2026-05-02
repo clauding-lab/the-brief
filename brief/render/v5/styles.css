@@ -280,6 +280,51 @@ body.brief-v5 {
 .sec-summary-pills { display: flex; flex-wrap: wrap; gap: var(--space-md); margin: var(--space-md) 0; }
 .sum-pill { font-family: var(--font-mono); font-size: 12px; padding: 4px 10px; background: var(--paper-2); border: 1px solid var(--ink-4); }
 .sec-metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); margin: var(--space-md) 0; }
+
+/* "Section unavailable" graceful placeholder — used when every metric in
+   the section is null (warming-up, awaiting next publication, etc.).
+   Replaces the previous wall of "X: None Y: None" with a single dignified
+   card. Modelled on the V1 mockup's diagonal-stripe treatment. */
+.sec-unavailable {
+  position: relative;
+  grid-column: 1 / -1;
+  padding: var(--space-lg);
+  border: 1px dashed var(--ink-4);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.sec-unavailable-stripes {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0, transparent 8px,
+    color-mix(in srgb, var(--ink-4) 24%, transparent) 8px,
+    color-mix(in srgb, var(--ink-4) 24%, transparent) 9px
+  );
+  opacity: 0.45;
+}
+.sec-unavailable-body { position: relative; z-index: 1; max-width: 60ch; }
+.sec-unavailable-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--ox);
+  text-transform: uppercase;
+}
+.sec-unavailable-title {
+  font-family: var(--font-serif-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 6px 0 8px;
+  color: var(--ink-1);
+}
+.sec-unavailable-reason {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 0;
+  line-height: 1.5;
+}
 .metric-card { padding: var(--space-md); background: var(--paper-2); border-left: 3px solid var(--ox); }
 .metric-card-hero { grid-column: span 2; }
 .metric-label { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }

@@ -19,6 +19,46 @@ from brief.render.v5._jsx import (
 from brief.schema import SectionData
 
 
+def _all_metrics_empty(section: SectionData) -> bool:
+    """True when every metric in the section is null — i.e. there is
+    nothing real to render. Used to swap the metric grid for a graceful
+    "Section unavailable" placeholder instead of a wall of "None".
+    """
+    if not section.metrics:
+        return True
+    return all(m.value is None for m in section.metrics)
+
+
+def _render_unavailable_placeholder(section: SectionData) -> str:
+    """The graceful 'no data' card. Modelled on the V1 mockup's diagonal-stripe
+    "§ SECTION UNAVAILABLE" treatment — explicit about what's missing and why,
+    with a hint about when it'll refresh."""
+    reason = section.freshness_reason or _default_unavailable_reason(section)
+    return (
+        '<div class="sec-unavailable">'
+        '<div class="sec-unavailable-stripes" aria-hidden="true"></div>'
+        '<div class="sec-unavailable-body">'
+        '<span class="sec-unavailable-eyebrow">§ Section unavailable</span>'
+        f'<p class="sec-unavailable-title">{_esc(section.title)} — no fresh data this cycle.</p>'
+        f'<p class="sec-unavailable-reason">{_esc(reason)}</p>'
+        '</div>'
+        '</div>'
+    )
+
+
+def _default_unavailable_reason(section: SectionData) -> str:
+    cadence = section.metrics[0].cadence if section.metrics else "event"
+    if cadence == "daily":
+        return "Pipeline still warming up — values populate on the next aggregate cycle."
+    if cadence == "weekly":
+        return "Weekly publication pending; section refreshes when the next bulletin lands."
+    if cadence == "monthly":
+        return "Monthly release not yet published; values refresh once the official series updates."
+    if cadence == "quarterly":
+        return "Quarterly release pending; section refreshes after the next BB / BBS publication."
+    return "No fresh reading available; check back when the next cycle completes."
+
+
 def render_section_base(
     section: SectionData,
     *,
@@ -32,6 +72,11 @@ def render_section_base(
     cadence = section.metrics[0].cadence if section.metrics else "event"
     pill = freshness_pill(section.freshness)
     cadence_p = cadence_pill_v5(cadence)
+
+    # When every metric is null, swap the metric-card grid (which would
+    # otherwise render a wall of "None") for a single graceful placeholder.
+    if _all_metrics_empty(section):
+        metric_cards_html = _render_unavailable_placeholder(section)
 
     risk_callout_html = ""
     if section.systemic_risk is not None:

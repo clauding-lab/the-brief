@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from typing import Any
 
 from brief.cadence import section_freshness
 from brief.history import HttpClient, UrllibHttp
@@ -259,30 +260,38 @@ def scrape_sector_heat(client: HttpClient | None = None) -> list[SectorPerf] | N
 
 
 def build(ctx: BuilderContext) -> SectionData:
-    metrics = [
-        Metric(
-            id=mid,
-            label=label,
-            value=ctx.snapshot.get(src_key),
-            unit=unit,
-            as_of=ctx.today,
-            source="DSE",
+    # On non-trading days (Fri/Sat/holidays in BD), today's snapshot is empty.
+    # Fall back to the last trading-day reading from Supabase metric_history,
+    # so the section renders the last-known values with a "STALE" marker
+    # rather than a wall of None. EconDelta upserts these keys daily.
+    metrics: list[Metric] = []
+    any_stale = False
+    for (mid, label, src_key, unit) in _SPEC:
+        value: Any = ctx.snapshot.get(src_key)
+        as_of = ctx.today
+        is_stale = False
+        if value is None and ctx.history is not None:
+            last = ctx.history.get_latest(mid)
+            if last is not None:
+                value = last.value
+                as_of = last.as_of
+                is_stale = True
+                any_stale = True
+        metrics.append(Metric(
+            id=mid, label=label, value=value, unit=unit,
+            as_of=as_of, source="DSE",
             source_url="https://www.dse.com.bd/market-statistics.php",
             cadence="daily",
-        )
-        for (mid, label, src_key, unit) in _SPEC
-    ]
-
-    # NOTE: Historical persistence of dse_dsex_close moved upstream to
-    # EconDelta's aggregate_latest.py — every numeric snapshot value is
-    # upserted to metric_history at 06:10 BDT daily. See
-    # econdelta/docs/data-contract.md.
+            stale=is_stale,
+        ))
 
     section = SectionData(
         id="dse",
         title="DSE Markets",
         metrics=metrics,
-        freshness=section_freshness(metrics, today=ctx.today),
+        freshness="stale" if any_stale else section_freshness(metrics, today=ctx.today),
+        freshness_reason=("Non-trading day — last trading session"
+                          if any_stale else None),
     )
 
     # Breadth: prefer EconDelta's already-scraped advancing/declining/unchanged
