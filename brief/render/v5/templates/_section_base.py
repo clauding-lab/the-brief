@@ -1,7 +1,9 @@
 """Shared per-section render shape — every V5 section template uses this scaffold.
 
-Sections compose: header (numeral + kicker + title + tldr) → 3-pill summary →
-optional systemic-risk callout → metric cards → optional sparkline → optional news → banker's read.
+Sections compose: header (numeral + kicker + title + tldr) → banker's read (when present) →
+3-pill summary → optional systemic-risk callout → metric cards → optional sparkline → optional news.
+
+The banker's read leads the section to give the analytical frame (V1 mockup convention).
 """
 from __future__ import annotations
 
@@ -105,6 +107,7 @@ def render_section_base(
         '</header>'
         f'<h2 class="sec-title"><em>{_esc(section.title)}</em></h2>'
         f'<p class="sec-tldr">{_esc(section.tldr)}</p>'
+        f'{bankerread_html}'
         '<div class="sec-summary-pills">'
         f'{summary_pills_html}'
         '</div>'
@@ -114,6 +117,5 @@ def render_section_base(
         '</div>'
         f'{sparkline_html}'
         f'{news_block_html}'
-        f'{bankerread_html}'
         '</section>'
     )
