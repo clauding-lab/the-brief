@@ -287,14 +287,29 @@ def build(ctx: BuilderContext) -> SectionData:
         freshness=section_freshness(metrics, today=ctx.today),
     )
 
-    # Breadth scrape
-    breadth = scrape_breadth()
-    if breadth is None:
-        section.degraded_breadth = True
-    else:
+    # Breadth: prefer EconDelta's already-scraped advancing/declining/unchanged
+    # (synced from BD-located ExonVPS via the rsync cron) over a duplicate
+    # scrape from this VPS. The dsebd.org foreign-IP block makes the local
+    # scrape fail from Hetzner anyway. Fall back only if EconDelta is empty.
+    snap_adv = ctx.snapshot.get("advancing")
+    snap_dec = ctx.snapshot.get("declining")
+    snap_unc = ctx.snapshot.get("unchanged")
+    if snap_adv is not None and snap_dec is not None:
         section.degraded_breadth = False
+        if snap_unc is not None:
+            section.extras["breadth_unchanged"] = snap_unc
+    else:
+        breadth = scrape_breadth()
+        if breadth is None:
+            section.degraded_breadth = True
+        else:
+            section.degraded_breadth = False
+            section.extras["breadth_unchanged"] = breadth.unchanged
 
-    # Sector heat scrape
+    # Sector heat: dsebd.org/sector_indices.php has returned HTTP 404 since
+    # 2026-04 (data source dead). scrape_sector_heat() retained as a no-op
+    # in case the endpoint is restored. degraded_sector_heat stays True
+    # until either the endpoint comes back or a replacement source is wired.
     heat = scrape_sector_heat()
     if heat is None:
         section.degraded_sector_heat = True
