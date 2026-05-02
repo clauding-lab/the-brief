@@ -55,6 +55,67 @@ def validate_curation(payload: Any, *, allowed_urls: set[str]) -> ValidationResu
     return ValidationResult(True, value=payload)
 
 
+def validate_headlines_layout(
+    payload: Any, *, allowed_urls: set[str],
+) -> ValidationResult:
+    """Validate the V5 newspaper-layout payload.
+
+    Shape: {lead: {url, key_points: [3 strings ≤ 25 words]},
+            right_rail: [4 urls], secondary: [3 urls]}
+    All URLs must be in `allowed_urls`. No URL appears in more than one bucket.
+    Key-point HTML is allowed but the test counts plain whitespace tokens.
+    """
+    if not _is_dict(payload):
+        return ValidationResult(False, reason="payload not a dict")
+
+    # ── lead ─────────────────────────────────────────────────────────────────
+    lead = payload.get("lead")
+    if not _is_dict(lead):
+        return ValidationResult(False, reason="lead not a dict")
+    lead_url = lead.get("url")
+    if lead_url not in allowed_urls:
+        return ValidationResult(False, reason=f"unknown lead url: {lead_url!r}")
+    key_points = lead.get("key_points")
+    if not isinstance(key_points, list) or len(key_points) != 3:
+        return ValidationResult(False, reason="key_points must be a list of 3")
+    for i, kp in enumerate(key_points):
+        if not isinstance(kp, str):
+            return ValidationResult(False, reason=f"key_point {i} not a string")
+        # strip HTML tags for word count
+        bare = _strip_simple_tags(kp)
+        if len(bare.split()) > 25:
+            return ValidationResult(False, reason=f"key_point {i} too long (>25 words)")
+
+    # ── right rail ───────────────────────────────────────────────────────────
+    right_rail = payload.get("right_rail")
+    if not isinstance(right_rail, list) or len(right_rail) != 4:
+        return ValidationResult(False, reason="right_rail must be a list of 4 urls")
+    for u in right_rail:
+        if u not in allowed_urls:
+            return ValidationResult(False, reason=f"unknown right_rail url: {u!r}")
+
+    # ── secondary ────────────────────────────────────────────────────────────
+    secondary = payload.get("secondary")
+    if not isinstance(secondary, list) or len(secondary) != 3:
+        return ValidationResult(False, reason="secondary must be a list of 3 urls")
+    for u in secondary:
+        if u not in allowed_urls:
+            return ValidationResult(False, reason=f"unknown secondary url: {u!r}")
+
+    # ── no duplicates across buckets ─────────────────────────────────────────
+    all_urls = [lead_url, *right_rail, *secondary]
+    if len(set(all_urls)) != len(all_urls):
+        return ValidationResult(False, reason="duplicate url across buckets")
+
+    return ValidationResult(True, value=payload)
+
+
+def _strip_simple_tags(s: str) -> str:
+    """Strip <b>, </b>, <i>, </i> from a string for length-counting purposes."""
+    import re as _re
+    return _re.sub(r"</?[a-zA-Z][^>]*>", "", s)
+
+
 def validate_signals(payload: Any, *, allowed_anchors: set[str]) -> ValidationResult:
     if not _is_dict(payload):
         return ValidationResult(False, reason="payload not a dict")

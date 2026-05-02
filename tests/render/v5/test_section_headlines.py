@@ -82,3 +82,86 @@ def test_section_headlines_rejects_wrong_id():
     section = _headlines_section().model_copy(update={"id": "fx"})
     with pytest.raises(ValueError):
         render_section_headlines(section)
+
+
+# ── newspaper layout (Phase 2.1) ────────────────────────────────────────────
+
+def _layout_payload(news_count: int = 8) -> dict:
+    return {
+        "lead": {
+            "url": "https://example.com/lead",
+            "key_points": [
+                "Insurer <b>war-risk premia up 18%</b> — review aviation lines.",
+                "<b>Brent $95.10</b>; CPI food feed-through ~6 weeks.",
+                "<b>BSEC</b> policy pricing review at 10:00 BDT.",
+            ],
+        },
+        "right_rail": [f"https://example.com/h{i}" for i in range(2, 6)],
+        "secondary": [f"https://example.com/h{i}" for i in range(6, 9)],
+    }
+
+
+def _section_with_layout() -> SectionData:
+    s = _headlines_section()
+    # Make news urls predictable so the layout can reference them
+    new_news = []
+    for i, n in enumerate(s.news, start=1):
+        url = "https://example.com/lead" if i == 1 else f"https://example.com/h{i}"
+        new_news.append(n.model_copy(update={"url": url}))
+    s = s.model_copy(update={"news": new_news})
+    s.extras["layout"] = _layout_payload(len(new_news))
+    return s
+
+
+def test_newspaper_layout_renders_lead_with_key_points_box():
+    html = render_section_headlines(_section_with_layout())
+    # New 2x2 grid container present
+    assert "hl-newspaper" in html
+    # LEAD article element present
+    assert 'class="hl lead"' in html
+    # KEY POINTS dark box renders with all 3 bullets
+    assert "keypts" in html
+    assert "war-risk premia up 18%" in html
+    assert "Brent $95.10" in html
+    assert "BSEC" in html
+
+
+def test_newspaper_layout_renders_right_rail_4_items():
+    html = render_section_headlines(_section_with_layout())
+    # 4 right-rail mini-headlines
+    rail_count = html.count('class="hl hl-rail"')
+    assert rail_count == 4
+
+
+def test_newspaper_layout_renders_secondary_3_items():
+    html = render_section_headlines(_section_with_layout())
+    secondary_count = html.count('class="hl hl-secondary"')
+    assert secondary_count == 3
+
+
+def test_newspaper_layout_keypoints_keep_bold_html():
+    html = render_section_headlines(_section_with_layout())
+    # <b>...</b> tags from the prompt make it through to render
+    assert "<b>war-risk premia up 18%</b>" in html
+    assert "<b>Brent $95.10</b>" in html
+
+
+def test_falls_back_to_simple_grid_when_no_layout():
+    # No layout in extras → existing hl-grid path (lead + bullets)
+    html = render_section_headlines(_headlines_section())
+    assert "hl-newspaper" not in html
+    assert "hl-grid" in html
+
+
+def test_layout_with_unknown_lead_url_falls_back():
+    """Renderer is defensive: if the layout references a url not in news,
+    skip the layout and use the simple grid."""
+    s = _headlines_section()
+    s.extras["layout"] = {
+        "lead": {"url": "https://gone.example/x", "key_points": ["a", "b", "c"]},
+        "right_rail": ["x", "y", "z", "w"],
+        "secondary": ["a", "b", "c"],
+    }
+    html = render_section_headlines(s)
+    assert "hl-newspaper" not in html
+    assert "hl-grid" in html

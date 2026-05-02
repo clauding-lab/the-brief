@@ -26,6 +26,7 @@ from brief.claude.validators import (
     validate_bankerread_structured,
     validate_curation,
     validate_editorial_qa,
+    validate_headlines_layout,
     validate_systemic_risk_callout,
     validate_top_picks,
 )
@@ -509,6 +510,78 @@ def _run_v5_headlines_curation(
         }]
 
 
+def _run_v5_headlines_layout(
+    sections: list[SectionData],
+    *,
+    curated_urls: set[str],
+) -> tuple[dict | None, list[dict]]:
+    """Phase 2.1 V5 newspaper layout — picks lead+key_points, right_rail, secondary.
+
+    Runs AFTER headlines_curation. Takes the curated URL set + raw headlines,
+    asks Claude to lay them out in newspaper structure with 3 actionable
+    "key points for the book" beneath the lead.
+
+    Returns (layout_or_None, [report]). Never raises; on failure or curation
+    miss, returns (None, [report]) and the section_headlines render falls
+    back to the simple grid.
+    """
+    import json as _json
+
+    if not curated_urls:
+        return None, [{
+            "name": "headlines_layout_v5",
+            "status": "skipped",
+            "reason": "no curated headlines",
+            "cost_usd": 0.0,
+            "duration_s": 0.0,
+            "tokens": {"input": 0, "output": 0},
+        }]
+
+    by_id = {s.id: s for s in sections}
+    headlines_section = by_id.get("headlines")
+    raw_headlines = list(headlines_section.news) if headlines_section else []
+    pool = [
+        {"title": h.title, "url": h.url, "source": h.source,
+         "published": h.published.isoformat()}
+        for h in raw_headlines if h.url in curated_urls
+    ]
+    if len(pool) < 8:
+        return None, [{
+            "name": "headlines_layout_v5",
+            "status": "skipped",
+            "reason": f"pool too small ({len(pool)} < 8)",
+            "cost_usd": 0.0,
+            "duration_s": 0.0,
+            "tokens": {"input": 0, "output": 0},
+        }]
+
+    try:
+        prompt = _pipeline._fill(
+            _pipeline._load_prompt("headlines_layout_v5.txt"),
+            {"HEADLINES_JSON": _json.dumps(pool)},
+        )
+        r = _pipeline.run_max(prompt=prompt, timeout_s=600)
+        v = validate_headlines_layout(r.parsed, allowed_urls=curated_urls)
+        result = v.value if v.ok else None
+        return result, [{
+            "name": "headlines_layout_v5",
+            "status": "ok" if v.ok else "invalid",
+            "reason": v.reason,
+            "cost_usd": float(r.total_cost_usd or 0.0),
+            "duration_s": float(r.duration_s),
+            "tokens": r.tokens,
+        }]
+    except MaxCallError as e:
+        return None, [{
+            "name": "headlines_layout_v5",
+            "status": "error",
+            "reason": str(e),
+            "cost_usd": 0.0,
+            "duration_s": 0.0,
+            "tokens": {"input": 0, "output": 0},
+        }]
+
+
 def _v5_metric_value(section: SectionData | None, metric_id: str) -> Any:
     if section is None:
         return None
@@ -536,6 +609,20 @@ def _run_v5(
     call_reports: list[dict] = []
     headlines_curation_result, headline_reports = _pipeline._run_v5_headlines_curation(sections)
     call_reports.extend(headline_reports)
+
+    # 2.1 — newspaper layout: lead + key_points + right_rail + secondary
+    curated_urls: set[str] = set()
+    if headlines_curation_result is not None:
+        curated_urls = {
+            sel["url"] for sel in headlines_curation_result.get("selected", [])
+            if isinstance(sel, dict) and isinstance(sel.get("url"), str)
+        }
+    layout_result, layout_reports = _run_v5_headlines_layout(
+        sections, curated_urls=curated_urls,
+    )
+    call_reports.extend(layout_reports)
+    if layout_result is not None and "headlines" in by_id:
+        by_id["headlines"].extras["layout"] = layout_result
 
     live = {
         "usd_bdt": _v5_metric_value(by_id.get("fx"), "fx_usd_bdt_mid"),
