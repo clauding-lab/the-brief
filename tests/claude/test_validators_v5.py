@@ -123,12 +123,13 @@ from brief.claude.validators import validate_bankerread_structured
 
 
 def test_bankerread_structured_full_valid():
+    # V1-style: 1-sentence-per-field, 12-40 words target; validator accepts 8-50.
     payload = {
         "variant": "full",
-        "meaning": "word " * 90,
-        "action": "word " * 90,
-        "trigger": "word " * 90,
-        "focus": "word " * 90,
+        "meaning": "word " * 25,
+        "action": "word " * 25,
+        "trigger": "word " * 25,
+        "focus": "word " * 25,
         "pull_quote": "Concise editorial line.",
     }
     result = validate_bankerread_structured(payload)
@@ -151,9 +152,9 @@ def test_bankerread_structured_full_rejects_short_field():
     payload = {
         "variant": "full",
         "meaning": "too short",
-        "action": "word " * 90,
-        "trigger": "word " * 90,
-        "focus": "word " * 90,
+        "action": "word " * 25,
+        "trigger": "word " * 25,
+        "focus": "word " * 25,
         "pull_quote": "Quote",
     }
     result = validate_bankerread_structured(payload)

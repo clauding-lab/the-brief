@@ -323,8 +323,9 @@ def validate_bankerread_structured(payload: Any) -> ValidationResult:
             if not isinstance(text, str):
                 return ValidationResult(False, reason=f"{fld} missing")
             wc = len(text.split())
-            if wc < 60 or wc > 180:
-                return ValidationResult(False, reason=f"{fld} must be 60-180 words; got {wc}")
+            # V1-style 1-sentence-per-field: cap ~ 12-40 words, validator buffer 8-50.
+            if wc < 8 or wc > 50:
+                return ValidationResult(False, reason=f"{fld} must be 8-50 words; got {wc}")
             if '"' in text:
                 return ValidationResult(False, reason=f"{fld} contains double quote")
         return ValidationResult(True, value=BankerReadInsight(
