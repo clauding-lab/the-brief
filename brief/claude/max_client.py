@@ -59,7 +59,7 @@ class MaxCallResult:
 def run_max(
     *,
     prompt: str,
-    model: str = "claude-opus-4-7",
+    model: str = "claude-opus-4-6",
     timeout_s: int = 1800,
     claude_binary: str | None = None,
     effort: str = "high",

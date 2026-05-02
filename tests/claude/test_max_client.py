@@ -283,7 +283,7 @@ class TestRunMaxFenceStripping:
 # Model + effort defaults
 # ---------------------------------------------------------------------------
 
-def test_run_max_defaults_to_opus_4_7():
+def test_run_max_defaults_to_opus_4_6():
     fake_completed = _fake_completed(json.dumps({
         "result": "{}", "total_cost_usd": 0.0,
         "usage": {"input_tokens": 1, "output_tokens": 1},
@@ -293,7 +293,7 @@ def test_run_max_defaults_to_opus_4_7():
     args = mock_run.call_args.args[0]
     assert "--model" in args
     idx = args.index("--model")
-    assert args[idx + 1] == "claude-opus-4-7"
+    assert args[idx + 1] == "claude-opus-4-6"
 
 
 def test_run_max_defaults_to_high_effort():
