@@ -122,6 +122,37 @@ def test_metric_hero_card_no_meta_when_value_none():
     assert "metric-meta" not in html
 
 
+def test_source_badge_known_code_uses_css_class():
+    html = _jsx.source_badge("REU")
+    assert 'class="source-badge source-badge-reu"' in html
+    assert "REU" in html
+
+
+def test_source_badge_full_name_resolves_to_code():
+    html = _jsx.source_badge("The Daily Star")
+    assert "source-badge-ds" in html
+    # The visible label is the short code, not the long name
+    assert ">DS<" in html
+
+
+def test_source_badge_unknown_falls_back_to_default():
+    html = _jsx.source_badge("Some Obscure Outlet")
+    assert "source-badge-default" in html
+    assert "Some Obscure Outlet" in html
+
+
+def test_news_bullet_renders_source_as_lozenge():
+    item = NewsItem(
+        title="NPL ratio at 35.73%",
+        url="https://example.com/x",
+        source="TBS",
+        published=datetime(2026, 4, 19, tzinfo=timezone.utc),
+    )
+    html = _jsx.news_bullet(item, summary="...")
+    assert "source-badge-tbs" in html
+    assert "TBS" in html
+
+
 def test_news_bullet_renders_source_and_date():
     item = NewsItem(
         title="NPL ratio at 35.73%",

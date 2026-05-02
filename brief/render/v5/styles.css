@@ -343,6 +343,17 @@ body.brief-v5 {
 .systemic-risk-body { margin: var(--space-xs) 0 0; font-size: 13px; line-height: 1.5; }
 
 .sec-news { list-style: none; padding: 0; margin: var(--space-md) 0; }
+.source-badge { display: inline-block; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; color: #fff; }
+.source-badge-reu { background: var(--red); }
+.source-badge-ds  { background: var(--ink-1); }
+.source-badge-tbs { background: var(--ink-1); }
+.source-badge-fe  { background: var(--ink-1); }
+.source-badge-bbc { background: #fff; color: var(--ink-1); border: 1px solid var(--ink-1); padding: 1px 5px; }
+.source-badge-ajz { background: var(--ink-1); border-bottom: 2px solid var(--gold); }
+.source-badge-ft  { background: #fff1e5; color: #2d2d2d; }
+.source-badge-bbn { background: var(--ox); }
+.source-badge-default { background: var(--ink-3); }
+
 .news-bullet { padding: var(--space-md) 0; border-bottom: 1px solid var(--paper-3); }
 .news-title { font-weight: 700; color: var(--ink-1); text-decoration: none; display: block; }
 .news-summary { font-size: 13px; color: var(--ink-2); margin: var(--space-xs) 0; }

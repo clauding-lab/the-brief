@@ -1,7 +1,7 @@
 """V5 §01 — Headlines."""
 from __future__ import annotations
 
-from brief.render.v5._jsx import _attr_esc, _esc, news_bullet
+from brief.render.v5._jsx import _attr_esc, _esc, news_bullet, source_badge
 from brief.render.v5.templates._section_base import render_section_base
 from brief.schema import SectionData
 
@@ -39,7 +39,7 @@ def render_section_headlines(section: SectionData) -> str:
         dek = _first_n_words(dek_source, n=30)
         lead_html = (
             f'<article class="hl-lead">'
-            f'<div class="hl-lead-source">{_esc(lead.source)}</div>'
+            f'<div class="hl-lead-source">{source_badge(lead.source)}</div>'
             f'<h3 class="hl-lead-title"><a href="{_attr_esc(lead.url)}">{_esc(lead.title)}</a></h3>'
             f'<p class="hl-lead-dek">{_esc(dek)}</p>'
             f'</article>'

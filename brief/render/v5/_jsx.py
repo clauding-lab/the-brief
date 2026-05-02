@@ -15,6 +15,7 @@ from brief.schema import (
     NewsItem,
     SystemicRisk,
 )
+from brief.sources import SOURCE_BADGES, resolve_source_code
 
 __all__ = [
     "_esc",
@@ -28,6 +29,7 @@ __all__ = [
     "pull_quote_card",
     "metric_hero_card",
     "news_bullet",
+    "source_badge",
     "bankerread_panel_v5",
     "systemic_risk_callout",
 ]
@@ -134,6 +136,24 @@ def metric_hero_card(
     )
 
 
+def source_badge(source: str) -> str:
+    """Render a source as a small colored lozenge.
+
+    Known sources (REU/DS/TBS/FE/BBC/AJZ/FT/BBN) get their brand-tinted
+    badge; anything else falls back to a neutral lozenge with the raw
+    source string. Display label is always the short code when known so
+    the layout stays compact in dense headline rails.
+    """
+    code = resolve_source_code(source)
+    if code is None:
+        return f'<span class="source-badge source-badge-default">{_esc(source)}</span>'
+    badge = SOURCE_BADGES[code]
+    return (
+        f'<span class="source-badge source-badge-{badge["css"]}" '
+        f'title="{_attr_esc(badge["name"])}">{_esc(code)}</span>'
+    )
+
+
 def news_bullet(item: NewsItem, *, summary: str = "") -> str:
     """News bullet with title, summary lede, source/date attribution."""
     pub_label = item.published.strftime("%-d %b %Y")
@@ -142,7 +162,7 @@ def news_bullet(item: NewsItem, *, summary: str = "") -> str:
         f'<a class="news-title" href="{_attr_esc(item.url)}">{_esc(item.title)}</a>'
         f'<p class="news-summary">{_esc(summary)}</p>'
         '<div class="news-attr">'
-        f'<span class="news-source">{_esc(item.source)}</span>'
+        f'{source_badge(item.source)}'
         f' <span class="news-date">{_esc(pub_label)}</span>'
         '</div>'
         '</li>'
