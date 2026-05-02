@@ -23,19 +23,46 @@ body.brief-v5 {
 .lb-dot { color: #ff6b6b; }
 .lb-stamp, .lb-next { font-family: var(--font-mono); }
 
-.masthead { padding: var(--space-lg) var(--space-2xl); border-bottom: 1px solid var(--ink-4); }
-.mast-meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
-.mast-grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-2xl); margin-top: var(--space-md); }
-.mast-title { font-family: var(--font-serif-display); font-size: 96px; font-weight: 900; line-height: 1; margin: 0; }
+.masthead { padding: var(--space-lg) var(--space-2xl) var(--space-md); border-bottom: 3px double var(--ink-1); }
+.mast-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-3);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  padding-bottom: var(--space-sm); border-bottom: 1px solid var(--ink-1);
+}
+.mast-grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-2xl); align-items: end; padding: var(--space-lg) 0 var(--space-md); }
+.mast-title {
+  font-family: var(--font-serif-display);
+  font-size: clamp(72px, 12vw, 148px);
+  font-weight: 900; line-height: 0.86;
+  letter-spacing: -0.035em;
+  font-variation-settings: "opsz" 60;
+  margin: 0; color: var(--ink-1);
+}
 .mt-the { color: var(--ink-1); }
-.mt-brief { color: var(--ox); font-style: italic; font-weight: 400; }
-.mt-plotted { color: var(--ink-1); font-style: italic; font-weight: 400; }
-.mast-dek { font-style: italic; color: var(--ink-3); margin-top: var(--space-md); max-width: 38ch; }
+.mt-brief { color: var(--ox); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
+.mt-plotted { color: var(--ink-1); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
+.mast-dek {
+  font-family: var(--font-serif-text); font-style: italic;
+  color: var(--ink-2); font-size: 17px;
+  margin: var(--space-md) 0 0; max-width: 56ch;
+}
 
-.todays-call { border-left: 3px solid var(--ox); padding-left: var(--space-md); }
-.tc-label { font-family: var(--font-mono); font-size: 11px; color: var(--ox); font-weight: 700; letter-spacing: 0.05em; }
-.tc-text { font-size: 18px; line-height: 1.5; margin: var(--space-sm) 0; }
-.tc-byline { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.todays-call { border-left: 3px solid var(--ox); padding: 4px 0 4px var(--space-md); }
+.tc-label {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ox); font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+.tc-text { font-family: var(--font-serif-text); font-size: 18px; line-height: 1.4; margin: var(--space-sm) 0; color: var(--ink-1); }
+.tc-text strong, .tc-text b { font-weight: 700; }
+.tc-text em { font-style: italic; color: var(--ox); }
+.tc-byline {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-3); margin-top: var(--space-sm);
+}
 
 /* Narrow-width: today's call drops below the title, map row stacks. Mockup
    threshold is ~960px; matching that gives the same graceful resize behavior. */
@@ -72,19 +99,68 @@ body.brief-v5 {
 .dot-slow { background: var(--gold); }
 .dot-anchor { background: var(--ink-1); }
 
-.front-of-book { background: var(--ink-1); color: var(--ink-inverse); padding: var(--space-lg); }
-.fob-header { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--gold); }
-.fob-title { font-family: var(--font-serif-display); font-size: 36px; font-weight: 700; margin: var(--space-sm) 0; }
-.fob-pull { background: rgba(200,154,63,0.12); border-left: 3px solid var(--gold); padding: var(--space-sm) var(--space-md); font-style: italic; margin: var(--space-md) 0; }
-.fob-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); margin: var(--space-md) 0; }
-.fob-card { background: rgba(255,255,255,0.06); padding: var(--space-md); }
-.fob-card-label { font-family: var(--font-mono); font-size: 10px; color: var(--ink-4); }
-.fob-card-value { font-family: var(--font-serif-display); font-size: 24px; font-weight: 700; margin-top: var(--space-xs); }
-.fob-card-delta { font-family: var(--font-mono); font-size: 11px; color: var(--green); }
+/* Front-of-book: editorial section snapshot. ON THE PAPER (not a dark panel)
+   so it visually fits the masthead/risk-map context. The ONLY dark element is
+   the pull-quote block — that's intentional contrast for the banker's-voice
+   1-line takeaway. */
+.front-of-book { padding: 0; background: transparent; color: var(--ink-1); }
+.fob-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.05em;
+  padding-bottom: var(--space-sm); border-bottom: 1px solid var(--ink-1);
+}
+.fob-eyebrow { color: var(--ox); font-weight: 600; text-transform: uppercase; }
+.fob-eyebrow-right { color: var(--ink-3); text-transform: uppercase; }
+.fob-title {
+  font-family: var(--font-serif-display);
+  font-size: clamp(28px, 3.2vw, 38px);
+  font-weight: 700; letter-spacing: -0.015em; line-height: 1.1;
+  margin: var(--space-md) 0 var(--space-md); color: var(--ink-1);
+  font-variation-settings: "opsz" 60;
+}
+.fob-title em { font-style: italic; font-weight: 400; color: var(--ink-2); }
+
+/* The single dark element: pull-quote block, banker's-voice 1-line takeaway */
+.fob-pull {
+  background: var(--ink-1); color: #f7ecd5;
+  border-left: 4px solid var(--gold);
+  padding: var(--space-md) var(--space-md);
+  margin: var(--space-md) 0;
+  font-family: var(--font-serif-text); font-style: italic;
+  font-size: 16px; line-height: 1.4;
+}
+.fob-pull em, .fob-pull i { font-style: italic; color: var(--gold); font-weight: 500; }
+.fob-pull strong, .fob-pull b { font-weight: 700; color: #ffffff; font-style: normal; }
+
+/* Metric cards: paper-toned, NOT dark. Two-column on the section snapshot. */
+.fob-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; margin: var(--space-md) 0; }
+.fob-card {
+  padding: var(--space-md) var(--space-md) var(--space-md) 0;
+  border-top: 1px solid var(--ink-4);
+}
+.fob-card:nth-child(odd) { padding-right: var(--space-md); border-right: 1px solid var(--ink-4); }
+.fob-card:nth-child(even) { padding-left: var(--space-md); }
+.fob-card-label { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
+.fob-card-value { font-family: var(--font-mono); font-weight: 500; font-size: 28px; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--ink-1); margin-top: var(--space-xs); }
+.fob-card-value .num { font-family: var(--font-mono); }
+.fob-card-value .unit { font-size: 0.45em; color: var(--ink-3); margin-left: 4px; font-weight: 400; }
+.fob-card-delta { font-family: var(--font-mono); font-size: 11px; margin-top: var(--space-xs); color: var(--ink-3); }
+.fob-card-delta.dir-up { color: var(--green); }
 .fob-card-delta.dir-down { color: var(--red); }
-.fob-prose { font-size: 14px; line-height: 1.6; }
-.fob-prose strong { color: var(--gold); }
-.fob-jump { display: inline-block; margin-top: var(--space-md); font-family: var(--font-mono); font-size: 12px; color: var(--gold); text-decoration: none; border-bottom: 1px solid var(--gold); }
+
+/* Action / Trigger prose — short, editorial. On paper, lead-word in oxblood. */
+.fob-prose { font-family: var(--font-serif-text); font-size: 14px; line-height: 1.55; color: var(--ink-1); margin: var(--space-sm) 0; }
+.fob-prose strong { color: var(--ox); font-weight: 700; }
+
+.fob-jump {
+  display: inline-block; margin-top: var(--space-md);
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ox); text-decoration: none; border-bottom: 1px solid var(--ox);
+  padding-bottom: 2px;
+}
+.fob-jump:hover { color: var(--ink-1); border-bottom-color: var(--ink-1); }
 
 .secondary-grid { padding: var(--space-lg) var(--space-2xl); }
 .sg-header { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.05em; }
