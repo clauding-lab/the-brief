@@ -31,6 +31,7 @@ __all__ = [
     "news_bullet",
     "source_badge",
     "line_chart_svg",
+    "heatmap_svg",
     "bankerread_panel_v5",
     "systemic_risk_callout",
 ]
@@ -298,6 +299,48 @@ def line_chart_svg(
         + "".join(dots_html)
         + '</svg>'
     )
+
+
+def heatmap_svg(sectors) -> str:
+    """4×2 sector heatmap tile grid for §06 DSE.
+
+    `sectors` is a list of dicts: ``[{"sector": "Banks", "pct": -1.4}, ...]``
+    Returns "" on empty/None input. Each tile gets a CSS custom property
+    ``--heatmap-intensity`` (0.0–1.0, scaled to the largest abs % across
+    the set) so stylesheet rules can paint background opacity.
+
+    Sign is encoded via ``heatmap-tile-pos`` / ``heatmap-tile-neg`` classes
+    so up/down coloring is theme-able from CSS.
+    """
+    if not sectors:
+        return ""
+
+    # Normalize intensity against the largest absolute pct in the set,
+    # capped so a single outlier doesn't wash the others out.
+    max_abs = max((abs(s["pct"]) for s in sectors if isinstance(s.get("pct"), (int, float))), default=0.0)
+    cap = max(max_abs, 1.0)  # at least ±1% range so small swings are visible
+
+    tiles_html: list[str] = []
+    for s in sectors:
+        sector = str(s.get("sector", ""))
+        pct = s.get("pct")
+        if not isinstance(pct, (int, float)):
+            continue
+        sign_cls = "heatmap-tile-pos" if pct >= 0 else "heatmap-tile-neg"
+        intensity = min(abs(pct) / cap, 1.0)
+        sign = "+" if pct > 0 else ("" if pct < 0 else "+")
+        # NB: ``+`` for zero per V1 mockup convention (flat reads as small-positive)
+        if pct == 0:
+            sign = ""
+        tiles_html.append(
+            f'<div class="heatmap-tile {sign_cls}" '
+            f'style="--heatmap-intensity: {intensity:.2f}">'
+            f'<div class="heatmap-tile-label">{_esc(sector)}</div>'
+            f'<div class="heatmap-tile-pct">{sign}{pct:.1f}%</div>'
+            '</div>'
+        )
+
+    return f'<div class="sector-heatmap">{"".join(tiles_html)}</div>'
 
 
 def bankerread_panel_v5(br: BankerReadInsight, *, anchor: str) -> str:

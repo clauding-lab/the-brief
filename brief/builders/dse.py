@@ -313,18 +313,27 @@ def build(ctx: BuilderContext) -> SectionData:
             section.degraded_breadth = False
             section.extras["breadth_unchanged"] = breadth.unchanged
 
-    # Sector heat: dsebd.org/sector_indices.php has returned HTTP 404 since
-    # 2026-04 (data source dead). scrape_sector_heat() retained as a no-op
-    # in case the endpoint is restored. degraded_sector_heat stays True
-    # until either the endpoint comes back or a replacement source is wired.
-    heat = scrape_sector_heat()
-    if heat is None:
-        section.degraded_sector_heat = True
-    else:
+    # Sector heat: Phase 3.1 sources from EconDelta's compute-from-constituents
+    # output (`dse_sector_heat: dict[sector_name, pct_change]`) when present.
+    # Falls back to the legacy DSE direct scrape (dead endpoint as of 2026-04;
+    # kept in case it's restored).
+    snap_heat = ctx.snapshot.get("dse_sector_heat")
+    if isinstance(snap_heat, dict) and snap_heat:
         section.degraded_sector_heat = False
         section.extras["sector_heat"] = [
-            {"sector": sp.sector, "pct": sp.pct, "as_of": sp.as_of.isoformat()}
-            for sp in heat
+            {"sector": sec, "pct": pct, "as_of": ctx.today.isoformat()}
+            for sec, pct in snap_heat.items()
+            if isinstance(pct, (int, float))
         ]
+    else:
+        heat = scrape_sector_heat()
+        if heat is None:
+            section.degraded_sector_heat = True
+        else:
+            section.degraded_sector_heat = False
+            section.extras["sector_heat"] = [
+                {"sector": sp.sector, "pct": sp.pct, "as_of": sp.as_of.isoformat()}
+                for sp in heat
+            ]
 
     return section

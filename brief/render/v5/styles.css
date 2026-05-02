@@ -353,6 +353,22 @@ body.brief-v5 {
   .tbond-bond-chart { grid-template-columns: 1fr; }
 }
 
+/* ── §06 DSE sector heatmap (Phase 3.1) ─────────────────────────────────── */
+.sector-heatmap-card { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-md); margin-top: var(--space-md); }
+.hm-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.hm-as-of { color: var(--ink-3); }
+.sector-heatmap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.heatmap-tile { padding: 10px 6px; text-align: center; border-radius: 2px; }
+.heatmap-tile-pos { background: rgba(47, 107, 58, calc(0.15 + var(--heatmap-intensity, 0) * 0.5)); }
+.heatmap-tile-neg { background: rgba(168, 50, 42, calc(0.15 + var(--heatmap-intensity, 0) * 0.5)); }
+.heatmap-tile-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.heatmap-tile-pct { font-family: var(--font-mono); font-weight: 600; font-size: 15px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.heatmap-tile-pos .heatmap-tile-pct { color: #2f6b3a; }
+.heatmap-tile-neg .heatmap-tile-pct { color: #a8322a; }
+@media (max-width: 600px) {
+  .sector-heatmap { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .systemic-risk { background: rgba(168,58,58,0.06); border: 2px solid var(--red); padding: var(--space-md); margin: var(--space-md) 0; display: grid; grid-template-columns: 24px 1fr; gap: var(--space-sm); }
 .systemic-risk-warning { border-color: var(--gold); background: rgba(200,154,63,0.08); }
 .systemic-risk-icon { font-size: 18px; }

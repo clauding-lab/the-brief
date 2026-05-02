@@ -70,6 +70,44 @@ def test_section_dse_threshold_badge_breadth_below_30():
     assert "WATCH" in html
 
 
+def _sector_heat_payload() -> list[dict]:
+    return [
+        {"sector": "Banks",   "pct": -1.4, "as_of": "2026-04-28"},
+        {"sector": "NBFI",    "pct": -1.1, "as_of": "2026-04-28"},
+        {"sector": "Textile", "pct": -0.3, "as_of": "2026-04-28"},
+        {"sector": "Pharma",  "pct":  0.4, "as_of": "2026-04-28"},
+        {"sector": "Fuel",    "pct":  0.8, "as_of": "2026-04-28"},
+        {"sector": "Telecom", "pct": -0.6, "as_of": "2026-04-28"},
+        {"sector": "Food",    "pct":  0.2, "as_of": "2026-04-28"},
+        {"sector": "IT",      "pct":  0.1, "as_of": "2026-04-28"},
+    ]
+
+
+def test_section_dse_renders_sector_heatmap_when_extras_present():
+    section = _dse_section()
+    section.extras["sector_heat"] = _sector_heat_payload()
+    html = render_section_dse(section)
+    assert "sector-heatmap" in html
+    # Heatmap eyebrow visible
+    assert "Sector heat" in html
+    # All 8 sector names rendered
+    for s in ("Banks", "NBFI", "Textile", "Pharma", "Fuel", "Telecom", "Food", "IT"):
+        assert s in html
+
+
+def test_section_dse_skips_heatmap_when_extras_absent():
+    """Graceful: no extras.sector_heat → no heatmap div."""
+    html = render_section_dse(_dse_section())
+    assert "sector-heatmap" not in html
+
+
+def test_section_dse_skips_heatmap_when_payload_empty_list():
+    section = _dse_section()
+    section.extras["sector_heat"] = []
+    html = render_section_dse(section)
+    assert "sector-heatmap" not in html
+
+
 def test_section_dse_rejects_wrong_id():
     section = _dse_section().model_copy(update={"id": "fx"})
     with pytest.raises(ValueError):

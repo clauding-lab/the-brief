@@ -1,9 +1,40 @@
-"""V5 §06 — Equities (DSE)."""
+"""V5 §06 — Equities (DSE) with sector heatmap."""
 from __future__ import annotations
 
-from brief.render.v5._jsx import fmt_num, metric_hero_card, news_bullet
+from brief.render.v5._jsx import (
+    fmt_num,
+    heatmap_svg,
+    metric_hero_card,
+    news_bullet,
+)
 from brief.render.v5.templates._section_base import render_section_base
 from brief.schema import SectionData
+
+
+def _build_sector_heatmap_block(section: SectionData) -> str:
+    """Build the sector heat-map block from extras.sector_heat (Phase 3.1).
+
+    `extras.sector_heat` is a list of {sector, pct, as_of} dicts produced
+    upstream by the DSE builder (which reads `dse_sector_heat` from the
+    EconDelta snapshot). When the list is missing or empty, render nothing
+    — the section gracefully falls back to its non-heatmap shape.
+    """
+    payload = (section.extras or {}).get("sector_heat") if section.extras else None
+    if not isinstance(payload, list) or not payload:
+        return ""
+    heat_svg = heatmap_svg(payload)
+    if not heat_svg:
+        return ""
+    first_as_of = next((p.get("as_of") for p in payload if p.get("as_of")), None)
+    as_of_html = f' · <span class="hm-as-of">{first_as_of}</span>' if first_as_of else ""
+    return (
+        '<div class="sector-heatmap-card">'
+        '<div class="hm-eyebrow">'
+        f'<span>Sector heat · 1 day{as_of_html}</span>'
+        '</div>'
+        f'{heat_svg}'
+        '</div>'
+    )
 
 
 def render_section_dse(section: SectionData) -> str:
@@ -44,6 +75,10 @@ def render_section_dse(section: SectionData) -> str:
             supporting_cards.append(metric_hero_card(metrics_by_id[mid]))
 
     metric_cards_html = hero_html + "".join(supporting_cards)
+
+    heatmap_html = _build_sector_heatmap_block(section)
+    if heatmap_html:
+        metric_cards_html += heatmap_html
 
     news_html = ""
     if section.news:

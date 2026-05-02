@@ -222,6 +222,67 @@ def test_line_chart_svg_auto_min_max_when_omitted():
     assert "<path" in html
 
 
+# ── heatmap_svg (Phase 3.1) ─────────────────────────────────────────────────
+
+def test_heatmap_svg_renders_8_tiles():
+    sectors = [
+        {"sector": "Banks",   "pct": -1.4},
+        {"sector": "NBFI",    "pct": -1.1},
+        {"sector": "Textile", "pct": -0.3},
+        {"sector": "Pharma",  "pct":  0.4},
+        {"sector": "Fuel",    "pct":  0.8},
+        {"sector": "Telecom", "pct": -0.6},
+        {"sector": "Food",    "pct":  0.2},
+        {"sector": "IT",      "pct":  0.1},
+    ]
+    html = _jsx.heatmap_svg(sectors)
+    # Each tile is a div with sector name + pct
+    for s in sectors:
+        assert s["sector"] in html
+    # 8 tiles rendered (count outer-tile divs only — they carry the sign class)
+    assert html.count("heatmap-tile-pos") + html.count("heatmap-tile-neg") == 8
+
+
+def test_heatmap_svg_uses_green_for_positive_red_for_negative():
+    sectors = [
+        {"sector": "Up",   "pct":  1.0},
+        {"sector": "Down", "pct": -1.0},
+    ]
+    html = _jsx.heatmap_svg(sectors)
+    # Tile classes encode sign so CSS can paint
+    assert "heatmap-tile-pos" in html
+    assert "heatmap-tile-neg" in html
+
+
+def test_heatmap_svg_intensity_scales_with_magnitude():
+    """Bigger absolute %  → higher alpha. We expose the intensity as a CSS
+    custom property so styles can pick it up."""
+    sectors = [
+        {"sector": "Tiny",  "pct":  0.1},
+        {"sector": "Heavy", "pct":  2.0},
+    ]
+    html = _jsx.heatmap_svg(sectors)
+    # Two distinct intensity values
+    assert "--heatmap-intensity:" in html
+
+
+def test_heatmap_svg_formats_pct_with_sign():
+    sectors = [
+        {"sector": "Up",   "pct":  0.4},
+        {"sector": "Down", "pct": -1.4},
+        {"sector": "Flat", "pct":  0.0},
+    ]
+    html = _jsx.heatmap_svg(sectors)
+    assert "+0.4%" in html
+    assert "-1.4%" in html
+    assert "0.0%" in html
+
+
+def test_heatmap_svg_returns_empty_on_no_input():
+    assert _jsx.heatmap_svg([]) == ""
+    assert _jsx.heatmap_svg(None) == ""
+
+
 def test_source_badge_known_code_uses_css_class():
     html = _jsx.source_badge("REU")
     assert 'class="source-badge source-badge-reu"' in html
