@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-03T00:03:52.508336+06:00",
+  "today": "2026-05-03",
+  "shadow": true,
+  "status": "degraded",
+  "duration_s": 477.5209812668618,
+  "call_reports": [
+    {
+      "name": "headlines_curation",
+      "status": "ok",
+      "reason": "",
+      "cost_usd": 0.0877225,
+      "duration_s": 23.97094526211731,
+      "tokens": {
+        "input": 2,
+        "output": 1209
+      }
+    },
+    {
+      "name": "headlines_layout_v5",
+      "status": "ok",
+      "reason": "",
+      "cost_usd": 0.09224750000000001,
+      "duration_s": 23.422225411981344,
+      "tokens": {
+        "input": 2,
+        "output": 1301
+      }
+    },
+    {
+      "name": "top_picks",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.13332125,
+      "duration_s": 49.14202988985926,
+      "tokens": {
+        "input": 3,
+        "output": 2692
+      }
+    },
+    {
+      "name": "exec_signals",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.11227875000000001,
+      "duration_s": 46.020479681901634,
+      "tokens": {
+        "input": 2,
+        "output": 1735
+      }
+    },
+    {
+      "name": "todays_call",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.10210875,
+      "duration_s": 35.8460994490888,
+      "tokens": {
+        "input": 3,
+        "output": 1597
+      }
+    },
+    {
+      "name": "bankerread:remit",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.0795025,
+      "duration_s": 34.665981598198414,
+      "tokens": {
+        "input": 3,
+        "output": 961
+      }
+    },
+    {
+      "name": "bankerread:macro",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.09218375000000001,
+      "duration_s": 38.79196775495075,
+      "tokens": {
+        "input": 3,
+        "output": 1413
+      }
+    },
+    {
+      "name": "bankerread:bb",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.09219,
+      "duration_s": 43.223249471979216,
+      "tokens": {
+        "input": 3,
+        "output": 1400
+      }
+    },
+    {
+      "name": "bankerread:fx",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.0979025,
+      "duration_s": 44.42123642493971,
+      "tokens": {
+        "input": 3,
+        "output": 1428
+      }
+    },
+    {
+      "name": "bankerread:dse",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.08727125,
+      "duration_s": 23.7728279591538,
+      "tokens": {
+        "input": 3,
+        "output": 1010
+      }
+    },
+    {
+      "name": "bankerread:tbond",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.08726500000000001,
+      "duration_s": 25.66665282798931,
+      "tokens": {
+        "input": 3,
+        "output": 1180
+      }
+    },
+    {
+      "name": "bankerread:iranwar",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.09579625,
+      "duration_s": 36.61566739389673,
+      "tokens": {
+        "input": 3,
+        "output": 1429
+      }
+    },
+    {
+      "name": "bankerread:headlines",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.107765,
+      "duration_s": 41.764025344047695,
+      "tokens": {
+        "input": 3,
+        "output": 1642
+      }
+    },
+    {
+      "name": "bankerread:comm",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.0871775,
+      "duration_s": 26.07303522992879,
+      "tokens": {
+        "input": 3,
+        "output": 1237
+      }
+    },
+    {
+      "name": "bankerread:exec",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.12357125,
+      "duration_s": 45.55414426489733,
+      "tokens": {
+        "input": 3,
+        "output": 2540
+      }
+    },
+    {
+      "name": "bankerread:banking",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.08789625,
+      "duration_s": 30.328355237143114,
+      "tokens": {
+        "input": 3,
+        "output": 1151
+      }
+    },
+    {
+      "name": "bankerread:fiscal",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.0853525,
+      "duration_s": 25.776107241166756,
+      "tokens": {
+        "input": 3,
+        "output": 1130
+      }
+    },
+    {
+      "name": "bankerread:nbr",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.06374624999999999,
+      "duration_s": 13.393243165919557,
+      "tokens": {
+        "input": 3,
+        "output": 307
+      }
+    },
+    {
+      "name": "bankerread:dam",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.09554000000000001,
+      "duration_s": 34.79686122899875,
+      "tokens": {
+        "input": 3,
+        "output": 1376
+      }
+    },
+    {
+      "name": "systemic_risk:banking",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.0736275,
+      "duration_s": 17.72476454405114,
+      "tokens": {
+        "input": 3,
+        "output": 707
+      }
+    },
+    {
+      "name": "editorial_qa",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.27403999999999995,
+      "duration_s": 126.35306347580627,
+      "tokens": {
+        "input": 3,
+        "output": 5956
+      }
+    }
+  ],
+  "total_cost_usd": 2.1585,
+  "degraded_sections": [
+    "bb",
+    "dse",
+    "tbond",
+    "comm"
+  ],
+  "builder_failures": [],
+  "git_push": {
+    "branch": null,
+    "sha": null,
+    "pushed": false
+  }
+}
