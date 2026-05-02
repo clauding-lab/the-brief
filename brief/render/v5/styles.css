@@ -2,17 +2,25 @@
 
 * { box-sizing: border-box; }
 body.brief-v5 {
-  margin: 0 auto;
-  max-width: 1240px;
+  margin: 0;
   font-family: var(--font-serif-text);
   color: var(--ink-1);
   background: var(--paper-1);
   line-height: 1.5;
 }
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 20px 40px 80px;
+}
+@media (max-width: 700px) {
+  .page { padding: 14px 16px 60px; }
+}
 
 .live-banner {
   background: var(--ox);
   color: var(--ink-inverse);
+  border-radius: 2px;
   font-family: var(--font-mono);
   font-size: 12px;
   padding: var(--space-sm) var(--space-lg);
@@ -23,14 +31,15 @@ body.brief-v5 {
 .lb-dot { color: #ff6b6b; }
 .lb-stamp, .lb-next { font-family: var(--font-mono); }
 
-.masthead { padding: var(--space-lg) var(--space-2xl) var(--space-md); border-bottom: 3px double var(--ink-1); }
+.masthead { padding-top: 14px; }
 .mast-meta {
   display: flex; justify-content: space-between; align-items: center;
   font-family: var(--font-mono); font-size: 11px; color: var(--ink-3);
   letter-spacing: 0.14em; text-transform: uppercase;
-  padding-bottom: var(--space-sm); border-bottom: 1px solid var(--ink-1);
+  padding-bottom: 10px; border-bottom: 1px solid var(--ink-1);
 }
-.mast-grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-2xl); align-items: end; padding: var(--space-lg) 0 var(--space-md); }
+.mast-meta-left, .mast-meta-center, .mast-meta-right { display: inline-flex; gap: 8px; }
+.mast-grid { display: grid; grid-template-columns: 1fr 360px; gap: 40px; align-items: end; padding: 22px 0 20px; border-bottom: 3px double var(--ink-1); }
 .mast-title {
   font-family: var(--font-serif-display);
   font-size: clamp(72px, 12vw, 148px);
@@ -46,6 +55,11 @@ body.brief-v5 {
   font-family: var(--font-serif-text); font-style: italic;
   color: var(--ink-2); font-size: 17px;
   margin: var(--space-md) 0 0; max-width: 56ch;
+}
+.mast-dek::before {
+  content: "—";
+  color: var(--ox); font-weight: 700;
+  margin-right: 10px; font-style: normal;
 }
 
 .todays-call { border-left: 3px solid var(--ox); padding: 4px 0 4px var(--space-md); }
@@ -77,13 +91,26 @@ body.brief-v5 {
   .section.section-v5 { padding-left: var(--space-md); padding-right: var(--space-md); }
 }
 
-/* The map row is the 2-up: risk map LEFT, front-of-book section snapshot RIGHT.
-   Risk map itself is a single block (header + svg + legend stacked); front-of-book
-   is its own column. Collapses to 1-col below 960px. */
-.map-row { padding: var(--space-lg) var(--space-2xl); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xl); align-items: start; }
-.risk-map { display: flex; flex-direction: column; gap: var(--space-sm); }
-.rm-header { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--ox); letter-spacing: 0.05em; }
+/* The map row: risk map LEFT (1.6fr), front-of-book section snapshot RIGHT (1fr).
+   Mockup uses these exact proportions. Collapses below 960px. */
+.map-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 32px; align-items: start; margin-top: 28px; }
+.risk-map { display: flex; flex-direction: column; gap: 8px; }
+.rm-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 8px;
+}
+.rm-eyebrow { color: var(--ox); font-weight: 600; }
 .rm-eyebrow-right { color: var(--ink-3); }
+/* Bordered map wrap (the SVG sits on a slightly tinted cream with a thin ink rule). */
+.rm-svg-wrap {
+  border: 1px solid var(--ink-1);
+  background: #faf6ec;
+  padding: 8px 10px 4px;
+  position: relative;
+}
+.rm-svg { max-height: 320px; width: 100%; }
 .rm-svg { width: 100%; height: auto; aspect-ratio: 4/3; background: var(--paper-2); }
 .rm-quad-bg { fill: rgba(107,31,39,0.04); }
 .rm-quad-bg.q-event { fill: rgba(107,31,39,0.10); }

@@ -44,12 +44,17 @@ def test_risk_map_renders_seven_bubbles_with_legend():
     assert "read first" in html.lower()
 
 
-def test_risk_map_validates_seven_plotted():
-    """Renderer must reject a TopPicks with != 7 plotted (defensive)."""
-    plotted = [MapPoint(id="bb", x=1, y=1, r=10, kind="anchor")]  # only 1
+def test_risk_map_rejects_empty_plotted_after_headlines_filter():
+    """Renderer must reject a TopPicks where filtering headlines leaves nothing.
+
+    The strict 'exactly 7' rule was relaxed to tolerate the headlines filter
+    (which can drop one bubble if Claude mistakenly placed headlines on the map).
+    But an entirely empty plot is still an error worth surfacing.
+    """
+    plotted = [MapPoint(id="headlines", x=5, y=5, r=20, kind="event")]
     grid = [GridEntry(id=f"g{i}", tldr="x") for i in range(7)]
-    picks = TopPicks(plotted=plotted, grid=grid, front_of_book_id="bb")
+    picks = TopPicks(plotted=plotted, grid=grid, front_of_book_id="headlines")
 
     import pytest
-    with pytest.raises(ValueError, match="exactly 7"):
+    with pytest.raises(ValueError, match="nothing to plot"):
         render_risk_map(picks=picks, sections=_section_lookup(), today_label="x")

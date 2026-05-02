@@ -372,7 +372,7 @@ _V5_KICKER_BY_ID: dict[str, str] = {
     "remit":     "REMITTANCES",
     "dse":       "EQUITIES",
     "tbond":     "TREASURY",
-    "iranwar":   "GLOBAL OIL",
+    "iranwar":   "IRAN WAR & OIL",
     "banking":   "BANKING",
     "comm":      "COMMODITIES",
     "fiscal":    "FISCAL",

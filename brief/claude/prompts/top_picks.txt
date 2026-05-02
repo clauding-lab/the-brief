@@ -15,12 +15,19 @@ CRITERIA for the seven plotted:
 3. Sections with `has_systemic_risk=true` are stronger candidates.
 4. Sections with `freshness="fresh"` are stronger candidates.
 5. Mix of kinds: at least one anchor (slow but always-matters), at least one event (today's news), at least one fresh-print.
+6. NEVER plot the `headlines` section — it is a meta-aggregator, not an indicator. Always put it in the grid.
 
 For each plotted section, choose:
 - `x`: movement today (0-10), where 5 = average day, 10 = exceptional move
 - `y`: significance-for-banker's-book (0-10), where 5 = average importance today
 - `r`: read-weight radius (20-40); higher = pull the eye more
 - `kind`: "event" | "fresh" | "slow" | "anchor"
+
+POSITIONING DISCIPLINE:
+- The single most material story of the day MUST land in the top-right quadrant (x ≥ 7, y ≥ 8). Do not place it mid-map.
+- Spread bubbles to AVOID OVERLAP: any two bubbles must differ by at least 1.5 units on x OR y (Euclidean distance ≥ ~1.5). Move ties slightly apart.
+- The bottom-left quadrant (x < 5, y < 5) is "DORMANT/NOISE" — only put a section there if it's genuinely dormant today.
+- Use the full coordinate range — don't cluster everything in one quadrant.
 
 For the seven grid sections, write a `tldr` of ≤12 words for each.
 
