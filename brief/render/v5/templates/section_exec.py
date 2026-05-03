@@ -15,9 +15,8 @@ _EXEC_DIRECTION_ARROW = {
 
 _EXEC_ANCHOR_TO_N = {
     "headlines": "01", "exec": "02", "bb": "03", "macro": "04",
-    "fx": "05", "remit": "06", "dse": "07", "tbond": "08",
-    "iranwar": "09", "banking": "10", "comm": "11", "fiscal": "12",
-    "nbr": "13", "dam": "14",
+    "fx": "05", "dse": "06", "tbond": "07",
+    "iranwar": "08", "banking": "09",
 }
 
 

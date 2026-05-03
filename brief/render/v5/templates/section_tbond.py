@@ -124,7 +124,7 @@ def render_section_tbond(section: SectionData) -> str:
     # of one tenor's series, which clashes with the curve. Suppress it.
     return render_section_base(
         section,
-        section_n="08",
+        section_n="07",
         summary_pills=pills,
         metric_cards_html=metric_cards_html,
         news_block_html=news_html,

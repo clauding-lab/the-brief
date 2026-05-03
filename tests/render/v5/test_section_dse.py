@@ -43,7 +43,7 @@ def _dse_section(*, with_metrics: bool = True, with_news: bool = True,
 def test_section_dse_renders_with_full_metrics():
     html = render_section_dse(_dse_section())
     assert 'id="section-dse"' in html
-    assert "§07" in html
+    assert "§06" in html
     assert "EQUITIES" in html
     assert "DSE Markets" in html
     assert "5481.42" in html or "5,481.42" in html

@@ -49,7 +49,7 @@ def _iranwar_section(*, with_metrics: bool = True, with_news: bool = True,
 def test_section_iranwar_renders_with_full_data():
     html = render_section_iranwar(_iranwar_section())
     assert 'id="section-iranwar"' in html
-    assert "§09" in html
+    assert "§08" in html
     assert "GLOBAL OIL" in html
     assert "Iran War" in html
     assert "84.20" in html

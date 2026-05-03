@@ -33,7 +33,7 @@ def _banking_section(*, with_metrics: bool = True, with_news: bool = True,
 def test_section_banking_renders_with_full_metrics():
     html = render_section_banking(_banking_section())
     assert 'id="section-banking"' in html
-    assert "§10" in html
+    assert "§09" in html
     assert "BANKING" in html
     assert "Banking" in html
     assert "11.50" in html

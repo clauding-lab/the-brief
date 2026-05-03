@@ -39,7 +39,7 @@ def _tbond_section(*, with_metrics: bool = True, with_news: bool = True,
 def test_section_tbond_renders_with_full_metrics():
     html = render_section_tbond(_tbond_section())
     assert 'id="section-tbond"' in html
-    assert "§08" in html
+    assert "§07" in html
     assert "TREASURY" in html
     assert "T-Bonds" in html
     assert "11.42" in html

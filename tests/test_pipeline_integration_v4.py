@@ -116,10 +116,11 @@ def test_run_produces_v4_html_and_email(fixture_snapshot, today):
     assert 'class="flow-index"' in html
     assert 'class="colophon"' in html
 
-    # Every rendered section appears (13 numbered -- exec is not a standalone section)
+    # Every rendered section appears (post-2026-05-03 exclude:
+    # remit/comm/dam/fiscal/nbr removed from spine)
     for sid in [
         "headlines", "bb", "banking", "dse", "tbond", "fx",
-        "macro", "dam", "comm", "remit", "iranwar", "fiscal", "nbr",
+        "macro", "iranwar",
     ]:
         assert f'id="section-{sid}"' in html, f"section-{sid} missing from V4 HTML"
 
@@ -161,7 +162,7 @@ def test_run_v4_html_email_with_risk_map_fallback(fixture_snapshot, today):
         result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
     # Fallback produces 12 coords (exec + headlines excluded)
-    assert len(result.map_coords) == 12
+    assert len(result.map_coords) == 7
 
     # HTML is well-formed (DOCTYPE present, no unreplaced SPLICEs)
     assert result.html.startswith("<!DOCTYPE html>") or result.html.startswith("<!doctype html>")

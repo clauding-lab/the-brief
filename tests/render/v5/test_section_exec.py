@@ -43,7 +43,7 @@ def test_section_exec_renders_with_full_data():
     assert "→ §03" in html  # bb section
     assert "→ §04" in html  # macro section
     assert "→ §05" in html  # fx section
-    assert "→ §09" in html  # iranwar section
+    assert "→ §08" in html  # iranwar section
     # No metric cards, no sparkline
     assert "metric-card" not in html
     assert "sparkline" not in html

@@ -6,15 +6,16 @@ from brief.schema import MapCoord, SectionData
 
 
 @pytest.mark.integration
-def test_gather_returns_14_sections(fixture_snapshot, today):
+def test_gather_returns_9_sections(fixture_snapshot, today):
     cfg = PipelineConfig(today=today, enable_history=False, enable_headlines=False)
     sections = gather(cfg, snapshot_override=fixture_snapshot)
-    assert len(sections) == 14
+    assert len(sections) == 9
     ids = [s.id for s in sections]
+    # Post-2026-05-03: remit/comm/dam/fiscal/nbr excluded
     assert ids == [
-        "bb", "macro", "fx", "remit", "dse", "tbond", "iranwar",
+        "bb", "macro", "fx", "dse", "tbond", "iranwar",
         "headlines", "exec",
-        "comm", "banking", "dam", "fiscal", "nbr",
+        "banking",
     ]
     for s in sections:
         assert isinstance(s, SectionData)
@@ -231,10 +232,10 @@ def test_run_populates_risk_map_and_todays_call(fixture_snapshot, today):
         ]
         result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
-    assert len(result.map_coords) == 12
+    assert len(result.map_coords) == 7
     assert all(isinstance(mc, MapCoord) for mc in result.map_coords)
-    assert len(result.read_order) == 12
-    assert set(result.read_order) == {"bb", "macro", "fx", "remit", "dse", "tbond", "iranwar", "comm", "banking", "dam", "fiscal", "nbr"}
+    assert len(result.read_order) == 7
+    assert set(result.read_order) == {"bb", "macro", "fx", "dse", "tbond", "iranwar", "banking"}
     assert result.todays_call is not None
     assert result.todays_call.text == _FAKE_CALL_TEXT
     assert result.todays_call.byline == "Desk Editor · The Brief"
@@ -266,6 +267,6 @@ def test_run_falls_back_when_risk_map_fails(fixture_snapshot, today):
         result = run(cfg, shell_path=None, snapshot_override=fixture_snapshot)
 
     # Deterministic fallback must produce 12 coords (exec + headlines excluded)
-    assert len(result.map_coords) == 12
+    assert len(result.map_coords) == 7
     # Claude's todays_call still succeeded (valid response after fallback risk_map)
     assert result.todays_call.text == _FAKE_CALL_TEXT
