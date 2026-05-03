@@ -32,7 +32,7 @@ def _remit_section(*, with_metrics: bool = True, with_news: bool = True, yoy: fl
 def test_section_remit_renders_with_full_metrics():
     html = render_section_remit(_remit_section())
     assert 'id="section-remit"' in html
-    assert "§05" in html
+    assert "§06" in html
     assert "REMITTANCES" in html
     assert "Remittance" in html
     assert "2347" in html or "2,347" in html

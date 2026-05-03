@@ -35,7 +35,7 @@ def _comm_section(*, with_metrics: bool = True, with_news: bool = True,
 def test_section_comm_renders_with_full_metrics():
     html = render_section_comm(_comm_section())
     assert 'id="section-comm"' in html
-    assert "§10" in html
+    assert "§11" in html
     assert "COMMODITIES" in html
     assert "Commodities" in html
     assert "2415.50" in html or "2,415.50" in html

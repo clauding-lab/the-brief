@@ -14,10 +14,10 @@ _EXEC_DIRECTION_ARROW = {
 }
 
 _EXEC_ANCHOR_TO_N = {
-    "headlines": "01", "bb": "02", "macro": "03", "fx": "04",
-    "remit": "05", "dse": "06", "tbond": "07", "iranwar": "08",
-    "banking": "09", "comm": "10", "fiscal": "11", "nbr": "12",
-    "dam": "13", "exec": "14",
+    "headlines": "01", "exec": "02", "bb": "03", "macro": "04",
+    "fx": "05", "remit": "06", "dse": "07", "tbond": "08",
+    "iranwar": "09", "banking": "10", "comm": "11", "fiscal": "12",
+    "nbr": "13", "dam": "14",
 }
 
 
@@ -46,7 +46,7 @@ def render_section_exec(section: SectionData) -> str:
 
     return render_section_base(
         section,
-        section_n="14",
+        section_n="02",
         summary_pills=pills,
         metric_cards_html=metric_cards_html,
         news_block_html=signals_html,

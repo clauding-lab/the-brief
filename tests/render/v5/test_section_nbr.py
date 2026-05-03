@@ -34,7 +34,7 @@ def _nbr_section(*, with_metrics: bool = True, with_news: bool = True, vat_value
 def test_section_nbr_renders_with_full_metrics():
     html = render_section_nbr(_nbr_section())
     assert 'id="section-nbr"' in html
-    assert "§12" in html
+    assert "§13" in html
     assert "TAX" in html
     assert "NBR Revenue" in html
     assert "142.50" in html

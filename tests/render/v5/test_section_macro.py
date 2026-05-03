@@ -36,7 +36,7 @@ def _macro_section(*, with_metrics: bool = True, with_news: bool = True, cpi_val
 def test_section_macro_renders_with_full_metrics():
     html = render_section_macro(_macro_section())
     assert 'id="section-macro"' in html
-    assert "§03" in html
+    assert "§04" in html
     assert "MACRO" in html
     assert "Macro &amp; Inflation" in html
     assert "9.40" in html

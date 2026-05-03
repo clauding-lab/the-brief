@@ -37,7 +37,7 @@ def _fiscal_section(*, with_metrics: bool = True, with_news: bool = True,
 def test_section_fiscal_renders_with_full_metrics():
     html = render_section_fiscal(_fiscal_section())
     assert 'id="section-fiscal"' in html
-    assert "§11" in html
+    assert "§12" in html
     assert "FISCAL" in html
     assert "Fiscal" in html
     assert "2.84" in html

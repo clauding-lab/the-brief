@@ -50,7 +50,7 @@ def _full_bb_section(systemic: bool = False) -> SectionData:
 def test_section_bb_renders_full():
     html = render_section_bb(_full_bb_section())
     assert 'id="section-bb"' in html
-    assert "§02" in html
+    assert "§03" in html
     assert "POLICY" in html and "RATES" in html  # kicker — & is HTML-escaped to &amp;
     assert "Governor held" in html
     assert "10.00" in html

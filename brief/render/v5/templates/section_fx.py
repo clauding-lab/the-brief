@@ -45,7 +45,7 @@ def render_section_fx(section: SectionData) -> str:
 
     return render_section_base(
         section,
-        section_n="04",
+        section_n="05",
         summary_pills=pills,
         metric_cards_html=metric_cards_html,
         news_block_html=news_html,

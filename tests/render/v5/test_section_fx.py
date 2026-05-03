@@ -38,7 +38,7 @@ def _fx_section(*, with_metrics: bool = True, with_news: bool = True, hero_value
 def test_section_fx_renders_with_full_metrics():
     html = render_section_fx(_fx_section())
     assert 'id="section-fx"' in html
-    assert "§04" in html
+    assert "§05" in html
     assert "FX" in html  # kicker
     assert "Foreign Exchange" in html
     assert "122.50" in html  # hero value
