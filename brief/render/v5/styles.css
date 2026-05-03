@@ -393,11 +393,18 @@ body.brief-v5 {
 .news-attr { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
 
 .bankerread.bankerread-v5 { background: var(--ink-1); color: var(--ink-inverse); padding: var(--space-lg); margin-top: var(--space-md); }
-.br-pull-quote { font-style: italic; font-size: 18px; color: var(--gold); margin-bottom: var(--space-md); padding-left: var(--space-md); border-left: 3px solid var(--gold); }
-.br-section { margin-bottom: var(--space-md); }
-.br-label { font-family: var(--font-mono); font-size: 11px; color: var(--gold); font-weight: 700; }
-.br-content { font-size: 14px; line-height: 1.6; margin: var(--space-xs) 0; }
-.bankerread-jump { font-family: var(--font-mono); font-size: 11px; color: var(--gold); }
+.bankerread.bankerread-v5 .br-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-md); padding-bottom: var(--space-xs); border-bottom: 1px solid rgba(212, 168, 76, 0.3); }
+.bankerread.bankerread-v5 .bankerread-label { font-family: var(--font-mono); font-size: 12px; color: var(--gold); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.bankerread.bankerread-v5 .br-sub { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.br-pull-quote { font-style: italic; font-size: 17px; color: var(--gold); margin-bottom: var(--space-md); padding-left: var(--space-md); border-left: 3px solid var(--gold); line-height: 1.45; }
+.br-body { display: flex; flex-direction: column; gap: 8px; }
+.br-line { display: flex; gap: 10px; align-items: flex-start; line-height: 1.55; font-size: 14px; }
+.br-lbl { font-family: var(--font-mono); font-size: 11px; color: var(--gold); font-weight: 700; flex: 0 0 26px; padding-top: 2px; letter-spacing: 0.04em; }
+.br-text { flex: 1; }
+.br-foot { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-md); margin-top: var(--space-md); padding-top: var(--space-xs); border-top: 1px solid rgba(212, 168, 76, 0.2); flex-wrap: wrap; }
+.br-legend { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.05em; }
+.bankerread-jump { font-family: var(--font-mono); font-size: 11px; color: var(--gold); text-decoration: none; }
+.bankerread-jump:hover { text-decoration: underline; }
 
 .freshness-pill { font-family: var(--font-mono); font-size: 10px; padding: 2px 6px; }
 .freshness-stale { background: var(--ink-3); color: var(--ink-inverse); }

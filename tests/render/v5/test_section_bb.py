@@ -57,8 +57,12 @@ def test_section_bb_renders_full():
     assert "34.12" in html
     assert "POLICY RATE" in html
     assert "RESERVES" in html
-    assert "§A MEANING" in html
-    assert "§D FOCUS" in html
+    # V1-mockup style: compact §A/§B/§C/§D labels (no MEANING/ACTION/TRIGGER/FOCUS per line)
+    assert 'class="br-lbl">§A<' in html
+    assert 'class="br-lbl">§D<' in html
+    # legend footer spelled out once
+    assert "A · Meaning" in html
+    assert "D · Focus" in html
     assert '<svg' in html
 
 
