@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-03T23:39:14.397064+06:00",
+  "today": "2026-05-03",
+  "shadow": true,
+  "status": "degraded",
+  "duration_s": 422.74817107082345,
+  "call_reports": [
+    {
+      "name": "headlines_curation",
+      "status": "ok",
+      "reason": "",
+      "cost_usd": 0.10206625,
+      "duration_s": 32.7234179219231,
+      "tokens": {
+        "input": 2,
+        "output": 1683
+      }
+    },
+    {
+      "name": "headlines_layout_v5",
+      "status": "invalid",
+      "reason": "payload not a dict",
+      "cost_usd": 0.12909125,
+      "duration_s": 55.61964373802766,
+      "tokens": {
+        "input": 2,
+        "output": 2747
+      }
+    },
+    {
+      "name": "top_picks",
+      "status": "invalid",
+      "reason": "plotted must contain exactly 7 sections",
+      "cost_usd": 0.17215249999999999,
+      "duration_s": 81.75144548388198,
+      "tokens": {
+        "input": 3,
+        "output": 4382
+      }
+    },
+    {
+      "name": "exec_signals",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.12621625,
+      "duration_s": 46.67089016409591,
+      "tokens": {
+        "input": 2,
+        "output": 1858
+      }
+    },
+    {
+      "name": "todays_call",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.094065,
+      "duration_s": 25.535487265791744,
+      "tokens": {
+        "input": 3,
+        "output": 1256
+      }
+    },
+    {
+      "name": "bankerread:bb",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.06148375,
+      "duration_s": 21.797598948003724,
+      "tokens": {
+        "input": 3,
+        "output": 174
+      }
+    },
+    {
+      "name": "bankerread:macro",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.0662525,
+      "duration_s": 23.346229142975062,
+      "tokens": {
+        "input": 3,
+        "output": 375
+      }
+    },
+    {
+      "name": "bankerread:iranwar",
+      "status": "error",
+      "reason": "Claude CLI binary not found: /home/adnan/.npm-global/bin/claude",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:headlines",
+      "status": "error",
+      "reason": "Claude CLI binary not found: /home/adnan/.npm-global/bin/claude",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:exec",
+      "status": "error",
+      "reason": "Claude CLI binary not found: /home/adnan/.npm-global/bin/claude",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:banking",
+      "status": "error",
+      "reason": "Claude CLI binary not found: /home/adnan/.npm-global/bin/claude",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "systemic_risk:banking",
+      "status": "error",
+      "reason": "Claude CLI binary not found: /home/adnan/.npm-global/bin/claude",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:fx",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.07534,
+      "duration_s": 28.224845672026277,
+      "tokens": {
+        "input": 3,
+        "output": 516
+      }
+    },
+    {
+      "name": "bankerread:dse",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.10439000000000001,
+      "duration_s": 45.559802351053804,
+      "tokens": {
+        "input": 3,
+        "output": 1541
+      }
+    },
+    {
+      "name": "bankerread:tbond",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.11802125,
+      "duration_s": 47.46077802008949,
+      "tokens": {
+        "input": 3,
+        "output": 2252
+      }
+    },
+    {
+      "name": "editorial_qa",
+      "status": "ok",
+      "reason": null,
+      "cost_usd": 0.21729,
+      "duration_s": 91.51052446779795,
+      "tokens": {
+        "input": 3,
+        "output": 3795
+      }
+    }
+  ],
+  "total_cost_usd": 1.2664,
+  "degraded_sections": [
+    "bb"
+  ],
+  "builder_failures": [],
+  "git_push": {
+    "branch": null,
+    "sha": null,
+    "pushed": false
+  }
+}
