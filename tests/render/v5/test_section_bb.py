@@ -50,15 +50,19 @@ def _full_bb_section(systemic: bool = False) -> SectionData:
 def test_section_bb_renders_full():
     html = render_section_bb(_full_bb_section())
     assert 'id="section-bb"' in html
-    assert "§02" in html
+    assert "§03" in html
     assert "POLICY" in html and "RATES" in html  # kicker — & is HTML-escaped to &amp;
     assert "Governor held" in html
     assert "10.00" in html
     assert "34.12" in html
     assert "POLICY RATE" in html
     assert "RESERVES" in html
-    assert "§A MEANING" in html
-    assert "§D FOCUS" in html
+    # V1-mockup style: compact §A/§B/§C/§D labels (no MEANING/ACTION/TRIGGER/FOCUS per line)
+    assert 'class="br-lbl">§A<' in html
+    assert 'class="br-lbl">§D<' in html
+    # legend footer spelled out once
+    assert "A · Meaning" in html
+    assert "D · Focus" in html
     assert '<svg' in html
 
 

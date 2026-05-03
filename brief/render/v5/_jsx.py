@@ -92,8 +92,17 @@ def metric_hero_card(
     badge: str | None = None,
     supporting: str | None = None,
     today: date | None = None,
+    is_hero: bool = True,
 ) -> str:
-    """Big-display metric card with status badge, supporting text, and meta footer.
+    """Metric card with status badge, supporting text, and meta footer.
+
+    is_hero=True (default) — big-display variant that spans 2 grid columns
+    with 56px value type. Use for the headline metric of a section, OR when
+    the section's content is the metric grid itself.
+
+    is_hero=False — compact variant: 1 grid column, 32px value. Use when
+    another element (e.g. heatmap, chart) is the section hero and the
+    numeric metrics demote to supporting roles.
 
     The meta footer (source · date · optional AGING chip) only renders when
     the metric has a value — placeholders/null metrics keep the bare card shape.
@@ -107,11 +116,12 @@ def metric_hero_card(
     supporting_html = ""
     if supporting:
         supporting_html = f'<p class="metric-supporting">{_esc(supporting)}</p>'
-    value_html = (
-        fmt_num(metric.value, unit=metric.unit, tabular=True)
-        if isinstance(metric.value, (int, float))
-        else _esc(str(metric.value))
-    )
+    # fmt_num handles None → em-dash "—" cleanly; only str fallback when value
+    # is some non-numeric oddity (rare; mostly historical safety).
+    if isinstance(metric.value, (int, float)) or metric.value is None:
+        value_html = fmt_num(metric.value, unit=metric.unit, tabular=True)
+    else:
+        value_html = _esc(str(metric.value))
 
     meta_html = ""
     if metric.value is not None:
@@ -138,8 +148,9 @@ def metric_hero_card(
             + '</div>'
         )
 
+    card_class = "metric-card metric-card-hero" if is_hero else "metric-card metric-card-compact"
     return (
-        '<div class="metric-card metric-card-hero">'
+        f'<div class="{card_class}">'
         f'<div class="metric-label">{_esc(metric.label)}</div>'
         f'<div class="metric-value">{value_html}</div>'
         f'{sparkline_html}'
@@ -344,47 +355,66 @@ def heatmap_svg(sectors) -> str:
 
 
 def bankerread_panel_v5(br: BankerReadInsight, *, anchor: str) -> str:
-    """V5 banker's read panel — dark bg, gold §A/§B/§C/§D labels.
+    """V5 banker's read panel — V1-mockup style.
 
-    variant=full: render all four sections.
+    Compact inline §A/§B/§C/§D label prefixes (no MEANING/ACTION/TRIGGER/FOCUS
+    spelled out per-line), with a single legend footer. Matches the V1 Map
+    Front mockup BankerRead component.
+
+    variant=full: render all four lines.
     variant=stale_micro: render only §A meaning + pull_quote.
     variant=v4_legacy: not supported here — caller must use V4 panel.
     """
     if br.variant == "v4_legacy":
         raise ValueError("bankerread_panel_v5 received v4_legacy variant; use V4 renderer")
 
-    sections_html = ""
-
-    def _block(label: str, body: str | None) -> str:
+    def _line(label: str, body: str | None) -> str:
         if not body:
             return ""
         return (
-            '<div class="br-section">'
-            f'<span class="br-label">{label}</span>'
-            f'<p class="br-content">{_esc(body)}</p>'
+            '<div class="br-line">'
+            f'<span class="br-lbl">{label}</span>'
+            f'<span class="br-text">{_esc(body)}</span>'
             '</div>'
         )
 
-    sections_html += _block("§A MEANING", br.meaning)
+    body_html = _line("§A", br.meaning)
     if br.variant == "full":
-        sections_html += _block("§B ACTION", br.action)
-        sections_html += _block("§C TRIGGER", br.trigger)
-        sections_html += _block("§D FOCUS", br.focus)
+        body_html += _line("§B", br.action)
+        body_html += _line("§C", br.trigger)
+        body_html += _line("§D", br.focus)
 
     pull_html = ""
     if br.pull_quote:
         pull_html = f'<div class="br-pull-quote"><em>{_esc(br.pull_quote)}</em></div>'
 
-    jump_link = (
-        f'<a class="bankerread-jump" href="#{_attr_esc(anchor)}">'
-        f'← back to map</a>'
+    header_html = (
+        '<div class="br-header">'
+        '<span class="bankerread-label">BankerRead</span>'
+        '<span class="br-sub">4 sentences · today</span>'
+        '</div>'
+    ) if br.variant == "full" else (
+        '<div class="br-header">'
+        '<span class="bankerread-label">BankerRead</span>'
+        '<span class="br-sub">stale</span>'
+        '</div>'
+    )
+
+    legend_html = (
+        '<div class="br-foot">'
+        '<span class="br-legend">A · Meaning &nbsp; B · Action &nbsp; C · Trigger &nbsp; D · Focus</span>'
+        f'<a class="bankerread-jump" href="#{_attr_esc(anchor)}">← back to map</a>'
+        '</div>'
+    ) if br.variant == "full" else (
+        f'<a class="bankerread-jump" href="#{_attr_esc(anchor)}">← back to map</a>'
     )
 
     return (
         f'<aside class="bankerread bankerread-v5 br-{br.variant}" id="br-{_attr_esc(anchor)}">'
+        f'{header_html}'
         f'{pull_html}'
-        f'{sections_html}'
-        f'{jump_link}'
+        f'<div class="br-body">{body_html}</div>'
+        f'{legend_html}'
         '</aside>'
     )
 

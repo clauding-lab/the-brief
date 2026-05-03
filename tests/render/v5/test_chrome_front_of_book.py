@@ -32,8 +32,8 @@ def _iranwar_section():
 
 def test_front_of_book_renders_structured_preview():
     section = _iranwar_section()
-    html = render_front_of_book(section, section_n="08")
-    assert "§08" in html
+    html = render_front_of_book(section, section_n="09")
+    assert "§09" in html
     assert "Iran · Oil" in html
     assert "Risk premium" in html
     assert "95.10" in html
@@ -41,13 +41,13 @@ def test_front_of_book_renders_structured_preview():
     assert "Add scenario provisions" in html
     assert "confirmed strait closure" in html
     assert 'href="#section-iranwar"' in html
-    assert "JUMP TO §08" in html
+    assert "JUMP TO §09" in html
 
 
 def test_front_of_book_handles_missing_bankerread():
     section = _iranwar_section()
     section_no_br = section.model_copy(update={"bankerread": None})
-    html = render_front_of_book(section_no_br, section_n="08")
-    assert "§08" in html
+    html = render_front_of_book(section_no_br, section_n="09")
+    assert "§09" in html
     assert "95.10" in html
     assert "Add scenario provisions" not in html

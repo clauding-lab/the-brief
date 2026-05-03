@@ -54,7 +54,11 @@ def render_section_dse(section: SectionData) -> str:
         m = metrics_by_id["dse_turnover_crore"]
         pills.append(f'<span class="sum-pill"><span class="sum-key">TURNOVER</span> <strong>{fmt_num(m.value, unit=m.unit)}</strong></span>')
 
-    hero_html = ""
+    # Sector heatmap is the section hero (full-width); demote DSEX et al. to
+    # compact metric cards underneath. Matches V1 mockup hierarchy.
+    heatmap_html = _build_sector_heatmap_block(section)
+
+    dsex_html = ""
     if "dse_dsex_close" in metrics_by_id:
         hero = metrics_by_id["dse_dsex_close"]
         badge = None
@@ -67,18 +71,15 @@ def render_section_dse(section: SectionData) -> str:
             breadth_pct = (adv.value / (adv.value + dec.value)) * 100
             if breadth_pct < 30:
                 badge = "WATCH"
-        hero_html = metric_hero_card(hero, badge=badge, supporting="DSE daily close")
+        dsex_html = metric_hero_card(hero, badge=badge, supporting="DSE daily close", is_hero=False)
 
     supporting_cards = []
     for mid in ("dse_ds30", "dse_dses", "dse_turnover_crore"):
         if mid in metrics_by_id:
-            supporting_cards.append(metric_hero_card(metrics_by_id[mid]))
+            supporting_cards.append(metric_hero_card(metrics_by_id[mid], is_hero=False))
 
-    metric_cards_html = hero_html + "".join(supporting_cards)
-
-    heatmap_html = _build_sector_heatmap_block(section)
-    if heatmap_html:
-        metric_cards_html += heatmap_html
+    # Order inside .sec-metric-grid: heatmap (full-width hero) first, then 4 compact cards
+    metric_cards_html = heatmap_html + dsex_html + "".join(supporting_cards)
 
     news_html = ""
     if section.news:

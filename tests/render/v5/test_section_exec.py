@@ -27,7 +27,7 @@ def _exec_section(*, signals: list[ExecSignal] | None = None) -> SectionData:
 def test_section_exec_renders_with_full_data():
     html = render_section_exec(_exec_section())
     assert 'id="section-exec"' in html
-    assert "§14" in html
+    assert "§02" in html
     assert "EXEC SIGNALS" in html
     # All four direction classes present
     assert "exec-signal-bull" in html
@@ -39,10 +39,10 @@ def test_section_exec_renders_with_full_data():
     assert "▼" in html  # bear
     # Signal text
     assert "Reserves rebuild" in html
-    # Anchor links resolve to §NN
-    assert "→ §02" in html  # bb section
-    assert "→ §03" in html  # macro section
-    assert "→ §04" in html  # fx section
+    # Anchor links resolve to §NN (post-renumber: bb=03, macro=04, fx=05, iranwar=09)
+    assert "→ §03" in html  # bb section
+    assert "→ §04" in html  # macro section
+    assert "→ §05" in html  # fx section
     assert "→ §08" in html  # iranwar section
     # No metric cards, no sparkline
     assert "metric-card" not in html
@@ -61,7 +61,7 @@ def test_section_exec_renders_with_one_signal():
     html = render_section_exec(_exec_section(signals=one))
     assert "exec-signal-bull" in html
     assert "Solo signal." in html
-    assert "→ §02" in html
+    assert "→ §03" in html  # bb is now §03
     # Only one li
     assert html.count('<li class="exec-signal ') == 1
 

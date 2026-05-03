@@ -395,12 +395,15 @@ def _section_summary_for_qa(s: SectionData) -> dict:
 
 
 def _section_n(section_id: str) -> str:
-    """Map section id → display number."""
+    """Map section id → display number.
+
+    Post-2026-05-03 renumber: exec moved from §14 to §02; bb/macro/fx/etc
+    each shift +1 down to make room.
+    """
     mapping = {
-        "headlines": "01", "bb": "02", "macro": "03", "fx": "04",
-        "remit": "05", "dse": "06", "tbond": "07", "iranwar": "08",
-        "banking": "09", "comm": "10", "fiscal": "11", "nbr": "12",
-        "dam": "13", "exec": "14",
+        "headlines": "01", "exec": "02", "bb": "03", "macro": "04",
+        "fx": "05", "dse": "06", "tbond": "07",
+        "iranwar": "08", "banking": "09",
     }
     return mapping.get(section_id, "??")
 

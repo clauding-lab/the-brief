@@ -37,7 +37,7 @@ def _dam_section(*, with_metrics: bool = True, with_news: bool = True,
 def test_section_dam_renders_with_full_metrics():
     html = render_section_dam(_dam_section())
     assert 'id="section-dam"' in html
-    assert "§13" in html
+    assert "§14" in html
     assert "FOOD" in html
     assert "DAM Food Prices" in html
     assert "58.50" in html

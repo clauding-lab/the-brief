@@ -7,13 +7,13 @@ from brief.schema import GridEntry, MapPoint, TopPicks
 def _section_lookup():
     """Minimal section catalog used by the risk map for labels."""
     return {
-        "bb":      {"kicker": "Policy & rates", "n": "02"},
-        "macro":   {"kicker": "Inflation",      "n": "03"},
-        "fx":      {"kicker": "FX & external",  "n": "04"},
-        "remit":   {"kicker": "Remittance",     "n": "05"},
-        "dse":     {"kicker": "Equities · DSE", "n": "06"},
-        "tbond":   {"kicker": "T-Bill & T-Bond","n": "07"},
-        "iranwar": {"kicker": "Iran · Oil",     "n": "08"},
+        "bb":      {"kicker": "Policy & rates", "n": "03"},
+        "macro":   {"kicker": "Inflation",      "n": "04"},
+        "fx":      {"kicker": "FX & external",  "n": "05"},
+        "remit":   {"kicker": "Remittance",     "n": "06"},
+        "dse":     {"kicker": "Equities · DSE", "n": "07"},
+        "tbond":   {"kicker": "T-Bill & T-Bond","n": "08"},
+        "iranwar": {"kicker": "Iran · Oil",     "n": "09"},
     }
 
 

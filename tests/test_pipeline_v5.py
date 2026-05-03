@@ -35,7 +35,8 @@ def _section(id_: str, freshness: str = "fresh", with_metric: bool = True) -> Se
 
 
 def test_section_n_mapping():
-    assert _section_n("bb") == "02"
+    assert _section_n("exec") == "02"
+    assert _section_n("bb") == "03"
     assert _section_n("iranwar") == "08"
     assert _section_n("unknown") == "??"
 

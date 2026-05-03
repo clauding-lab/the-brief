@@ -94,8 +94,7 @@ def assemble_v5(
 
 
 def _section_n(section_id: str) -> str:
-    mapping = {"headlines": "01", "bb": "02", "macro": "03", "fx": "04",
-               "remit": "05", "dse": "06", "tbond": "07", "iranwar": "08",
-               "banking": "09", "comm": "10", "fiscal": "11", "nbr": "12",
-               "dam": "13", "exec": "14"}
+    mapping = {"headlines": "01", "exec": "02", "bb": "03", "macro": "04",
+               "fx": "05", "dse": "06", "tbond": "07",
+               "iranwar": "08", "banking": "09"}
     return mapping.get(section_id, "??")
