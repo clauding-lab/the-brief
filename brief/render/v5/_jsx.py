@@ -116,11 +116,12 @@ def metric_hero_card(
     supporting_html = ""
     if supporting:
         supporting_html = f'<p class="metric-supporting">{_esc(supporting)}</p>'
-    value_html = (
-        fmt_num(metric.value, unit=metric.unit, tabular=True)
-        if isinstance(metric.value, (int, float))
-        else _esc(str(metric.value))
-    )
+    # fmt_num handles None → em-dash "—" cleanly; only str fallback when value
+    # is some non-numeric oddity (rare; mostly historical safety).
+    if isinstance(metric.value, (int, float)) or metric.value is None:
+        value_html = fmt_num(metric.value, unit=metric.unit, tabular=True)
+    else:
+        value_html = _esc(str(metric.value))
 
     meta_html = ""
     if metric.value is not None:

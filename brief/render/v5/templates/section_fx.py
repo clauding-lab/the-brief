@@ -1,4 +1,8 @@
-"""V5 §04 — FX & Reserves."""
+"""V5 §05 — FX & External (post-2026-05-03 V1-mockup layout).
+
+USD/BDT mid is the hero. Surrounding compact cards are cross-section external-
+balance metrics: gross reserves, trade gap, monthly exports, monthly remittance.
+"""
 from __future__ import annotations
 
 from brief.render.v5._jsx import fmt_num, metric_hero_card, news_bullet
@@ -12,17 +16,28 @@ def render_section_fx(section: SectionData) -> str:
 
     metrics_by_id = {m.id: m for m in section.metrics}
 
+    # 3-pill summary: USD/BDT, Reserves, Remittance
     pills = []
     if "fx_usd_bdt_mid" in metrics_by_id:
         m = metrics_by_id["fx_usd_bdt_mid"]
-        pills.append(f'<span class="sum-pill"><span class="sum-key">USD/BDT</span> <strong>{fmt_num(m.value, unit=m.unit)}</strong></span>')
-    if "fx_eur_bdt" in metrics_by_id:
-        m = metrics_by_id["fx_eur_bdt"]
-        pills.append(f'<span class="sum-pill"><span class="sum-key">EUR/BDT</span> <strong>{fmt_num(m.value, unit=m.unit)}</strong></span>')
-    if "fx_gbp_bdt" in metrics_by_id:
-        m = metrics_by_id["fx_gbp_bdt"]
-        pills.append(f'<span class="sum-pill"><span class="sum-key">GBP/BDT</span> <strong>{fmt_num(m.value, unit=m.unit)}</strong></span>')
+        pills.append(
+            f'<span class="sum-pill"><span class="sum-key">USD/BDT</span> '
+            f'<strong>{fmt_num(m.value, unit=m.unit)}</strong></span>'
+        )
+    if "fx_gross_reserves" in metrics_by_id:
+        m = metrics_by_id["fx_gross_reserves"]
+        pills.append(
+            f'<span class="sum-pill"><span class="sum-key">RESERVES</span> '
+            f'<strong>{fmt_num(m.value, unit=m.unit)}</strong></span>'
+        )
+    if "fx_monthly_remittance" in metrics_by_id:
+        m = metrics_by_id["fx_monthly_remittance"]
+        pills.append(
+            f'<span class="sum-pill"><span class="sum-key">REMIT</span> '
+            f'<strong>{fmt_num(m.value, unit=m.unit)}</strong></span>'
+        )
 
+    # Hero: USD/BDT mid spot (the most-watched single rate for this market)
     hero_html = ""
     if "fx_usd_bdt_mid" in metrics_by_id:
         hero = metrics_by_id["fx_usd_bdt_mid"]
@@ -31,10 +46,12 @@ def render_section_fx(section: SectionData) -> str:
             badge = "WATCH"
         hero_html = metric_hero_card(hero, badge=badge, supporting="USD/BDT mid spot")
 
+    # Compact supporting cards: external-balance row
     supporting_cards = []
-    for mid in ("fx_usd_bdt_buy", "fx_usd_bdt_sell", "fx_eur_bdt"):
+    for mid in ("fx_gross_reserves", "fx_trade_gap",
+                "fx_monthly_exports", "fx_monthly_remittance"):
         if mid in metrics_by_id:
-            supporting_cards.append(metric_hero_card(metrics_by_id[mid]))
+            supporting_cards.append(metric_hero_card(metrics_by_id[mid], is_hero=False))
 
     metric_cards_html = hero_html + "".join(supporting_cards)
 
