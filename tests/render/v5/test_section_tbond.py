@@ -113,11 +113,11 @@ def test_section_tbond_chart_uses_history_for_comparison_when_available():
     assert "stroke-dasharray" in html
 
 
-def test_section_tbond_renders_six_tenor_layout():
-    """4 T-Bill cards top, 2 BGTB cards beside chart."""
+def test_section_tbond_renders_chart_hero_with_tenor_row():
+    """Yield curve chart full-width hero on top, then row of 5 compact tenor cards."""
     html = render_section_tbond(_tbond_section())
-    assert "tbond-tbills" in html
-    assert "tbond-bond-chart" in html
+    assert "yield-curve-hero" in html
+    assert "tbond-tenor-row" in html
 
 
 def test_section_tbond_renders_chart_with_partial_data():

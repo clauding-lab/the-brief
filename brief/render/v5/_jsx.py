@@ -92,8 +92,17 @@ def metric_hero_card(
     badge: str | None = None,
     supporting: str | None = None,
     today: date | None = None,
+    is_hero: bool = True,
 ) -> str:
-    """Big-display metric card with status badge, supporting text, and meta footer.
+    """Metric card with status badge, supporting text, and meta footer.
+
+    is_hero=True (default) — big-display variant that spans 2 grid columns
+    with 56px value type. Use for the headline metric of a section, OR when
+    the section's content is the metric grid itself.
+
+    is_hero=False — compact variant: 1 grid column, 32px value. Use when
+    another element (e.g. heatmap, chart) is the section hero and the
+    numeric metrics demote to supporting roles.
 
     The meta footer (source · date · optional AGING chip) only renders when
     the metric has a value — placeholders/null metrics keep the bare card shape.
@@ -138,8 +147,9 @@ def metric_hero_card(
             + '</div>'
         )
 
+    card_class = "metric-card metric-card-hero" if is_hero else "metric-card metric-card-compact"
     return (
-        '<div class="metric-card metric-card-hero">'
+        f'<div class="{card_class}">'
         f'<div class="metric-label">{_esc(metric.label)}</div>'
         f'<div class="metric-value">{value_html}</div>'
         f'{sparkline_html}'

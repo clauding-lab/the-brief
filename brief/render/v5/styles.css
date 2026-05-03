@@ -327,9 +327,11 @@ body.brief-v5 {
 }
 .metric-card { padding: var(--space-md); background: var(--paper-2); border-left: 3px solid var(--ox); }
 .metric-card-hero { grid-column: span 2; }
+.metric-card-compact { grid-column: span 1; }
 .metric-label { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
 .metric-value { font-family: var(--font-serif-display); font-size: 32px; font-weight: 700; margin: var(--space-xs) 0; }
 .metric-card-hero .metric-value { font-size: 56px; }
+.metric-card-compact .metric-value { font-size: 24px; }
 .metric-badge { display: inline-block; font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; background: var(--red); color: var(--ink-inverse); margin-top: var(--space-xs); }
 .metric-supporting { font-size: 12px; color: var(--ink-3); margin-top: var(--space-sm); }
 .metric-meta { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-top: var(--space-sm); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -341,21 +343,26 @@ body.brief-v5 {
 .metric-sparkline-hero svg polyline { stroke-width: 2; }
 .metric-sparkline-supporting svg polyline { opacity: 0.7; }
 
-/* ── §07 T-Bond yield-curve hero (Phase 2.3) ────────────────────────────── */
-.tbond-tbills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg); }
-.tbond-bond-chart { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-lg); align-items: stretch; }
-.tbond-bonds { display: flex; flex-direction: column; gap: var(--space-md); }
-.yield-curve-chart { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-md) calc(var(--space-md) + 4px); }
-.yc-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+/* ── §08 T-Bond yield-curve hero (post-2026-05-03 layout) ─────────────────
+   Top: full-width yield curve chart (HERO). Bottom: row of 5 compact tenor cards. */
+.tbond-tenor-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-sm); margin-top: var(--space-md); }
+.tbond-tenor-row .metric-card { padding: var(--space-sm); }
+.tbond-tenor-row .metric-value { font-size: 22px; }
+.yield-curve-chart { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-lg); }
+.yield-curve-chart.yield-curve-hero { grid-column: 1 / -1; }
+.yc-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .yield-curve-chart svg.line-chart { width: 100%; height: auto; display: block; }
 @media (max-width: 960px) {
-  .tbond-tbills { grid-template-columns: 1fr; }
-  .tbond-bond-chart { grid-template-columns: 1fr; }
+  .tbond-tenor-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* ── §06 DSE sector heatmap (Phase 3.1) ─────────────────────────────────── */
-.sector-heatmap-card { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-md); margin-top: var(--space-md); }
-.hm-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+/* ── §07 DSE sector heatmap — hero variant (full-width inside .sec-metric-grid) ── */
+.sector-heatmap-card { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-lg); margin-top: 0; grid-column: 1 / -1; }
+.sector-heatmap-card .sector-heatmap { gap: 8px; }
+.sector-heatmap-card .heatmap-tile { padding: 18px 10px; min-height: 68px; }
+.sector-heatmap-card .heatmap-tile-label { font-size: 11px; }
+.sector-heatmap-card .heatmap-tile-pct { font-size: 19px; margin-top: 6px; }
+.hm-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 .hm-as-of { color: var(--ink-3); }
 .sector-heatmap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .heatmap-tile { padding: 10px 6px; text-align: center; border-radius: 2px; }
@@ -369,11 +376,11 @@ body.brief-v5 {
   .sector-heatmap { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-.systemic-risk { background: rgba(168,58,58,0.06); border: 2px solid var(--red); padding: var(--space-md); margin: var(--space-md) 0; display: grid; grid-template-columns: 24px 1fr; gap: var(--space-sm); }
+.systemic-risk { background: rgba(168,58,58,0.06); border: 2px solid var(--red); padding: var(--space-md); margin: var(--space-md) 0; display: grid; grid-template-columns: 24px 1fr; column-gap: var(--space-sm); row-gap: var(--space-xs); }
 .systemic-risk-warning { border-color: var(--gold); background: rgba(200,154,63,0.08); }
-.systemic-risk-icon { font-size: 18px; }
-.systemic-risk-headline { margin: 0; font-family: var(--font-serif-text); font-size: 16px; font-weight: 700; }
-.systemic-risk-body { margin: var(--space-xs) 0 0; font-size: 13px; line-height: 1.5; }
+.systemic-risk-icon { font-size: 18px; grid-column: 1; grid-row: 1; }
+.systemic-risk-headline { grid-column: 2; grid-row: 1; margin: 0; font-family: var(--font-serif-text); font-size: 16px; font-weight: 700; }
+.systemic-risk-body { grid-column: 2; grid-row: 2; margin: 0; font-size: 13px; line-height: 1.5; }
 
 .sec-news { list-style: none; padding: 0; margin: var(--space-md) 0; }
 .source-badge { display: inline-block; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; color: #fff; }

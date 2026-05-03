@@ -1,9 +1,8 @@
-"""V5 §07 — Treasury (T-Bonds & T-Bills) with yield curve chart hero.
+"""V5 §08 — Treasury (T-Bonds & T-Bills) with yield curve chart hero.
 
-Layout (Phase 2.3 V1 fidelity):
-- Top row: 3 T-Bill tenor cards (91d / 182d / 364d) in a `.tbond-tbills` grid.
-- Bottom row: 2 BGTB cards (5Y / 10Y) on the left, large yield curve chart
-  on the right in a `.tbond-bond-chart` 1:2 grid.
+Layout (post-2026-05-03 hero swap):
+- Top: full-width yield curve chart (HERO).
+- Bottom: 5 compact tenor cards in one row (91d / 182d / 364d / 5Y / 10Y).
 
 The chart is a deterministic SVG rendered by `_jsx.line_chart_svg`. Today's
 curve is drawn as a solid oxblood line; if every tenor metric carries at
@@ -59,14 +58,14 @@ def _build_yield_curve_chart(metrics_by_id: dict) -> str:
         series,
         x_labels=x_labels,
         comparison_series=prev if has_any_history else None,
-        w=520,
-        h=220,
+        w=900,
+        h=280,
     )
     if not chart:
         return ""
 
     return (
-        '<div class="yield-curve-chart">'
+        '<div class="yield-curve-chart yield-curve-hero">'
         '<div class="yc-eyebrow">'
         '<span>Yield Curve · BDT Govt</span>'
         '<span>Today vs Last Week</span>'
@@ -93,16 +92,13 @@ def render_section_tbond(section: SectionData) -> str:
                 f'<strong>{fmt_num(m.value, unit=m.unit)}</strong></span>'
             )
 
-    # ── T-Bill row (top: 91D / 182D / 364D) ──────────────────────────────────
-    tbill_cards = []
-    for mid in ("tbond_tbill_91d", "tbond_tbill_182d", "tbond_tbill_364d"):
-        m = metrics_by_id.get(mid)
-        if m is not None:
-            tbill_cards.append(metric_hero_card(m))
+    # ── Hero: full-width yield curve chart ─────────────────────────────────
+    chart_html = _build_yield_curve_chart(metrics_by_id)
 
-    # ── Bond + chart row (bottom: 5Y / 10Y stacked + curve chart) ────────────
-    bond_cards = []
-    for mid in ("tbond_bond_5y", "tbond_bond_10y"):
+    # ── Compact tenor cards (one row of 5: 91d/182d/364d/5Y/10Y) ────────────
+    tenor_cards = []
+    for mid in ("tbond_tbill_91d", "tbond_tbill_182d", "tbond_tbill_364d",
+                "tbond_bond_5y", "tbond_bond_10y"):
         m = metrics_by_id.get(mid)
         if m is None:
             continue
@@ -110,20 +106,13 @@ def render_section_tbond(section: SectionData) -> str:
         if mid == "tbond_bond_10y" and isinstance(m.value, (int, float)) and m.value > 12.0:
             badge = "WATCH"
         supporting = "BB weekly auction" if mid == "tbond_bond_10y" else None
-        bond_cards.append(metric_hero_card(m, badge=badge, supporting=supporting))
-
-    chart_html = _build_yield_curve_chart(metrics_by_id)
+        tenor_cards.append(metric_hero_card(m, badge=badge, supporting=supporting, is_hero=False))
 
     metric_cards_html = ""
-    if tbill_cards:
-        metric_cards_html += f'<div class="tbond-tbills">{"".join(tbill_cards)}</div>'
-    if bond_cards or chart_html:
-        metric_cards_html += (
-            '<div class="tbond-bond-chart">'
-            f'<div class="tbond-bonds">{"".join(bond_cards)}</div>'
-            f'{chart_html}'
-            '</div>'
-        )
+    if chart_html:
+        metric_cards_html += chart_html
+    if tenor_cards:
+        metric_cards_html += f'<div class="tbond-tenor-row">{"".join(tenor_cards)}</div>'
 
     news_html = ""
     if section.news:
