@@ -1,0 +1,273 @@
+from datetime import date, datetime, timezone
+import pytest
+from pydantic import ValidationError
+
+from brief.schema import Delta, Metric
+
+
+def test_metric_minimal_valid():
+    m = Metric(
+        id="bb_policy_rate",
+        label="Policy Rate",
+        value=10.0,
+        unit="%",
+        as_of=date(2026, 4, 18),
+        source="BB",
+        cadence="event",
+    )
+    assert m.id == "bb_policy_rate"
+    assert m.delta is None
+    assert m.source_url is None
+    assert m.history_values is None  # default — populated by pipeline post-build
+
+
+def test_metric_accepts_history_values():
+    m = Metric(
+        id="x", label="x", value=1.0, unit="%",
+        as_of=date(2026, 4, 1), source="t", cadence="daily",
+        history_values=[1.0, 1.2, 0.9, 1.1, 1.3],
+    )
+    assert m.history_values == [1.0, 1.2, 0.9, 1.1, 1.3]
+
+
+def test_metric_accepts_str_value():
+    m = Metric(
+        id="fx_usd_bdt_mid",
+        label="USD/BDT mid",
+        value="122.70",
+        unit="BDT",
+        as_of=date(2026, 4, 20),
+        source="BB",
+        cadence="daily",
+    )
+    assert m.value == "122.70"
+
+
+def test_metric_rejects_unknown_cadence():
+    with pytest.raises(ValidationError):
+        Metric(
+            id="x",
+            label="x",
+            value=1,
+            unit="%",
+            as_of=date(2026, 1, 1),
+            source="x",
+            cadence="yearly",  # not in CadenceKind
+        )
+
+
+def test_delta_requires_direction_literal():
+    d = Delta(value=0.3, direction="up", window="wow")
+    assert d.direction == "up"
+    with pytest.raises(ValidationError):
+        Delta(value=0.3, direction="north", window="wow")
+
+
+from brief.schema import (
+    BankerReadFreeform,
+    BankerReadInsight,
+    BankerReadStructured,
+    BankerReadUnion,
+    ExecSignal,
+    MapCoord,
+    NewsItem,
+    SectionData,
+    TodaysCall,
+)
+
+
+def test_section_data_defaults():
+    s = SectionData(id="bb", title="Policy & Rates", freshness="fresh")
+    assert s.metrics == []
+    assert s.news == []
+    assert s.bankerread is None
+    assert s.exec_signals is None
+    assert s.pull is None
+    assert s.degraded_breadth is False
+    assert s.degraded_sector_heat is False
+    assert s.extras == {}
+
+
+def test_bankerread_structured_validates_when_all_5_fields_present():
+    br = BankerReadStructured(
+        meaning="Policy rate holds.",
+        action="Hold duration short.",
+        trigger="Inflation stays above 9%.",
+        focus="BB rate decision.",
+        pull="Policy rate holds.",
+    )
+    assert br.kind == "structured"
+    assert br.meaning == "Policy rate holds."
+    assert br.pull == "Policy rate holds."
+
+
+def test_bankerread_freeform_validates_with_only_text():
+    br = BankerReadFreeform(text="No fresh data; headlines suggest pressure.")
+    assert br.kind == "freeform"
+    assert br.pull is None
+
+
+def test_discriminator_routes_correctly_on_kind_field():
+    from pydantic import TypeAdapter
+    ta = TypeAdapter(BankerReadUnion)
+    structured = ta.validate_python({"kind": "structured", "meaning": "a", "action": "b",
+                                     "trigger": "c", "focus": "d", "pull": "a"})
+    assert isinstance(structured, BankerReadStructured)
+    freeform = ta.validate_python({"kind": "freeform", "text": "x"})
+    assert isinstance(freeform, BankerReadFreeform)
+
+
+def test_mapcoord_rejects_x_11():
+    with pytest.raises(ValidationError):
+        MapCoord(section_id="bb", x=11, y=5, r=30, type="event")
+
+
+def test_mapcoord_rejects_r_10():
+    with pytest.raises(ValidationError):
+        MapCoord(section_id="bb", x=5, y=5, r=10, type="event")
+
+
+def test_mapcoord_rejects_invalid_type():
+    with pytest.raises(ValidationError):
+        MapCoord(section_id="bb", x=5, y=5, r=30, type="invalid")
+
+
+def test_todays_call_accepts_long_text():
+    # No length cap — spec allows 60-100 words (~700 chars at max)
+    from datetime import datetime, timezone
+    tc = TodaysCall(text="x" * 700, generated_at=datetime(2025, 1, 1, tzinfo=timezone.utc))
+    assert len(tc.text) == 700
+
+
+def test_todays_call_requires_generated_at():
+    with pytest.raises(ValidationError):
+        TodaysCall(text="some text")
+
+
+def test_mapcoord_valid_with_hero_metric_id():
+    mc = MapCoord(section_id="fx", x=3.5, y=7.0, r=25, type="fresh", hero_metric_id="fx_usd_bdt")
+    assert mc.hero_metric_id == "fx_usd_bdt"
+    assert mc.section_id == "fx"
+
+
+def test_exec_signal_shape():
+    e = ExecSignal(direction="bull", text="Reserves up 0.3 bn WoW", section_anchor="bb")
+    assert e.direction == "bull"
+    assert e.section_anchor == "bb"
+
+
+def test_news_item_parses_isoformat():
+    n = NewsItem(
+        title="x",
+        url="https://example.com/x",
+        source="DS",
+        published=datetime(2026, 4, 21, 6, 0, tzinfo=timezone.utc),
+    )
+    assert n.source == "DS"
+
+
+# ---------------------------------------------------------------------------
+# V5 schema additions
+# ---------------------------------------------------------------------------
+
+from brief.schema import (
+    GridEntry,
+    MapPoint,
+    QAIssue,
+    EditorialQAResult,
+    SystemicRisk,
+    TopPicks,
+)
+
+
+def test_systemic_risk_validates():
+    risk = SystemicRisk(
+        headline="NPL ratio at world high",
+        body="x" * 80,
+        level="critical",
+        rule_id="banking_npl_above_30",
+    )
+    assert risk.level == "critical"
+
+
+def test_systemic_risk_rejects_bad_level():
+    with pytest.raises(ValidationError):
+        SystemicRisk(headline="x", body="y", level="catastrophic", rule_id="r")
+
+
+def test_map_point_validates():
+    point = MapPoint(id="bb", x=1.2, y=6.0, r=24, kind="anchor")
+    assert point.kind == "anchor"
+
+
+def test_top_picks_holds_seven_each():
+    plotted = [MapPoint(id=f"s{i}", x=1.0, y=1.0, r=10, kind="fresh") for i in range(7)]
+    grid = [GridEntry(id=f"g{i}", tldr="placeholder") for i in range(7)]
+    picks = TopPicks(plotted=plotted, grid=grid, front_of_book_id="s0")
+    assert len(picks.plotted) == 7
+    assert len(picks.grid) == 7
+
+
+def test_todays_call_default_byline():
+    call = TodaysCall(text="x" * 60, generated_at=datetime.now(timezone.utc))
+    assert call.byline == "Desk Editor · The Brief"
+
+
+def test_editorial_qa_result_shippable_flag():
+    result = EditorialQAResult(
+        status="block",
+        issues=[QAIssue(section_id="bb", severity="block", message="empty banker read")],
+        shippable=False,
+    )
+    assert result.shippable is False
+
+
+def test_bankerread_v5_full_variant():
+    br = BankerReadInsight(
+        variant="full",
+        meaning="m" * 80,
+        action="a" * 80,
+        trigger="t" * 80,
+        focus="f" * 80,
+        pull_quote="quotable line",
+        generated_at=datetime.now(timezone.utc),
+    )
+    assert br.sentences is None
+    assert br.variant == "full"
+
+
+def test_bankerread_v4_legacy_variant_still_works():
+    br = BankerReadInsight(
+        variant="v4_legacy",
+        sentences=["s1", "s2", "s3", "s4"],
+        generated_at=datetime.now(timezone.utc),
+    )
+    assert br.sentences == ["s1", "s2", "s3", "s4"]
+    assert br.meaning is None
+
+
+def test_bankerread_stale_micro_variant():
+    br = BankerReadInsight(
+        variant="stale_micro",
+        meaning="single paragraph " * 8,
+        pull_quote="stale-day quotable",
+        generated_at=datetime.now(timezone.utc),
+    )
+    assert br.action is None
+    assert br.trigger is None
+    assert br.focus is None
+
+
+def test_section_data_v5_optional_fields_default_safe():
+    section = SectionData(
+        id="bb",
+        title="Bangladesh Bank",
+        kicker="Policy & rates",
+        tldr="Held again.",
+        metrics=[],
+        news=[],
+        freshness="fresh",
+    )
+    assert section.systemic_risk is None
+    assert section.risk_active is False
+    assert section.history_values is None

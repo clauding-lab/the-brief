@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# DEPRECATED (Phase 4B): V4 pipeline is Python-driven; this script targets the V1 JSX compilation flow.
+# For V4 output, run:
+#   python -c "from brief.pipeline import PipelineConfig, run; cfg=PipelineConfig(); r=run(cfg); open('index.html','w').write(r.html); open('email.txt','w').write(r.email_text)"
+# (Or use the packaged entrypoint once exposed.)
 set -euo pipefail
 
 # Build script: compiles the-brief.html (JSX source) -> index.html (production)

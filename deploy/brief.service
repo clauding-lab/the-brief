@@ -1,0 +1,41 @@
+[Unit]
+Description=The Brief — daily Bangladesh economy digest (V4)
+Documentation=https://github.com/clauding-lab/the-brief
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=adnan
+Group=adnan
+WorkingDirectory=/home/adnan/the-brief
+EnvironmentFile=/etc/brief.env
+
+ExecStart=/home/adnan/the-brief/.venv/bin/python -m brief.cli run \
+  --artifacts-dir=/home/adnan/the-brief/artifacts \
+  --shadow
+
+# Resource limits — pipeline does ~6 subprocess calls to claude, each up to
+# 64K tokens; memory stays well under 600M in practice.
+MemoryMax=600M
+MemoryHigh=500M
+CPUQuota=80%
+TasksMax=128
+
+# Hardening
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/adnan/the-brief /home/adnan/.claude
+
+# Timeouts — pipeline target 15m, hard cap 20m.
+TimeoutStartSec=20min
+
+# Logging — systemd journal + append to file
+StandardOutput=append:/home/adnan/the-brief/logs/brief-systemd.log
+StandardError=append:/home/adnan/the-brief/logs/brief-systemd.log
+SyslogIdentifier=brief
+
+[Install]
+WantedBy=multi-user.target

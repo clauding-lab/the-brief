@@ -1,0 +1,485 @@
+/* V5 styles — magazine layout. Tokens come from tokens.css. */
+
+* { box-sizing: border-box; }
+body.brief-v5 {
+  margin: 0;
+  font-family: var(--font-serif-text);
+  color: var(--ink-1);
+  background: var(--paper-1);
+  line-height: 1.5;
+}
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 20px 40px 80px;
+}
+@media (max-width: 700px) {
+  .page { padding: 14px 16px 60px; }
+}
+
+.live-banner {
+  background: var(--ox);
+  color: var(--ink-inverse);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: var(--space-sm) var(--space-lg);
+}
+.lb-grid { display: inline-flex; gap: var(--space-lg); margin: 0 var(--space-lg); }
+.lb-key { color: var(--gold); font-weight: 600; }
+.lb-val { color: var(--ink-inverse); }
+.lb-dot { color: #ff6b6b; }
+.lb-stamp, .lb-next { font-family: var(--font-mono); }
+
+.masthead { padding-top: 14px; }
+.mast-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-3);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  padding-bottom: 10px; border-bottom: 1px solid var(--ink-1);
+}
+.mast-meta-left, .mast-meta-center, .mast-meta-right { display: inline-flex; gap: 8px; }
+/* Mast-grid uses the SAME column ratio as .map-row below so today's call
+   right-aligns with the section-snapshot panel. Both 1.6fr 1fr means the
+   right columns are exactly the same pixel width, no offset. */
+.mast-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 32px; align-items: end; padding: 22px 0 20px; border-bottom: 3px double var(--ink-1); }
+.mast-title {
+  font-family: var(--font-serif-display);
+  font-size: clamp(72px, 12vw, 148px);
+  font-weight: 900; line-height: 0.86;
+  letter-spacing: -0.035em;
+  font-variation-settings: "opsz" 60;
+  margin: 0; color: var(--ink-1);
+}
+.mt-the { color: var(--ink-1); }
+.mt-brief { color: var(--ox); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
+.mt-comma { color: var(--ink-1); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
+.mt-plotted { color: var(--ink-1); font-style: italic; font-weight: 400; font-variation-settings: "opsz" 60; }
+.mast-dek {
+  font-family: var(--font-serif-text); font-style: italic;
+  color: var(--ink-2); font-size: 17px;
+  margin: var(--space-md) 0 0; max-width: 56ch;
+}
+.mast-dek::before {
+  content: "—";
+  color: var(--ox); font-weight: 700;
+  margin-right: 10px; font-style: normal;
+}
+
+.todays-call { border-left: 3px solid var(--ox); padding: 4px 0 4px var(--space-md); }
+.tc-label {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ox); font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+.tc-text { font-family: var(--font-serif-text); font-size: 18px; line-height: 1.4; margin: var(--space-sm) 0; color: var(--ink-1); }
+.tc-text strong, .tc-text b { font-weight: 700; }
+.tc-text em { font-style: italic; color: var(--ox); }
+.tc-byline {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-3); margin-top: var(--space-sm);
+}
+
+/* Narrow-width: today's call drops below the title, map row stacks. Mockup
+   threshold is ~960px; matching that gives the same graceful resize behavior. */
+@media (max-width: 960px) {
+  .mast-grid { grid-template-columns: 1fr; gap: var(--space-lg); }
+  .mast-title { font-size: clamp(56px, 12vw, 96px); }
+  .map-row { grid-template-columns: 1fr; gap: var(--space-lg); }
+  .todays-call { padding-left: var(--space-md); }
+}
+@media (max-width: 600px) {
+  .masthead, .map-row, .secondary-grid, .colophon { padding-left: var(--space-md); padding-right: var(--space-md); }
+  .section.section-v5 { padding-left: var(--space-md); padding-right: var(--space-md); }
+}
+
+/* The map row: risk map LEFT (1.6fr), front-of-book section snapshot RIGHT (1fr).
+   Mockup uses these exact proportions. Collapses below 960px. */
+.map-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 32px; align-items: start; margin-top: 28px; }
+.risk-map { display: flex; flex-direction: column; gap: 8px; }
+.rm-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 8px;
+}
+.rm-eyebrow { color: var(--ox); font-weight: 600; }
+.rm-eyebrow-right { color: var(--ink-3); }
+/* Bordered map wrap (the SVG sits on a slightly tinted cream with a thin ink rule). */
+.rm-svg-wrap {
+  border: 1px solid var(--ink-1);
+  background: #faf6ec;
+  padding: 8px 10px 4px;
+  position: relative;
+}
+.rm-svg { max-height: 320px; width: 100%; }
+.rm-svg { width: 100%; height: auto; aspect-ratio: 4/3; background: var(--paper-2); }
+.rm-quad-bg { fill: rgba(107,31,39,0.04); }
+.rm-quad-bg.q-event { fill: rgba(107,31,39,0.10); }
+.rm-quad { font-family: var(--font-mono); font-size: 11px; fill: var(--ink-3); letter-spacing: 0.05em; }
+.rm-num { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+.rm-label { font-family: var(--font-mono); font-size: 12px; fill: var(--ink-2); }
+.rm-axis-x, .rm-axis-y { font-family: var(--font-mono); font-size: 11px; fill: var(--ink-3); }
+.rm-readfirst { font-family: var(--font-mono); font-size: 11px; fill: var(--ox); }
+.rm-legend { display: flex; gap: var(--space-md); margin-top: var(--space-sm); font-family: var(--font-mono); font-size: 11px; }
+.rm-leg-item .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+.dot-event { background: var(--ox); }
+.dot-fresh { background: var(--green); }
+.dot-slow { background: var(--gold); }
+.dot-anchor { background: var(--ink-1); }
+
+/* Front-of-book: editorial section snapshot. ON THE PAPER (not a dark panel)
+   so it visually fits the masthead/risk-map context. The ONLY dark element is
+   the pull-quote block — that's intentional contrast for the banker's-voice
+   1-line takeaway. */
+.front-of-book { padding: 0; background: transparent; color: var(--ink-1); }
+.fob-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.05em;
+  padding-bottom: var(--space-sm); border-bottom: 1px solid var(--ink-1);
+}
+.fob-eyebrow { color: var(--ox); font-weight: 600; text-transform: uppercase; }
+.fob-eyebrow-right { color: var(--ink-3); text-transform: uppercase; }
+.fob-title {
+  font-family: var(--font-serif-display);
+  font-size: clamp(28px, 3.2vw, 38px);
+  font-weight: 700; letter-spacing: -0.015em; line-height: 1.1;
+  margin: var(--space-md) 0 var(--space-md); color: var(--ink-1);
+  font-variation-settings: "opsz" 60;
+}
+.fob-title em { font-style: italic; font-weight: 400; color: var(--ink-2); }
+
+/* The single dark element: pull-quote block, banker's-voice 1-line takeaway */
+.fob-pull {
+  background: var(--ink-1); color: #f7ecd5;
+  border-left: 4px solid var(--gold);
+  padding: var(--space-md) var(--space-md);
+  margin: var(--space-md) 0;
+  font-family: var(--font-serif-text); font-style: italic;
+  font-size: 16px; line-height: 1.4;
+}
+.fob-pull em, .fob-pull i { font-style: italic; color: var(--gold); font-weight: 500; }
+.fob-pull strong, .fob-pull b { font-weight: 700; color: #ffffff; font-style: normal; }
+
+/* Metric cards: paper-toned, NOT dark. Two-column on the section snapshot. */
+.fob-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; margin: var(--space-md) 0; }
+.fob-card {
+  padding: var(--space-md) var(--space-md) var(--space-md) 0;
+  border-top: 1px solid var(--ink-4);
+}
+.fob-card:nth-child(odd) { padding-right: var(--space-md); border-right: 1px solid var(--ink-4); }
+.fob-card:nth-child(even) { padding-left: var(--space-md); }
+.fob-card-label { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
+.fob-card-value { font-family: var(--font-mono); font-weight: 500; font-size: 28px; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--ink-1); margin-top: var(--space-xs); }
+.fob-card-value .num { font-family: var(--font-mono); }
+.fob-card-value .unit { font-size: 0.45em; color: var(--ink-3); margin-left: 4px; font-weight: 400; }
+.fob-card-delta { font-family: var(--font-mono); font-size: 11px; margin-top: var(--space-xs); color: var(--ink-3); }
+.fob-card-delta.dir-up { color: var(--green); }
+.fob-card-delta.dir-down { color: var(--red); }
+
+/* Action / Trigger prose — short, editorial. On paper, lead-word in oxblood. */
+.fob-prose { font-family: var(--font-serif-text); font-size: 14px; line-height: 1.55; color: var(--ink-1); margin: var(--space-sm) 0; }
+.fob-prose strong { color: var(--ox); font-weight: 700; }
+
+.fob-jump {
+  display: inline-block; margin-top: var(--space-md);
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ox); text-decoration: none; border-bottom: 1px solid var(--ox);
+  padding-bottom: 2px;
+}
+.fob-jump:hover { color: var(--ink-1); border-bottom-color: var(--ink-1); }
+
+/* ---- Flow index — 'The flow, as plotted' table-of-contents strip ---- */
+.flow-idx {
+  margin-top: 28px;
+  padding: 22px 24px;
+  border: 1px solid var(--paper-3);
+  background: var(--paper-2);
+  border-radius: 2px;
+}
+.flow-idx .fi-h {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 12px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+}
+.flow-idx .fi-h .t {
+  font-family: var(--font-serif-display); font-style: italic; font-weight: 700;
+  font-size: 20px; color: var(--ink-1);
+  letter-spacing: -0.005em; text-transform: none;
+}
+.flow-idx .fi-h .t em { font-style: italic; color: var(--ink-1); }
+.flow-idx ol {
+  list-style: none; padding: 0; margin: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+}
+.flow-idx li {
+  padding: 0;
+  border-right: 1px solid var(--paper-3);
+  transition: background .15s;
+}
+.flow-idx li:last-child { border-right: 0; }
+.flow-idx li:hover { background: rgba(107,31,39,0.06); }
+.flow-idx .fi-jump {
+  display: block; padding: 10px 12px 10px 0;
+  text-decoration: none; color: inherit; cursor: pointer;
+}
+.flow-idx li .rank {
+  font-family: var(--font-serif-display); font-weight: 900; font-style: italic;
+  font-size: 28px; line-height: 0.9; color: var(--ox);
+  font-variation-settings: "opsz" 60;
+}
+.flow-idx li .kicker {
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+  margin-top: 6px;
+}
+.flow-idx li .sec {
+  font-family: var(--font-serif-display); font-weight: 700;
+  font-size: 14.5px; line-height: 1.15; letter-spacing: -0.005em;
+  margin-top: 2px;
+  text-wrap: balance;
+  color: var(--ink-1);
+}
+@media (max-width: 900px) {
+  .flow-idx ol { grid-template-columns: repeat(4, 1fr); }
+  .flow-idx li:nth-child(4n) { border-right: 0; }
+}
+@media (max-width: 560px) {
+  .flow-idx ol { grid-template-columns: repeat(2, 1fr); }
+  .flow-idx li:nth-child(2n) { border-right: 0; }
+}
+
+.secondary-grid { padding: var(--space-lg) var(--space-2xl); }
+.sg-header { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.05em; }
+.sg-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md); margin-top: var(--space-md); }
+.grid-card { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); background: var(--paper-2); text-decoration: none; color: var(--ink-1); border-left: 2px solid var(--ink-3); }
+.grid-card[data-freshness="fresh"] { border-left-color: var(--green); }
+.grid-card[data-freshness="warn"], .grid-card[data-freshness="warming_up"] { border-left-color: var(--gold); }
+.grid-card[data-freshness="stale"] { border-left-color: var(--ink-3); }
+.grid-card-kicker { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+.grid-card-tldr { flex: 1; font-size: 13px; }
+.grid-card-arrow { color: var(--ox); }
+
+/* Section chapters get NO horizontal padding — they inherit .page's 40px
+   so their content edge aligns with the masthead, map row, and flow-idx
+   outer edges. (Previously had var(--space-2xl) = 64px which pushed
+   chapter content 40px further inset than the upper segments.) */
+.section.section-v5 { padding: var(--space-xl) 0; border-top: 1px solid var(--ink-4); }
+.sec-header { display: flex; align-items: baseline; gap: var(--space-md); }
+.sec-numeral { font-family: var(--font-serif-display); font-size: 64px; font-weight: 900; color: var(--ox); }
+.sec-kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-3); }
+.sec-title { font-family: var(--font-serif-display); font-size: 36px; margin: var(--space-sm) 0; }
+.sec-tldr { font-size: 15px; color: var(--ink-2); margin: 0 0 var(--space-md); max-width: 60ch; }
+.sec-summary-pills { display: flex; flex-wrap: wrap; gap: var(--space-md); margin: var(--space-md) 0; }
+.sum-pill { font-family: var(--font-mono); font-size: 12px; padding: 4px 10px; background: var(--paper-2); border: 1px solid var(--ink-4); }
+.sec-metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); margin: var(--space-md) 0; }
+
+/* "Section unavailable" graceful placeholder — used when every metric in
+   the section is null (warming-up, awaiting next publication, etc.).
+   Replaces the previous wall of "X: None Y: None" with a single dignified
+   card. Modelled on the V1 mockup's diagonal-stripe treatment. */
+.sec-unavailable {
+  position: relative;
+  grid-column: 1 / -1;
+  padding: var(--space-lg);
+  border: 1px dashed var(--ink-4);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.sec-unavailable-stripes {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0, transparent 8px,
+    color-mix(in srgb, var(--ink-4) 24%, transparent) 8px,
+    color-mix(in srgb, var(--ink-4) 24%, transparent) 9px
+  );
+  opacity: 0.45;
+}
+.sec-unavailable-body { position: relative; z-index: 1; max-width: 60ch; }
+.sec-unavailable-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--ox);
+  text-transform: uppercase;
+}
+.sec-unavailable-title {
+  font-family: var(--font-serif-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 6px 0 8px;
+  color: var(--ink-1);
+}
+.sec-unavailable-reason {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 0;
+  line-height: 1.5;
+}
+.metric-card { padding: var(--space-md); background: var(--paper-2); border-left: 3px solid var(--ox); }
+.metric-card-hero { grid-column: span 2; }
+.metric-label { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.metric-value { font-family: var(--font-serif-display); font-size: 32px; font-weight: 700; margin: var(--space-xs) 0; }
+.metric-card-hero .metric-value { font-size: 56px; }
+.metric-badge { display: inline-block; font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; background: var(--red); color: var(--ink-inverse); margin-top: var(--space-xs); }
+.metric-supporting { font-size: 12px; color: var(--ink-3); margin-top: var(--space-sm); }
+.metric-meta { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-top: var(--space-sm); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.metric-meta .metric-source { font-weight: 600; letter-spacing: 0.04em; }
+.metric-aging-chip { display: inline-block; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; padding: 2px 6px; background: rgba(200,154,63,0.18); color: var(--gold); border: 1px solid var(--gold); }
+.metric-sparkline { margin: var(--space-xs) 0 var(--space-sm); max-width: 140px; }
+.metric-sparkline svg { display: block; width: 100%; height: auto; }
+.metric-sparkline-hero svg .sparkline,
+.metric-sparkline-hero svg polyline { stroke-width: 2; }
+.metric-sparkline-supporting svg polyline { opacity: 0.7; }
+
+/* ── §07 T-Bond yield-curve hero (Phase 2.3) ────────────────────────────── */
+.tbond-tbills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg); }
+.tbond-bond-chart { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-lg); align-items: stretch; }
+.tbond-bonds { display: flex; flex-direction: column; gap: var(--space-md); }
+.yield-curve-chart { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-md) calc(var(--space-md) + 4px); }
+.yc-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.yield-curve-chart svg.line-chart { width: 100%; height: auto; display: block; }
+@media (max-width: 960px) {
+  .tbond-tbills { grid-template-columns: 1fr; }
+  .tbond-bond-chart { grid-template-columns: 1fr; }
+}
+
+/* ── §06 DSE sector heatmap (Phase 3.1) ─────────────────────────────────── */
+.sector-heatmap-card { background: var(--paper-2); border: 1px solid var(--paper-3); padding: var(--space-md); margin-top: var(--space-md); }
+.hm-eyebrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.hm-as-of { color: var(--ink-3); }
+.sector-heatmap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.heatmap-tile { padding: 10px 6px; text-align: center; border-radius: 2px; }
+.heatmap-tile-pos { background: rgba(47, 107, 58, calc(0.15 + var(--heatmap-intensity, 0) * 0.5)); }
+.heatmap-tile-neg { background: rgba(168, 50, 42, calc(0.15 + var(--heatmap-intensity, 0) * 0.5)); }
+.heatmap-tile-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.heatmap-tile-pct { font-family: var(--font-mono); font-weight: 600; font-size: 15px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.heatmap-tile-pos .heatmap-tile-pct { color: #2f6b3a; }
+.heatmap-tile-neg .heatmap-tile-pct { color: #a8322a; }
+@media (max-width: 600px) {
+  .sector-heatmap { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.systemic-risk { background: rgba(168,58,58,0.06); border: 2px solid var(--red); padding: var(--space-md); margin: var(--space-md) 0; display: grid; grid-template-columns: 24px 1fr; gap: var(--space-sm); }
+.systemic-risk-warning { border-color: var(--gold); background: rgba(200,154,63,0.08); }
+.systemic-risk-icon { font-size: 18px; }
+.systemic-risk-headline { margin: 0; font-family: var(--font-serif-text); font-size: 16px; font-weight: 700; }
+.systemic-risk-body { margin: var(--space-xs) 0 0; font-size: 13px; line-height: 1.5; }
+
+.sec-news { list-style: none; padding: 0; margin: var(--space-md) 0; }
+.source-badge { display: inline-block; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; color: #fff; }
+.source-badge-reu { background: var(--red); }
+.source-badge-ds  { background: var(--ink-1); }
+.source-badge-tbs { background: var(--ink-1); }
+.source-badge-fe  { background: var(--ink-1); }
+.source-badge-bbc { background: #fff; color: var(--ink-1); border: 1px solid var(--ink-1); padding: 1px 5px; }
+.source-badge-ajz { background: var(--ink-1); border-bottom: 2px solid var(--gold); }
+.source-badge-ft  { background: #fff1e5; color: #2d2d2d; }
+.source-badge-bbn { background: var(--ox); }
+.source-badge-default { background: var(--ink-3); }
+
+.news-bullet { padding: var(--space-md) 0; border-bottom: 1px solid var(--paper-3); }
+.news-title { font-weight: 700; color: var(--ink-1); text-decoration: none; display: block; }
+.news-summary { font-size: 13px; color: var(--ink-2); margin: var(--space-xs) 0; }
+.news-attr { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+
+.bankerread.bankerread-v5 { background: var(--ink-1); color: var(--ink-inverse); padding: var(--space-lg); margin-top: var(--space-md); }
+.br-pull-quote { font-style: italic; font-size: 18px; color: var(--gold); margin-bottom: var(--space-md); padding-left: var(--space-md); border-left: 3px solid var(--gold); }
+.br-section { margin-bottom: var(--space-md); }
+.br-label { font-family: var(--font-mono); font-size: 11px; color: var(--gold); font-weight: 700; }
+.br-content { font-size: 14px; line-height: 1.6; margin: var(--space-xs) 0; }
+.bankerread-jump { font-family: var(--font-mono); font-size: 11px; color: var(--gold); }
+
+.freshness-pill { font-family: var(--font-mono); font-size: 10px; padding: 2px 6px; }
+.freshness-stale { background: var(--ink-3); color: var(--ink-inverse); }
+.freshness-warming-up { background: var(--gold); color: var(--ink-1); }
+.freshness-warn { background: var(--gold); color: var(--ink-1); }
+
+.cadence-pill { font-family: var(--font-mono); font-size: 10px; padding: 2px 6px; border: 1px solid var(--ink-4); color: var(--ink-3); }
+
+.colophon { padding: var(--space-lg) var(--space-2xl); font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); border-top: 1px solid var(--ink-4); }
+.col-row { display: flex; gap: var(--space-md); margin-top: var(--space-xs); }
+.col-label { font-weight: 700; }
+
+/* ---- Wave 3 — cross-section pill key (used inside .sum-pill) ---- */
+.sum-key { font-family: var(--font-mono); color: var(--ink-3); font-size: 11px; letter-spacing: 0.05em; margin-right: 4px; }
+
+/* ---- Wave 3 — Headlines (§01) ---- */
+.hl-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--space-xl); margin: var(--space-md) 0; align-items: start; }
+/* ── Newspaper layout (Phase 2.1) ────────────────────────────────────────── */
+.hl-newspaper { margin-top: var(--space-md); }
+.hl-newspaper-top { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-lg); align-items: stretch; }
+.hl-newspaper-secondary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-lg); margin-top: var(--space-lg); }
+@media (max-width: 960px) {
+  .hl-newspaper-top { grid-template-columns: 1fr; }
+  .hl-newspaper-secondary { grid-template-columns: 1fr; }
+}
+
+.hl { padding: var(--space-md) 0; border-top: 1px solid var(--paper-3); display: flex; flex-direction: column; gap: 6px; }
+.hl.lead { border-top: 3px solid var(--ox); padding-top: var(--space-md); padding-right: var(--space-md); }
+.hl-tag { display: flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.hl-tag-name { color: var(--ink-3); }
+.hl-tag-role { margin-left: auto; color: var(--ox); font-weight: 600; }
+.hl .hl-head { font-family: var(--font-serif-display); font-weight: 700; font-size: 18px; line-height: 1.2; margin: 4px 0 0; }
+.hl .hl-head a { color: var(--ink-1); text-decoration: none; }
+.hl .hl-head a:hover { color: var(--ox); }
+.hl.lead .hl-head { font-size: 30px; line-height: 1.1; }
+.hl.lead .hl-head em { font-style: italic; font-weight: 400; color: var(--ox); }
+.hl .hl-dek { font-family: var(--font-serif-text); color: var(--ink-2); font-size: 14.5px; line-height: 1.45; margin: 0; }
+.hl .hl-time { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase; margin-top: auto; }
+
+.hl-rail { display: flex; flex-direction: column; }
+.hl.hl-rail { padding: var(--space-md) 0; }
+.hl.hl-rail .hl-head { font-size: 15px; line-height: 1.3; }
+
+.hl.hl-secondary { padding: var(--space-md) 0; border-top: 1px solid var(--paper-3); }
+.hl.hl-secondary .hl-head { font-size: 16px; line-height: 1.25; }
+
+.keypts { background: #14110e; color: #e8dfc9; padding: var(--space-md) calc(var(--space-md) + 2px); margin-top: var(--space-sm); position: relative; }
+.keypts::before { content: ""; position: absolute; left: 0; top: 0; width: 3px; height: 100%; background: var(--ox); }
+.keypts h4 { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin: 0 0 8px; }
+.keypts ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.keypts li { display: grid; grid-template-columns: 14px 1fr; gap: 8px; font-size: 13.5px; line-height: 1.45; }
+.keypts li::before { content: "§"; color: var(--ox); font-family: var(--font-serif-display); font-weight: 700; font-size: 15px; }
+.keypts li b { color: var(--gold); font-weight: 600; }
+
+.hl-lead { padding-right: var(--space-md); border-right: 1px solid var(--paper-3); }
+.hl-lead-source { font-family: var(--font-mono); font-size: 11px; color: var(--ox); letter-spacing: 0.08em; text-transform: uppercase; }
+.hl-lead-title { font-family: var(--font-serif-display); font-size: 28px; font-weight: 700; line-height: 1.15; margin: var(--space-xs) 0 var(--space-sm); }
+.hl-lead-title a { color: var(--ink-1); text-decoration: none; }
+.hl-lead-title a:hover { color: var(--ox); }
+.hl-lead-dek { font-family: var(--font-serif-text); font-style: italic; font-size: 15px; color: var(--ink-2); margin: 0; line-height: 1.5; }
+@media (max-width: 768px) {
+  .hl-grid { grid-template-columns: 1fr; }
+  .hl-lead { padding-right: 0; border-right: none; border-bottom: 1px solid var(--paper-3); padding-bottom: var(--space-md); }
+}
+
+/* ---- Wave 3 — Iran War & Oil events strip (§08) ---- */
+.oil-events { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); margin: var(--space-md) 0; padding: var(--space-sm) var(--space-md); background: rgba(107,31,39,0.04); border-left: 2px solid var(--ox); line-height: 1.8; }
+.oil-event { white-space: nowrap; }
+.oil-arrow { color: var(--ox); font-weight: 700; margin-right: 4px; }
+
+/* ---- Wave 3 — Executive Signals (§14) ---- */
+.exec-signals { list-style: none; padding: 0; margin: var(--space-md) 0; display: flex; flex-direction: column; gap: var(--space-sm); }
+.exec-signal { display: grid; grid-template-columns: 24px 1fr auto; gap: var(--space-md); align-items: baseline; padding: var(--space-sm) var(--space-md); background: var(--paper-2); border-left: 3px solid var(--ink-3); }
+.exec-signal-bull  { border-left-color: var(--green); }
+.exec-signal-bear  { border-left-color: var(--red); }
+.exec-signal-warn  { border-left-color: var(--gold); }
+.exec-signal-watch { border-left-color: var(--ink-2); }
+.exec-arrow { font-family: var(--font-mono); font-size: 14px; font-weight: 700; text-align: center; }
+.exec-signal-bull  .exec-arrow { color: var(--green); }
+.exec-signal-bear  .exec-arrow { color: var(--red); }
+.exec-signal-warn  .exec-arrow { color: var(--gold); }
+.exec-signal-watch .exec-arrow { color: var(--ink-2); }
+.exec-text { font-size: 14px; color: var(--ink-1); line-height: 1.4; }
+.exec-anchor { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); text-decoration: none; white-space: nowrap; }
+.exec-anchor:hover { color: var(--ox); }
