@@ -1,8 +1,7 @@
 """Thin CLI entrypoint for the Brief pipeline.
 
-Usage (V5 HTML render — legacy, retiring in PR #29):
-  python -m brief.cli run --artifacts-dir=PATH [--shadow | --push-main]
-                         [--email] [--dry-run] [--today=YYYY-MM-DD]
+Usage (V5 HTML render — legacy, slated for removal alongside the V5 pipeline):
+  python -m brief.cli run --artifacts-dir=PATH [--email] [--dry-run] [--today=YYYY-MM-DD]
 
 Usage (V6 publish — writes to Supabase):
   python -m brief.cli run --publish [--dry-run] [--today=YYYY-MM-DD]
@@ -17,7 +16,6 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -27,32 +25,21 @@ from datetime import date
 from pathlib import Path
 
 from brief.email_send import send_email
-from brief.gitops import push_artifacts
 from brief.notify import build_payload, post_discord
-from brief.pipeline import PipelineConfig, RunResult, gather, run
+from brief.pipeline import PipelineConfig, gather, run
 from brief.report import build_run_report, write_run_report
 
 
-def run_with_mode(cfg: PipelineConfig, *, shadow: bool) -> RunResult:
-    """Thin indirection to let tests stub the whole pipeline call."""
-    return run(cfg)
-
-
 def _parse(argv: list[str]) -> argparse.Namespace:
-    p = argparse.ArgumentParser(prog="brief", description="The Brief V4 pipeline CLI")
+    p = argparse.ArgumentParser(prog="brief", description="The Brief pipeline CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run", help="Run the pipeline and write artifacts or publish")
     r.add_argument("--artifacts-dir", default=None, type=Path,
                    help="(V5) Output directory for HTML/email artifacts. Required unless --publish.")
-    group = r.add_mutually_exclusive_group()
-    group.add_argument("--shadow", action="store_true",
-                       help="(V5) Shadow mode: push HTML to shadow branch, do not email")
-    group.add_argument("--push-main", action="store_true",
-                       help="(V5) Post-cutover: push artifacts to main")
-    group.add_argument("--publish", action="store_true",
-                       help="(V6) Publish to Supabase via 2-call editor+subeditor flow. "
-                            "Skips HTML render and gitops entirely.")
+    r.add_argument("--publish", action="store_true",
+                   help="(V6) Publish to Supabase via 2-call editor+subeditor flow. "
+                        "Skips HTML render entirely.")
     r.add_argument("--email", action="store_true",
                    help="Send the email digest via Brevo (requires BREVO_API_KEY)")
     r.add_argument("--dry-run", action="store_true",
@@ -106,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.monotonic()
     try:
-        rr = run_with_mode(cfg, shadow=ns.shadow)
+        rr = run(cfg)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         return 1
@@ -119,24 +106,9 @@ def main(argv: list[str] | None = None) -> int:
     (ns.artifacts_dir / "index.html").write_text(rr.html, encoding="utf-8")
     (ns.artifacts_dir / "email.txt").write_text(rr.email_text, encoding="utf-8")
 
-    report = build_run_report(rr, shadow=ns.shadow)
+    report = build_run_report(rr, shadow=False)
     report["duration_s"] = elapsed
-
-    # Write run_report.json BEFORE push_artifacts so the file exists when
-    # gitops copies/git-adds it onto the shadow (or main) branch. The local
-    # artifact is overwritten below with the git_push field once we know it.
     write_run_report(ns.artifacts_dir / "run_report.json", report)
-
-    if ns.push_main or ns.shadow:
-        branch = "main" if ns.push_main else f"shadow/{today.isoformat()}"
-        gp = push_artifacts(
-            repo_dir=Path.cwd(),
-            branch=branch,
-            artifacts_dir=ns.artifacts_dir,
-            message=f"Brief {today.isoformat()} [{'main' if ns.push_main else 'shadow'}]",
-        )
-        report["git_push"] = gp
-        write_run_report(ns.artifacts_dir / "run_report.json", report)
 
     if ns.email and os.environ.get("BREVO_API_KEY") and os.environ.get("FROM_EMAIL"):
         send_email(
