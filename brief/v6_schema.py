@@ -16,10 +16,21 @@ SectionGroup = Literal["overview", "banking", "markets", "realeco", "policy"]
 
 
 class _Strict(BaseModel):
+    """Top-level structure — extra fields rejected (catches prompt drift)."""
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-class CoverMetricV6(_Strict):
+class _Lenient(BaseModel):
+    """Row-level data — extras silently dropped.
+
+    The editor naturally passes through fields from V5 raw input (as_of, source,
+    history_values, etc.) that the V6 Supabase tables don't have. Drop them at
+    validate-time so model_dump() emits only Supabase-known columns.
+    """
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+
+class CoverMetricV6(_Lenient):
     label: str
     value: str
     sub: Optional[str] = None
@@ -38,7 +49,7 @@ class BriefV6(_Strict):
     status: Optional[Literal["draft", "published", "archived"]] = "published"
 
 
-class MetricV6(_Strict):
+class MetricV6(_Lenient):
     label: str
     value: str
     sub: Optional[str] = None
@@ -51,7 +62,7 @@ class MetricV6(_Strict):
     weight: Optional[int] = Field(default=1, ge=1, le=2)
 
 
-class NewsItemV6(_Strict):
+class NewsItemV6(_Lenient):
     headline: str
     detail: Optional[str] = None
     source: Optional[str] = None
@@ -61,20 +72,20 @@ class NewsItemV6(_Strict):
     changed: Optional[bool] = False
 
 
-class SeriesPointV6(_Strict):
+class SeriesPointV6(_Lenient):
     key: Optional[str] = None
     ts: str  # YYYY-MM-DD
     value: float
 
 
-class SeriesNoteV6(_Strict):
+class SeriesNoteV6(_Lenient):
     series_key: str
     ts: str
     label: str
     detail: Optional[str] = None
 
 
-class SummaryPillV6(_Strict):
+class SummaryPillV6(_Lenient):
     key: str
     value: str
     tone: Optional[Tone] = "neu"
