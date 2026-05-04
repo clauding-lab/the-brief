@@ -3,6 +3,8 @@ node_modules/
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 gathered_data.json
 .update-failed
 .vercel
@@ -21,3 +23,14 @@ build/
 
 # Superpowers brainstorm state (local only)
 .superpowers/
+
+# Next.js / Node frontend
+/.next/
+/out/
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+*.pem
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*

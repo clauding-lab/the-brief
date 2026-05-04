@@ -1,0 +1,163 @@
+import { Fragment } from "react";
+import type { Section as SectionType } from "@/types/brief";
+import { Hair } from "./Hair";
+import { Mark } from "./Mark";
+import { BankerRead } from "./BankerRead";
+import { SignatureChart } from "./SignatureChart";
+import { formatNewsMeta } from "@/lib/format";
+
+interface SectionProps {
+  section: SectionType;
+  diffMode: boolean;
+}
+
+export function Section({ section, diffMode }: SectionProps) {
+  const {
+    slug,
+    ord,
+    title,
+    verdict,
+    verdict_tone,
+    banker_read,
+    metrics = [],
+    news = [],
+    series = [],
+    notes = [],
+    weight = 1,
+    tldr,
+    summary_pills,
+    analysis,
+  } = section;
+
+  const hasChart = series && series.length > 1;
+  const seriesKey = hasChart ? series[0].key : null;
+  const filteredNotes = notes.filter((n) => n.series_key === seriesKey);
+  const isHero = (weight ?? 1) >= 2;
+  const anyChanged = metrics.some((m) => m.changed) || news.some((n) => n.changed);
+
+  return (
+    <section
+      id={slug}
+      className={`tb-section${isHero ? " is-hero" : ""}${diffMode ? " is-diff" : ""}${diffMode && !anyChanged ? " is-quiet" : ""}`}
+      data-section-slug={slug}
+      data-screen-label={`§${String(ord).padStart(2, "0")} ${title}`}
+    >
+      <div className="tb-section-head">
+        <div>
+          <div className="eyebrow">
+            §{String(ord).padStart(2, "0")} / 18
+            {isHero && <span className="tb-hero-flag">Today&rsquo;s Lead</span>}
+          </div>
+          <h2 className="tb-section-title">{title}</h2>
+        </div>
+        {verdict && (
+          <div>
+            <span className="label">Verdict</span>
+            <div className="tb-section-verdict">
+              <Mark kind={verdict_tone || "neu"} /> {verdict}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {tldr && <p className="tb-tldr">{tldr}</p>}
+
+      {summary_pills && summary_pills.length > 0 && (
+        <div className="tb-summary-pills">
+          {summary_pills.map((p, i) => (
+            <div key={i} className={`tb-summary-pill tone-${p.tone || "neu"}`}>
+              <span className="key">{p.key}</span>
+              <span className="val">{p.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Hair style={{ marginTop: 18 }} />
+
+      <div className={`tb-section-grid ${hasChart ? "" : "no-chart"}`}>
+        {hasChart ? (
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>
+              {title.toUpperCase()} — 12 months
+            </div>
+            <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
+          </div>
+        ) : (
+          <div
+            className={`tb-news-rail${slug === "headlines" ? " is-headlines" : ""}`}
+            style={{ paddingTop: 22 }}
+          >
+            {news.slice(0, 4).map((n, i) => (
+              <div key={i} className={`tb-news-item${n.changed ? " is-changed" : ""}`}>
+                <div>
+                  <div className="tb-news-headline">{n.headline}</div>
+                  {n.detail && <div className="tb-news-detail">{n.detail}</div>}
+                  <div className="tb-news-meta">
+                    {formatNewsMeta(n)}
+                    {n.changed ? " · NEW" : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {metrics.length > 0 && (
+          <div className="tb-kpi-rail">
+            {metrics.slice(0, 5).map((m, i, arr) => (
+              <Fragment key={i}>
+                <div className={`tb-kpi-row${m.changed ? " is-changed" : ""}`}>
+                  <div>
+                    <div className="tb-kpi-label">
+                      {m.label}
+                      {m.changed && (
+                        <span className="tb-changed-dot" title="Updated since yesterday" />
+                      )}
+                    </div>
+                    {m.sub && <div className="tb-kpi-sub">{m.sub}</div>}
+                  </div>
+                  <div className="tb-kpi-value">{m.value}</div>
+                </div>
+                {i < arr.length - 1 && <Hair tone="faint" />}
+              </Fragment>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {hasChart && news.length > 0 && (
+        <>
+          <Hair style={{ marginTop: 28 }} />
+          <div className="tb-news-rail">
+            {news.slice(0, 4).map((n, i) => (
+              <div key={i} className={`tb-news-item${n.changed ? " is-changed" : ""}`}>
+                <div>
+                  <div className="tb-news-headline">{n.headline}</div>
+                  {n.detail && <div className="tb-news-detail">{n.detail}</div>}
+                  <div className="tb-news-meta">
+                    {formatNewsMeta(n)}
+                    {n.changed ? " · NEW" : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {banker_read && <BankerRead read={banker_read} hero={isHero} />}
+
+      {analysis && (
+        <div className="tb-analysis">
+          <span className="label">Analysis</span>
+          <div className="body">
+            {analysis.split(/\n{2,}/).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
