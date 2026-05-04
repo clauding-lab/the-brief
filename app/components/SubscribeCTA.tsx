@@ -4,7 +4,14 @@ import { useState } from "react";
 import { Hair } from "./Hair";
 import { getBrowserSupabase } from "@/lib/supabase";
 
-export function SubscribeCTA() {
+interface SubscribeCTAProps {
+  volume?: number | null;
+  issueNo?: number | null;
+}
+
+export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
+  const volLabel = `Vol. ${String(volume ?? 1).padStart(2, "0")}`;
+  const issueLabel = `Issue ${issueNo ?? 87}`;
   const [name, setName] = useState("");
   const [org, setOrg] = useState("");
   const [email, setEmail] = useState("");
@@ -64,9 +71,9 @@ export function SubscribeCTA() {
             textTransform: "uppercase",
           }}
         >
-          <span>Vol. 01</span>
+          <span>{volLabel}</span>
           <span style={{ width: 18, height: 1, background: "rgba(244,239,230,0.3)" }} />
-          <span>Issue 88</span>
+          <span>{issueLabel}</span>
         </div>
       </div>
 
