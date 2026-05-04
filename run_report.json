@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-04T06:31:33.402270+06:00",
+  "today": "2026-05-04",
+  "shadow": true,
+  "status": "degraded",
+  "duration_s": 90.79631927702576,
+  "call_reports": [
+    {
+      "name": "headlines_curation",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "headlines_layout_v5",
+      "status": "skipped",
+      "reason": "no curated headlines",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "top_picks",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "exec_signals",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "todays_call",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:bb",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:dse",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:macro",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:fx",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:tbond",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:iranwar",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:exec",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:headlines",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "bankerread:banking",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "systemic_risk:banking",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    },
+    {
+      "name": "editorial_qa",
+      "status": "error",
+      "reason": "Claude CLI exited 1: ",
+      "cost_usd": 0.0,
+      "duration_s": 0.0,
+      "tokens": {
+        "input": 0,
+        "output": 0
+      }
+    }
+  ],
+  "total_cost_usd": 0.0,
+  "degraded_sections": [
+    "bb",
+    "exec"
+  ],
+  "builder_failures": [],
+  "git_push": {
+    "branch": null,
+    "sha": null,
+    "pushed": false
+  }
+}
