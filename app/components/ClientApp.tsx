@@ -166,7 +166,7 @@ export function ClientApp({ initialData }: ClientAppProps) {
         {bodySections.map((s) => (
           <Section key={s.slug} section={s} diffMode={diffMode} />
         ))}
-        <SubscribeCTA />
+        <SubscribeCTA volume={data.brief?.volume} issueNo={data.brief?.issue_no} />
       </main>
 
       <footer className="tb-foot">
