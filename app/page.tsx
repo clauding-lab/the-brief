@@ -12,7 +12,15 @@ async function fetchInitialBrief(): Promise<BriefPayload> {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return STATIC_FALLBACK;
 
-  const sb = createClient(url, key, { auth: { persistSession: false } });
+  // Bypass Next.js fetch Data Cache so the RPC re-runs on every page regeneration.
+  // Otherwise a freshly-published brief stays invisible until the fetch cache TTL
+  // expires, which Vercel was capping at ~5 minutes regardless of `revalidate`.
+  const sb = createClient(url, key, {
+    auth: { persistSession: false },
+    global: {
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
+  });
   const { data, error } = await sb.rpc("get_latest_brief");
   if (error || !data?.brief) return STATIC_FALLBACK;
   return { ...(data as BriefPayload), _source: "live", _fetchedAt: Date.now() };
