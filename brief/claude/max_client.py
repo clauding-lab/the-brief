@@ -63,6 +63,7 @@ def run_max(
     timeout_s: int = 1800,
     claude_binary: str | None = None,
     effort: str = "high",
+    via_stdin: bool | None = None,
 ) -> MaxCallResult:
     """Invoke the Claude Max CLI, return parsed result.
 
@@ -72,11 +73,20 @@ def run_max(
          path (e.g. /home/adnan/.npm-global/bin/claude) regardless of
          the PATH that cron/systemd inherits.
       3. `"claude"` — resolves via $PATH at subprocess launch.
+
+    When the prompt is large enough to risk Linux's ARG_MAX cap (~128KB),
+    pass it via stdin instead of argv. Auto-detected when prompt > 64KB,
+    or override with via_stdin=True/False.
     """
     if claude_binary is None:
         claude_binary = os.environ.get("CLAUDE_BINARY", "claude")
-    argv = [
-        claude_binary, "-p", prompt,
+    if via_stdin is None:
+        via_stdin = len(prompt) > 64_000
+
+    argv = [claude_binary, "-p"]
+    if not via_stdin:
+        argv.append(prompt)
+    argv += [
         "--model", model,
         "--output-format", "json",
         "--no-session-persistence",
@@ -91,10 +101,18 @@ def run_max(
         "--permission-mode", "bypassPermissions",
         "--effort", effort,
     ]
+    if via_stdin:
+        argv += ["--input-format", "text"]
+
     _t0 = time.monotonic()
     try:
         cp = subprocess.run(
-            argv, capture_output=True, text=True, timeout=timeout_s, check=False,
+            argv,
+            input=prompt if via_stdin else None,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
         )
     except subprocess.TimeoutExpired as e:
         raise MaxCallError(f"Claude CLI timed out after {timeout_s}s") from e
