@@ -1,5 +1,5 @@
 [Unit]
-Description=The Brief — daily Bangladesh economy digest (V4)
+Description=The Brief — daily Bangladesh economy digest (V6 publish to Supabase)
 Documentation=https://github.com/clauding-lab/the-brief
 After=network-online.target
 Wants=network-online.target
@@ -11,12 +11,10 @@ Group=adnan
 WorkingDirectory=/home/adnan/the-brief
 EnvironmentFile=/etc/brief.env
 
-ExecStart=/home/adnan/the-brief/.venv/bin/python -m brief.cli run \
-  --artifacts-dir=/home/adnan/the-brief/artifacts \
-  --shadow
+ExecStart=/home/adnan/the-brief/.venv/bin/python -m brief.cli run --publish
 
-# Resource limits — pipeline does ~6 subprocess calls to claude, each up to
-# 64K tokens; memory stays well under 600M in practice.
+# Resource limits — V6 publish does 2 Claude calls (editor + subeditor),
+# each up to 64K tokens; memory stays well under 600M in practice.
 MemoryMax=600M
 MemoryHigh=500M
 CPUQuota=80%
