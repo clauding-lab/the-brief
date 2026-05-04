@@ -23,6 +23,7 @@ build/
 
 # Superpowers brainstorm state (local only)
 .superpowers/
+.worktrees/
 
 # Next.js / Node frontend
 /.next/
