@@ -1,49 +1,34 @@
 """Thin CLI entrypoint for the Brief pipeline.
 
-Usage (V5 HTML render — legacy, slated for removal alongside the V5 pipeline):
-  python -m brief.cli run --artifacts-dir=PATH [--email] [--dry-run] [--today=YYYY-MM-DD]
-
 Usage (V6 publish — writes to Supabase):
   python -m brief.cli run --publish [--dry-run] [--today=YYYY-MM-DD]
 
 Exit codes:
-  0 ok                    — all Claude calls succeeded, artifacts written/published
+  0 ok                    — editor + subeditor passed, brief published to Supabase
   1 error                 — pipeline raised; stack to stderr
-  2 degraded              — V5 pipeline completed but ≥1 Claude call failed
-  3 dry-run-ok            — --dry-run requested, no artifacts written
+  3 dry-run-ok            — --dry-run requested, no Supabase write
   4 publish-failed        — V6 subeditor verdict=fail or Supabase write failed
 """
 from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sys
-import time
 import traceback
 from datetime import date
-from pathlib import Path
 
-from brief.email_send import send_email
-from brief.notify import build_payload, post_discord
-from brief.pipeline import PipelineConfig, gather, run
-from brief.report import build_run_report, write_run_report
+from brief.pipeline import PipelineConfig, gather
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="brief", description="The Brief pipeline CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    r = sub.add_parser("run", help="Run the pipeline and write artifacts or publish")
-    r.add_argument("--artifacts-dir", default=None, type=Path,
-                   help="(V5) Output directory for HTML/email artifacts. Required unless --publish.")
+    r = sub.add_parser("run", help="Run the pipeline and publish to Supabase")
     r.add_argument("--publish", action="store_true",
-                   help="(V6) Publish to Supabase via 2-call editor+subeditor flow. "
-                        "Skips HTML render entirely.")
-    r.add_argument("--email", action="store_true",
-                   help="Send the email digest via Brevo (requires BREVO_API_KEY)")
+                   help="(V6) Publish to Supabase via 2-call editor+subeditor flow.")
     r.add_argument("--dry-run", action="store_true",
-                   help="Run the pipeline but do not write artifacts")
+                   help="Run the pipeline but do not write to Supabase")
     r.add_argument("--today", default=None,
                    help="Override today's date (YYYY-MM-DD); default: system date")
     return p.parse_args(argv)
@@ -87,46 +72,8 @@ def main(argv: list[str] | None = None) -> int:
     if ns.publish:
         return _run_v6_publish(cfg, today, dry_run=ns.dry_run)
 
-    if ns.artifacts_dir is None:
-        print("--artifacts-dir is required unless --publish is set", file=sys.stderr)
-        return 1
-
-    started = time.monotonic()
-    try:
-        rr = run(cfg)
-    except Exception:
-        traceback.print_exc(file=sys.stderr)
-        return 1
-    elapsed = time.monotonic() - started
-
-    if ns.dry_run:
-        return 3
-
-    ns.artifacts_dir.mkdir(parents=True, exist_ok=True)
-    (ns.artifacts_dir / "index.html").write_text(rr.html, encoding="utf-8")
-    (ns.artifacts_dir / "email.txt").write_text(rr.email_text, encoding="utf-8")
-
-    report = build_run_report(rr, shadow=False)
-    report["duration_s"] = elapsed
-    write_run_report(ns.artifacts_dir / "run_report.json", report)
-
-    if ns.email and os.environ.get("BREVO_API_KEY") and os.environ.get("FROM_EMAIL"):
-        send_email(
-            from_email=os.environ["FROM_EMAIL"],
-            api_key=os.environ["BREVO_API_KEY"],
-            subject=f"The Brief · {today.isoformat()}",
-            html=rr.html,
-            text=rr.email_text,
-        )
-
-    webhook = os.environ.get("DISCORD_WEBHOOK_URL")
-    if webhook:
-        repo = os.environ.get("BRIEF_REPO_SLUG", "clauding-lab/the-brief")
-        lead = rr.todays_call.text if rr.todays_call else None
-        post_discord(webhook, payload=build_payload(report, lead_headline=lead,
-                                                    repo_slug=repo))
-
-    return 0 if report["status"] == "ok" else 2
+    print("--publish is required (V5 HTML path has been removed)", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
