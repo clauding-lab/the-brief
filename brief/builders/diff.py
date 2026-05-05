@@ -7,7 +7,8 @@ diff signal that V5 used to compute and that V6 dropped.
 from __future__ import annotations
 
 import re
-from typing import Any
+from datetime import date as date_t, timedelta
+from typing import Any, Iterable
 
 from brief.v6_schema import BriefPayloadV6
 
@@ -16,7 +17,13 @@ _PUNCT_WHITESPACE = re.compile(r"[^\w]+")
 
 
 def _normalize_headline(text: str) -> str:
-    """Lowercase + strip non-word characters. Whitespace and punctuation collapse."""
+    """Lowercase + strip non-word characters. Whitespace and punctuation collapse.
+
+    # NOTE: Python's `\\w` does not match Unicode combining marks (Mn/Mc).
+    # Bengali matras (া, ি, ্, etc.) get stripped. Distinct Bengali headlines
+    # that share their consonant skeleton may collide. Acceptable for now;
+    # revisit if a real collision is observed in production.
+    """
     return _PUNCT_WHITESPACE.sub("", text.lower())
 
 
@@ -70,3 +77,82 @@ def stamp_changed(current: BriefPayloadV6, previous_brief: dict[str, Any] | None
                 m.changed = True
             else:
                 m.changed = prev_metrics[key] != m.value
+
+
+_CADENCE_DAYS: dict[str, int] = {
+    "daily": 1,
+    "weekly": 7,
+    "monthly": 30,
+    "quarterly": 91,
+    "annual": 365,
+}
+
+_CADENCE_LABEL: dict[str, str] = {
+    "monthly": "next month",
+    "quarterly": "next quarter",
+    "annual": "next year",
+}
+
+_HELD_OVER_CADENCES = {"monthly", "quarterly", "annual"}
+
+
+def _compute_next_print(last_print: date_t, cadence: str) -> str:
+    """Return a free-text label for the next expected print, e.g. 'Jul 2026' or 'Q3 2026'."""
+    days = _CADENCE_DAYS.get(cadence, 0)
+    if not days:
+        return _CADENCE_LABEL.get(cadence, "")
+    next_date = last_print + timedelta(days=days)
+    if cadence == "quarterly":
+        # Tag with quarter label
+        q = (next_date.month - 1) // 3 + 1
+        return f"Q{q} {next_date.year} (≈ {next_date.strftime('%b %Y')})"
+    if cadence == "monthly":
+        return next_date.strftime("%b %Y")
+    if cadence == "annual":
+        return str(next_date.year)
+    return next_date.isoformat()
+
+
+def _index_definitions(definitions: Iterable[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """(section_slug, label) → catalog row."""
+    return {(d.get("section_slug", ""), d.get("label", "")): d for d in definitions}
+
+
+def mark_held_overs(
+    current: BriefPayloadV6,
+    previous_brief: dict[str, Any] | None,
+    metric_definitions: Iterable[dict[str, Any]],
+) -> None:
+    """Mutate `current` in place: annotate held-over metrics with held_from + next_print.
+
+    A metric is held-over if all of:
+      - It exists in the previous brief at the same (slug, label)
+      - Its value text is identical (i.e. changed=False)
+      - Its cadence in the catalog is monthly/quarterly/annual
+
+    Daily/weekly metrics are never held-over (they should be moving).
+    """
+    if not previous_brief:
+        return
+
+    catalog = _index_definitions(metric_definitions)
+
+    for section in current.sections:
+        for m in section.metrics:
+            if m.changed:
+                continue
+            row = catalog.get((section.slug, m.label))
+            if not row:
+                continue
+            cadence = row.get("cadence", "")
+            if cadence not in _HELD_OVER_CADENCES:
+                continue
+            last_print_str = row.get("last_print_date")
+            if not last_print_str:
+                continue
+            try:
+                last_print = date_t.fromisoformat(last_print_str)
+            except ValueError:
+                continue
+            m.held_from = last_print
+            m.next_print = _compute_next_print(last_print, cadence)

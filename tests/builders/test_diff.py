@@ -103,3 +103,61 @@ def test_no_previous_brief_marks_everything_true():
     stamp_changed(current, None)
     assert current.sections[0].metrics[0].changed is True
     assert current.sections[0].news[0].changed is True
+
+
+from brief.builders.diff import mark_held_overs
+
+
+@pytest.fixture
+def metric_definitions() -> list[dict]:
+    return json.loads((FIXTURES / "v6_metric_definitions.json").read_text())["definitions"]
+
+
+def test_quarterly_metric_held_over_annotated(previous_brief, metric_definitions):
+    """NPL 35.73% unchanged + cadence=quarterly → held_from=last_print_date, next_print computed."""
+    current = _make_brief({"banking": [
+        {"label": "NPL Ratio", "value": "35.73%", "changed": False}
+    ]}, {})
+    mark_held_overs(current, previous_brief, metric_definitions)
+    m = current.sections[0].metrics[0]
+    assert m.held_from is not None
+    assert "Q3 2026" in (m.next_print or "") or "Jul" in (m.next_print or "")  # cadence=quarterly + last=2026-04-18 → next ≈ Jul 2026
+
+
+def test_daily_metric_not_held_over(previous_brief, metric_definitions):
+    """Brent (cadence=daily) — never marked held-over even if value happened to repeat."""
+    current = _make_brief({"iran": [
+        {"label": "Brent Spot", "value": "$107.56", "changed": False}
+    ]}, {})
+    mark_held_overs(current, previous_brief, metric_definitions)
+    m = current.sections[0].metrics[0]
+    assert m.held_from is None
+    assert m.next_print is None
+
+
+def test_changed_metric_not_held_over(previous_brief, metric_definitions):
+    """Metric marked changed=True is by definition not held-over."""
+    current = _make_brief({"banking": [
+        {"label": "NPL Ratio", "value": "37.10%", "changed": True}
+    ]}, {})
+    mark_held_overs(current, previous_brief, metric_definitions)
+    m = current.sections[0].metrics[0]
+    assert m.held_from is None
+
+
+def test_unknown_metric_not_held_over(previous_brief, metric_definitions):
+    """Metric not in catalog → no annotation, no error."""
+    current = _make_brief({"banking": [
+        {"label": "Made-up Metric", "value": "42", "changed": False}
+    ]}, {})
+    mark_held_overs(current, previous_brief, metric_definitions)
+    assert current.sections[0].metrics[0].held_from is None
+
+
+def test_no_previous_brief_no_held_overs():
+    """Cold start: nothing to compare → no held-overs."""
+    current = _make_brief({"banking": [
+        {"label": "NPL Ratio", "value": "35.73%"}
+    ]}, {})
+    mark_held_overs(current, None, [])
+    assert current.sections[0].metrics[0].held_from is None
