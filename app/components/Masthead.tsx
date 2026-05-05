@@ -3,6 +3,7 @@
 import type { Brief, DataSource, Section } from "@/types/brief";
 import { Hair } from "./Hair";
 import { formatBriefDate } from "@/lib/format";
+import { MastheadLensPill } from "./MastheadLensPill";
 
 interface MastheadProps {
   brief?: Brief;
@@ -18,7 +19,7 @@ export function Masthead({ brief, source, sections }: MastheadProps) {
   const sourceLabel = source === "live" ? "Live" : source === "cache" ? "Cached" : "Static";
 
   // 4 most "newsworthy" — first 4 from headlines section
-  const headlines = (sections.find((s) => s.slug === "headlines")?.news || []).slice(0, 4);
+  const headlines = (sections.find((s) => s.slug === "headlines")?.news || []).slice(0, 12);
 
   return (
     <header className="tb-masthead-full" id="masthead">
@@ -26,7 +27,10 @@ export function Masthead({ brief, source, sections }: MastheadProps) {
         <div>
           No. {String(issueNo).padStart(2, "0")} / Vol. {String(vol).padStart(2, "0")}
         </div>
-        <div>{dateLabel}</div>
+        <div className="tb-masthead-date-row">
+          <span>{dateLabel}</span>
+          <MastheadLensPill lens={brief?.lens} frame={brief?.frame} briefDate={brief?.brief_date} />
+        </div>
         <div className="tb-live">
           <span className="pulse" />
           <span>{sourceLabel} · 14:02 BST</span>

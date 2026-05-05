@@ -686,9 +686,9 @@ body.tb-diff .tb-section.is-quiet {
   transition: opacity 200ms;
 }
 body.tb-diff .tb-section.is-quiet:hover { opacity: 0.65; }
-body.tb-diff .tb-section .tb-news-item:not(.is-changed),
-body.tb-diff .tb-section .tb-kpi-row:not(.is-changed),
-body.tb-diff .tb-cover-line:not(.is-changed) {
+body.tb-diff .tb-section .tb-news-item:not(.is-changed):not(.is-held-over),
+body.tb-diff .tb-section .tb-kpi-row:not(.is-changed):not(.is-held-over),
+body.tb-diff .tb-cover-line:not(.is-changed):not(.is-held-over) {
   opacity: 0.34;
   transition: opacity 200ms;
 }
@@ -698,6 +698,26 @@ body.tb-diff .tb-section .tb-kpi-row.is-changed {
 }
 body.tb-diff .tb-statstack:not(.is-changed) {
   opacity: 0.4;
+}
+
+/* ── Held-over state ─────────────────────────────────────────────── */
+
+.tb-news-item.is-held-over,
+.tb-kpi-row.is-held-over {
+  opacity: 0.65;
+}
+
+.tb-held-footer {
+  font-size: 0.75rem;
+  color: var(--color-muted, #888);
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* Diff toggle: held-over items shown muted, NOT blanked */
+body.tb-diff .tb-section .tb-news-item.is-held-over,
+body.tb-diff .tb-section .tb-kpi-row.is-held-over {
+  opacity: 0.5;
 }
 
 /* ─── HERO SECTION ─────────────────────────────────────── */
@@ -811,4 +831,31 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   .tb-section { page-break-inside: avoid; padding: 24px 0; }
   .tb-cover { padding: 24px 0; }
   body { background: white; color: black; }
+}
+
+/* ── Masthead lens pill ──────────────────────────────────────────── */
+
+.tb-masthead-date-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tb-masthead-lens-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-2, #f4f4f4);
+  font-size: 0.75rem;
+  color: var(--color-muted, #666);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.tb-masthead-lens-pill .tb-mlp-day {
+  font-weight: 600;
+  text-transform: uppercase;
 }

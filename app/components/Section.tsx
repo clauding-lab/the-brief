@@ -33,12 +33,14 @@ export function Section({ section, diffMode }: SectionProps) {
   const seriesKey = hasChart ? series[0].key : null;
   const filteredNotes = notes.filter((n) => n.series_key === seriesKey);
   const isHero = (weight ?? 1) >= 2;
-  const anyChanged = metrics.some((m) => m.changed) || news.some((n) => n.changed);
+  const anySignal =
+    metrics.some((m) => m.changed || m.held_from) ||
+    news.some((n) => n.changed || n.held_from);
 
   return (
     <section
       id={slug}
-      className={`tb-section${isHero ? " is-hero" : ""}${diffMode ? " is-diff" : ""}${diffMode && !anyChanged ? " is-quiet" : ""}`}
+      className={`tb-section${isHero ? " is-hero" : ""}${diffMode ? " is-diff" : ""}${diffMode && !anySignal ? " is-quiet" : ""}`}
       data-section-slug={slug}
       data-screen-label={`§${String(ord).padStart(2, "0")} ${title}`}
     >
@@ -88,14 +90,20 @@ export function Section({ section, diffMode }: SectionProps) {
             className={`tb-news-rail${slug === "headlines" ? " is-headlines" : ""}`}
             style={{ paddingTop: 22 }}
           >
-            {news.slice(0, 4).map((n, i) => (
-              <div key={i} className={`tb-news-item${n.changed ? " is-changed" : ""}`}>
+            {news.slice(0, slug === "headlines" ? 12 : 4).map((n, i) => (
+              <div
+                key={i}
+                className={`tb-news-item${
+                  n.changed ? " is-changed" : n.held_from ? " is-held-over" : ""
+                }`}
+              >
                 <div>
                   <div className="tb-news-headline">{n.headline}</div>
                   {n.detail && <div className="tb-news-detail">{n.detail}</div>}
                   <div className="tb-news-meta">
                     {formatNewsMeta(n)}
                     {n.changed ? " · NEW" : ""}
+                    {n.held_from && !n.changed ? ` · Held from ${n.held_from}` : ""}
                   </div>
                 </div>
               </div>
@@ -107,7 +115,11 @@ export function Section({ section, diffMode }: SectionProps) {
           <div className="tb-kpi-rail">
             {metrics.slice(0, 5).map((m, i, arr) => (
               <Fragment key={i}>
-                <div className={`tb-kpi-row${m.changed ? " is-changed" : ""}`}>
+                <div
+                  className={`tb-kpi-row${
+                    m.changed ? " is-changed" : m.held_from ? " is-held-over" : ""
+                  }`}
+                >
                   <div>
                     <div className="tb-kpi-label">
                       {m.label}
@@ -116,6 +128,12 @@ export function Section({ section, diffMode }: SectionProps) {
                       )}
                     </div>
                     {m.sub && <div className="tb-kpi-sub">{m.sub}</div>}
+                    {m.held_from && !m.changed && (
+                      <div className="tb-held-footer">
+                        Held from {m.held_from}
+                        {m.next_print ? ` · next print ${m.next_print}` : ""}
+                      </div>
+                    )}
                   </div>
                   <div className="tb-kpi-value">{m.value}</div>
                 </div>
@@ -131,13 +149,19 @@ export function Section({ section, diffMode }: SectionProps) {
           <Hair style={{ marginTop: 28 }} />
           <div className="tb-news-rail">
             {news.slice(0, 4).map((n, i) => (
-              <div key={i} className={`tb-news-item${n.changed ? " is-changed" : ""}`}>
+              <div
+                key={i}
+                className={`tb-news-item${
+                  n.changed ? " is-changed" : n.held_from ? " is-held-over" : ""
+                }`}
+              >
                 <div>
                   <div className="tb-news-headline">{n.headline}</div>
                   {n.detail && <div className="tb-news-detail">{n.detail}</div>}
                   <div className="tb-news-meta">
                     {formatNewsMeta(n)}
                     {n.changed ? " · NEW" : ""}
+                    {n.held_from && !n.changed ? ` · Held from ${n.held_from}` : ""}
                   </div>
                 </div>
               </div>

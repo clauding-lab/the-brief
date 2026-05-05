@@ -9,7 +9,7 @@ interface CoverProps {
 
 export function Cover({ brief, sections }: CoverProps) {
   const cover = brief?.cover_metric;
-  const headlines = (sections.find((s) => s.slug === "headlines")?.news || []).slice(0, 4);
+  const headlines = (sections.find((s) => s.slug === "headlines")?.news || []).slice(0, 12);
 
   return (
     <div className="tb-cover" id="cover">
