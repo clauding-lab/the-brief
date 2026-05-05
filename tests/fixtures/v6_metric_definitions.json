@@ -1,0 +1,8 @@
+{
+  "definitions": [
+    {"id": "npl_ratio", "label": "NPL Ratio", "section_slug": "banking", "cadence": "quarterly", "last_print_date": "2026-04-18"},
+    {"id": "car_ratio", "label": "CAR", "section_slug": "banking", "cadence": "quarterly", "last_print_date": "2026-04-18"},
+    {"id": "brent_spot", "label": "Brent Spot", "section_slug": "iran", "cadence": "daily", "last_print_date": "2026-05-05"},
+    {"id": "remittance_monthly", "label": "Remittance", "section_slug": "fx", "cadence": "monthly", "last_print_date": "2026-04-30"}
+  ]
+}
