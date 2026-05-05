@@ -14,7 +14,7 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
     "brief_date":    "YYYY-MM-DD",                   // pre-supplied, copy from input
     "read_minutes":  <int 7..12>,
     "lens":          "<copy from input today_lens>",
-    "frame":         "<one of: sovereign-debt|FX-runway|credit-cycle|rates-curve|external-shock>",
+    "frame":         "<one of: sovereign-debt|FX-runway|credit-cycle|rates-curve|external-shock>",  // weekly-wrap is for the Friday prompt only — never emit it from this prompt
     "cover_metric": {
       "label":         "<KPI label, ALL CAPS short, e.g. 'NPL RATIO · Q4 2025'>",
       "value":         "<single number string with unit, e.g. '35.73%'>",
@@ -84,7 +84,7 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
 
 ## Hero (weight=2) selection
 
-The lens for today is supplied as `today_lens` in the input. The section whose slug matches `today_lens` is the hero. Set `weight=2` on that section and `weight=1` on all others. The cover_metric MUST come from the hero section, and MUST be a metric that is not held-over (no `held_from` annotation will be present at this point — but you must NOT pick a metric whose value text is unchanged from the previous brief's matching metric).
+The lens for today is supplied as `today_lens` in the input. The section whose slug matches `today_lens` is the hero. Set `weight=2` on that section and `weight=1` on all others. The cover_metric MUST come from the hero section. Within the hero section, pick the most newsworthy metric — the system handles freshness and "what changed" downstream; you don't need to second-guess.
 
 If `today_lens` is `weekly_wrap`, use a different prompt — you should not be reading this one on Friday.
 
@@ -122,7 +122,7 @@ The input includes `today_lens`. You must pick a `frame` from this list and set 
 ## Stale data handling
 
 The input flags each section's freshness state ('fresh', 'warning', 'stale', 'unavailable'). When a section is `stale` or worse:
-- banker_read.verdict MUST acknowledge it explicitly with the *exact* phrase "Held from <date>" if the system can compute one — but YOU don't compute the date; just refer to the held nature: "On the last print (Q4 2025)…"
+- banker_read.verdict MUST acknowledge stale data implicitly. Reference the period of the last print (e.g. "On the Q4 2025 print…" or "Pending Q1 disclosure…") drawing the period from the input metric data. DO NOT write the literal phrase "Held from" — the system stamps that string post-LLM as a footer; if you write it too, the user sees it twice.
 - DON'T claim 'today' or 'this week' for stale data
 - DON'T pretend a quarterly metric is news. The reader will see a "Held from" footer post-LLM; do not contradict it.
 - summary_pills can still display the stale value but with `tone="warn"` if the value is stale-bear or stale-warn
@@ -140,6 +140,8 @@ Selection criteria, in order:
 5. The lead headline (news[0]) gets the densest dek (1-line `detail`)
 
 If the filtered pool is smaller than 12, ship what you have. Do NOT pad with re-runs.
+
+Other sections (banking, bb, fx, etc.) cap their news at **4 items each** — same selection criteria, narrower per-section scope. Only the standalone `headlines` section uses the 12 cap.
 
 # INPUT DATA
 
