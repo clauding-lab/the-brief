@@ -37,6 +37,8 @@ class CoverMetricV6(_Lenient):
     tone: Optional[Tone] = None
     section_slug: Optional[str] = None
     as_of: Optional[str] = None
+    held_from: Optional[date_t] = None
+    next_print: Optional[str] = None
 
 
 class BriefV6(_Strict):
@@ -47,6 +49,8 @@ class BriefV6(_Strict):
     cover_metric: Optional[CoverMetricV6] = None
     todays_call: Optional[str] = None
     status: Optional[Literal["draft", "published", "archived"]] = "published"
+    lens: Optional[str] = None
+    frame: Optional[str] = None
 
 
 class MetricV6(_Lenient):
@@ -60,6 +64,8 @@ class MetricV6(_Lenient):
     delta_pct: Optional[str] = None
     changed: Optional[bool] = False
     weight: Optional[int] = Field(default=1, ge=1, le=2)
+    held_from: Optional[date_t] = None
+    next_print: Optional[str] = None
 
 
 class NewsItemV6(_Lenient):
@@ -70,6 +76,7 @@ class NewsItemV6(_Lenient):
     published_at: Optional[str] = None
     tone: Optional[Tone] = None
     changed: Optional[bool] = False
+    held_from: Optional[date_t] = None
 
 
 class SeriesPointV6(_Lenient):
