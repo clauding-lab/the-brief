@@ -686,9 +686,9 @@ body.tb-diff .tb-section.is-quiet {
   transition: opacity 200ms;
 }
 body.tb-diff .tb-section.is-quiet:hover { opacity: 0.65; }
-body.tb-diff .tb-section .tb-news-item:not(.is-changed),
-body.tb-diff .tb-section .tb-kpi-row:not(.is-changed),
-body.tb-diff .tb-cover-line:not(.is-changed) {
+body.tb-diff .tb-section .tb-news-item:not(.is-changed):not(.is-held-over),
+body.tb-diff .tb-section .tb-kpi-row:not(.is-changed):not(.is-held-over),
+body.tb-diff .tb-cover-line:not(.is-changed):not(.is-held-over) {
   opacity: 0.34;
   transition: opacity 200ms;
 }
@@ -698,6 +698,26 @@ body.tb-diff .tb-section .tb-kpi-row.is-changed {
 }
 body.tb-diff .tb-statstack:not(.is-changed) {
   opacity: 0.4;
+}
+
+/* ── Held-over state ─────────────────────────────────────────────── */
+
+.tb-news-item.is-held-over,
+.tb-kpi-row.is-held-over {
+  opacity: 0.65;
+}
+
+.tb-held-footer {
+  font-size: 0.75rem;
+  color: var(--color-muted, #888);
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+/* Diff toggle: held-over items shown muted, NOT blanked */
+body.tb-diff .tb-section .tb-news-item.is-held-over,
+body.tb-diff .tb-section .tb-kpi-row.is-held-over {
+  opacity: 0.5;
 }
 
 /* ─── HERO SECTION ─────────────────────────────────────── */

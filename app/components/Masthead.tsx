@@ -18,7 +18,7 @@ export function Masthead({ brief, source, sections }: MastheadProps) {
   const sourceLabel = source === "live" ? "Live" : source === "cache" ? "Cached" : "Static";
 
   // 4 most "newsworthy" — first 4 from headlines section
-  const headlines = (sections.find((s) => s.slug === "headlines")?.news || []).slice(0, 4);
+  const headlines = (sections.find((s) => s.slug === "headlines")?.news || []).slice(0, 12);
 
   return (
     <header className="tb-masthead-full" id="masthead">
