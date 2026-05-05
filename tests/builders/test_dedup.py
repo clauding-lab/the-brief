@@ -54,3 +54,21 @@ def test_preserves_order():
     last_5 = [{"headline": "B", "source_url": "ub"}]
     out, _ = filter_headlines(candidates, last_5)
     assert [x["headline"] for x in out] == ["A", "C"]
+
+
+def test_keeps_malformed_candidate_even_if_malformed_in_history():
+    """Empty key (no headline + no url) is never treated as a duplicate.
+
+    Without this guard, a single malformed history record would silently
+    drop every malformed candidate as a 'rerun' — a quiet history-poisoning
+    failure mode in production.
+    """
+    candidates = [
+        {"headline": "", "source_url": ""},
+        {"headline": None, "source_url": None},
+        {},
+    ]
+    history = [{"headline": "", "source_url": ""}]
+    out, dropped = filter_headlines(candidates, history)
+    assert len(out) == 3  # all three malformed candidates kept
+    assert dropped == 0

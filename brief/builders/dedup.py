@@ -13,6 +13,14 @@ _PUNCT_WHITESPACE = re.compile(r"[^\w]+")
 
 
 def _normalize(text: str) -> str:
+    """Lowercase + strip non-word characters. Whitespace and punctuation collapse.
+
+    # NOTE: Python's `\\w` does not match Unicode combining marks (Mn/Mc).
+    # Bengali matras (া, ি, ্, etc.) get stripped. Distinct Bengali headlines
+    # that share their consonant skeleton may collide. Acceptable for now;
+    # revisit if a real collision is observed in production. Keep in lockstep
+    # with diff.py:_normalize_headline — if they drift, see plan §2.3.
+    """
     return _PUNCT_WHITESPACE.sub("", (text or "").lower())
 
 
@@ -31,12 +39,20 @@ def filter_headlines(
 
     `history` is the flat union of news items from the previous N issues —
     the caller (pipeline_v6) is responsible for assembling it.
+
+    Candidates whose key is empty (both headline and source_url missing/empty)
+    are kept unconditionally — we can't tell duplicates apart, so we don't
+    risk silently dropping unrelated malformed records.
     """
     seen = {_key(h) for h in history}
     kept: list[dict[str, Any]] = []
     dropped = 0
     for c in candidates:
-        if _key(c) in seen:
+        k = _key(c)
+        if k == ("", ""):
+            kept.append(c)
+            continue
+        if k in seen:
             dropped += 1
             continue
         kept.append(c)
