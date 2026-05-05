@@ -9,6 +9,8 @@ export interface CoverMetric {
   tone?: Tone;
   section_slug?: string;
   as_of?: string;
+  held_from?: string;
+  next_print?: string;
 }
 
 export interface Brief {
@@ -21,6 +23,8 @@ export interface Brief {
   published_at?: string;
   status?: string;
   todays_call?: string;
+  lens?: string;
+  frame?: string;
 }
 
 export interface Metric {
@@ -34,6 +38,8 @@ export interface Metric {
   delta_pct?: string;
   changed?: boolean;
   weight?: number;
+  held_from?: string;
+  next_print?: string;
 }
 
 export interface NewsItem {
@@ -44,6 +50,7 @@ export interface NewsItem {
   published_at?: string;
   tone?: Tone;
   changed?: boolean;
+  held_from?: string;
 }
 
 export interface SeriesPoint {
