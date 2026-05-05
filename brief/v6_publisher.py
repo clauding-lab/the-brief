@@ -132,11 +132,16 @@ def fetch_recent_news(n_issues: int = 5) -> list[dict[str, Any]]:
 
 
 def fetch_metric_definitions() -> list[dict[str, Any]]:
-    """Return the metric catalog (used by mark_held_overs to know cadence + last_print_date)."""
-    return _request(
-        "GET",
-        "/metric_definitions?select=id,label,section_slug,cadence,last_print_date",
-    ) or []
+    """Return the metric catalog rows.
+
+    Consumed by mark_held_overs which keys on (section_slug, label) and reads
+    last_print_date. The current production schema lacks both section_slug
+    and last_print_date — see migration 0003 (pending) — so for now
+    mark_held_overs gracefully no-ops on every metric. Selecting all columns
+    means consumers can pick up new fields as the schema evolves without
+    further code changes.
+    """
+    return _request("GET", "/metric_definitions?select=*") or []
 
 
 def fetch_metric_history(metric_id: str, days: int = 90) -> list[dict[str, Any]]:
