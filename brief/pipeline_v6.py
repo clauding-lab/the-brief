@@ -118,6 +118,7 @@ def _build_editor_input(
         for s in raw_sections
     ]
     lens, lens_breakdown = score_lens(sections_for_lens, today=today, previous_lens=previous_lens)
+    logger.info("v6: lens=%s, score breakdown=%s", lens, lens_breakdown)
 
     # Filter scraped headlines against last 5 issues
     filtered_headlines, dropped = filter_headlines(scraped_headlines, recent_news)
@@ -147,14 +148,29 @@ def _days_since_refresh(freshness: str | None) -> int:
 
 
 def _delta_sigma(metric: dict[str, Any], definitions: list[dict[str, Any]]) -> float:
-    """Best-effort σ-move estimate. If the metric carries delta_pct, use abs(delta_pct).
+    """Best-effort σ-move estimate.
 
-    For a real V1 ship we could compute σ from metric_history. For now, abs(delta_pct/2)
-    as a proxy — small moves score low, big moves score high. Returns 0 if no signal.
+    V5 metrics carry a `delta` sub-object with `.value` (period-over-period change
+    in raw units). Reads that, falls back to delta_pct (if present in any future
+    schema variant), and uses abs(value) as a magnitude proxy. The downstream
+    `_magnitude_score` clamps to [0, 1], so the absolute scale doesn't have to
+    be perfectly σ-normalized — what matters is that bigger moves score higher
+    than smaller ones.
+
+    Returns 0.0 if no signal is available.
     """
-    delta_pct = metric.get("delta_pct") or ""
+    delta = metric.get("delta")
+    if isinstance(delta, dict):
+        value = delta.get("value")
+        if isinstance(value, (int, float)):
+            return abs(float(value))
+    delta_pct = metric.get("delta_pct")
+    if delta_pct is None:
+        return 0.0
     try:
-        return abs(float(delta_pct.strip("%+")) / 2.0)
+        if isinstance(delta_pct, (int, float)):
+            return abs(float(delta_pct) / 2.0)
+        return abs(float(str(delta_pct).strip("%+")) / 2.0)
     except (ValueError, TypeError):
         return 0.0
 
@@ -210,6 +226,11 @@ def run_publish(
     previous_lens = (previous or {}).get("brief", {}).get("lens")
     recent_news = fetch_recent_news(n_issues=5)
     metric_definitions = fetch_metric_definitions()
+    if not metric_definitions:
+        logger.warning(
+            "v6: metric_definitions empty — held-over annotation will no-op. "
+            "Check catalog table + RLS."
+        )
 
     editor_input, today_lens = _build_editor_input(
         sections,
