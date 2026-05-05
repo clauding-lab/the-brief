@@ -33,12 +33,14 @@ export function Section({ section, diffMode }: SectionProps) {
   const seriesKey = hasChart ? series[0].key : null;
   const filteredNotes = notes.filter((n) => n.series_key === seriesKey);
   const isHero = (weight ?? 1) >= 2;
-  const anyChanged = metrics.some((m) => m.changed) || news.some((n) => n.changed);
+  const anySignal =
+    metrics.some((m) => m.changed || m.held_from) ||
+    news.some((n) => n.changed || n.held_from);
 
   return (
     <section
       id={slug}
-      className={`tb-section${isHero ? " is-hero" : ""}${diffMode ? " is-diff" : ""}${diffMode && !anyChanged ? " is-quiet" : ""}`}
+      className={`tb-section${isHero ? " is-hero" : ""}${diffMode ? " is-diff" : ""}${diffMode && !anySignal ? " is-quiet" : ""}`}
       data-section-slug={slug}
       data-screen-label={`§${String(ord).padStart(2, "0")} ${title}`}
     >
