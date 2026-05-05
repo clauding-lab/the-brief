@@ -12,6 +12,7 @@ from typing import Any
 
 
 _QUIET_DAY_THRESHOLD = 0.05
+_DEFAULT_LENS = "banking"  # Fallback slug when no sections present or no winner; banking is the lead/always-present section.
 
 
 def _freshness_score(days_since_refresh: int) -> float:
@@ -53,6 +54,10 @@ def score_lens(
     Mon–Thu → highest section_score = freshness × magnitude × signal.
     Quiet day (all scores < 0.05) → fall back to previous_lens, else alphabetically first slug.
 
+    Each metric dict must include `is_held_over: bool` (caller's job to derive
+    this from `held_from is not None` when converting MetricV6 → dict; the
+    Phase 4 wiring layer is responsible for this translation).
+
     Returns (lens_slug, breakdown) where breakdown has per-section score components
     plus an optional "fallback" key.
     """
@@ -69,7 +74,7 @@ def score_lens(
         breakdown[slug] = {"freshness": f, "magnitude": m, "signal": sig, "score": score}
 
     if not breakdown:
-        return "banking", {"fallback": "no_sections"}
+        return _DEFAULT_LENS, {"fallback": "no_sections"}
 
     # Find highest-scoring section
     best_slug = None
@@ -86,4 +91,4 @@ def score_lens(
         breakdown["fallback"] = "quiet_day_alpha"
         return sorted(breakdown.keys() - {"fallback"})[0], breakdown
 
-    return best_slug or "banking", breakdown
+    return best_slug or _DEFAULT_LENS, breakdown

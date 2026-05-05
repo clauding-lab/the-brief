@@ -69,6 +69,14 @@ def test_quiet_day_no_previous_falls_back_to_alpha():
     assert lens == "alpha"
 
 
+def test_no_sections_returns_default_lens_fallback():
+    """Empty sections list → default lens slug + no_sections fallback marker."""
+    today = date(2026, 5, 4)  # Monday
+    lens, breakdown = score_lens([], today=today, previous_lens=None)
+    assert lens == "banking"
+    assert breakdown == {"fallback": "no_sections"}
+
+
 def test_freshness_decay_linear_14d():
     """freshness=1.0 today, 0.5 at 7d, 0.0 at >=14d."""
     from brief.builders.lens import _freshness_score
