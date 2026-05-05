@@ -8,7 +8,7 @@ __pycache__/
 gathered_data.json
 .update-failed
 .vercel
-.venv/
+.venv
 venv/
 
 # test + build artifacts
