@@ -832,3 +832,30 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   .tb-cover { padding: 24px 0; }
   body { background: white; color: black; }
 }
+
+/* ── Masthead lens pill ──────────────────────────────────────────── */
+
+.tb-masthead-date-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tb-masthead-lens-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-surface-2, #f4f4f4);
+  font-size: 0.75rem;
+  color: var(--color-muted, #666);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.tb-masthead-lens-pill .tb-mlp-day {
+  font-weight: 600;
+  text-transform: uppercase;
+}
