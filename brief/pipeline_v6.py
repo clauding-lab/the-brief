@@ -248,14 +248,15 @@ def run_publish(
         issue_no, len(editor_input["sections_raw"]), today_lens,
     )
 
-    # ── Friday branch (Phase 5 — not yet wired) ────────────────────
+    # ── Friday branch ──────────────────────────────────────────────
     is_friday = today.weekday() == 4
     if is_friday:
-        raise V6PublishError(
-            "Friday weekly_wrap path not yet wired (Phase 5). "
-            "Today is Friday — refusing to publish via Mon–Thu prompt."
-        )
-    editor_prompt_file = "editor_v6.txt"
+        from brief.builders.weekly import build_weekly_input
+        editor_input = build_weekly_input(editor_input, today=today)
+        editor_prompt_file = "editor_v6_friday.txt"
+        logger.info("v6: Friday wrap — using editor_v6_friday.txt + weekly_diffs block")
+    else:
+        editor_prompt_file = "editor_v6.txt"
 
     # ── Call 1: Editor ─────────────────────────────────────────────
     editor_prompt = _pipeline._load_prompt(editor_prompt_file).replace("{today}", today.isoformat())
