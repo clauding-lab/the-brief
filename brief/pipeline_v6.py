@@ -23,7 +23,9 @@ from brief.schema import SectionData
 from brief.v6_publisher import (
     PublishError,
     fetch_max_issue_no,
+    fetch_metric_definitions,
     fetch_previous_brief,
+    fetch_recent_news,
     publish_brief,
 )
 from brief.v6_schema import BriefPayloadV6, SubeditorReview
@@ -81,20 +83,96 @@ def _build_editor_input(
     sections: list[SectionData],
     today: date_t,
     scraped_headlines: list[dict[str, Any]],
-) -> dict[str, Any]:
-    previous = fetch_previous_brief()
+    *,
+    previous_brief: dict[str, Any] | None,
+    previous_lens: str | None,
+    recent_news: list[dict[str, Any]],
+    metric_definitions: list[dict[str, Any]],
+) -> tuple[dict[str, Any], str]:
+    """Build editor input + return chosen lens.
+
+    Returns (editor_input, today_lens). Caller passes today_lens to the
+    appropriate prompt template; mostly relevant when caller wants to log it.
+    """
+    from brief.builders.lens import score_lens
+    from brief.builders.dedup import filter_headlines
+
     next_issue = fetch_max_issue_no() + 1
+    raw_sections = _to_v6_raw(sections)
+
+    # Compute today's lens
+    sections_for_lens = [
+        {
+            "slug": s["slug"],
+            "freshness_days_since_refresh": _days_since_refresh(s.get("freshness")),
+            "metrics": [
+                {
+                    "label": m["label"],
+                    "value": m["value"],
+                    "delta_sigma": _delta_sigma(m, metric_definitions),
+                    "is_held_over": False,  # cannot know yet — that's a post-LLM annotation
+                }
+                for m in s.get("metrics", []) or []
+            ],
+        }
+        for s in raw_sections
+    ]
+    lens, lens_breakdown = score_lens(sections_for_lens, today=today, previous_lens=previous_lens)
+    logger.info("v6: lens=%s, score breakdown=%s", lens, lens_breakdown)
+
+    # Filter scraped headlines against last 5 issues
+    filtered_headlines, dropped = filter_headlines(scraped_headlines, recent_news)
+    if dropped:
+        logger.info("v6: filter_headlines dropped %d re-runs", dropped)
+
     return {
         "today": today.isoformat(),
-        "previous_brief": previous,
-        "scraped_headlines": scraped_headlines,
-        "sections_raw": _to_v6_raw(sections),
+        "today_lens": lens,
+        "previous_brief": previous_brief,
+        "scraped_headlines": filtered_headlines,
+        "sections_raw": raw_sections,
         "meta": {
             "issue_no": next_issue,
-            "volume": (previous or {}).get("brief", {}).get("volume", 1),
+            "volume": (previous_brief or {}).get("brief", {}).get("volume", 1),
             "brief_date": today.isoformat(),
         },
-    }
+    }, lens
+
+
+def _days_since_refresh(freshness: str | None) -> int:
+    """Map V5's freshness label to a days-since-refresh number for the lens scorer.
+
+    'fresh' → 0 (today), 'warning' → 5, 'stale' → 14, 'unavailable' → 30.
+    """
+    return {"fresh": 0, "warning": 5, "stale": 14, "unavailable": 30}.get(freshness or "stale", 14)
+
+
+def _delta_sigma(metric: dict[str, Any], definitions: list[dict[str, Any]]) -> float:
+    """Best-effort σ-move estimate.
+
+    V5 metrics carry a `delta` sub-object with `.value` (period-over-period change
+    in raw units). Reads that, falls back to delta_pct (if present in any future
+    schema variant), and uses abs(value) as a magnitude proxy. The downstream
+    `_magnitude_score` clamps to [0, 1], so the absolute scale doesn't have to
+    be perfectly σ-normalized — what matters is that bigger moves score higher
+    than smaller ones.
+
+    Returns 0.0 if no signal is available.
+    """
+    delta = metric.get("delta")
+    if isinstance(delta, dict):
+        value = delta.get("value")
+        if isinstance(value, (int, float)):
+            return abs(float(value))
+    delta_pct = metric.get("delta_pct")
+    if delta_pct is None:
+        return 0.0
+    try:
+        if isinstance(delta_pct, (int, float)):
+            return abs(float(delta_pct) / 2.0)
+        return abs(float(str(delta_pct).strip("%+")) / 2.0)
+    except (ValueError, TypeError):
+        return 0.0
 
 
 def _call_with_retries(
@@ -131,73 +209,110 @@ def run_publish(
     scraped_headlines: list[dict[str, Any]] | None = None,
     dry_run: bool = False,
 ) -> str | None:
-    """Execute the 2-call publish flow. Returns published brief id, or None on dry-run.
+    """Execute the 2-call publish flow with fresh-brief V1 wiring.
 
-    Raises V6PublishError on subeditor verdict='fail' or any Claude/Supabase error.
+    Pipeline shape:
+      1. Compute today_lens (data-driven Mon–Thu, weekly_wrap on Friday)
+      2. Filter scraped_headlines against last 5 issues
+      3. Editor LLM produces brief
+      4. Subeditor LLM reviews
+      5. stamp_changed (post-LLM diff)
+      6. mark_held_overs (post-LLM honesty)
+      7. Publish to Supabase
     """
-    editor_input = _build_editor_input(
-        sections, today, scraped_headlines or []
+    from brief.builders.diff import stamp_changed, mark_held_overs
+
+    previous = fetch_previous_brief()
+    previous_lens = (previous or {}).get("brief", {}).get("lens")
+    recent_news = fetch_recent_news(n_issues=5)
+    metric_definitions = fetch_metric_definitions()
+    if not metric_definitions:
+        logger.warning(
+            "v6: metric_definitions empty — held-over annotation will no-op. "
+            "Check catalog table + RLS."
+        )
+
+    editor_input, today_lens = _build_editor_input(
+        sections,
+        today,
+        scraped_headlines or [],
+        previous_brief=previous,
+        previous_lens=previous_lens,
+        recent_news=recent_news,
+        metric_definitions=metric_definitions,
     )
+
     issue_no = editor_input["meta"]["issue_no"]
-    logger.info("v6: issue_no=%d, %d sections raw", issue_no, len(editor_input["sections_raw"]))
+    logger.info(
+        "v6: issue_no=%d, %d sections raw, lens=%s",
+        issue_no, len(editor_input["sections_raw"]), today_lens,
+    )
+
+    # ── Friday branch (Phase 5 — not yet wired) ────────────────────
+    is_friday = today.weekday() == 4
+    if is_friday:
+        raise V6PublishError(
+            "Friday weekly_wrap path not yet wired (Phase 5). "
+            "Today is Friday — refusing to publish via Mon–Thu prompt."
+        )
+    editor_prompt_file = "editor_v6.txt"
 
     # ── Call 1: Editor ─────────────────────────────────────────────
-    editor_prompt = _pipeline._load_prompt("editor_v6.txt").replace("{today}", today.isoformat())
+    editor_prompt = _pipeline._load_prompt(editor_prompt_file).replace("{today}", today.isoformat())
     editor_raw = _call_with_retries(
-        label="editor_v6",
-        prompt_template=editor_prompt,
-        input_obj=editor_input,
-        timeout_s=1800,
+        label="editor_v6", prompt_template=editor_prompt, input_obj=editor_input, timeout_s=1800,
     )
     try:
         editor_brief = BriefPayloadV6.model_validate(editor_raw)
     except Exception as e:
         raise V6PublishError(f"editor_v6 output failed schema validation: {e}") from e
+
+    # Force lens onto the brief — the LLM should set it but we guarantee it
+    editor_brief.brief.lens = today_lens
+
     logger.info(
-        "v6: editor produced brief with %d sections, hero=%s",
+        "v6: editor produced brief with %d sections, hero=%s, frame=%s",
         len(editor_brief.sections),
         next((s.slug for s in editor_brief.sections if s.weight == 2), None),
+        editor_brief.brief.frame,
     )
 
     # ── Call 2: Sub-editor ─────────────────────────────────────────
     subeditor_prompt = _pipeline._load_prompt("subeditor_v6.txt")
-    subeditor_input = {
-        "editor_output": editor_brief.model_dump(mode="json"),
-        "raw_data": editor_input,
-    }
+    subeditor_input = {"editor_output": editor_brief.model_dump(mode="json"), "raw_data": editor_input}
     review_raw = _call_with_retries(
-        label="subeditor_v6",
-        prompt_template=subeditor_prompt,
-        input_obj=subeditor_input,
-        timeout_s=1800,
+        label="subeditor_v6", prompt_template=subeditor_prompt, input_obj=subeditor_input, timeout_s=1800,
     )
     try:
         review = SubeditorReview.model_validate(review_raw)
     except Exception as e:
-        # Sub-editor failure is non-fatal — fall back to editor output unrevised
         logger.warning("v6: subeditor output failed schema validation, passing editor output: %s", e)
         review = SubeditorReview(verdict="pass")
 
-    # ── Resolve verdict ────────────────────────────────────────────
     if review.verdict == "fail":
         msgs = [f"  · [{i.severity}] {i.section}.{i.field}: {i.problem}" for i in review.issues]
-        raise V6PublishError(
-            f"subeditor verdict=fail with {len(review.issues)} issues:\n" + "\n".join(msgs)
-        )
+        raise V6PublishError(f"subeditor verdict=fail with {len(review.issues)} issues:\n" + "\n".join(msgs))
 
     if review.verdict == "revise" and review.revised_brief is not None:
         final_brief = review.revised_brief
+        # Re-force lens on revised brief
+        final_brief.brief.lens = today_lens
         logger.info("v6: subeditor revised brief, %d issues fixed", len(review.issues))
     else:
         final_brief = editor_brief
         if review.issues:
-            logger.info(
-                "v6: subeditor passed with %d warnings: %s",
-                len(review.issues),
-                [i.problem for i in review.issues],
-            )
+            logger.info("v6: subeditor passed with %d warnings", len(review.issues))
         else:
             logger.info("v6: subeditor passed clean")
+
+    # ── Post-LLM: deterministic diff + held-over stamping ──────────
+    stamp_changed(final_brief, previous)
+    mark_held_overs(final_brief, previous, metric_definitions)
+    logger.info(
+        "v6: stamp_changed + mark_held_overs done; changed_news=%d, held_metrics=%d",
+        sum(1 for s in final_brief.sections for n in s.news if n.changed),
+        sum(1 for s in final_brief.sections for m in s.metrics if m.held_from),
+    )
 
     if dry_run:
         logger.info("v6: dry_run=True, skipping Supabase publish")

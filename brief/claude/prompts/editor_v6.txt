@@ -13,6 +13,8 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
     "volume":        <int>,                         // pre-supplied, copy from input
     "brief_date":    "YYYY-MM-DD",                   // pre-supplied, copy from input
     "read_minutes":  <int 7..12>,
+    "lens":          "<copy from input today_lens>",
+    "frame":         "<one of: sovereign-debt|FX-runway|credit-cycle|rates-curve|external-shock>",  // weekly-wrap is for the Friday prompt only — never emit it from this prompt
     "cover_metric": {
       "label":         "<KPI label, ALL CAPS short, e.g. 'NPL RATIO · Q4 2025'>",
       "value":         "<single number string with unit, e.g. '35.73%'>",
@@ -20,6 +22,7 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
       "tone":          "bull|bear|warn|neu",
       "section_slug":  "<slug of the section this metric lives in>",
       "as_of":         "<short timeframe label, e.g. 'Q4 2025 · published 18 Apr 2026'>"
+      // DO NOT set `changed` — that is SYSTEM-STAMPED post-LLM.
     },
     "todays_call": "<3-5 sentence editorial paragraph in Desk Editor voice. The masthead opener. State today's central thesis, anchor it in 2-3 specific numbers, end with a posture line ('The book is positioned defensive on...' / 'We stay long...'). 350-550 chars. No headers, no bullets.>",
     "status": "published"
@@ -44,10 +47,12 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
         //  - reorder so the most newsworthy is first
         //  - set 'tone' if input lacked it
         //  - drop low-signal metrics (max 5 per section)
+        // DO NOT set `changed`, `held_from`, or `next_print` — those are SYSTEM-STAMPED post-LLM.
         { "label": "...", "value": "...", "sub": "...", "tone": "...", "weight": 1|2, ... }
       ],
       "news": [
-        // Up to 4 items. Headlines section = curated 4 leads from scraped pool. Other sections = topic-relevant items only.
+        // Up to 12 items for headlines section; up to 4 for other sections. Headlines section = curated leads from scraped pool (filtered upstream). Other sections = topic-relevant items only.
+        // DO NOT set `changed` or `held_from` — those are SYSTEM-STAMPED post-LLM.
         { "headline": "...", "detail": "<optional 1-line dek>", "source": "DS|TBS|Reuters|...", "source_url": "...", "published_at": "...", "tone": "..." }
       ],
       "banker_read":  null | {
@@ -79,10 +84,24 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
 
 ## Hero (weight=2) selection
 
-Exactly ONE section has `weight=2`. Pick it by this priority:
-1. If `banking` section's NPL ratio is >30% AND it's a fresh-data day → banking is the lead
-2. Otherwise, pick the section with the largest absolute movement vs previous brief that isn't already chronic (i.e. not already weight=2 yesterday)
-3. Hero section's `cover_metric.section_slug` MUST equal that section's slug
+The lens for today is supplied as `today_lens` in the input. The section whose slug matches `today_lens` is the hero. Set `weight=2` on that section and `weight=1` on all others. The cover_metric MUST come from the hero section. Within the hero section, pick the most newsworthy metric — the system handles freshness and "what changed" downstream; you don't need to second-guess.
+
+If `today_lens` is `weekly_wrap`, use a different prompt — you should not be reading this one on Friday.
+
+## Today's editorial frame
+
+The input includes `today_lens`. You must pick a `frame` from this list and set `BriefV6.frame` accordingly. The `todays_call` paragraph MUST execute the frame's analytical lens — same data, fresh angle.
+
+| Frame | When to pick it |
+|---|---|
+| sovereign-debt | Government debt / fiscal pressure / refinance / budget items dominate the lens section |
+| FX-runway     | Reserves / FX rate / remittance / import-cover items dominate |
+| credit-cycle  | NPL / CAR / sector credit growth items dominate |
+| rates-curve   | Yield curve / T-bill / T-bond / monetary policy items dominate |
+| external-shock| Brent / global commodity / Iran-war / external macro items dominate |
+| weekly-wrap   | Friday only — synthesizes the week. (Do not use this frame in Mon–Thu briefs.) |
+
+`todays_call` is a 350–550 char paragraph in the Desk Editor voice that anchors the day in the chosen frame.
 
 ## Tone derivation
 
@@ -103,27 +122,35 @@ Exactly ONE section has `weight=2`. Pick it by this priority:
 ## Stale data handling
 
 The input flags each section's freshness state ('fresh', 'warning', 'stale', 'unavailable'). When a section is `stale` or worse:
-- banker_read.verdict must acknowledge it implicitly ('On the last print...' / 'Pending Q1 disclosure...')
+- banker_read.verdict MUST acknowledge stale data implicitly. Reference the period of the last print (e.g. "On the Q4 2025 print…" or "Pending Q1 disclosure…") drawing the period from the input metric data. DO NOT write the literal phrase "Held from" — the system stamps that string post-LLM as a footer; if you write it too, the user sees it twice.
 - DON'T claim 'today' or 'this week' for stale data
+- DON'T pretend a quarterly metric is news. The reader will see a "Held from" footer post-LLM; do not contradict it.
 - summary_pills can still display the stale value but with `tone="warn"` if the value is stale-bear or stale-warn
 - If freshness is `unavailable`: omit banker_read, set verdict to "Data pending — see <next print date>", verdict_tone="neu"
 
 ## Curated headlines (headlines section)
 
-Input gives you ~30 scraped headlines. You select and order 4. Selection criteria, in order:
+Input gives you a `scraped_headlines` pool. Select and order **up to 12** items from this pool. The pool has already been filtered upstream — items appearing in any of the last 5 issues have been removed. You should not see re-runs; if you do, drop them.
+
+Selection criteria, in order:
 1. BD-specific over global (a Bangladesh banking story beats a global oil story)
 2. Today over yesterday
 3. Numerical concreteness over editorializing
-4. Diversify sources (don't pick 4 from DS)
+4. Diversify sources (don't pick 12 from one outlet)
 5. The lead headline (news[0]) gets the densest dek (1-line `detail`)
+
+If the filtered pool is smaller than 12, ship what you have. Do NOT pad with re-runs.
+
+Other sections (banking, bb, fx, etc.) cap their news at **4 items each** — same selection criteria, narrower per-section scope. Only the standalone `headlines` section uses the 12 cap.
 
 # INPUT DATA
 
 The input JSON below has these top-level keys:
 - `today`: ISO date string
-- `previous_brief`: yesterday's published brief (or null if first run); use for diff signaling and hero rotation
+- `today_lens`: the slug of today's hero section (e.g. "banking", "iran", "fx"). Pre-computed by a deterministic scorer; you MUST honor it.
+- `previous_brief`: yesterday's published brief (or null if first run); use for hero context (NOT for diff signaling — that is system-stamped post-LLM)
 - `sections_raw`: array of section build outputs from the deterministic builders. Each has slug/ord/title/group_key/freshness/metrics/news/series/notes. Pass-through fields: ord, slug, title, group_key, series, notes.
-- `scraped_headlines`: pool of ~30 candidate headlines for the headlines section
+- `scraped_headlines`: pool of candidate headlines for the headlines section, already filtered upstream against the last 5 issues.
 - `meta`: { issue_no, volume, brief_date }
 
 Do NOT invent data. If a number isn't in the input, don't put it in the brief. Banker_read prose draws on metric values + freshness + previous brief context — all of which are in the input.

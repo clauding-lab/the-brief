@@ -104,6 +104,41 @@ def fetch_max_issue_no() -> int:
     return int(rows[0]["issue_no"])
 
 
+def fetch_recent_news(n_issues: int = 5) -> list[dict[str, Any]]:
+    """Return the flat list of news items from the most recent N published briefs.
+
+    Used by filter_headlines() to dedupe today's candidate pool against the
+    last work-week of news.
+    """
+    briefs = _request(
+        "GET",
+        f"/briefs?status=eq.published&order=brief_date.desc&limit={n_issues}&select=id",
+    ) or []
+    if not briefs:
+        return []
+    brief_ids = ",".join(b["id"] for b in briefs)
+    sections = _request(
+        "GET",
+        f"/sections?brief_id=in.({brief_ids})&select=id",
+    ) or []
+    if not sections:
+        return []
+    section_ids = ",".join(s["id"] for s in sections)
+    news = _request(
+        "GET",
+        f"/news?section_id=in.({section_ids})&select=headline,source_url",
+    ) or []
+    return news
+
+
+def fetch_metric_definitions() -> list[dict[str, Any]]:
+    """Return the metric catalog (used by mark_held_overs to know cadence + last_print_date)."""
+    return _request(
+        "GET",
+        "/metric_definitions?select=id,label,section_slug,cadence,last_print_date",
+    ) or []
+
+
 def fetch_metric_history(metric_id: str, days: int = 90) -> list[dict[str, Any]]:
     """Pull recent points from the V5 metric_history table for chart series.
 

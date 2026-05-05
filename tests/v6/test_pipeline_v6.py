@@ -69,9 +69,13 @@ def _max_result(parsed: dict) -> MaxCallResult:
 
 @pytest.fixture
 def _stub_supabase_reads() -> object:
-    """fetch_max_issue_no returns 88 → next is 89; fetch_previous_brief returns None."""
+    """fetch_max_issue_no returns 88 → next is 89; fetch_previous_brief returns None.
+    Also stubs the new Phase 2/3 helpers so tests don't hit the network.
+    """
     with patch("brief.pipeline_v6.fetch_max_issue_no", return_value=88), \
-         patch("brief.pipeline_v6.fetch_previous_brief", return_value=None):
+         patch("brief.pipeline_v6.fetch_previous_brief", return_value=None), \
+         patch("brief.pipeline_v6.fetch_recent_news", return_value=[]), \
+         patch("brief.pipeline_v6.fetch_metric_definitions", return_value=[]):
         yield
 
 
