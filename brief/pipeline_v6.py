@@ -103,9 +103,22 @@ def _build_editor_input(
     raw_sections = _to_v6_raw(sections)
 
     # Index prev brief metrics by (slug, label) → prev_value_text. Used as the
-    # magnitude fallback when V5 metrics carry no Delta object (which is the
-    # case for ~all current builders; see _diff_value_to_sigma docstring).
+    # magnitude fallback when V5 metrics carry no Delta object (see
+    # _diff_value_to_sigma docstring) and as the held-over signal for the
+    # editor (see _compute_is_held_over).
     prev_metrics_idx = _index_previous_metrics(previous_brief)
+
+    # Stamp `is_held_over` on each raw_section metric so the editor sees it.
+    # This is what the editor prompt's "do not pick is_held_over for cover_metric"
+    # rule reads. Daily/weekly metrics never count as held; only quarterly/monthly
+    # metrics with unchanged value text.
+    for s in raw_sections:
+        for m in s.get("metrics", []) or []:
+            m["is_held_over"] = _compute_is_held_over(
+                m.get("value"),
+                prev_metrics_idx.get((s["slug"], m["label"])),
+                m.get("cadence"),
+            )
 
     # Compute today's lens
     sections_for_lens = [
@@ -121,7 +134,7 @@ def _build_editor_input(
                         metric_definitions,
                         prev_value=prev_metrics_idx.get((s["slug"], m["label"])),
                     ),
-                    "is_held_over": False,  # cannot know yet — that's a post-LLM annotation
+                    "is_held_over": m.get("is_held_over", False),
                 }
                 for m in s.get("metrics", []) or []
             ],
@@ -235,6 +248,30 @@ def _parse_numeric(v: Any) -> float | None:
         except ValueError:
             return None
     return None
+
+
+_HELD_OVER_CADENCES = frozenset({"monthly", "quarterly"})
+
+
+def _compute_is_held_over(curr_value: Any, prev_value: Any, cadence: Any) -> bool:
+    """Return True iff the metric should be treated as held-over for the editor.
+
+    A metric is held-over when:
+      - Its cadence is monthly or quarterly (annual not used in V5 schema;
+        daily/weekly/event metrics should be moving — an unchanged value
+        there is a freshness issue, not a held-over case)
+      - There IS a previous brief value to compare against (cold start →
+        nothing is held)
+      - The current value text equals the previous value text exactly (no
+        numeric tolerance — a re-published "35.73%" is the same print)
+
+    Editor reads `is_held_over=True` and skips the metric for cover_metric.
+    """
+    if prev_value is None:
+        return False
+    if cadence not in _HELD_OVER_CADENCES:
+        return False
+    return curr_value == prev_value
 
 
 def _call_with_retries(
