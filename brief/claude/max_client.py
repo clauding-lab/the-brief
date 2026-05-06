@@ -42,6 +42,42 @@ def _strip_markdown_fences(text: str) -> str:
     return stripped if stripped != text else text
 
 
+def _extract_json_object(text: str) -> str | None:
+    """Best-effort extraction of a single top-level JSON object from text.
+
+    Sometimes the model returns prose preamble before the JSON body
+    (e.g., "I'll audit the editor's output now.\\n\\n{...}"). This finds the
+    first '{' and walks bracket depth to find its matching '}', returning
+    that substring. Returns None if no balanced object is found.
+    """
+    start = text.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escape_next:
+                escape_next = False
+            elif ch == "\\":
+                escape_next = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
 class MaxCallError(RuntimeError):
     """Raised when the CLI fails, times out, or returns non-JSON."""
 
@@ -137,7 +173,16 @@ def run_max(
     try:
         parsed = json.loads(_strip_markdown_fences(raw_text))
     except json.JSONDecodeError:
-        parsed = None
+        # Fallback for prose-then-JSON outputs (the subeditor occasionally
+        # writes a preamble like "I'll audit the editor's output now.\n\n{...}").
+        embedded = _extract_json_object(raw_text)
+        if embedded is not None:
+            try:
+                parsed = json.loads(embedded)
+            except json.JSONDecodeError:
+                parsed = None
+        else:
+            parsed = None
 
     _duration = time.monotonic() - _t0
     _usage = outer.get("usage") or {}
