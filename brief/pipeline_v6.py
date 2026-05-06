@@ -420,6 +420,24 @@ def run_publish(
         sum(1 for s in final_brief.sections for m in s.metrics if m.held_from),
     )
 
+    # If every metric in the hero (weight=2) section is unchanged from the
+    # previous brief, the editor was forced to feature a stuck metric as
+    # cover_metric. Strip it — the SPA hides the big-number block when
+    # cover_metric is None, and the brief opens cleanly with the masthead +
+    # headlines column. Cold start (previous=None) → stamp_changed marks
+    # everything changed=True → this branch never fires.
+    hero_section = next((s for s in final_brief.sections if s.weight == 2), None)
+    if (
+        hero_section is not None
+        and hero_section.metrics
+        and all(m.changed is False for m in hero_section.metrics)
+    ):
+        final_brief.brief.cover_metric = None
+        logger.info(
+            "v6: stripped cover_metric — every hero (%s) metric is unchanged from previous brief",
+            hero_section.slug,
+        )
+
     if dry_run:
         logger.info("v6: dry_run=True, skipping Supabase publish")
         return None

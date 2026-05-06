@@ -14,11 +14,11 @@ export function Cover({ brief, sections }: CoverProps) {
   return (
     <div className="tb-cover" id="cover">
       <div>
-        <div className="eyebrow" style={{ marginBottom: 14 }}>
-          Today&rsquo;s Number
-        </div>
-        {cover && (
+        {cover ? (
           <>
+            <div className="eyebrow" style={{ marginBottom: 14 }}>
+              Today&rsquo;s Number
+            </div>
             <div className="bignum" aria-label={`${cover.label}: ${cover.value}`}>
               {splitBigNum(cover.value)}
             </div>
@@ -38,7 +38,7 @@ export function Cover({ brief, sections }: CoverProps) {
               <Mark kind={cover.tone || "neu"} /> {cover.sub}
             </div>
           </>
-        )}
+        ) : null}
       </div>
 
       <div style={{ borderLeft: "1px solid var(--rule)", paddingLeft: 28 }}>
