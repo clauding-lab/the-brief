@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from datetime import date as date_t
 from typing import Any
@@ -96,9 +97,15 @@ def _build_editor_input(
     """
     from brief.builders.lens import score_lens
     from brief.builders.dedup import filter_headlines
+    from brief.builders.diff import _index_previous_metrics
 
     next_issue = fetch_max_issue_no() + 1
     raw_sections = _to_v6_raw(sections)
+
+    # Index prev brief metrics by (slug, label) → prev_value_text. Used as the
+    # magnitude fallback when V5 metrics carry no Delta object (which is the
+    # case for ~all current builders; see _diff_value_to_sigma docstring).
+    prev_metrics_idx = _index_previous_metrics(previous_brief)
 
     # Compute today's lens
     sections_for_lens = [
@@ -109,7 +116,11 @@ def _build_editor_input(
                 {
                     "label": m["label"],
                     "value": m["value"],
-                    "delta_sigma": _delta_sigma(m, metric_definitions),
+                    "delta_sigma": _delta_sigma(
+                        m,
+                        metric_definitions,
+                        prev_value=prev_metrics_idx.get((s["slug"], m["label"])),
+                    ),
                     "is_held_over": False,  # cannot know yet — that's a post-LLM annotation
                 }
                 for m in s.get("metrics", []) or []
@@ -147,17 +158,24 @@ def _days_since_refresh(freshness: str | None) -> int:
     return {"fresh": 0, "warning": 5, "stale": 14, "unavailable": 30}.get(freshness or "stale", 14)
 
 
-def _delta_sigma(metric: dict[str, Any], definitions: list[dict[str, Any]]) -> float:
+def _delta_sigma(
+    metric: dict[str, Any],
+    definitions: list[dict[str, Any]],
+    *,
+    prev_value: Any = None,
+) -> float:
     """Best-effort σ-move estimate.
 
-    V5 metrics carry a `delta` sub-object with `.value` (period-over-period change
-    in raw units). Reads that, falls back to delta_pct (if present in any future
-    schema variant), and uses abs(value) as a magnitude proxy. The downstream
-    `_magnitude_score` clamps to [0, 1], so the absolute scale doesn't have to
-    be perfectly σ-normalized — what matters is that bigger moves score higher
-    than smaller ones.
+    Order of preference:
+      1. metric.delta.value — V5 builders' explicit Delta object (only bb_reserves
+         currently emits this).
+      2. metric.delta_pct — future-shape fallback for builders that publish a
+         pre-computed pct.
+      3. abs(value_text - prev_value_text) / max(|prev|, 0.5), clamped — the
+         post-Phase-4 fallback (this is what makes the lens rotate today since
+         most V5 metrics don't populate the Delta object).
 
-    Returns 0.0 if no signal is available.
+    Returns 0.0 if none of the above produces a signal.
     """
     delta = metric.get("delta")
     if isinstance(delta, dict):
@@ -165,14 +183,58 @@ def _delta_sigma(metric: dict[str, Any], definitions: list[dict[str, Any]]) -> f
         if isinstance(value, (int, float)):
             return abs(float(value))
     delta_pct = metric.get("delta_pct")
-    if delta_pct is None:
+    if delta_pct is not None:
+        try:
+            if isinstance(delta_pct, (int, float)):
+                return abs(float(delta_pct) / 2.0)
+            return abs(float(str(delta_pct).strip("%+")) / 2.0)
+        except (ValueError, TypeError):
+            pass  # fall through to prev-value diff
+    if prev_value is not None:
+        return _diff_value_to_sigma(metric.get("value"), prev_value)
+    return 0.0
+
+
+_NUMERIC_STRIP = re.compile(r"[^\d.\-]")
+
+
+def _diff_value_to_sigma(curr: Any, prev: Any) -> float:
+    """Numeric-tolerant relative-change magnitude for value text.
+
+    Strips non-numeric chars from string values ("35.73%" → 35.73,
+    "$113.95" → 113.95, "৳15,400" → 15400) before diffing. Returns
+    `min(abs(a - b) / max(|b|, 0.5), 1.0)` so a 5% relative move scores ~0.05
+    and anything past 100% relative move clamps to 1.0.
+
+    Returns 0.0 when either side is unparseable, both sides parse equal, or
+    prev is None — i.e. when no comparison is possible the lens scorer sees
+    no magnitude signal, same as today's pre-fix behavior.
+
+    Special case: prev numerically zero → return abs(curr) (clamped to 1.0)
+    so a metric moving from 0 to non-zero registers as movement, not /0 NaN.
+    """
+    a = _parse_numeric(curr)
+    b = _parse_numeric(prev)
+    if a is None or b is None:
         return 0.0
-    try:
-        if isinstance(delta_pct, (int, float)):
-            return abs(float(delta_pct) / 2.0)
-        return abs(float(str(delta_pct).strip("%+")) / 2.0)
-    except (ValueError, TypeError):
-        return 0.0
+    if abs(b) < 1e-9:
+        return min(abs(a), 1.0)
+    return min(abs(a - b) / max(abs(b), 0.5), 1.0)
+
+
+def _parse_numeric(v: Any) -> float | None:
+    """Best-effort parse of a numeric or numeric-prefixed string. None on failure."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        stripped = _NUMERIC_STRIP.sub("", v)
+        if not stripped or stripped in {".", "-", ".-", "-."}:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return None
+    return None
 
 
 def _call_with_retries(
