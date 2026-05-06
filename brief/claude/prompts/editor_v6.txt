@@ -86,6 +86,8 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
 
 The lens for today is supplied as `today_lens` in the input. The section whose slug matches `today_lens` is the hero. Set `weight=2` on that section and `weight=1` on all others. The cover_metric MUST come from the hero section. Within the hero section, pick the most newsworthy metric — the system handles freshness and "what changed" downstream; you don't need to second-guess.
 
+**Do not pick a metric flagged `is_held_over: true` as cover_metric.** Such a metric was already featured in a recent issue with the same value (it's a quarterly/monthly print that hasn't refreshed). Prefer the next most newsworthy metric in the hero section that has `is_held_over: false`. If every metric in the hero section is held-over, pick the metric with the highest absolute change vs the previous brief, even if smaller in headline-value terms.
+
 If `today_lens` is `weekly_wrap`, use a different prompt — you should not be reading this one on Friday.
 
 ## Today's editorial frame
