@@ -321,3 +321,81 @@ def test_run_max_effort_kwarg_overrides_default():
     args = mock_run.call_args.args[0]
     idx = args.index("--effort")
     assert args[idx + 1] == "medium"
+
+
+# ─── _extract_json_object (preamble-tolerant JSON extraction) ───────────
+
+
+class TestExtractJsonObject:
+    """Unit tests for _extract_json_object — handles model preamble like
+    'I will audit the brief now.\n\n{...}' that breaks json.loads."""
+
+    def test_bare_json_object(self):
+        from brief.claude.max_client import _extract_json_object
+        assert _extract_json_object('{"a":1}') == '{"a":1}'
+
+    def test_preamble_then_json(self):
+        from brief.claude.max_client import _extract_json_object
+        text = "Running the audit now.\n\n{\"verdict\":\"pass\",\"issues\":[]}"
+        assert _extract_json_object(text) == '{"verdict":"pass","issues":[]}'
+
+    def test_nested_object(self):
+        from brief.claude.max_client import _extract_json_object
+        text = 'preamble\n\n{"a":{"b":[1,2,3]},"c":"x"}'
+        assert _extract_json_object(text) == '{"a":{"b":[1,2,3]},"c":"x"}'
+
+    def test_handles_braces_inside_strings(self):
+        """A } inside a string value must not be treated as the closing brace."""
+        from brief.claude.max_client import _extract_json_object
+        text = 'preface {"msg":"a } b"} trailing'
+        assert _extract_json_object(text) == '{"msg":"a } b"}'
+
+    def test_handles_escaped_quotes_in_strings(self):
+        from brief.claude.max_client import _extract_json_object
+        text = 'preface {"msg":"a\\"b"} trailing'
+        assert _extract_json_object(text) == '{"msg":"a\\"b"}'
+
+    def test_returns_none_when_no_object_present(self):
+        from brief.claude.max_client import _extract_json_object
+        assert _extract_json_object("just some prose, no JSON here") is None
+
+    def test_returns_none_when_braces_unbalanced(self):
+        from brief.claude.max_client import _extract_json_object
+        assert _extract_json_object('preface {"a":1') is None
+
+    def test_picks_first_top_level_object_only(self):
+        """When two JSON objects appear concatenated, return the first complete one."""
+        from brief.claude.max_client import _extract_json_object
+        text = '{"first":1}{"second":2}'
+        assert _extract_json_object(text) == '{"first":1}'
+
+
+# ─── run_max preamble fallback ──────────────────────────────────────────
+
+
+def test_run_max_recovers_parsed_dict_from_preambled_json():
+    """The subeditor occasionally writes prose before the JSON. Verify run_max
+    extracts the JSON object and returns parsed != None."""
+    preambled = "I will audit the editor's output now.\n\n" \
+                '{"verdict":"pass","issues":[]}'
+    fake_completed = _fake_completed(json.dumps({
+        "result": preambled, "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed):
+        result = run_max(prompt="audit this")
+    assert result.parsed == {"verdict": "pass", "issues": []}
+    # raw_text preserves the original (with preamble) for debugging
+    assert "I will audit" in result.raw_text
+
+
+def test_run_max_returns_none_when_response_has_no_json_object():
+    """If the response is pure prose with no { } at all, parsed is None
+    (existing behavior — caller decides how to handle)."""
+    fake_completed = _fake_completed(json.dumps({
+        "result": "I cannot complete this task.", "total_cost_usd": 0.0,
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }))
+    with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed):
+        result = run_max(prompt="ask")
+    assert result.parsed is None
