@@ -34,6 +34,11 @@ from brief.schema import Metric, SectionData
     [
         # Quarterly + unchanged → held
         ("quarterly", "35.73%", "35.73%", True),
+        # Quarterly + numeric vs string → held (V5 builders emit floats,
+        # previous brief stores editor-formatted strings)
+        ("quarterly", 35.73, "35.73%", True),
+        ("quarterly", 1.56, "1.56%", True),
+        ("quarterly", 35.73, "35.73", True),
         # Monthly + unchanged → held
         ("monthly", "120.50", "120.50", True),
         # Daily + unchanged → NOT held (daily metrics SHOULD move; if they don't,

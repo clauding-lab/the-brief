@@ -262,8 +262,10 @@ def _compute_is_held_over(curr_value: Any, prev_value: Any, cadence: Any) -> boo
         there is a freshness issue, not a held-over case)
       - There IS a previous brief value to compare against (cold start →
         nothing is held)
-      - The current value text equals the previous value text exactly (no
-        numeric tolerance — a re-published "35.73%" is the same print)
+      - Current and previous values match — compared numerically when both
+        parse as numbers (V5 builders emit floats like 35.73; previous brief
+        stores editor-formatted strings like "35.73%"), with string equality
+        as a fallback for non-numeric values
 
     Editor reads `is_held_over=True` and skips the metric for cover_metric.
     """
@@ -271,6 +273,10 @@ def _compute_is_held_over(curr_value: Any, prev_value: Any, cadence: Any) -> boo
         return False
     if cadence not in _HELD_OVER_CADENCES:
         return False
+    curr_num = _parse_numeric(curr_value)
+    prev_num = _parse_numeric(prev_value)
+    if curr_num is not None and prev_num is not None:
+        return abs(curr_num - prev_num) < 1e-6
     return curr_value == prev_value
 
 
