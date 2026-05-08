@@ -6,17 +6,17 @@ from brief.schema import MapCoord, SectionData
 
 
 @pytest.mark.integration
-def test_gather_returns_12_sections(fixture_snapshot, today):
+def test_gather_returns_13_sections(fixture_snapshot, today):
     cfg = PipelineConfig(today=today, enable_history=False, enable_headlines=False)
     sections = gather(cfg, snapshot_override=fixture_snapshot)
-    assert len(sections) == 12
+    assert len(sections) == 13
     ids = [s.id for s in sections]
-    # Post-2026-05-08 (Phase A): fiscal/remit/comm promoted back to spine.
-    # dam/nbr remain excluded.
+    # Post-2026-05-08 (Phase A.5): fiscal/remit/comm/nbr promoted back to spine.
+    # dam remains excluded.
     assert ids == [
         "bb", "macro", "fx", "dse", "tbond", "iranwar",
         "headlines", "exec",
-        "fiscal", "remit", "comm",
+        "fiscal", "remit", "comm", "nbr",
         "banking",
     ]
     for s in sections:

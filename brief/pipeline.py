@@ -24,7 +24,7 @@ _RISK_MAP_EXCLUDED: frozenset[str] = frozenset({"exec", "headlines"})
 
 
 def _risk_map_sections(sections: list) -> list:
-    """Subset of sections eligible for the Risk Map (12 of 14 builders)."""
+    """Subset of sections eligible for the Risk Map (excludes exec + headlines)."""
     return [s for s in sections if s.id not in _RISK_MAP_EXCLUDED]
 
 

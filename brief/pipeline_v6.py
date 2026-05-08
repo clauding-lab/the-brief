@@ -46,6 +46,7 @@ V5_TO_V6: dict[str, tuple[str, int, str]] = {
     "iranwar":   ("iran",      10, "policy"),
     "remit":     ("remit",     11, "markets"),
     "comm":      ("comm",      12, "markets"),
+    "nbr":       ("nbr",       13, "policy"),
 }
 
 
