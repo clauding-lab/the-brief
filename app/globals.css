@@ -410,9 +410,10 @@ body { background: var(--paper); color: var(--ink); }
 .tb-cover {
   padding: 48px 0 56px;
   border-bottom: 1px solid var(--rule);
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid; grid-template-columns: 1fr;
   gap: 48px; align-items: end;
 }
+.tb-cover:empty { display: none; }
 .tb-cover .lede { font-size: 13px; line-height: 1.55; color: var(--ink-2); max-width: 460px; text-wrap: pretty; }
 .tb-cover .bignum {
   font-size: clamp(96px, 13vw, 200px);
