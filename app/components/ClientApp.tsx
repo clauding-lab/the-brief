@@ -160,17 +160,20 @@ export function ClientApp({ initialData }: ClientAppProps) {
   }, []);
 
   const snapshotSection = data.sections.find((s) => s.slug === "snapshot");
-  const bodySections = data.sections.filter((s) => s.slug !== "snapshot");
+  const bodySections = data.sections.filter(
+    (s) => s.slug !== "snapshot" && s.slug !== "nbr"
+  );
   const groupedSections = GROUP_ORDER.map((key) => ({
     key,
     sections: bodySections.filter((s) => s.group_key === key),
   })).filter((g) => g.sections.length > 0);
 
   // Sequential section numbers (1, 2, 3, …) based on rendered body order.
-  // Backend `ord` has gaps (V5_TO_V6 reserves slots for not-yet-shipped builders);
-  // the SPA renumbers sequentially so the eyebrow reads §01, §02, … with no gaps.
+  // bodySections is ord-sorted but the body renders group-grouped, so build
+  // the display map from the flattened render order — otherwise labels skip.
+  const flatRenderOrder = groupedSections.flatMap((g) => g.sections);
   const displayOrdBySlug = new Map<string, number>(
-    bodySections.map((s, i) => [s.slug, i + 1])
+    flatRenderOrder.map((s, i) => [s.slug, i + 1])
   );
 
   return (

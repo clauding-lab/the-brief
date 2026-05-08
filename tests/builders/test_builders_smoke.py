@@ -23,7 +23,7 @@ def test_builder_smokes(bid, ctx):
         "dse": "dse", "tbond": "tbond", "iranwar": "iranwar",
         "headlines": "headlines", "exec": "exec",
         "comm": "comm", "banking": "banking",
-        "dam": "dam", "fiscal": "fiscal", "nbr": "nbr",
+        "dam": "dam", "fiscal": "fiscal",
     }[bid]
     assert section.freshness in (
         "fresh", "warning", "stale", "pending", "unavailable", "warming_up"

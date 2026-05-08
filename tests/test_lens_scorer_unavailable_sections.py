@@ -81,9 +81,9 @@ def _fresh_section(slug: str, *, mag: float = 1.0) -> dict[str, Any]:
 
 def test_unavailable_sections_lose_to_fresh_section_midweek() -> None:
     """Realistic combined case (held=True): unavailable sections score 0 via
-    BOTH freshness=0.0 AND signal=0.0. Mirrors the operational Phase A.5
-    layout where fiscal/remit/comm/nbr have no recent values and the only
-    fresh signal is bb (banking).
+    BOTH freshness=0.0 AND signal=0.0. Mirrors the operational layout where
+    fiscal/remit/comm have no recent values and the only fresh signal is bb
+    (banking).
 
     Note: for the freshness=0 contract in isolation, see
     test_unavailable_section_loses_via_freshness_zero_alone below.
@@ -93,7 +93,6 @@ def test_unavailable_sections_lose_to_fresh_section_midweek() -> None:
         _unavailable_section("fiscal", mag=2.0),
         _unavailable_section("remit", mag=2.0),
         _unavailable_section("comm", mag=2.0),
-        _unavailable_section("nbr", mag=2.0),
         _fresh_section("bb", mag=1.0),
     ]
 
@@ -103,8 +102,8 @@ def test_unavailable_sections_lose_to_fresh_section_midweek() -> None:
         f"Fresh 'bb' must beat unavailable sections regardless of their σ-mag; "
         f"got lens={lens!r}, breakdown={breakdown}"
     )
-    assert lens not in {"fiscal", "remit", "comm", "nbr"}
-    for unavail_slug in ("fiscal", "remit", "comm", "nbr"):
+    assert lens not in {"fiscal", "remit", "comm"}
+    for unavail_slug in ("fiscal", "remit", "comm"):
         assert breakdown[unavail_slug]["score"] == 0.0, (
             f"{unavail_slug} should score 0.0; breakdown={breakdown}"
         )
@@ -154,7 +153,6 @@ def test_all_unavailable_falls_back_to_previous_lens() -> None:
         _unavailable_section("fiscal", mag=0.0),
         _unavailable_section("remit", mag=0.0),
         _unavailable_section("comm", mag=0.0),
-        _unavailable_section("nbr", mag=0.0),
     ]
 
     lens, breakdown = score_lens(sections, today=today, previous_lens="iran")
@@ -177,13 +175,12 @@ def test_all_unavailable_no_previous_lens_falls_back_to_alpha() -> None:
     sections = [
         _unavailable_section("remit", mag=0.0),
         _unavailable_section("comm", mag=0.0),
-        _unavailable_section("nbr", mag=0.0),
         _unavailable_section("fiscal", mag=0.0),
     ]
 
     lens, breakdown = score_lens(sections, today=today, previous_lens=None)
 
-    # Alphabetically first among {comm, fiscal, nbr, remit} is "comm".
+    # Alphabetically first among {comm, fiscal, remit} is "comm".
     assert lens == "comm", (
         f"Expected alphabetically first slug 'comm', got {lens!r}; "
         f"breakdown={breakdown}"

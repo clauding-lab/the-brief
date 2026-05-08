@@ -8,7 +8,7 @@ from __future__ import annotations
 SPINE_BUILDER_IDS: tuple[str, ...] = (
     "bb", "macro", "fx", "dse", "tbond", "iranwar",
     "headlines", "exec",
-    "fiscal", "remit", "comm", "nbr",
+    "fiscal", "remit", "comm",
 )
 
 KEEP_BUILDER_IDS: tuple[str, ...] = ("banking",)

@@ -383,7 +383,7 @@ def _make_section(slug: str, ord_v6: int, group: str) -> SectionV6:
 
 
 def _full_brief() -> BriefPayloadV6:
-    """A 12-section brief covering the V5_TO_V6 roster."""
+    """An 11-section brief covering the V5_TO_V6 roster."""
     sections: list[SectionV6] = [
         _make_section("headlines", 2, "overview"),
         _make_section("bb", 3, "banking"),
@@ -396,7 +396,6 @@ def _full_brief() -> BriefPayloadV6:
         _make_section("iran", 10, "policy"),
         _make_section("remit", 11, "markets"),
         _make_section("comm", 12, "markets"),
-        _make_section("nbr", 13, "policy"),
     ]
     return BriefPayloadV6(
         brief=BriefV6(issue_no=1, volume=1, brief_date=TODAY),
@@ -457,7 +456,7 @@ def test_stamp_chart_series_populates_5_sections_only(
     assert by_slug["comm"].series == lng_series
 
     # Non-chartable: empty
-    for slug in ("headlines", "bb", "banking", "fiscal", "macro", "remit", "nbr"):
+    for slug in ("headlines", "bb", "banking", "fiscal", "macro", "remit"):
         assert by_slug[slug].series == [], f"{slug} should have empty series"
         assert by_slug[slug].notes == [], f"{slug} should have empty notes"
 
