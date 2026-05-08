@@ -41,8 +41,11 @@ V5_TO_V6: dict[str, tuple[str, int, str]] = {
     "fx":        ("fx",        5, "markets"),
     "dse":       ("dse",       6, "markets"),
     "tbond":     ("tbond",     7, "markets"),
+    "fiscal":    ("fiscal",    8, "policy"),
     "macro":     ("macro",     9, "markets"),
     "iranwar":   ("iran",      10, "policy"),
+    "remit":     ("remit",     11, "markets"),
+    "comm":      ("comm",      12, "markets"),
 }
 
 

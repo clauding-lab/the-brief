@@ -149,7 +149,7 @@ Other sections (banking, bb, fx, etc.) cap their news at **4 items each** — sa
 
 The input JSON below has these top-level keys:
 - `today`: ISO date string
-- `today_lens`: the slug of today's hero section (e.g. "banking", "iran", "fx"). Pre-computed by a deterministic scorer; you MUST honor it.
+- `today_lens`: the slug of today's hero section (e.g. "banking", "iran", "fx", "fiscal", "remit", "comm"). Pre-computed by a deterministic scorer; you MUST honor it.
 - `previous_brief`: yesterday's published brief (or null if first run); use for hero context (NOT for diff signaling — that is system-stamped post-LLM)
 - `sections_raw`: array of section build outputs from the deterministic builders. Each has slug/ord/title/group_key/freshness/metrics/news/series/notes. Pass-through fields: ord, slug, title, group_key, series, notes.
 - `scraped_headlines`: pool of candidate headlines for the headlines section, already filtered upstream against the last 5 issues.
