@@ -22,7 +22,7 @@ _BD_TRADING_WEEKDAYS = {6, 0, 1, 2, 3}
 # not a data error. Expected to resolve after ~7 V4 pipeline runs.
 # ---------------------------------------------------------------------------
 SECTIONS_WITHOUT_LEGACY_BACKFILL: frozenset[str] = frozenset({
-    "banking", "macro", "dam", "remit", "fiscal", "nbr"
+    "banking", "macro", "dam", "remit", "fiscal"
 })
 
 

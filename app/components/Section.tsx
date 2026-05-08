@@ -37,7 +37,12 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
   // when not provided by the parent (defensive; ClientApp always supplies it).
   const ordLabel = String(displayOrd ?? ord).padStart(2, "0");
 
-  if (freshness === "unavailable") {
+  // Dead-section collapse only when there's truly nothing to show. If chart
+  // data is present (e.g. comm has LNG history but a sibling metric like
+  // BAJUS gold went None and dragged section_freshness to "unavailable"),
+  // fall through to the normal render so the chart + remaining metrics
+  // still appear.
+  if (freshness === "unavailable" && series.length === 0) {
     return (
       <section
         id={slug}
