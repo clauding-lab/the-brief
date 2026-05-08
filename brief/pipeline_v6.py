@@ -284,6 +284,27 @@ def _compute_is_held_over(curr_value: Any, prev_value: Any, cadence: Any) -> boo
     return curr_value == prev_value
 
 
+def _stamp_freshness(final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]) -> None:
+    """Mutate `final_brief.sections[i].freshness` in place by slug lookup.
+
+    `raw_sections` is the V6-shape list emitted by `_to_v6_raw` — each dict
+    carries `slug` and `freshness` (the V5-derived label). The editor doesn't
+    set freshness on its output; we propagate the deterministic V5 signal here,
+    post-LLM, so the SPA can collapse dead sections (Phase D.2).
+
+    Only sets when raw provides a non-None freshness value — preserves any
+    existing value when raw omits the key or carries None. Sections present
+    in `final_brief` but not in `raw_sections` are also left untouched.
+    """
+    freshness_by_slug: dict[str, Any] = {
+        s["slug"]: s.get("freshness") for s in raw_sections if "slug" in s
+    }
+    for section in final_brief.sections:
+        fresh = freshness_by_slug.get(section.slug)
+        if fresh is not None:
+            section.freshness = fresh
+
+
 def _call_with_retries(
     *,
     label: str,
@@ -418,10 +439,13 @@ def run_publish(
     # ── Post-LLM: deterministic diff + held-over stamping ──────────
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
+    _stamp_freshness(final_brief, editor_input["sections_raw"])
     logger.info(
-        "v6: stamp_changed + mark_held_overs done; changed_news=%d, held_metrics=%d",
+        "v6: stamp_changed + mark_held_overs + stamp_freshness done; "
+        "changed_news=%d, held_metrics=%d, unavailable_sections=%d",
         sum(1 for s in final_brief.sections for n in s.news if n.changed),
         sum(1 for s in final_brief.sections for m in s.metrics if m.held_from),
+        sum(1 for s in final_brief.sections if s.freshness == "unavailable"),
     )
 
     # If every metric in the hero (weight=2) section is unchanged from the
