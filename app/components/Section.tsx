@@ -27,7 +27,27 @@ export function Section({ section, diffMode }: SectionProps) {
     tldr,
     summary_pills,
     analysis,
+    freshness,
   } = section;
+
+  if (freshness === "unavailable") {
+    return (
+      <section
+        id={slug}
+        className={`tb-section is-unavailable${diffMode ? " is-diff" : ""}`}
+        data-section-slug={slug}
+        data-screen-label={`§${String(ord).padStart(2, "0")} ${title}`}
+      >
+        <div className="tb-section-head">
+          <div>
+            <div className="eyebrow">§{String(ord).padStart(2, "0")}</div>
+            <h2 className="tb-section-title">{title}</h2>
+          </div>
+        </div>
+        <p className="tb-unavailable-note">No fresh data this issue</p>
+      </section>
+    );
+  }
 
   const hasChart = series && series.length > 1;
   const seriesKey = hasChart ? series[0].key : null;

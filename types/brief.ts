@@ -1,5 +1,6 @@
 export type Tone = "bull" | "bear" | "warn" | "neu";
 export type SectionGroup = "overview" | "banking" | "markets" | "realeco" | "policy";
+export type FreshnessKind = "fresh" | "warning" | "stale" | "unavailable" | "warming_up";
 export type DataSource = "static" | "cache" | "live";
 
 export interface CoverMetric {
@@ -85,6 +86,7 @@ export interface Section {
   ord: number;
   title: string;
   group_key: SectionGroup;
+  freshness?: FreshnessKind;
   verdict?: string;
   verdict_tone?: Tone;
   banker_read?: BankerRead | null;

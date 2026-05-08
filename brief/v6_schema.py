@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Tone = Literal["bull", "bear", "warn", "neu"]
 SectionGroup = Literal["overview", "banking", "markets", "realeco", "policy"]
+FreshnessKind = Literal["fresh", "warning", "stale", "unavailable", "warming_up"]
 
 
 class _Strict(BaseModel):
@@ -115,6 +116,7 @@ class SectionV6(_Strict):
     ord: int = Field(ge=1, le=18)
     title: str
     group_key: SectionGroup
+    freshness: Optional[FreshnessKind] = None
     verdict: Optional[str] = None
     verdict_tone: Optional[Tone] = None
     banker_read: Optional[BankerReadV6] = None
