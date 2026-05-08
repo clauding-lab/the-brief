@@ -79,7 +79,7 @@ function groupSeries(series: SeriesPoint[]): SeriesByKey {
   return out;
 }
 
-export function BriefChart({ section, configKey, height = 220 }: BriefChartProps) {
+export function BriefChart({ section, configKey, height = 280 }: BriefChartProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
 

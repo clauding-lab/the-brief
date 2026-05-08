@@ -141,7 +141,7 @@ function baseLineOptions(opts: BaseLineOptionsArgs = {}) {
   return {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 240 },
+    animation: { duration: 300 },
     interaction: { mode: "index" as const, intersect: false },
     spanGaps: true,
     elements: {
@@ -370,10 +370,8 @@ function makeEventMarkersPlugin(
         c.$hoveredMarkerIdx = nearest;
         args.changed = true;
       }
-      const canvas = c.canvas;
-      if (canvas) {
-        canvas.style.cursor = nearest != null ? "pointer" : "";
-      }
+      // No pointer cursor — markers aren't clickable. Hover-only feedback
+      // comes from the label box that pops above the marker.
     },
   };
 }
@@ -580,7 +578,7 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 240 },
+    animation: { duration: 300 },
     interaction: { mode: "nearest" as const, intersect: false, axis: "x" as const },
     parsing: false as const,
     elements: {
@@ -714,6 +712,43 @@ export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
   iran: "brent",
   tbond: "yieldCurve",
   comm: "lng",
+};
+
+// Per-chart card-head metadata — mirrors EconDelta /macro's FIG.NN + title
+// + subtitle pattern. FIG numbers are stable across issues and follow the
+// brief's body-render order (fx → dse → tbond → comm → iran).
+export interface ChartCardHead {
+  fig: string;
+  title: string;
+  subtitle?: string;
+}
+
+export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
+  fx: {
+    fig: "01",
+    title: "FX Flows",
+    subtitle: "Monthly · export · remittance · import (USD mn)",
+  },
+  dse: {
+    fig: "02",
+    title: "DSEX Index",
+    subtitle: "Daily close · with event markers",
+  },
+  tbond: {
+    fig: "03",
+    title: "BD Govt Yield Curve",
+    subtitle: "Latest snapshot · 2Y to 20Y",
+  },
+  comm: {
+    fig: "04",
+    title: "LNG JKM",
+    subtitle: "Weekly · USD/MMBtu",
+  },
+  iran: {
+    fig: "05",
+    title: "Brent Crude",
+    subtitle: "Daily · USD/bbl · last 90 days",
+  },
 };
 
 // Internal exports — used by tests & BriefChart wrapper. Not part of the

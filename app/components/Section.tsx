@@ -5,7 +5,7 @@ import { Mark } from "./Mark";
 import { BankerRead } from "./BankerRead";
 import { SignatureChart } from "./SignatureChart";
 import { BriefChart } from "./BriefChart";
-import { SECTION_TO_CHART } from "@/lib/chartConfigs";
+import { SECTION_TO_CHART, CHART_CARD_HEADS } from "@/lib/chartConfigs";
 import { formatNewsMeta } from "@/lib/format";
 
 interface SectionProps {
@@ -111,10 +111,32 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
 
       <div className={`tb-section-grid ${hasChart ? "" : "no-chart"}`}>
         {hasChart ? (
-          <div>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>
-              {title.toUpperCase()} — 12 months
-            </div>
+          <div className="tb-chart-card">
+            {(() => {
+              const head = CHART_CARD_HEADS[slug];
+              const latest = metrics[0];
+              if (head) {
+                return (
+                  <div className="tb-chart-card-head">
+                    <span className="tb-chart-fig">FIG.{head.fig}</span>
+                    <h3 className="tb-chart-title">{head.title}</h3>
+                    {head.subtitle && (
+                      <div className="tb-chart-sub">{head.subtitle}</div>
+                    )}
+                    {latest && (
+                      <div className="tb-chart-latest">
+                        Latest: {latest.label} {latest.value}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div className="eyebrow" style={{ marginBottom: 10 }}>
+                  {title.toUpperCase()} — 12 months
+                </div>
+              );
+            })()}
             {SECTION_TO_CHART[slug] ? (
               <BriefChart section={section} configKey={SECTION_TO_CHART[slug]!} />
             ) : (
