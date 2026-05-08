@@ -4,6 +4,8 @@ import { Hair } from "./Hair";
 import { Mark } from "./Mark";
 import { BankerRead } from "./BankerRead";
 import { SignatureChart } from "./SignatureChart";
+import { BriefChart } from "./BriefChart";
+import { SECTION_TO_CHART } from "@/lib/chartConfigs";
 import { formatNewsMeta } from "@/lib/format";
 
 interface SectionProps {
@@ -108,7 +110,11 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
             <div className="eyebrow" style={{ marginBottom: 10 }}>
               {title.toUpperCase()} — 12 months
             </div>
-            <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
+            {SECTION_TO_CHART[slug] ? (
+              <BriefChart section={section} configKey={SECTION_TO_CHART[slug]!} />
+            ) : (
+              <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
+            )}
           </div>
         ) : (
           <div

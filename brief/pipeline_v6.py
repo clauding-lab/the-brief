@@ -13,13 +13,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from datetime import date as date_t
 from typing import Any
 
-from brief import pipeline as _pipeline
+from brief import chart_series_fetcher, pipeline as _pipeline
 from brief.claude.max_client import MaxCallError, run_max
+from brief.history import HttpClient, UrllibHttp
 from brief.schema import SectionData
 from brief.v6_publisher import (
     PublishError,
@@ -305,6 +307,86 @@ def _stamp_freshness(final_brief: BriefPayloadV6, raw_sections: list[dict[str, A
             section.freshness = fresh
 
 
+# ─── Phase E.2 — chart series enricher ────────────────────────────────
+# Per-slug chart fetcher dispatch. Sections not in this map skip chart_series
+# stamping (frontend hides the chart slot when series is empty). The values
+# correspond to function names on the `chart_series_fetcher` module — we look
+# them up dynamically so test monkeypatching just works.
+_CHART_FETCHERS_BY_SLUG: dict[str, str] = {
+    "fx": "fx_flows",
+    "dse": "dsex",
+    "iran": "brent",
+    "tbond": "yield_curve",
+    "comm": "lng",
+}
+
+
+def _stamp_chart_series(
+    final_brief: BriefPayloadV6,
+    *,
+    today: date_t,
+    http: HttpClient,
+    supabase_url: str,
+    service_key: str,
+) -> None:
+    """Fetch time-series from Supabase for chartable sections; stamp in place.
+
+    Iterates final_brief.sections; for each slug present in
+    `_CHART_FETCHERS_BY_SLUG`, dispatches the matching `chart_series_fetcher.*`
+    function and assigns the result to `section.series` (and `section.notes`
+    for the dse fetcher which returns both).
+
+    Failures on individual fetchers log a warning and leave that section's
+    series empty — graceful degradation, one bad scrape does not break the
+    whole publish.
+    """
+    for section in final_brief.sections:
+        fn_suffix: str | None = _CHART_FETCHERS_BY_SLUG.get(section.slug)
+        if fn_suffix is None:
+            continue
+        fn_name: str = f"fetch_{fn_suffix}"
+        try:
+            fn = getattr(chart_series_fetcher, fn_name)
+            if fn_suffix == "dsex":
+                series, notes = fn(
+                    http=http,
+                    supabase_url=supabase_url,
+                    service_key=service_key,
+                    today=today,
+                )
+                section.series = series
+                section.notes = notes
+            else:
+                series = fn(
+                    http=http,
+                    supabase_url=supabase_url,
+                    service_key=service_key,
+                    today=today,
+                )
+                section.series = series
+        except Exception:  # noqa: BLE001 — graceful degradation per spec
+            logger.warning(
+                "v6: chart series fetcher failed for slug=%s (fn=%s)",
+                section.slug,
+                fn_name,
+                exc_info=True,
+            )
+
+
+def _resolve_supabase_config() -> tuple[str, str] | None:
+    """Read SUPABASE_URL + service key from env. Returns None when missing
+    so the chart enricher can skip gracefully (degraded charts != fatal).
+    """
+    url: str | None = os.environ.get("SUPABASE_URL")
+    key: str | None = (
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("SUPABASE_SERVICE_KEY")
+    )
+    if not url or not key:
+        return None
+    return url, key
+
+
 def _call_with_retries(
     *,
     label: str,
@@ -440,12 +522,32 @@ def run_publish(
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
     _stamp_freshness(final_brief, editor_input["sections_raw"])
+
+    # Phase E.2 — chart series enricher. Skip silently when supabase env is
+    # missing (e.g. dry-run from a workstation without secrets). Charts are
+    # render-layer data; degraded charts must not block a publish.
+    supabase_cfg: tuple[str, str] | None = _resolve_supabase_config()
+    if supabase_cfg is None:
+        logger.warning(
+            "v6: skipping chart series stamp — SUPABASE_URL or service key missing in env"
+        )
+    else:
+        supabase_url, service_key = supabase_cfg
+        _stamp_chart_series(
+            final_brief,
+            today=today,
+            http=UrllibHttp(),
+            supabase_url=supabase_url,
+            service_key=service_key,
+        )
+
     logger.info(
-        "v6: stamp_changed + mark_held_overs + stamp_freshness done; "
-        "changed_news=%d, held_metrics=%d, unavailable_sections=%d",
+        "v6: stamp_changed + mark_held_overs + stamp_freshness + stamp_chart_series done; "
+        "changed_news=%d, held_metrics=%d, unavailable_sections=%d, chart_sections=%d",
         sum(1 for s in final_brief.sections for n in s.news if n.changed),
         sum(1 for s in final_brief.sections for m in s.metrics if m.held_from),
         sum(1 for s in final_brief.sections if s.freshness == "unavailable"),
+        sum(1 for s in final_brief.sections if s.series),
     )
 
     # If every metric in the hero (weight=2) section is unchanged from the
