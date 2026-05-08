@@ -166,6 +166,13 @@ export function ClientApp({ initialData }: ClientAppProps) {
     sections: bodySections.filter((s) => s.group_key === key),
   })).filter((g) => g.sections.length > 0);
 
+  // Sequential section numbers (1, 2, 3, …) based on rendered body order.
+  // Backend `ord` has gaps (V5_TO_V6 reserves slots for not-yet-shipped builders);
+  // the SPA renumbers sequentially so the eyebrow reads §01, §02, … with no gaps.
+  const displayOrdBySlug = new Map<string, number>(
+    bodySections.map((s, i) => [s.slug, i + 1])
+  );
+
   return (
     <div className="tb-shell">
       <a href="#cover" className="tb-skip">
@@ -173,7 +180,12 @@ export function ClientApp({ initialData }: ClientAppProps) {
       </a>
       <StickyBar brief={data.brief} source={data._source} visible={stickyVisible} />
       <main id="content" className="tb-body">
-        <Masthead brief={data.brief} source={data._source} sections={data.sections} />
+        <Masthead
+          brief={data.brief}
+          source={data._source}
+          sections={data.sections}
+          displayOrdBySlug={displayOrdBySlug}
+        />
         <SnapshotStrip section={snapshotSection} />
         <SecNav
           sections={data.sections}
@@ -181,6 +193,7 @@ export function ClientApp({ initialData }: ClientAppProps) {
           onJump={jump}
           diffMode={diffMode}
           onToggleDiff={() => setDiffMode((v) => !v)}
+          displayOrdBySlug={displayOrdBySlug}
         />
         <Cover brief={data.brief} sections={data.sections} />
         {groupedSections.map(({ key, sections }) => (
@@ -190,7 +203,12 @@ export function ClientApp({ initialData }: ClientAppProps) {
               <span className="tb-group-rule" aria-hidden="true" />
             </div>
             {sections.map((s) => (
-              <Section key={s.slug} section={s} diffMode={diffMode} />
+              <Section
+                key={s.slug}
+                section={s}
+                diffMode={diffMode}
+                displayOrd={displayOrdBySlug.get(s.slug)}
+              />
             ))}
           </div>
         ))}
