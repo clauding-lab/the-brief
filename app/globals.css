@@ -539,30 +539,24 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 .tb-kpi-value { font-size: 26px; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 
 .tb-news-rail { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 36px; padding-top: 22px; }
-.tb-news-item { display: block; }
+.tb-news-item { display: block; color: inherit; text-decoration: none; }
 .tb-news-item > div { min-width: 0; }
+.tb-news-item[href]:hover .tb-news-headline {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-3);
+  text-underline-offset: 3px;
+}
 .tb-news-headline { font-size: 13px; line-height: 1.45; text-wrap: pretty; }
 .tb-news-detail { font-size: 11.5px; line-height: 1.5; color: var(--ink-2); margin-top: 4px; text-wrap: pretty; }
 .tb-news-meta { font-size: 10.5px; color: var(--ink-3); margin-top: 6px; letter-spacing: 0.08em; }
 
-/* V6 enrichment — Headlines lead-with-dek (first news in headlines section) */
-.tb-news-rail.is-headlines .tb-news-item:first-child {
+/* Headlines section: 4-col grid spanning full outer-grid width
+   (no metrics rail to fill the right side, so headlines uses both columns).
+   16 headlines total — 4 per column × 4 rows. */
+.tb-news-rail.is-headlines {
   grid-column: 1 / -1;
-  border-bottom: 1px solid var(--rule-soft);
-  padding-bottom: 22px;
-  margin-bottom: 4px;
-}
-.tb-news-rail.is-headlines .tb-news-item:first-child .tb-news-headline {
-  font-size: 22px;
-  font-weight: 300;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-}
-.tb-news-rail.is-headlines .tb-news-item:first-child .tb-news-detail {
-  font-size: 13px;
-  margin-top: 8px;
-  color: var(--ink-2);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px 28px;
 }
 
 /* ─── BANKER'S READ ────────────────────────────────────── */
@@ -841,6 +835,7 @@ body.tb-diff .tb-section .tb-kpi-row.is-held-over {
   .tb-group + .tb-group { margin-top: 44px; }
   .tb-section-grid, .tb-section-grid.no-chart { grid-template-columns: 1fr; gap: 24px; }
   .tb-news-rail { grid-template-columns: 1fr; gap: 20px; }
+  .tb-news-rail.is-headlines { grid-template-columns: repeat(2, 1fr); }
   .tb-summary-pills { flex-direction: column; }
   .tb-summary-pill { border-right: 0; border-bottom: 1px solid var(--rule-soft); padding: 10px 0; }
   .tb-summary-pill:last-child { border-bottom: 0; }

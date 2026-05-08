@@ -110,9 +110,12 @@ export function Section({ section, diffMode }: SectionProps) {
             className={`tb-news-rail${slug === "headlines" ? " is-headlines" : ""}`}
             style={{ paddingTop: 22 }}
           >
-            {news.slice(0, slug === "headlines" ? 12 : 4).map((n, i) => (
-              <div
+            {news.slice(0, slug === "headlines" ? 16 : 4).map((n, i) => (
+              <a
                 key={i}
+                href={n.source_url || undefined}
+                target={n.source_url ? "_blank" : undefined}
+                rel={n.source_url ? "noopener noreferrer" : undefined}
                 className={`tb-news-item${
                   n.changed ? " is-changed" : n.held_from ? " is-held-over" : ""
                 }`}
@@ -126,7 +129,7 @@ export function Section({ section, diffMode }: SectionProps) {
                     {n.held_from && !n.changed ? ` · Held from ${n.held_from}` : ""}
                   </div>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         )}
@@ -169,8 +172,11 @@ export function Section({ section, diffMode }: SectionProps) {
           <Hair style={{ marginTop: 28 }} />
           <div className="tb-news-rail">
             {news.slice(0, 4).map((n, i) => (
-              <div
+              <a
                 key={i}
+                href={n.source_url || undefined}
+                target={n.source_url ? "_blank" : undefined}
+                rel={n.source_url ? "noopener noreferrer" : undefined}
                 className={`tb-news-item${
                   n.changed ? " is-changed" : n.held_from ? " is-held-over" : ""
                 }`}
@@ -184,7 +190,7 @@ export function Section({ section, diffMode }: SectionProps) {
                     {n.held_from && !n.changed ? ` · Held from ${n.held_from}` : ""}
                   </div>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         </>
