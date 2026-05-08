@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import type { BriefPayload } from "@/types/brief";
+import type { BriefPayload, SectionGroup } from "@/types/brief";
 import { getBrowserSupabase } from "@/lib/supabase";
 import { Masthead } from "./Masthead";
 import { StickyBar } from "./StickyBar";
@@ -13,6 +13,22 @@ import { SubscribeCTA } from "./SubscribeCTA";
 import { StatusBar } from "./StatusBar";
 
 const CACHE_KEY = "thebrief.lastBrief";
+
+const GROUP_ORDER: SectionGroup[] = [
+  "overview",
+  "banking",
+  "markets",
+  "realeco",
+  "policy",
+];
+
+const GROUP_LABELS: Record<SectionGroup, string> = {
+  overview: "Overview",
+  banking: "Banking",
+  markets: "Markets",
+  realeco: "Real Economy",
+  policy: "Policy",
+};
 
 interface ClientAppProps {
   initialData: BriefPayload;
@@ -145,6 +161,10 @@ export function ClientApp({ initialData }: ClientAppProps) {
 
   const snapshotSection = data.sections.find((s) => s.slug === "snapshot");
   const bodySections = data.sections.filter((s) => s.slug !== "snapshot");
+  const groupedSections = GROUP_ORDER.map((key) => ({
+    key,
+    sections: bodySections.filter((s) => s.group_key === key),
+  })).filter((g) => g.sections.length > 0);
 
   return (
     <div className="tb-shell">
@@ -163,8 +183,16 @@ export function ClientApp({ initialData }: ClientAppProps) {
           onToggleDiff={() => setDiffMode((v) => !v)}
         />
         <Cover brief={data.brief} sections={data.sections} />
-        {bodySections.map((s) => (
-          <Section key={s.slug} section={s} diffMode={diffMode} />
+        {groupedSections.map(({ key, sections }) => (
+          <div key={key} className="tb-group" data-group={key}>
+            <div className="tb-group-header">
+              <span className="tb-group-label">{GROUP_LABELS[key]}</span>
+              <span className="tb-group-rule" aria-hidden="true" />
+            </div>
+            {sections.map((s) => (
+              <Section key={s.slug} section={s} diffMode={diffMode} />
+            ))}
+          </div>
         ))}
         <SubscribeCTA volume={data.brief?.volume} issueNo={data.brief?.issue_no} />
       </main>

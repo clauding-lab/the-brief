@@ -47,7 +47,7 @@ export function Section({ section, diffMode }: SectionProps) {
       <div className="tb-section-head">
         <div>
           <div className="eyebrow">
-            §{String(ord).padStart(2, "0")} / 18
+            §{String(ord).padStart(2, "0")}
             {isHero && <span className="tb-hero-flag">Today&rsquo;s Lead</span>}
           </div>
           <h2 className="tb-section-title">{title}</h2>

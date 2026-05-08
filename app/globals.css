@@ -363,6 +363,15 @@ body { background: var(--paper); color: var(--ink); }
 .tb-tl-warn { background: var(--warn); }
 .tb-tl-neu  { background: var(--ink-4); }
 
+.tb-secnav-div {
+  width: 1px;
+  height: 14px;
+  background: var(--rule);
+  margin: 0 6px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
 .tb-diff-toggle {
   flex: 0 0 auto;
   margin: 6px 24px 6px 12px;
@@ -412,6 +421,26 @@ body { background: var(--paper); color: var(--ink); }
   line-height: 0.85;
 }
 .tb-cover .bignum .dot { color: var(--accent); }
+
+/* ─── SECTION GROUP ────────────────────────────────────── */
+.tb-group + .tb-group { margin-top: 64px; }
+.tb-group-header {
+  display: flex; align-items: center;
+  padding-top: 4px;
+}
+.tb-group-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  font-weight: 500;
+}
+.tb-group-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-soft);
+  margin-left: 12px;
+}
 
 /* ─── SECTION ──────────────────────────────────────────── */
 .tb-section { padding: 64px 0 56px; border-bottom: 1px solid var(--rule); scroll-margin-top: 110px; }
@@ -787,6 +816,7 @@ body.tb-diff .tb-section .tb-kpi-row.is-held-over {
   .tb-cover .bignum { font-size: 88px; }
   .tb-section { padding: 44px 0 36px; }
   .tb-section-title { font-size: 32px; }
+  .tb-group + .tb-group { margin-top: 44px; }
   .tb-section-grid, .tb-section-grid.no-chart { grid-template-columns: 1fr; gap: 24px; }
   .tb-news-rail { grid-template-columns: 1fr; gap: 20px; }
   .tb-summary-pills { flex-direction: column; }
@@ -821,6 +851,8 @@ body.tb-print .tb-section {
 }
 body.tb-print .tb-section.is-hero { background: transparent; margin: 0; padding-left: 0; padding-right: 0; }
 body.tb-print .tb-section-title { font-size: 32px; }
+body.tb-print .tb-group + .tb-group { margin-top: 24px; }
+body.tb-print .tb-group-header { padding-top: 0; margin-top: 12px; }
 body.tb-print .tb-cover { padding: 24px 0; }
 body.tb-print .tb-cover .bignum { font-size: 96px; }
 body.tb-print .tb-masthead-full { padding: 18px 0 14px; }
