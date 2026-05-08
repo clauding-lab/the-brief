@@ -1,6 +1,7 @@
 import type { Section } from "@/types/brief";
 import { Hair } from "./Hair";
 import { StatStack } from "./StatStack";
+import { cleanMetricValue } from "@/lib/format";
 
 interface SnapshotStripProps {
   section?: Section;
@@ -31,7 +32,7 @@ export function SnapshotStrip({ section }: SnapshotStripProps) {
           <div key={i} className="tb-snapshot-cell">
             <StatStack
               label={it.label}
-              value={it.value}
+              value={cleanMetricValue(it.value)}
               sub={it.sub}
               tone={it.tone}
               spark={it.spark}

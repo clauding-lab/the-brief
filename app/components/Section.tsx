@@ -6,7 +6,7 @@ import { BankerRead } from "./BankerRead";
 import { SignatureChart } from "./SignatureChart";
 import { BriefChart } from "./BriefChart";
 import { SECTION_TO_CHART, CHART_CARD_HEADS } from "@/lib/chartConfigs";
-import { formatNewsMeta } from "@/lib/format";
+import { formatNewsMeta, cleanMetricValue } from "@/lib/format";
 
 interface SectionProps {
   section: SectionType;
@@ -125,7 +125,7 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
                     )}
                     {latest && (
                       <div className="tb-chart-latest">
-                        Latest: {latest.label} {latest.value}
+                        Latest: {latest.label} {cleanMetricValue(latest.value)}
                       </div>
                     )}
                   </div>
@@ -196,7 +196,7 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
                       </div>
                     )}
                   </div>
-                  <div className="tb-kpi-value">{m.value}</div>
+                  <div className="tb-kpi-value">{cleanMetricValue(m.value)}</div>
                 </div>
                 {i < arr.length - 1 && <Hair tone="faint" />}
               </Fragment>

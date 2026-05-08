@@ -37,3 +37,11 @@ export function splitBigNum(value: string | number | undefined): ReactNode {
     </>
   );
 }
+
+// Strip repeated `$` chars from metric values. The editor LLM sometimes
+// emits "$$108.17" (likely a TeX display-math artefact from training);
+// collapse any run of 2+ to a single `$`.
+export function cleanMetricValue(v: string | undefined | null): string {
+  if (!v) return "";
+  return v.replace(/\${2,}/g, "$");
+}

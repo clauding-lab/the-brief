@@ -1,6 +1,6 @@
 import type { Brief, Section } from "@/types/brief";
 import { Mark } from "./Mark";
-import { splitBigNum } from "@/lib/format";
+import { splitBigNum, cleanMetricValue } from "@/lib/format";
 
 interface CoverProps {
   brief?: Brief;
@@ -20,8 +20,8 @@ export function Cover({ brief }: CoverProps) {
         <div className="eyebrow" style={{ marginBottom: 14 }}>
           Today&rsquo;s Number
         </div>
-        <div className="bignum" aria-label={`${cover.label}: ${cover.value}`}>
-          {splitBigNum(cover.value)}
+        <div className="bignum" aria-label={`${cover.label}: ${cleanMetricValue(cover.value)}`}>
+          {splitBigNum(cleanMetricValue(cover.value))}
         </div>
         <div className="tb-cover-asof">{cover.as_of || "Latest"}</div>
         <div
