@@ -9,9 +9,17 @@ interface SecNavProps {
   onJump: (slug: string) => void;
   diffMode: boolean;
   onToggleDiff: () => void;
+  displayOrdBySlug?: Map<string, number>;
 }
 
-export function SecNav({ sections, activeSlug, onJump, diffMode, onToggleDiff }: SecNavProps) {
+export function SecNav({
+  sections,
+  activeSlug,
+  onJump,
+  diffMode,
+  onToggleDiff,
+  displayOrdBySlug,
+}: SecNavProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +47,7 @@ export function SecNav({ sections, activeSlug, onJump, diffMode, onToggleDiff }:
                   onJump(s.slug);
                 }}
               >
-                <span className="num">§{String(s.ord).padStart(2, "0")}</span>
+                <span className="num">§{String(displayOrdBySlug?.get(s.slug) ?? s.ord).padStart(2, "0")}</span>
                 <span className={`tb-tl tb-tl-${tone}`} aria-hidden="true" />
                 <span>{s.title}</span>
               </a>

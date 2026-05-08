@@ -9,9 +9,10 @@ interface MastheadProps {
   brief?: Brief;
   source?: DataSource;
   sections: Section[];
+  displayOrdBySlug?: Map<string, number>;
 }
 
-export function Masthead({ brief, source, sections }: MastheadProps) {
+export function Masthead({ brief, source, sections, displayOrdBySlug }: MastheadProps) {
   const dateLabel = formatBriefDate(brief?.brief_date);
   const issueNo = brief?.issue_no ?? 87;
   const vol = brief?.volume ?? 1;
@@ -68,7 +69,8 @@ export function Masthead({ brief, source, sections }: MastheadProps) {
                 if (pat.test(lower)) {
                   const sec = sections.find((s) => s.slug === slug);
                   if (sec) {
-                    secOrd = `§${String(sec.ord).padStart(2, "0")}`;
+                    const display = displayOrdBySlug?.get(sec.slug) ?? sec.ord;
+                    secOrd = `§${String(display).padStart(2, "0")}`;
                     break;
                   }
                 }
@@ -76,7 +78,7 @@ export function Masthead({ brief, source, sections }: MastheadProps) {
               return (
                 <li key={i}>
                   <span className="num">
-                    {secOrd || `§${String(i + 2).padStart(2, "0")}`}
+                    {secOrd || `§${String(i + 1).padStart(2, "0")}`}
                   </span>
                   <span className="text">{h.headline}</span>
                 </li>

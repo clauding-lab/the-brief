@@ -9,9 +9,10 @@ import { formatNewsMeta } from "@/lib/format";
 interface SectionProps {
   section: SectionType;
   diffMode: boolean;
+  displayOrd?: number;
 }
 
-export function Section({ section, diffMode }: SectionProps) {
+export function Section({ section, diffMode, displayOrd }: SectionProps) {
   const {
     slug,
     ord,
@@ -30,17 +31,21 @@ export function Section({ section, diffMode }: SectionProps) {
     freshness,
   } = section;
 
+  // SPA-side sequential numbering (1, 2, 3, …) — falls back to backend ord
+  // when not provided by the parent (defensive; ClientApp always supplies it).
+  const ordLabel = String(displayOrd ?? ord).padStart(2, "0");
+
   if (freshness === "unavailable") {
     return (
       <section
         id={slug}
         className={`tb-section is-unavailable${diffMode ? " is-diff" : ""}`}
         data-section-slug={slug}
-        data-screen-label={`§${String(ord).padStart(2, "0")} ${title}`}
+        data-screen-label={`§${ordLabel} ${title}`}
       >
         <div className="tb-section-head">
           <div>
-            <div className="eyebrow">§{String(ord).padStart(2, "0")}</div>
+            <div className="eyebrow">§{ordLabel}</div>
             <h2 className="tb-section-title">{title}</h2>
           </div>
         </div>
@@ -62,12 +67,12 @@ export function Section({ section, diffMode }: SectionProps) {
       id={slug}
       className={`tb-section${isHero ? " is-hero" : ""}${diffMode ? " is-diff" : ""}${diffMode && !anySignal ? " is-quiet" : ""}`}
       data-section-slug={slug}
-      data-screen-label={`§${String(ord).padStart(2, "0")} ${title}`}
+      data-screen-label={`§${ordLabel} ${title}`}
     >
       <div className="tb-section-head">
         <div>
           <div className="eyebrow">
-            §{String(ord).padStart(2, "0")}
+            §{ordLabel}
             {isHero && <span className="tb-hero-flag">Today&rsquo;s Lead</span>}
           </div>
           <h2 className="tb-section-title">{title}</h2>
