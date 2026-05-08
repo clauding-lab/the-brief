@@ -12,10 +12,14 @@ from . import BuilderContext
 
 
 _HIST_SPEC = (
-    ("macro_cpi_headline", "CPI Headline", "%",       "BBS", "monthly"),
-    ("macro_cpi_food",     "CPI Food",     "%",       "BBS", "monthly"),
-    ("macro_gdp_growth",   "GDP Growth",   "%",       "BBS", "quarterly"),
-    ("macro_credit_growth","Credit Growth","% YoY",   "BB",  "monthly"),
+    ("macro_cpi_headline",        "CPI Headline", "%",     "BBS", "monthly"),
+    ("macro_cpi_food",            "CPI Food",     "%",     "BBS", "monthly"),
+    ("macro_cpi_nonfood",         "CPI Non-Food", "%",     "BBS", "monthly"),
+    # point_to_point_inflation: EconDelta-canonical ID (no macro_* alias in
+    # BRIEF_ALIASES yet — populated directly until the alias lands upstream).
+    ("point_to_point_inflation",  "CPI P-to-P",   "%",     "BBS", "monthly"),
+    ("macro_gdp_growth",          "GDP Growth",   "%",     "BBS", "quarterly"),
+    ("macro_credit_growth",       "Credit Growth","% YoY", "BB",  "monthly"),
 )
 
 
