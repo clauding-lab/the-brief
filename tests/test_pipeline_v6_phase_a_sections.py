@@ -37,7 +37,9 @@ from brief.schema import Metric, SectionData
         ("comm", "comm", 12, "markets"),
     ],
 )
-def test_v5_to_v6_contains_phase_a_section(v5_id, expected_slug, expected_ord, expected_group):
+def test_v5_to_v6_contains_phase_a_section(
+    v5_id: str, expected_slug: str, expected_ord: int, expected_group: str
+) -> None:
     assert v5_id in pipeline_v6.V5_TO_V6, (
         f"V5_TO_V6 must contain {v5_id!r} — Phase A wires fiscal/remit/comm into V6"
     )
@@ -72,7 +74,8 @@ def test_spine_builder_ids_contains_phase_a(builder_id):
 
 
 def _section(section_id: str) -> SectionData:
-    """Minimal SectionData builder for transformation tests."""
+    # Cadence is hardcoded "monthly" because _to_v6_raw is a pure
+    # slug/ord/group/freshness/metrics passthrough — it does not branch on cadence.
     return SectionData(
         id=section_id,
         title=section_id.title(),
