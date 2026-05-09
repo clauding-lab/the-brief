@@ -475,6 +475,10 @@ function dsexConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     ...baseOpts,
     layout: { padding: { top: 50 } },
     interaction: { mode: "index" as const, intersect: false },
+    scales: {
+      ...baseOpts.scales,
+      x: { ...baseOpts.scales.x, time: { unit: "week" as const, tooltipFormat: "MMM d" } },
+    },
   };
 
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
@@ -520,12 +524,19 @@ function brentConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
+  const baseOpts = baseLineOptions({
+    yTicks: { callback: (v: number) => "$" + r2str(v) },
+  });
   return {
     type: "line",
     data: { datasets },
-    options: baseLineOptions({
-      yTicks: { callback: (v: number) => "$" + r2str(v) },
-    }),
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: { ...baseOpts.scales.x, time: { unit: "month" as const, tooltipFormat: "MMM d" } },
+      },
+    },
   } as unknown as ChartConfiguration<"line">;
 }
 
@@ -567,8 +578,10 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
       label: d,
       data: byDate[d].sort((a, b) => a.x - b.x),
       borderColor: d === latest ? palette.accent : palette.ruleSoft,
+      backgroundColor: d === latest ? palette.accent : palette.ruleSoft,
       borderWidth: d === latest ? 2 : 0.9,
-      pointRadius: d === latest ? 3 : 0,
+      pointRadius: d === latest ? 4 : 2,
+      pointHoverRadius: d === latest ? 6 : 4,
       tension: 0.1,
       showLine: true,
     }),
@@ -629,7 +642,21 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
         type: "linear" as const,
         title: { display: true, text: "Tenor (years)", font: FONT, color: palette.ink3 },
         grid: { color: palette.ruleFaint },
-        ticks: { color: palette.ink3, font: FONT },
+        // Pin ticks to the actual tenor points (2 / 5 / 10 / 20Y) so the
+        // x-axis labels always match the curve's plotted tenors regardless
+        // of Chart.js's auto-scaling.
+        ticks: {
+          color: palette.ink3,
+          font: FONT,
+          autoSkip: false,
+          callback: (v: number | string) => {
+            const n = typeof v === "number" ? v : Number(v);
+            return [2, 5, 10, 20].includes(n) ? `${n}Y` : "";
+          },
+        },
+        afterBuildTicks: (axis: { ticks: Array<{ value: number }> }) => {
+          axis.ticks = [2, 5, 10, 20].map((value) => ({ value }));
+        },
       },
       y: {
         ticks: {
@@ -672,12 +699,19 @@ function lngConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
+  const baseOpts = baseLineOptions({
+    yTicks: { callback: (v: number) => "$" + r2str(v) + "/MMBtu" },
+  });
   return {
     type: "line",
     data: { datasets },
-    options: baseLineOptions({
-      yTicks: { callback: (v: number) => "$" + r2str(v) + "/MMBtu" },
-    }),
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: { ...baseOpts.scales.x, time: { unit: "month" as const, tooltipFormat: "MMM yyyy" } },
+      },
+    },
   } as unknown as ChartConfiguration<"line">;
 }
 
