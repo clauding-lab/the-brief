@@ -1,22 +1,22 @@
 """Phase E.2 — backend chart series enricher.
 
 After the LLM produces final_brief, a deterministic helper fetches time-series
-from Supabase and stamps it onto `final_brief.sections[i].series` so the SPA
-can render charts. Five sections are chartable (fx/dse/iran/tbond/comm); all
-others get an empty series list and the frontend hides their chart slot.
+from `metric_history` and stamps it onto `final_brief.sections[i].series` so
+the SPA can render charts. Four sections are chartable (fx/dse/iran/tbond);
+all others get an empty series list and the frontend hides their chart slot.
 
 Coverage:
-  1. `_CHART_FETCHERS_BY_SLUG` dispatch table contains exactly the 5 chartable
-     slugs and no others.
+  1. `_CHART_FETCHERS_BY_SLUG` dispatch table contains exactly the 4 chartable
+     slugs and no others (LNG/comm dropped post-V6 chart repoint).
   2. Each per-section fetcher in `chart_series_fetcher` produces well-formed
      `SeriesPointV6` objects (key + ISO date + numeric value) given a mocked
-     PostgREST response.
-  3. The DSEX fetcher emits notes for `show_label=true AND event IS NOT NULL`
-     rows only — never for ordinary points.
-  4. The yield-curve fetcher normalizes tenor_months → "yield_2y/5y/10y/20y"
-     keys (consistent with EconDelta chartConfigs).
+     PostgREST `metric_history` response.
+  3. The DSEX fetcher returns a (series, notes) tuple — notes is always empty
+     because `metric_history` has no event/label columns.
+  4. The yield-curve fetcher normalizes metric_ids → "yield_3m/6m/1y/5y/10y"
+     keys (consistent with `lib/chartConfigs.ts` tenorMap).
   5. Empty Supabase response → empty list, no crash.
-  6. `_stamp_chart_series` only populates the 5 chartable sections; non-
+  6. `_stamp_chart_series` only populates the 4 chartable sections; non-
      chartable sections retain empty series.
   7. A failing fetcher logs a warning but does not crash the pipeline; other
      sections still get stamped (graceful degradation).
@@ -79,14 +79,13 @@ TODAY = date(2026, 5, 8)
 # ─── Dispatch table ────────────────────────────────────────────────────
 
 
-def test_chart_fetchers_by_slug_only_includes_5_chartable_sections() -> None:
-    """The dispatch dict contains exactly fx/dse/iran/tbond/comm — nothing else."""
+def test_chart_fetchers_by_slug_only_includes_4_chartable_sections() -> None:
+    """The dispatch dict contains exactly fx/dse/iran/tbond — nothing else."""
     assert set(pipeline_v6._CHART_FETCHERS_BY_SLUG.keys()) == {
         "fx",
         "dse",
         "iran",
         "tbond",
-        "comm",
     }
 
 
@@ -160,11 +159,11 @@ def test_fetch_fx_flows_filters_to_three_metric_ids() -> None:
 
 
 def test_fetch_dsex_emits_one_point_per_row() -> None:
-    """DSEX fetcher emits a SeriesPointV6 for every row."""
+    """DSEX fetcher emits a SeriesPointV6 for every metric_history row."""
     rows: list[dict[str, Any]] = [
-        {"date": "2026-05-01", "close": 5210.42, "event": None, "show_label": False},
-        {"date": "2026-05-02", "close": 5215.10, "event": None, "show_label": False},
-        {"date": "2026-05-05", "close": 5180.00, "event": None, "show_label": False},
+        {"metric_id": "dsex", "as_of": "2026-05-01", "value": 5210.42},
+        {"metric_id": "dsex", "as_of": "2026-05-02", "value": 5215.10},
+        {"metric_id": "dsex", "as_of": "2026-05-05", "value": 5180.00},
     ]
     http: _FakeHttp = _http([(200, rows)])
     series, notes = chart_series_fetcher.fetch_dsex(
@@ -180,17 +179,16 @@ def test_fetch_dsex_emits_one_point_per_row() -> None:
     assert notes == []
 
 
-def test_fetch_dsex_emits_notes_only_when_show_label_true() -> None:
-    """3 rows: 2 boring + 1 with show_label=True+event → 3 series points + 1 note."""
+def test_fetch_dsex_returns_empty_notes_even_with_data() -> None:
+    """metric_history has no event/show_label columns; notes are always [].
+
+    The legacy `tb_dsex_daily` show_label/event annotation feature is gone;
+    DSEX fetcher's tuple shape is preserved so callers don't break, but the
+    notes list is always empty.
+    """
     rows: list[dict[str, Any]] = [
-        {"date": "2026-05-01", "close": 5210.42, "event": None, "show_label": False},
-        {
-            "date": "2026-05-02",
-            "close": 5215.10,
-            "event": "Aug rate hike",
-            "show_label": True,
-        },
-        {"date": "2026-05-05", "close": 5180.00, "event": None, "show_label": False},
+        {"metric_id": "dsex", "as_of": "2026-05-01", "value": 5210.42},
+        {"metric_id": "dsex", "as_of": "2026-05-02", "value": 5215.10},
     ]
     http: _FakeHttp = _http([(200, rows)])
     series, notes = chart_series_fetcher.fetch_dsex(
@@ -199,28 +197,22 @@ def test_fetch_dsex_emits_notes_only_when_show_label_true() -> None:
         service_key=SERVICE_KEY,
         today=TODAY,
     )
-    assert len(series) == 3, "every row produces a series point regardless of label"
-    assert len(notes) == 1
-    note: SeriesNoteV6 = notes[0]
-    assert note.series_key == "dsex"
-    assert note.ts == "2026-05-02"
-    assert note.label == "Aug rate hike"
-
-
-def test_fetch_dsex_skips_note_when_event_is_null_even_if_show_label_true() -> None:
-    """show_label=True but event=None → still no note (defensive)."""
-    rows: list[dict[str, Any]] = [
-        {"date": "2026-05-02", "close": 5215.10, "event": None, "show_label": True},
-    ]
-    http: _FakeHttp = _http([(200, rows)])
-    series, notes = chart_series_fetcher.fetch_dsex(
-        http=http,
-        supabase_url=SUPABASE_URL,
-        service_key=SERVICE_KEY,
-        today=TODAY,
-    )
-    assert len(series) == 1
+    assert len(series) == 2
     assert notes == []
+
+
+def test_fetch_dsex_filters_to_dsex_metric_id() -> None:
+    """The PostgREST URL filters on metric_id=eq.dsex."""
+    http: _FakeHttp = _http([(200, [])])
+    chart_series_fetcher.fetch_dsex(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    url: str = http.requests[0][0]
+    assert "metric_history" in url
+    assert "metric_id=eq.dsex" in url
 
 
 def test_fetch_dsex_returns_empty_on_empty_response() -> None:
@@ -237,10 +229,10 @@ def test_fetch_dsex_returns_empty_on_empty_response() -> None:
 
 
 def test_fetch_brent_emits_one_point_per_row() -> None:
-    """Brent fetcher → key='brent', ts=date, value=price_usd."""
+    """Brent fetcher → key='brent', ts=as_of, value=jsonb-coerced float."""
     rows: list[dict[str, Any]] = [
-        {"date": "2026-04-09", "price_usd": 88.50},
-        {"date": "2026-05-08", "price_usd": 91.20},
+        {"metric_id": "brent_crude_usd_barrel", "as_of": "2026-04-09", "value": 88.50},
+        {"metric_id": "brent_crude_usd_barrel", "as_of": "2026-05-08", "value": 91.20},
     ]
     http: _FakeHttp = _http([(200, rows)])
     series: list[SeriesPointV6] = chart_series_fetcher.fetch_brent(
@@ -255,6 +247,20 @@ def test_fetch_brent_emits_one_point_per_row() -> None:
     assert series[0].value == 88.50
 
 
+def test_fetch_brent_filters_to_brent_metric_id() -> None:
+    """The PostgREST URL targets metric_history with metric_id=eq.brent_crude_usd_barrel."""
+    http: _FakeHttp = _http([(200, [])])
+    chart_series_fetcher.fetch_brent(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    url: str = http.requests[0][0]
+    assert "metric_history" in url
+    assert "metric_id=eq.brent_crude_usd_barrel" in url
+
+
 def test_fetch_brent_returns_empty_on_empty_response() -> None:
     """No rows → empty list."""
     http: _FakeHttp = _http([(200, [])])
@@ -267,13 +273,14 @@ def test_fetch_brent_returns_empty_on_empty_response() -> None:
     assert series == []
 
 
-def test_fetch_yield_curve_normalizes_tenors_to_year_keys() -> None:
-    """tenor_months 24/60/120/240 → keys 'yield_2y'/'5y'/'10y'/'20y'."""
+def test_fetch_yield_curve_normalizes_metric_ids_to_tenor_keys() -> None:
+    """5 metric_ids → keys 'yield_3m'/'6m'/'1y'/'5y'/'10y'."""
     rows: list[dict[str, Any]] = [
-        {"snapshot_date": "2026-05-01", "tenor": "2Y", "tenor_months": 24, "yield_pct": 6.5},
-        {"snapshot_date": "2026-05-01", "tenor": "5Y", "tenor_months": 60, "yield_pct": 7.0},
-        {"snapshot_date": "2026-05-01", "tenor": "10Y", "tenor_months": 120, "yield_pct": 8.1},
-        {"snapshot_date": "2026-05-01", "tenor": "20Y", "tenor_months": 240, "yield_pct": 8.4},
+        {"metric_id": "tbill_91d_yield_pct", "as_of": "2026-05-01", "value": 5.5},
+        {"metric_id": "tbill_182d_yield", "as_of": "2026-05-01", "value": 6.0},
+        {"metric_id": "tbill_364d_yield", "as_of": "2026-05-01", "value": 6.5},
+        {"metric_id": "tbond_bond_5y", "as_of": "2026-05-01", "value": 7.5},
+        {"metric_id": "tbond_bond_10y", "as_of": "2026-05-01", "value": 8.1},
     ]
     http: _FakeHttp = _http([(200, rows)])
     series: list[SeriesPointV6] = chart_series_fetcher.fetch_yield_curve(
@@ -283,18 +290,18 @@ def test_fetch_yield_curve_normalizes_tenors_to_year_keys() -> None:
         today=TODAY,
     )
     keys: set[str | None] = {p.key for p in series}
-    assert keys == {"yield_2y", "yield_5y", "yield_10y", "yield_20y"}
+    assert keys == {"yield_3m", "yield_6m", "yield_1y", "yield_5y", "yield_10y"}
     by_key: dict[str | None, SeriesPointV6] = {p.key: p for p in series}
-    assert by_key["yield_2y"].value == 6.5
-    assert by_key["yield_2y"].ts == "2026-05-01"
+    assert by_key["yield_3m"].value == 5.5
+    assert by_key["yield_3m"].ts == "2026-05-01"
     assert by_key["yield_10y"].value == 8.1
 
 
-def test_fetch_yield_curve_drops_unsupported_tenors() -> None:
-    """Tenors outside 2Y/5Y/10Y/20Y are dropped (e.g. 91-day T-bill)."""
+def test_fetch_yield_curve_drops_unknown_metric_ids() -> None:
+    """metric_ids outside the 5-tenor mapping are dropped (defensive)."""
     rows: list[dict[str, Any]] = [
-        {"snapshot_date": "2026-05-01", "tenor": "3M", "tenor_months": 3, "yield_pct": 5.5},
-        {"snapshot_date": "2026-05-01", "tenor": "2Y", "tenor_months": 24, "yield_pct": 6.5},
+        {"metric_id": "tbond_bond_2y_legacy", "as_of": "2026-05-01", "value": 6.5},
+        {"metric_id": "tbond_bond_5y", "as_of": "2026-05-01", "value": 7.5},
     ]
     http: _FakeHttp = _http([(200, rows)])
     series: list[SeriesPointV6] = chart_series_fetcher.fetch_yield_curve(
@@ -304,7 +311,28 @@ def test_fetch_yield_curve_drops_unsupported_tenors() -> None:
         today=TODAY,
     )
     assert len(series) == 1
-    assert series[0].key == "yield_2y"
+    assert series[0].key == "yield_5y"
+
+
+def test_fetch_yield_curve_filters_to_5_metric_ids() -> None:
+    """The PostgREST URL filters metric_id to exactly the 5 tenor ids."""
+    http: _FakeHttp = _http([(200, [])])
+    chart_series_fetcher.fetch_yield_curve(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    url: str = http.requests[0][0]
+    assert "metric_history" in url
+    for metric_id in (
+        "tbill_91d_yield_pct",
+        "tbill_182d_yield",
+        "tbill_364d_yield",
+        "tbond_bond_5y",
+        "tbond_bond_10y",
+    ):
+        assert metric_id in url
 
 
 def test_fetch_yield_curve_returns_empty_on_empty_response() -> None:
@@ -319,44 +347,12 @@ def test_fetch_yield_curve_returns_empty_on_empty_response() -> None:
     assert series == []
 
 
-def test_fetch_lng_emits_one_point_per_week() -> None:
-    """LNG fetcher → key='lng_jkm', ts=week_start, value=price_usd_mmbtu."""
-    rows: list[dict[str, Any]] = [
-        {"week_start": "2026-04-21", "price_usd_mmbtu": 11.2},
-        {"week_start": "2026-04-28", "price_usd_mmbtu": 11.8},
-        {"week_start": "2026-05-05", "price_usd_mmbtu": 12.1},
-    ]
-    http: _FakeHttp = _http([(200, rows)])
-    series: list[SeriesPointV6] = chart_series_fetcher.fetch_lng(
-        http=http,
-        supabase_url=SUPABASE_URL,
-        service_key=SERVICE_KEY,
-        today=TODAY,
-    )
-    assert len(series) == 3
-    assert all(p.key == "lng_jkm" for p in series)
-    assert series[0].ts == "2026-04-21"
-    assert series[0].value == 11.2
-
-
-def test_fetch_lng_returns_empty_on_empty_response() -> None:
-    """No rows → empty list."""
-    http: _FakeHttp = _http([(200, [])])
-    series: list[SeriesPointV6] = chart_series_fetcher.fetch_lng(
-        http=http,
-        supabase_url=SUPABASE_URL,
-        service_key=SERVICE_KEY,
-        today=TODAY,
-    )
-    assert series == []
-
-
 # ─── Authentication / URL sanity ───────────────────────────────────────
 
 
 @pytest.mark.parametrize(
     "fetcher_name",
-    ["fetch_fx_flows", "fetch_dsex", "fetch_brent", "fetch_yield_curve", "fetch_lng"],
+    ["fetch_fx_flows", "fetch_dsex", "fetch_brent", "fetch_yield_curve"],
 )
 def test_fetchers_set_authorization_headers(fetcher_name: str) -> None:
     """Every fetcher passes apikey + Authorization Bearer headers."""
@@ -383,7 +379,11 @@ def _make_section(slug: str, ord_v6: int, group: str) -> SectionV6:
 
 
 def _full_brief() -> BriefPayloadV6:
-    """An 11-section brief covering the V5_TO_V6 roster."""
+    """An 11-section brief covering the V5_TO_V6 roster.
+
+    The `comm` section still exists in the brief (LNG content), it just no
+    longer has a chart fetcher post-V6 repoint.
+    """
     sections: list[SectionV6] = [
         _make_section("headlines", 2, "overview"),
         _make_section("bb", 3, "banking"),
@@ -403,18 +403,15 @@ def _full_brief() -> BriefPayloadV6:
     )
 
 
-def test_stamp_chart_series_populates_5_sections_only(
+def test_stamp_chart_series_populates_4_sections_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only fx/dse/iran/tbond/comm get series; other sections stay empty."""
+    """Only fx/dse/iran/tbond get series; other sections (incl. comm) stay empty."""
     fx_series: list[SeriesPointV6] = [SeriesPointV6(key="monthly_export", ts="2026-04-30", value=4.2)]
     dsex_series: list[SeriesPointV6] = [SeriesPointV6(key="dsex", ts="2026-05-01", value=5210.0)]
-    dsex_notes: list[SeriesNoteV6] = [
-        SeriesNoteV6(series_key="dsex", ts="2026-05-01", label="Mock event")
-    ]
+    dsex_notes: list[SeriesNoteV6] = []
     brent_series: list[SeriesPointV6] = [SeriesPointV6(key="brent", ts="2026-05-08", value=91.2)]
-    yc_series: list[SeriesPointV6] = [SeriesPointV6(key="yield_2y", ts="2026-05-01", value=6.5)]
-    lng_series: list[SeriesPointV6] = [SeriesPointV6(key="lng_jkm", ts="2026-05-05", value=12.1)]
+    yc_series: list[SeriesPointV6] = [SeriesPointV6(key="yield_5y", ts="2026-05-01", value=7.5)]
 
     def _fake_fx(**_: Any) -> list[SeriesPointV6]:
         return fx_series
@@ -428,14 +425,10 @@ def test_stamp_chart_series_populates_5_sections_only(
     def _fake_yc(**_: Any) -> list[SeriesPointV6]:
         return yc_series
 
-    def _fake_lng(**_: Any) -> list[SeriesPointV6]:
-        return lng_series
-
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", _fake_fx)
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _fake_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _fake_brent)
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _fake_yc)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_lng", _fake_lng)
 
     final_brief: BriefPayloadV6 = _full_brief()
     pipeline_v6._stamp_chart_series(
@@ -453,10 +446,9 @@ def test_stamp_chart_series_populates_5_sections_only(
     assert by_slug["dse"].notes == dsex_notes
     assert by_slug["iran"].series == brent_series
     assert by_slug["tbond"].series == yc_series
-    assert by_slug["comm"].series == lng_series
 
-    # Non-chartable: empty
-    for slug in ("headlines", "bb", "banking", "fiscal", "macro", "remit"):
+    # Non-chartable (incl. comm post-LNG-drop): empty
+    for slug in ("headlines", "bb", "banking", "fiscal", "macro", "remit", "comm"):
         assert by_slug[slug].series == [], f"{slug} should have empty series"
         assert by_slug[slug].notes == [], f"{slug} should have empty notes"
 
@@ -481,14 +473,10 @@ def test_stamp_chart_series_handles_fetcher_exception_gracefully(
     def _empty_yc(**_: Any) -> list[SeriesPointV6]:
         return []
 
-    def _empty_lng(**_: Any) -> list[SeriesPointV6]:
-        return []
-
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", _ok_fx)
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _bad_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _ok_brent)
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _empty_yc)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_lng", _empty_lng)
 
     final_brief: BriefPayloadV6 = _full_brief()
 
@@ -535,15 +523,10 @@ def test_stamp_chart_series_skips_when_section_absent(
         called.append("tbond")
         return []
 
-    def _ok_lng(**_: Any) -> list[SeriesPointV6]:
-        called.append("comm")
-        return []
-
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", _ok_fx)
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _ok_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _ok_brent)
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _ok_yc)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_lng", _ok_lng)
 
     # Brief with only bb + banking — none of the chartable slugs.
     minimal_brief: BriefPayloadV6 = BriefPayloadV6(
@@ -594,7 +577,6 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     )
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", lambda **_: [])
-    monkeypatch.setattr(chart_series_fetcher, "fetch_lng", lambda **_: [])
 
     editor_output: dict[str, Any] = {
         "brief": {
@@ -742,7 +724,6 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _record_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _record)
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _record)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_lng", _record)
 
     final_brief: BriefPayloadV6 = _full_brief()
     http: HttpClient = _http([])
@@ -753,7 +734,7 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
         supabase_url=SUPABASE_URL,
         service_key=SERVICE_KEY,
     )
-    assert len(captured) == 5, "all 5 fetchers should be dispatched"
+    assert len(captured) == 4, "all 4 chartable fetchers should be dispatched"
     for kw in captured:
         assert kw["http"] is http
         assert kw["supabase_url"] == SUPABASE_URL
