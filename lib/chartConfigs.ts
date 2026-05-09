@@ -546,12 +546,17 @@ function brentConfig(ctx: BuildContext): ChartConfiguration<"line"> {
  * to show term-structure evolution.
  */
 function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
-  const tenorMap: Array<{ id: string; x: number }> = [
-    { id: "yield_2y", x: 2 },
-    { id: "yield_5y", x: 5 },
-    { id: "yield_10y", x: 10 },
-    { id: "yield_20y", x: 20 },
+  const tenorMap: Array<{ id: string; x: number; label: string }> = [
+    { id: "yield_3m", x: 0.25, label: "3M" },
+    { id: "yield_6m", x: 0.5, label: "6M" },
+    { id: "yield_1y", x: 1, label: "1Y" },
+    { id: "yield_5y", x: 5, label: "5Y" },
+    { id: "yield_10y", x: 10, label: "10Y" },
   ];
+  const tenorXValues: number[] = tenorMap.map((t) => t.x);
+  const tenorLabelByX: Record<number, string> = Object.fromEntries(
+    tenorMap.map((t) => [t.x, t.label]),
+  );
 
   if (!hasAnyData(
     ctx.series,
@@ -632,8 +637,10 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
         callbacks: {
           title: (items: Array<{ dataset: { label?: string } }>) =>
             items[0]?.dataset.label ?? "",
-          label: (ctxPt: { parsed: { x: number; y: number } }) =>
-            ctxPt.parsed.x + "Y: " + Number(ctxPt.parsed.y).toFixed(2) + "%",
+          label: (ctxPt: { parsed: { x: number; y: number } }) => {
+            const tenorLabel = tenorLabelByX[ctxPt.parsed.x] ?? `${ctxPt.parsed.x}Y`;
+            return tenorLabel + ": " + Number(ctxPt.parsed.y).toFixed(2) + "%";
+          },
         },
       },
     },
@@ -642,20 +649,20 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
         type: "linear" as const,
         title: { display: true, text: "Tenor (years)", font: FONT, color: palette.ink3 },
         grid: { color: palette.ruleFaint },
-        // Pin ticks to the actual tenor points (2 / 5 / 10 / 20Y) so the
-        // x-axis labels always match the curve's plotted tenors regardless
-        // of Chart.js's auto-scaling.
+        // Pin ticks to the actual tenor points (3M / 6M / 1Y / 5Y / 10Y) so
+        // x-axis labels always match the plotted tenors regardless of
+        // Chart.js auto-scaling.
         ticks: {
           color: palette.ink3,
           font: FONT,
           autoSkip: false,
           callback: (v: number | string) => {
             const n = typeof v === "number" ? v : Number(v);
-            return [2, 5, 10, 20].includes(n) ? `${n}Y` : "";
+            return tenorLabelByX[n] ?? "";
           },
         },
         afterBuildTicks: (axis: { ticks: Array<{ value: number }> }) => {
-          axis.ticks = [2, 5, 10, 20].map((value) => ({ value }));
+          axis.ticks = tenorXValues.map((value) => ({ value }));
         },
       },
       y: {

@@ -316,7 +316,6 @@ _CHART_FETCHERS_BY_SLUG: dict[str, str] = {
     "dse": "dsex",
     "iran": "brent",
     "tbond": "yield_curve",
-    "comm": "lng",
 }
 
 

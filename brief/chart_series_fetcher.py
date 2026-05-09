@@ -1,8 +1,14 @@
 """Phase E.2 — chart series fetchers.
 
-Pure functions that pull time-series from Supabase tables and return
-`SeriesPointV6` (and optionally `SeriesNoteV6`) objects ready to be stamped
-onto `BriefPayloadV6.sections[i].series`.
+Pure functions that pull time-series from `metric_history` (the EconDelta-fed
+canonical store) and return `SeriesPointV6` (and optionally `SeriesNoteV6`)
+objects ready to be stamped onto `BriefPayloadV6.sections[i].series`.
+
+All four fetchers query the same `metric_history` table with different
+`metric_id` filters. The legacy `tb_brent_daily` / `tb_dsex_daily` /
+`tb_yield_curve` tables are frozen (last writer was the deleted
+`the-brief/ingest.py` from V6 cutover, commit 2317436); the live data now
+flows through EconDelta scrapers into `metric_history` under different ids.
 
 Each fetcher accepts an injectable `HttpClient` (mirrors
 `brief.history.MetricHistoryClient`'s seam) so tests can mock without hitting
@@ -31,13 +37,18 @@ _FX_METRIC_IDS: tuple[str, ...] = (
     "monthly_import",
 )
 
-# Yield curve canonical keys — month → "yield_Ny" lowercase, consistent with
-# EconDelta `chartConfigs` so frontend dataset names line up trivially.
-_YIELD_TENOR_KEY_BY_MONTHS: dict[int, str] = {
-    24: "yield_2y",
-    60: "yield_5y",
-    120: "yield_10y",
-    240: "yield_20y",
+_BRENT_METRIC_ID: str = "brent_crude_usd_barrel"
+_DSEX_METRIC_ID: str = "dsex"
+
+# Yield curve canonical keys — metric_id → "yield_<tenor>" matching
+# lib/chartConfigs.ts tenorMap. Five tenors live in metric_history:
+# 3M / 6M / 1Y T-bills, plus 5Y / 10Y T-bonds.
+_YIELD_TENOR_KEY_BY_METRIC_ID: dict[str, str] = {
+    "tbill_91d_yield_pct": "yield_3m",
+    "tbill_182d_yield": "yield_6m",
+    "tbill_364d_yield": "yield_1y",
+    "tbond_bond_5y": "yield_5y",
+    "tbond_bond_10y": "yield_10y",
 }
 
 
@@ -87,6 +98,28 @@ def _coerce_float(v: Any) -> float | None:
     return None
 
 
+def _metric_history_url(
+    *,
+    supabase_url: str,
+    metric_filter: str,
+    cutoff: date_t,
+) -> str:
+    """Compose a PostgREST URL against `metric_history` with a metric_id filter.
+
+    `metric_filter` is already PostgREST-formatted, e.g.
+    `eq.brent_crude_usd_barrel` or `in.(a,b,c)`.
+    """
+    q: str = urllib.parse.urlencode(
+        {
+            "metric_id": metric_filter,
+            "as_of": f"gte.{cutoff.isoformat()}",
+            "select": "metric_id,as_of,value",
+            "order": "as_of.asc",
+        }
+    )
+    return f"{supabase_url.rstrip('/')}/rest/v1/metric_history?{q}"
+
+
 # ─── Fetchers ──────────────────────────────────────────────────────────
 
 
@@ -133,35 +166,26 @@ def fetch_dsex(
     today: date_t,
     days: int = 365,
 ) -> tuple[list[SeriesPointV6], list[SeriesNoteV6]]:
-    """Pull last `days` of DSEX daily closes from `tb_dsex_daily`.
-
-    Every row produces a SeriesPointV6 keyed 'dsex'. Rows with both
-    `show_label = true` and a non-null `event` field additionally produce a
-    SeriesNoteV6 (event → label, ts = date, series_key='dsex').
+    """Pull last `days` of DSEX daily closes from `metric_history`
+    (metric_id='dsex'). Returns (series, notes); notes is always empty since
+    `metric_history` has no event/label columns — the legacy `tb_dsex_daily`
+    show_label/event annotation feature is dropped.
     """
     cutoff: date_t = today - timedelta(days=days)
-    q: str = urllib.parse.urlencode(
-        {
-            "date": f"gte.{cutoff.isoformat()}",
-            "select": "date,close,event,show_label",
-            "order": "date.asc",
-        }
+    url: str = _metric_history_url(
+        supabase_url=supabase_url,
+        metric_filter=f"eq.{_DSEX_METRIC_ID}",
+        cutoff=cutoff,
     )
-    url: str = f"{supabase_url.rstrip('/')}/rest/v1/tb_dsex_daily?{q}"
     rows: list[dict[str, Any]] = _safe_get(http, url, service_key=service_key)
     series: list[SeriesPointV6] = []
-    notes: list[SeriesNoteV6] = []
     for row in rows:
-        ts: Any = row.get("date")
-        close: float | None = _coerce_float(row.get("close"))
+        ts: Any = row.get("as_of")
+        close: float | None = _coerce_float(row.get("value"))
         if close is None or not isinstance(ts, str):
             continue
         series.append(SeriesPointV6(key="dsex", ts=ts, value=close))
-        event: Any = row.get("event")
-        show_label: Any = row.get("show_label")
-        if show_label is True and isinstance(event, str) and event.strip():
-            notes.append(SeriesNoteV6(series_key="dsex", ts=ts, label=event))
-    return series, notes
+    return series, []
 
 
 def fetch_brent(
@@ -172,24 +196,20 @@ def fetch_brent(
     today: date_t,
     days: int = 90,
 ) -> list[SeriesPointV6]:
-    """Pull last `days` of Brent prices from `tb_brent_daily`.
-
-    Returns SeriesPointV6 list keyed 'brent', ts=date, value=price_usd.
+    """Pull last `days` of Brent prices from `metric_history`
+    (metric_id='brent_crude_usd_barrel'). SeriesPointV6 list keyed 'brent'.
     """
     cutoff: date_t = today - timedelta(days=days)
-    q: str = urllib.parse.urlencode(
-        {
-            "date": f"gte.{cutoff.isoformat()}",
-            "select": "date,price_usd",
-            "order": "date.asc",
-        }
+    url: str = _metric_history_url(
+        supabase_url=supabase_url,
+        metric_filter=f"eq.{_BRENT_METRIC_ID}",
+        cutoff=cutoff,
     )
-    url: str = f"{supabase_url.rstrip('/')}/rest/v1/tb_brent_daily?{q}"
     rows: list[dict[str, Any]] = _safe_get(http, url, service_key=service_key)
     out: list[SeriesPointV6] = []
     for row in rows:
-        ts: Any = row.get("date")
-        price: float | None = _coerce_float(row.get("price_usd"))
+        ts: Any = row.get("as_of")
+        price: float | None = _coerce_float(row.get("value"))
         if price is None or not isinstance(ts, str):
             continue
         out.append(SeriesPointV6(key="brent", ts=ts, value=price))
@@ -204,74 +224,36 @@ def fetch_yield_curve(
     today: date_t,
     snapshots: int = 12,
 ) -> list[SeriesPointV6]:
-    """Pull last `snapshots` of yield-curve snapshots from `tb_yield_curve`.
+    """Pull last `snapshots` of yield-curve snapshots from `metric_history`.
 
-    Filters to canonical 4 tenors (2Y/5Y/10Y/20Y) via tenor_months, normalizes
-    keys to 'yield_Ny' (lowercase y suffix). Tenors outside the canonical set
-    (e.g. 91-day, 6-month) are dropped.
+    Queries 5 metric_ids in one round-trip (`metric_id=in.(...)`), one row per
+    (metric_id, as_of). Maps metric_id → 'yield_<tenor>' key consistent with
+    `lib/chartConfigs.ts` tenorMap (3M, 6M, 1Y, 5Y, 10Y). Unknown metric_ids
+    are dropped.
 
-    Snapshot windowing is approximate: we fetch a generous date window
-    (snapshots × 35 days) since snapshot cadence isn't guaranteed weekly.
+    Snapshot windowing is approximate: a generous date window
+    (snapshots × 35 days) covers irregular publish cadence.
     """
-    # Fetch generously, keyed on snapshot_date. 35 days per snapshot leaves
-    # headroom for irregular publish cadence; the order=asc + downstream
-    # render layer handle deduplication if too many rows come back.
     cutoff: date_t = today - timedelta(days=snapshots * 35)
-    months_csv: str = ",".join(str(m) for m in _YIELD_TENOR_KEY_BY_MONTHS.keys())
-    q: str = urllib.parse.urlencode(
-        {
-            "snapshot_date": f"gte.{cutoff.isoformat()}",
-            "tenor_months": f"in.({months_csv})",
-            "select": "snapshot_date,tenor,tenor_months,yield_pct",
-            "order": "snapshot_date.asc,tenor_months.asc",
-        }
+    ids_csv: str = ",".join(_YIELD_TENOR_KEY_BY_METRIC_ID.keys())
+    url: str = _metric_history_url(
+        supabase_url=supabase_url,
+        metric_filter=f"in.({ids_csv})",
+        cutoff=cutoff,
     )
-    url: str = f"{supabase_url.rstrip('/')}/rest/v1/tb_yield_curve?{q}"
     rows: list[dict[str, Any]] = _safe_get(http, url, service_key=service_key)
     out: list[SeriesPointV6] = []
     for row in rows:
-        ts: Any = row.get("snapshot_date")
-        tenor_months: Any = row.get("tenor_months")
-        y: float | None = _coerce_float(row.get("yield_pct"))
+        ts: Any = row.get("as_of")
+        metric_id: Any = row.get("metric_id")
+        y: float | None = _coerce_float(row.get("value"))
         if (
             y is None
             or not isinstance(ts, str)
-            or not isinstance(tenor_months, int)
-            or tenor_months not in _YIELD_TENOR_KEY_BY_MONTHS
+            or not isinstance(metric_id, str)
+            or metric_id not in _YIELD_TENOR_KEY_BY_METRIC_ID
         ):
             continue
-        key: str = _YIELD_TENOR_KEY_BY_MONTHS[tenor_months]
+        key: str = _YIELD_TENOR_KEY_BY_METRIC_ID[metric_id]
         out.append(SeriesPointV6(key=key, ts=ts, value=y))
-    return out
-
-
-def fetch_lng(
-    *,
-    http: HttpClient,
-    supabase_url: str,
-    service_key: str,
-    today: date_t,
-    weeks: int = 26,
-) -> list[SeriesPointV6]:
-    """Pull last `weeks` of LNG JKM weekly prices from `tb_lng_jkm_weekly`.
-
-    Returns SeriesPointV6 keyed 'lng_jkm', ts=week_start, value=price_usd_mmbtu.
-    """
-    cutoff: date_t = today - timedelta(weeks=weeks)
-    q: str = urllib.parse.urlencode(
-        {
-            "week_start": f"gte.{cutoff.isoformat()}",
-            "select": "week_start,price_usd_mmbtu",
-            "order": "week_start.asc",
-        }
-    )
-    url: str = f"{supabase_url.rstrip('/')}/rest/v1/tb_lng_jkm_weekly?{q}"
-    rows: list[dict[str, Any]] = _safe_get(http, url, service_key=service_key)
-    out: list[SeriesPointV6] = []
-    for row in rows:
-        ts: Any = row.get("week_start")
-        price: float | None = _coerce_float(row.get("price_usd_mmbtu"))
-        if price is None or not isinstance(ts, str):
-            continue
-        out.append(SeriesPointV6(key="lng_jkm", ts=ts, value=price))
     return out
