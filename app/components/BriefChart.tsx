@@ -24,6 +24,7 @@ import {
   BarElement,
   PointElement,
   // Scales:
+  CategoryScale,
   LinearScale,
   TimeScale,
   // Plugins:
@@ -48,6 +49,7 @@ Chart.register(
   LineElement,
   BarElement,
   PointElement,
+  CategoryScale,
   LinearScale,
   TimeScale,
   Filler,
