@@ -473,11 +473,11 @@ function dsexConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   const baseOpts = baseLineOptions({ legend: false });
   const options = {
     ...baseOpts,
-    layout: { padding: { top: 50 } },
+    layout: events.length > 0 ? { padding: { top: 50 } } : {},
     interaction: { mode: "index" as const, intersect: false },
     scales: {
       ...baseOpts.scales,
-      x: { ...baseOpts.scales.x, time: { unit: "week" as const, tooltipFormat: "MMM d" } },
+      x: { ...baseOpts.scales.x, time: { unit: "day" as const, tooltipFormat: "MMM d" } },
     },
   };
 
@@ -488,7 +488,8 @@ function dsexConfig(ctx: BuildContext): ChartConfiguration<"line"> {
       borderColor: palette.ink,
       backgroundColor: palette.ruleFaint,
       borderWidth: 1.4,
-      pointRadius: 0,
+      pointRadius: 2,
+      pointHoverRadius: 4,
       tension: 0.25,
       fill: false,
     },
@@ -518,7 +519,8 @@ function brentConfig(ctx: BuildContext): ChartConfiguration<"line"> {
       borderColor: palette.accent,
       backgroundColor: palette.accentSoft,
       borderWidth: 2,
-      pointRadius: 0,
+      pointRadius: 2,
+      pointHoverRadius: 4,
       tension: 0.2,
       fill: "origin",
     },
@@ -534,29 +536,26 @@ function brentConfig(ctx: BuildContext): ChartConfiguration<"line"> {
       ...baseOpts,
       scales: {
         ...baseOpts.scales,
-        x: { ...baseOpts.scales.x, time: { unit: "month" as const, tooltipFormat: "MMM d" } },
+        x: { ...baseOpts.scales.x, time: { unit: "day" as const, tooltipFormat: "MMM d" } },
       },
     },
   } as unknown as ChartConfiguration<"line">;
 }
 
 /**
- * yieldCurve — multi-tenor BD govt yield curve. X-axis is tenor in years
- * (numeric), one dataset per as_of date. Latest snapshot bold; priors faint
- * to show term-structure evolution.
+ * yieldCurve — BD govt yield curve. Category x-axis (3M/6M/1Y/5Y/10Y) with
+ * equal spacing per V3 reference. Two datasets: latest (solid accent) and
+ * one prior (dashed) for week-over-week term-structure shift.
  */
 function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
-  const tenorMap: Array<{ id: string; x: number; label: string }> = [
-    { id: "yield_3m", x: 0.25, label: "3M" },
-    { id: "yield_6m", x: 0.5, label: "6M" },
-    { id: "yield_1y", x: 1, label: "1Y" },
-    { id: "yield_5y", x: 5, label: "5Y" },
-    { id: "yield_10y", x: 10, label: "10Y" },
+  const tenorMap: Array<{ id: string; label: string }> = [
+    { id: "yield_3m", label: "3M" },
+    { id: "yield_6m", label: "6M" },
+    { id: "yield_1y", label: "1Y" },
+    { id: "yield_5y", label: "5Y" },
+    { id: "yield_10y", label: "10Y" },
   ];
-  const tenorXValues: number[] = tenorMap.map((t) => t.x);
-  const tenorLabelByX: Record<number, string> = Object.fromEntries(
-    tenorMap.map((t) => [t.x, t.label]),
-  );
+  const labels: string[] = tenorMap.map((t) => t.label);
 
   if (!hasAnyData(
     ctx.series,
@@ -566,39 +565,57 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   }
 
   const palette = buildPalette();
-  const byDate: Record<string, Array<{ x: number; y: number }>> = {};
-  tenorMap.forEach((t) => {
+  // For each as_of date, build a tenor-aligned y-array with null for missing points.
+  // Category axis means dataset.data is positional: index N corresponds to labels[N].
+  const byDate: Record<string, Array<number | null>> = {};
+  tenorMap.forEach((t, idx) => {
     (ctx.series[t.id] || []).forEach(([d, v]) => {
-      if (v == null) return;
-      if (!byDate[d]) byDate[d] = [];
-      byDate[d].push({ x: t.x, y: v });
+      if (!byDate[d]) byDate[d] = Array(tenorMap.length).fill(null);
+      byDate[d][idx] = v;
     });
   });
   const dates = Object.keys(byDate).sort();
   if (!dates.length) return emptyLineConfig();
 
+  // V3-aligned: show latest + 1 prior only (dashed). Older snapshots in the
+  // data may have partial-tenor coverage and clutter the chart.
   const latest = dates[dates.length - 1];
-  const datasets: ChartDataset<"line", Array<{ x: number; y: number }>>[] = dates.map(
-    (d) => ({
-      label: d,
-      data: byDate[d].sort((a, b) => a.x - b.x),
-      borderColor: d === latest ? palette.accent : palette.ruleSoft,
-      backgroundColor: d === latest ? palette.accent : palette.ruleSoft,
-      borderWidth: d === latest ? 2 : 0.9,
-      pointRadius: d === latest ? 4 : 2,
-      pointHoverRadius: d === latest ? 6 : 4,
+  const prior = dates.length > 1 ? dates[dates.length - 2] : null;
+
+  const datasets: ChartDataset<"line", Array<number | null>>[] = [];
+  if (prior) {
+    datasets.push({
+      label: shortDate(prior),
+      data: byDate[prior],
+      borderColor: palette.ruleSoft,
+      backgroundColor: palette.ruleSoft,
+      borderWidth: 1.4,
+      borderDash: [4, 4],
+      pointRadius: 2,
+      pointHoverRadius: 4,
       tension: 0.1,
       showLine: true,
-    }),
-  );
+      spanGaps: true,
+    });
+  }
+  datasets.push({
+    label: shortDate(latest),
+    data: byDate[latest],
+    borderColor: palette.accent,
+    backgroundColor: palette.accent,
+    borderWidth: 2.5,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    tension: 0.1,
+    showLine: true,
+    spanGaps: true,
+  });
 
-  // Custom options — yield curve uses linear x-axis (tenor in years), not time.
   const options = {
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 300 },
     interaction: { mode: "nearest" as const, intersect: false, axis: "x" as const },
-    parsing: false as const,
     elements: {
       line: { tension: 0.1, borderJoinStyle: "round" as const },
       point: {
@@ -617,13 +634,6 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
           boxWidth: 8,
           font: FONT,
           color: palette.ink2,
-          // Showing every as_of label gets noisy fast — keep latest + a few priors
-          filter: (legendItem: { datasetIndex: number }) => {
-            // Keep the latest plus every 3rd prior to thin out the legend
-            const idx = legendItem.datasetIndex;
-            const isLatest = idx === datasets.length - 1;
-            return isLatest || idx % 3 === 0;
-          },
         },
       },
       tooltip: {
@@ -637,8 +647,8 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
         callbacks: {
           title: (items: Array<{ dataset: { label?: string } }>) =>
             items[0]?.dataset.label ?? "",
-          label: (ctxPt: { parsed: { x: number; y: number } }) => {
-            const tenorLabel = tenorLabelByX[ctxPt.parsed.x] ?? `${ctxPt.parsed.x}Y`;
+          label: (ctxPt: { parsed: { x: number; y: number }; label?: string }) => {
+            const tenorLabel = ctxPt.label ?? labels[ctxPt.parsed.x] ?? "";
             return tenorLabel + ": " + Number(ctxPt.parsed.y).toFixed(2) + "%";
           },
         },
@@ -646,24 +656,10 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     scales: {
       x: {
-        type: "linear" as const,
-        title: { display: true, text: "Tenor (years)", font: FONT, color: palette.ink3 },
+        type: "category" as const,
+        title: { display: true, text: "Tenor", font: FONT, color: palette.ink3 },
         grid: { color: palette.ruleFaint },
-        // Pin ticks to the actual tenor points (3M / 6M / 1Y / 5Y / 10Y) so
-        // x-axis labels always match the plotted tenors regardless of
-        // Chart.js auto-scaling.
-        ticks: {
-          color: palette.ink3,
-          font: FONT,
-          autoSkip: false,
-          callback: (v: number | string) => {
-            const n = typeof v === "number" ? v : Number(v);
-            return tenorLabelByX[n] ?? "";
-          },
-        },
-        afterBuildTicks: (axis: { ticks: Array<{ value: number }> }) => {
-          axis.ticks = tenorXValues.map((value) => ({ value }));
-        },
+        ticks: { color: palette.ink3, font: FONT },
       },
       y: {
         ticks: {
@@ -678,9 +674,20 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 
   return {
     type: "line",
-    data: { datasets },
+    data: { labels, datasets },
     options,
   } as unknown as ChartConfiguration<"line">;
+}
+
+// Format a YYYY-MM-DD date string as "MMM DD" (e.g. "May 09"). Falls back
+// to the input on any parse mismatch.
+function shortDate(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthIdx = parseInt(m[2], 10) - 1;
+  if (monthIdx < 0 || monthIdx > 11) return iso;
+  return `${months[monthIdx]} ${m[3]}`;
 }
 
 /**
@@ -773,12 +780,12 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
   dse: {
     fig: "02",
     title: "DSEX Index",
-    subtitle: "Daily close · with event markers",
+    subtitle: "Daily close",
   },
   tbond: {
     fig: "03",
     title: "BD Govt Yield Curve",
-    subtitle: "Latest snapshot · 2Y to 20Y",
+    subtitle: "Latest snapshot · 3M to 10Y",
   },
   comm: {
     fig: "04",
@@ -788,7 +795,7 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
   iran: {
     fig: "05",
     title: "Brent Crude",
-    subtitle: "Daily · USD/bbl · last 90 days",
+    subtitle: "Daily · USD/bbl",
   },
 };
 
