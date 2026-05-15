@@ -21,3 +21,27 @@ def test_notify_result_has_expected_fields_with_defaults():
     assert r.skipped_count == 0
     assert r.message_id == "abc"
     assert r.error is None
+
+
+from datetime import date
+from brief.notifier import render_subject
+
+
+def test_render_subject_friday_weekly_wrap():
+    subj = render_subject(issue_no=107, brief_date=date(2026, 5, 15), lens="weekly_wrap")
+    assert subj == "The Brief · No. 107 · Fri 15 May 2026 · weekly wrap"
+
+
+def test_render_subject_weekday_daily():
+    subj = render_subject(issue_no=108, brief_date=date(2026, 5, 18), lens="daily")
+    assert subj == "The Brief · No. 108 · Mon 18 May 2026 · daily read"
+
+
+def test_render_subject_unknown_lens_falls_back_to_daily_read():
+    subj = render_subject(issue_no=99, brief_date=date(2026, 4, 15), lens="something_new")
+    assert subj == "The Brief · No. 99 · Wed 15 Apr 2026 · daily read"
+
+
+def test_render_subject_null_lens_falls_back_to_daily_read():
+    subj = render_subject(issue_no=99, brief_date=date(2026, 4, 15), lens=None)
+    assert subj == "The Brief · No. 99 · Wed 15 Apr 2026 · daily read"

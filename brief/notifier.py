@@ -26,3 +26,21 @@ class NotifyResult:
     skipped_count: int         # rows skipped client-side (e.g. missing email)
     message_id: str | None     # Brevo's message-id from the 2xx response
     error: str | None          # short error tag if anything failed; None on success
+
+
+from datetime import date as date_t
+
+_LENS_PHRASE = {
+    "weekly_wrap": "weekly wrap",
+}
+_DEFAULT_LENS_PHRASE = "daily read"
+
+
+def render_subject(*, issue_no: int, brief_date: date_t, lens: str | None) -> str:
+    """Return the subject line for a brief release email.
+
+    Format: "The Brief · No. {N} · {Weekday} {DD} {Mmm} {YYYY} · {lens phrase}"
+    """
+    lens_phrase = _LENS_PHRASE.get(lens or "", _DEFAULT_LENS_PHRASE)
+    date_str = brief_date.strftime("%a %d %b %Y")
+    return f"The Brief · No. {issue_no} · {date_str} · {lens_phrase}"
