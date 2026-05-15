@@ -65,22 +65,41 @@ export function Masthead({ brief, source, sections, displayOrdBySlug }: Masthead
                 [/t-bill|t-bond/, "tbond"],
               ];
               let secOrd = "";
+              let matchedSlug = "";
               for (const [pat, slug] of map) {
                 if (pat.test(lower)) {
                   const sec = sections.find((s) => s.slug === slug);
                   if (sec) {
                     const display = displayOrdBySlug?.get(sec.slug) ?? sec.ord;
                     secOrd = `§${String(display).padStart(2, "0")}`;
+                    matchedSlug = sec.slug;
                     break;
                   }
                 }
               }
+              const numText = secOrd || `§${String(i + 1).padStart(2, "0")}`;
+              const inner = (
+                <>
+                  <span className="num">{numText}</span>
+                  <span className="text">{h.headline}</span>
+                </>
+              );
               return (
                 <li key={i}>
-                  <span className="num">
-                    {secOrd || `§${String(i + 1).padStart(2, "0")}`}
-                  </span>
-                  <span className="text">{h.headline}</span>
+                  {matchedSlug ? (
+                    <a
+                      href={`#${matchedSlug}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const el = document.getElementById(matchedSlug);
+                        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    inner
+                  )}
                 </li>
               );
             })}

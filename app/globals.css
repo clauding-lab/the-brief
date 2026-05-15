@@ -211,6 +211,18 @@ body { background: var(--paper); color: var(--ink); }
 }
 .tb-issue-rail li .num { color: var(--ink-3); font-size: 11px; }
 .tb-issue-rail li .text { text-wrap: pretty; }
+.tb-issue-rail li > a { display: contents; }
+.tb-issue-rail li:has(> a) { cursor: pointer; }
+.tb-issue-rail li > a:hover .text {
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+}
+.tb-issue-rail li > a:hover .num { color: var(--ink-2); }
+.tb-issue-rail li > a:focus-visible .text {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 /* V6 enrichment — Today's Call paragraph in masthead */
 .tb-todays-call {
