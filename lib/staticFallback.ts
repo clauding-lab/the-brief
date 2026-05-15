@@ -10,7 +10,7 @@ export const STATIC_FALLBACK: BriefPayload = {
     issue_no: 87,
     volume: 1,
     brief_date: "2026-04-20",
-    read_minutes: 9,
+    read_minutes: 15,
     cover_metric: {
       label: "NPL Ratio · Q4 2025",
       value: "35.73%",
