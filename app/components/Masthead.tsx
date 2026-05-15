@@ -46,7 +46,7 @@ export function Masthead({ brief, source, sections, displayOrdBySlug }: Masthead
             The Brief<span className="dot">.</span>
           </div>
           <div className="tb-tagline">
-            Daily macro &amp; markets read for Bangladesh treasury desks. One brief.
+            Daily macro &amp; markets read for Bangladesh banking professionals. One brief.
             Numbers, news, and a banker&rsquo;s read on what matters.
           </div>
         </div>
