@@ -200,3 +200,20 @@ def test_render_html_escapes_special_chars_in_lead_headline():
     assert "<urgent>" not in html  # un-escaped form must NOT appear
     # Source escaped
     assert "Source &amp; Co" in html
+
+
+from brief.notifier import render_email
+
+
+def test_render_email_returns_three_strings():
+    subject, html, text = render_email(brief=_fixture_brief(), lead_news=_fixture_lead_news())
+    assert isinstance(subject, str) and subject.startswith("The Brief · No. 107")
+    assert html.startswith("<!DOCTYPE html>")
+    assert text.startswith("THE BRIEF · Vol. 01 · No. 107")
+
+
+def test_render_email_handles_no_lead_news():
+    subject, html, text = render_email(brief=_fixture_brief(), lead_news=None)
+    assert "LEAD HEADLINE" not in html
+    assert "LEAD HEADLINE" not in text
+    assert subject == "The Brief · No. 107 · Fri 15 May 2026 · weekly wrap"

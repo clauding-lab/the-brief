@@ -183,3 +183,18 @@ def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
   </td></tr>
 </table>
 </body></html>"""
+
+
+def render_email(*, brief: BriefRow, lead_news: NewsRow | None) -> tuple[str, str, str]:
+    """Return (subject, html_body, text_body) for a brief release email.
+
+    Pure function — no I/O, no env reads. Use for unit-testing and dry-run rendering.
+    """
+    subject = render_subject(
+        issue_no=brief.issue_no,
+        brief_date=brief.brief_date,
+        lens=brief.lens,
+    )
+    html = render_html(brief=brief, lead_news=lead_news)
+    text = render_text(brief=brief, lead_news=lead_news)
+    return subject, html, text
