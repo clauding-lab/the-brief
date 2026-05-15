@@ -339,3 +339,61 @@ def send_via_brevo(
         return 0, None, f"HTTP {e.code}: {e.reason}"
     except Exception as e:
         return 0, None, f"{type(e).__name__}: {e}"
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def notify(brief_id: str) -> NotifyResult:
+    """Top-level entry. Fail-open: any error logged and returned in NotifyResult.
+
+    Reads BREVO_API_KEY, FROM_EMAIL, SUPABASE_URL, SUPABASE_SERVICE_KEY from env.
+    """
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    if not api_key:
+        logger.warning("notifier: BREVO_API_KEY not set, skipping send")
+        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error="no_api_key")
+
+    from_email = os.environ.get("FROM_EMAIL", "").strip() or "noreply@example.com"
+
+    try:
+        brief, lead_news = fetch_brief_data(brief_id)
+    except Exception as e:
+        logger.exception("notifier: failed to fetch brief data: %s", e)
+        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error=f"fetch_brief: {e}")
+
+    try:
+        subscribers = fetch_subscribers()
+    except Exception as e:
+        logger.exception("notifier: failed to fetch subscribers: %s", e)
+        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error=f"fetch_subs: {e}")
+
+    if not subscribers:
+        logger.info("notifier: no subscribers, skipping send")
+        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error="no_subscribers")
+
+    subject, html_body, text_body = render_email(brief=brief, lead_news=lead_news)
+
+    sent_count, message_id, error = send_via_brevo(
+        api_key=api_key,
+        from_email=from_email,
+        from_name="The Brief",
+        subscribers=subscribers,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
+
+    if error:
+        logger.error("notifier: Brevo send failed: %s", error)
+    else:
+        logger.info("notifier: sent=%d message_id=%s", sent_count, message_id)
+
+    return NotifyResult(
+        sent_count=sent_count,
+        skipped_count=0,
+        message_id=message_id,
+        error=error,
+    )

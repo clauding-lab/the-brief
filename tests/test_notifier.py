@@ -448,3 +448,106 @@ def test_send_via_brevo_returns_error_on_non_2xx(monkeypatch):
     assert sent == 0
     assert msg_id is None
     assert "401" in err
+
+
+from brief.notifier import notify
+
+
+def test_notify_happy_path(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+    monkeypatch.setenv("BREVO_API_KEY", "brevo-key")
+    monkeypatch.setenv("FROM_EMAIL", "adnan@example.com")
+
+    def fake_urlopen(req, timeout=None):
+        url = req.full_url
+        if "/briefs?" in url:
+            body = _json.dumps([{
+                "id": "f54ac95d", "issue_no": 107, "volume": 1,
+                "brief_date": "2026-05-15", "published_at": "2026-05-15T09:33:12+00:00",
+                "todays_call": "x", "lens": "weekly_wrap",
+            }]).encode()
+        elif "/sections?" in url:
+            body = _json.dumps([{"id": "sec-uuid"}]).encode()
+        elif "/news?" in url:
+            body = _json.dumps([{
+                "headline": "h", "source": "s",
+                "source_url": "https://example.com",
+                "published_at": "2026-05-14T00:30:00+00:00",
+            }]).encode()
+        elif "/subscribers?" in url:
+            body = _json.dumps([
+                {"name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
+            ]).encode()
+        elif url == "https://api.brevo.com/v3/smtp/email":
+            body = b'{"messageId":"<abc@brevo>"}'
+        else:
+            raise AssertionError(f"unexpected URL: {url}")
+        return _FakeResp(body)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    result = notify("f54ac95d")
+
+    assert result.sent_count == 1
+    assert result.message_id == "<abc@brevo>"
+    assert result.error is None
+
+
+def test_notify_returns_no_api_key_error_when_brevo_key_missing(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+    monkeypatch.delenv("BREVO_API_KEY", raising=False)
+    # urlopen should not be called — so set a tripwire
+    def tripwire(*a, **kw):
+        raise AssertionError("urlopen called despite missing BREVO_API_KEY")
+    monkeypatch.setattr(notifier_mod, "urlopen", tripwire)
+
+    result = notify("f54ac95d")
+    assert result.sent_count == 0
+    assert result.error == "no_api_key"
+
+
+def test_notify_returns_no_subscribers_when_table_empty(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+    monkeypatch.setenv("BREVO_API_KEY", "brevo-key")
+    monkeypatch.setenv("FROM_EMAIL", "adnan@example.com")
+
+    def fake_urlopen(req, timeout=None):
+        url = req.full_url
+        if "/briefs?" in url:
+            body = _json.dumps([{
+                "id": "x", "issue_no": 1, "volume": 1,
+                "brief_date": "2026-05-15", "published_at": "2026-05-15T00:30:00+00:00",
+                "todays_call": "x", "lens": None,
+            }]).encode()
+        elif "/sections?" in url:
+            body = b"[]"
+        elif "/subscribers?" in url:
+            body = b"[]"
+        else:
+            raise AssertionError(f"unexpected URL: {url}")
+        return _FakeResp(body)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    result = notify("x")
+    assert result.sent_count == 0
+    assert result.error == "no_subscribers"
+
+
+def test_notify_swallows_unexpected_exception(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+    monkeypatch.setenv("BREVO_API_KEY", "brevo-key")
+
+    def boom(req, timeout=None):
+        raise RuntimeError("unexpected!")
+
+    monkeypatch.setattr(notifier_mod, "urlopen", boom)
+
+    result = notify("x")
+    assert result.sent_count == 0
+    assert result.error is not None
+    assert "unexpected" in result.error.lower()
