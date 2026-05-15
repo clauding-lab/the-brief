@@ -284,3 +284,91 @@ def test_fetch_subscribers_raises_on_missing_env(monkeypatch):
 
     with __import__("pytest").raises(RuntimeError, match="SUPABASE_URL"):
         fetch_subscribers()
+
+
+from brief.notifier import fetch_brief_data
+
+
+def test_fetch_brief_data_returns_brief_and_lead_news(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+
+    calls = []
+
+    def fake_urlopen(req, timeout=None):
+        calls.append(req.full_url)
+        if "/briefs?" in req.full_url:
+            body = _json.dumps([{
+                "id": "f54ac95d", "issue_no": 107, "volume": 1,
+                "brief_date": "2026-05-15", "published_at": "2026-05-15T09:33:12+00:00",
+                "todays_call": "Fitch went negative.", "lens": "weekly_wrap",
+            }]).encode()
+        elif "/sections?" in req.full_url:
+            body = _json.dumps([{"id": "sec-uuid"}]).encode()
+        elif "/news?" in req.full_url:
+            body = _json.dumps([{
+                "headline": "Fitch revises Bangladesh outlook to negative",
+                "source": "The Daily Star",
+                "source_url": "https://example.com/x",
+                "published_at": "2026-05-14T00:30:00+00:00",
+            }]).encode()
+        else:
+            raise AssertionError(f"unexpected URL: {req.full_url}")
+        return _FakeResp(body)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    brief, lead = fetch_brief_data("f54ac95d")
+    assert brief.issue_no == 107
+    assert brief.todays_call == "Fitch went negative."
+    assert lead is not None
+    assert lead.headline.startswith("Fitch revises Bangladesh")
+    assert lead.source == "The Daily Star"
+
+
+def test_fetch_brief_data_returns_none_lead_when_no_headlines_section(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+
+    def fake_urlopen(req, timeout=None):
+        if "/briefs?" in req.full_url:
+            body = _json.dumps([{
+                "id": "x", "issue_no": 1, "volume": 1,
+                "brief_date": "2026-05-15", "published_at": "2026-05-15T00:30:00+00:00",
+                "todays_call": "x", "lens": None,
+            }]).encode()
+        elif "/sections?" in req.full_url:
+            body = b"[]"  # no headlines section
+        else:
+            raise AssertionError(f"unexpected URL: {req.full_url}")
+        return _FakeResp(body)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    brief, lead = fetch_brief_data("x")
+    assert lead is None
+
+
+def test_fetch_brief_data_returns_none_lead_when_section_has_no_news(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+
+    def fake_urlopen(req, timeout=None):
+        if "/briefs?" in req.full_url:
+            body = _json.dumps([{
+                "id": "x", "issue_no": 1, "volume": 1,
+                "brief_date": "2026-05-15", "published_at": "2026-05-15T00:30:00+00:00",
+                "todays_call": "x", "lens": None,
+            }]).encode()
+        elif "/sections?" in req.full_url:
+            body = _json.dumps([{"id": "sec-uuid"}]).encode()
+        elif "/news?" in req.full_url:
+            body = b"[]"
+        else:
+            raise AssertionError(f"unexpected URL: {req.full_url}")
+        return _FakeResp(body)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    brief, lead = fetch_brief_data("x")
+    assert lead is None

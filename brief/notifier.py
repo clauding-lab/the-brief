@@ -238,3 +238,59 @@ def fetch_subscribers() -> list[Subscriber]:
 def _json_loads(data: bytes) -> list[dict]:
     import json as _stdjson
     return _stdjson.loads(data.decode("utf-8"))
+
+
+import json as _json
+
+
+def _parse_iso(s: str | None) -> datetime | None:
+    """Parse ISO 8601 (with or without timezone) → datetime."""
+    if not s:
+        return None
+    # Supabase returns "2026-05-15T09:33:12.488474+00:00" — Python 3.11+ fromisoformat handles it
+    return datetime.fromisoformat(s)
+
+
+def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
+    """GET brief row + lead news (first headlines-section row by ord)."""
+    url, key = _supabase_config()
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Accept": "application/json",
+    }
+
+    def _get(path: str) -> list[dict]:
+        with urlopen(Request(f"{url}/rest/v1{path}", headers=headers), timeout=30) as r:
+            return _json.loads(r.read().decode("utf-8"))
+
+    brief_rows = _get(f"/briefs?id=eq.{brief_id}&select=id,issue_no,volume,brief_date,published_at,todays_call,lens")
+    if not brief_rows:
+        raise RuntimeError(f"brief id={brief_id} not found in Supabase")
+    b = brief_rows[0]
+    brief = BriefRow(
+        id=b["id"],
+        issue_no=b["issue_no"],
+        volume=b["volume"],
+        brief_date=date_t.fromisoformat(b["brief_date"]),
+        published_at=_parse_iso(b["published_at"]),  # type: ignore[arg-type]
+        todays_call=b.get("todays_call") or "",
+        lens=b.get("lens"),
+    )
+
+    section_rows = _get(f"/sections?brief_id=eq.{brief_id}&slug=eq.headlines&select=id&limit=1")
+    if not section_rows:
+        return brief, None
+    section_id = section_rows[0]["id"]
+
+    news_rows = _get(f"/news?section_id=eq.{section_id}&select=headline,source,source_url,published_at&order=ord.asc&limit=1")
+    if not news_rows:
+        return brief, None
+    n = news_rows[0]
+    lead = NewsRow(
+        headline=n["headline"],
+        source=n["source"],
+        source_url=n.get("source_url"),
+        published_at=_parse_iso(n.get("published_at")),
+    )
+    return brief, lead
