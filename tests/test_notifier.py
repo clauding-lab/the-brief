@@ -550,4 +550,35 @@ def test_notify_swallows_unexpected_exception(monkeypatch):
     result = notify("x")
     assert result.sent_count == 0
     assert result.error is not None
+    assert result.error.startswith("fetch_brief:")
     assert "unexpected" in result.error.lower()
+
+
+def test_notify_returns_fetch_subs_error_when_subscribers_raises(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+    monkeypatch.setenv("BREVO_API_KEY", "brevo-key")
+
+    def fake_urlopen(req, timeout=None):
+        url = req.full_url
+        if "/briefs?" in url:
+            body = _json.dumps([{
+                "id": "x", "issue_no": 1, "volume": 1,
+                "brief_date": "2026-05-15", "published_at": "2026-05-15T00:30:00+00:00",
+                "todays_call": "x", "lens": None,
+            }]).encode()
+            return _FakeResp(body)
+        elif "/sections?" in url:
+            return _FakeResp(b"[]")  # no headlines → fetch_brief_data returns (brief, None)
+        elif "/subscribers?" in url:
+            raise OSError("db timeout")
+        else:
+            raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    result = notify("x")
+    assert result.sent_count == 0
+    assert result.error is not None
+    assert result.error.startswith("fetch_subs:")
+    assert "db timeout" in result.error
