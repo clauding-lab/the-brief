@@ -217,3 +217,70 @@ def test_render_email_handles_no_lead_news():
     assert "LEAD HEADLINE" not in html
     assert "LEAD HEADLINE" not in text
     assert subject == "The Brief · No. 107 · Fri 15 May 2026 · weekly wrap"
+
+
+import json as _json
+import brief.notifier as notifier_mod
+from brief.notifier import fetch_subscribers
+
+
+class _FakeResp:
+    def __init__(self, body: bytes, status: int = 200):
+        self._body = body
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def test_fetch_subscribers_returns_list_of_subscriber(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["headers"] = dict(req.headers)
+        body = _json.dumps([
+            {"name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
+            {"name": "Tareq", "email": "t@city.com", "organisation": None},
+        ]).encode()
+        return _FakeResp(body)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    subs = fetch_subscribers()
+
+    assert len(subs) == 2
+    assert subs[0] == Subscriber(name="Mehrin", email="m@brac.com", organisation="BRAC")
+    assert subs[1].organisation is None
+    assert "/rest/v1/subscribers" in captured["url"]
+    assert captured["headers"].get("Apikey") == "test-key" or captured["headers"].get("apikey") == "test-key"
+
+
+def test_fetch_subscribers_returns_empty_when_table_empty(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+
+    def fake_urlopen(req, timeout=None):
+        return _FakeResp(b"[]")
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    assert fetch_subscribers() == []
+
+
+def test_fetch_subscribers_raises_on_missing_env(monkeypatch):
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+
+    with __import__("pytest").raises(RuntimeError, match="SUPABASE_URL"):
+        fetch_subscribers()

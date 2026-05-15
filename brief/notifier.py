@@ -198,3 +198,43 @@ def render_email(*, brief: BriefRow, lead_news: NewsRow | None) -> tuple[str, st
     html = render_html(brief=brief, lead_news=lead_news)
     text = render_text(brief=brief, lead_news=lead_news)
     return subject, html, text
+
+
+import os
+from urllib.request import urlopen, Request
+
+
+def _supabase_config() -> tuple[str, str]:
+    """Same pattern as brief/v6_publisher.py::_config — service-role auth."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+    if not url or not key:
+        raise RuntimeError(
+            "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars. "
+            "On Hetzner these come from /etc/brief.env via systemd EnvironmentFile."
+        )
+    return url.rstrip("/"), key
+
+
+def fetch_subscribers() -> list[Subscriber]:
+    """GET /rest/v1/subscribers — all rows ordered by created_at desc."""
+    url, key = _supabase_config()
+    req = Request(
+        f"{url}/rest/v1/subscribers?select=name,email,organisation&order=created_at.desc",
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Accept": "application/json",
+        },
+    )
+    with urlopen(req, timeout=30) as r:
+        rows = _json_loads(r.read())
+    return [
+        Subscriber(name=row["name"], email=row["email"], organisation=row.get("organisation"))
+        for row in rows
+    ]
+
+
+def _json_loads(data: bytes) -> list[dict]:
+    import json as _stdjson
+    return _stdjson.loads(data.decode("utf-8"))
