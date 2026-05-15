@@ -240,9 +240,6 @@ def _json_loads(data: bytes) -> list[dict]:
     return _stdjson.loads(data.decode("utf-8"))
 
 
-import json as _json
-
-
 def _parse_iso(s: str | None) -> datetime | None:
     """Parse ISO 8601 (with or without timezone) → datetime."""
     if not s:
@@ -262,7 +259,7 @@ def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
 
     def _get(path: str) -> list[dict]:
         with urlopen(Request(f"{url}/rest/v1{path}", headers=headers), timeout=30) as r:
-            return _json.loads(r.read().decode("utf-8"))
+            return _json_loads(r.read())
 
     brief_rows = _get(f"/briefs?id=eq.{brief_id}&select=id,issue_no,volume,brief_date,published_at,todays_call,lens")
     if not brief_rows:
