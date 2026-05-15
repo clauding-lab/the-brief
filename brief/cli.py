@@ -31,10 +31,12 @@ def _parse(argv: list[str]) -> argparse.Namespace:
                    help="Run the pipeline but do not write to Supabase")
     r.add_argument("--today", default=None,
                    help="Override today's date (YYYY-MM-DD); default: system date")
+    r.add_argument("--no-notify", action="store_true",
+                   help="Skip the subscriber email notifier after a successful publish")
     return p.parse_args(argv)
 
 
-def _run_v6_publish(cfg: PipelineConfig, today: date, dry_run: bool) -> int:
+def _run_v6_publish(cfg: PipelineConfig, today: date, dry_run: bool, notify_enabled: bool) -> int:
     """V6 publish path: gather → editor_v6 → subeditor_v6 → Supabase."""
     from brief.headlines import scrape_all
     from brief.pipeline_v6 import V6PublishError, run_publish
@@ -60,6 +62,19 @@ def _run_v6_publish(cfg: PipelineConfig, today: date, dry_run: bool) -> int:
         log.info("V6 dry-run: editor + subeditor passed, no Supabase write")
         return 3
     log.info("V6 publish ok: brief_id=%s", brief_id)
+
+    if notify_enabled and brief_id:
+        try:
+            from brief.notifier import notify as _notify
+            result = _notify(brief_id)
+            log.info(
+                "notifier: sent=%d skipped=%d message_id=%s error=%s",
+                result.sent_count, result.skipped_count, result.message_id, result.error,
+            )
+        except Exception:
+            # Last-resort fail-open: even an import error must not crash a successful publish
+            log.exception("notifier: unexpected exception (publish remains successful)")
+
     return 0
 
 
@@ -70,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = PipelineConfig(today=today)
 
     if ns.publish:
-        return _run_v6_publish(cfg, today, dry_run=ns.dry_run)
+        return _run_v6_publish(cfg, today, dry_run=ns.dry_run, notify_enabled=not ns.no_notify)
 
     print("--publish is required (V5 HTML path has been removed)", file=sys.stderr)
     return 1
