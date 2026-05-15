@@ -372,3 +372,79 @@ def test_fetch_brief_data_returns_none_lead_when_section_has_no_news(monkeypatch
 
     brief, lead = fetch_brief_data("x")
     assert lead is None
+
+
+from brief.notifier import send_via_brevo
+
+
+def test_send_via_brevo_posts_correct_payload_and_returns_message_id(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["headers"] = dict(req.headers)
+        captured["body"] = _json.loads(req.data.decode())
+        return _FakeResp(b'{"messageId":"<abc@brevo>"}', status=201)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    result = send_via_brevo(
+        api_key="test-key",
+        from_email="adnan.rshd@gmail.com",
+        from_name="The Brief",
+        subscribers=[
+            Subscriber(name="A", email="a@x.com", organisation=None),
+            Subscriber(name="B", email="b@y.com", organisation="Y"),
+        ],
+        subject="The Brief · No. 107",
+        html_body="<html/>",
+        text_body="plain",
+    )
+
+    assert result == (2, "<abc@brevo>", None)  # (sent_count, message_id, error)
+    assert captured["url"] == "https://api.brevo.com/v3/smtp/email"
+    assert captured["body"]["sender"] == {"email": "adnan.rshd@gmail.com", "name": "The Brief"}
+    assert captured["body"]["to"] == [
+        {"email": "a@x.com", "name": "A"},
+        {"email": "b@y.com", "name": "B"},
+    ]
+    assert captured["body"]["subject"] == "The Brief · No. 107"
+    assert captured["body"]["htmlContent"] == "<html/>"
+    assert captured["body"]["textContent"] == "plain"
+
+
+def test_send_via_brevo_returns_error_on_network_failure(monkeypatch):
+    def boom(req, timeout=None):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(notifier_mod, "urlopen", boom)
+
+    sent, msg_id, err = send_via_brevo(
+        api_key="k", from_email="a@x.com", from_name="The Brief",
+        subscribers=[Subscriber(name="A", email="a@x.com", organisation=None)],
+        subject="s", html_body="h", text_body="t",
+    )
+    assert sent == 0
+    assert msg_id is None
+    assert "connection refused" in err
+
+
+def test_send_via_brevo_returns_error_on_non_2xx(monkeypatch):
+    import urllib.error
+
+    def http_err(req, timeout=None):
+        raise urllib.error.HTTPError(
+            req.full_url, 401, "Unauthorized",
+            hdrs=None, fp=__import__("io").BytesIO(b'{"message":"invalid api key"}'),
+        )
+
+    monkeypatch.setattr(notifier_mod, "urlopen", http_err)
+
+    sent, msg_id, err = send_via_brevo(
+        api_key="bad", from_email="a@x.com", from_name="The Brief",
+        subscribers=[Subscriber(name="A", email="a@x.com", organisation=None)],
+        subject="s", html_body="h", text_body="t",
+    )
+    assert sent == 0
+    assert msg_id is None
+    assert "401" in err

@@ -291,3 +291,51 @@ def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
         published_at=_parse_iso(n.get("published_at")),
     )
     return brief, lead
+
+
+import urllib.error
+
+_BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+
+def send_via_brevo(
+    *,
+    api_key: str,
+    from_email: str,
+    from_name: str,
+    subscribers: list[Subscriber],
+    subject: str,
+    html_body: str,
+    text_body: str,
+) -> tuple[int, str | None, str | None]:
+    """POST to Brevo's transactional API.
+
+    Returns (sent_count, message_id, error). On any failure, sent_count is 0,
+    message_id is None, error is a short string.
+    """
+    import json as _stdjson
+
+    payload = {
+        "sender": {"email": from_email, "name": from_name},
+        "to": [{"email": s.email, "name": s.name} for s in subscribers],
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+    req = Request(
+        _BREVO_URL,
+        data=_stdjson.dumps(payload).encode("utf-8"),
+        headers={
+            "api-key": api_key,
+            "content-type": "application/json",
+            "accept": "application/json",
+        },
+    )
+    try:
+        with urlopen(req, timeout=30) as r:
+            body = _stdjson.loads(r.read().decode("utf-8"))
+            return len(subscribers), body.get("messageId"), None
+    except urllib.error.HTTPError as e:
+        return 0, None, f"HTTP {e.code}: {e.reason}"
+    except Exception as e:
+        return 0, None, f"{type(e).__name__}: {e}"
