@@ -8,7 +8,37 @@ Spec: docs/superpowers/specs/2026-05-15-release-notifier-design.md
 """
 from __future__ import annotations
 
+import html as _html
+import json as _stdjson
+import logging
+import os
+import urllib.error
 from dataclasses import dataclass
+from datetime import date as date_t
+from datetime import datetime, timezone
+from urllib.parse import quote as _urlquote
+from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
+
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+_BDT = ZoneInfo("Asia/Dhaka")
+_HOSTED_URL = "https://thebrief.clauding-lab.com/"
+_BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+_LENS_PHRASE: dict[str, str] = {
+    "weekly_wrap": "weekly wrap",
+}
+_DEFAULT_LENS_PHRASE = "daily read"
+
+
+# ── Logger ────────────────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
+
+
+# ── Dataclasses ──────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
@@ -28,39 +58,19 @@ class NotifyResult:
     error: str | None          # short error tag if anything failed; None on success
 
 
-from datetime import date as date_t
-
-_LENS_PHRASE = {
-    "weekly_wrap": "weekly wrap",
-}
-_DEFAULT_LENS_PHRASE = "daily read"
-
-
-def render_subject(*, issue_no: int, brief_date: date_t, lens: str | None) -> str:
-    """Return the subject line for a brief release email.
-
-    Format: "The Brief · No. {N} · {Weekday} {DD} {Mmm} {YYYY} · {lens phrase}"
-    """
-    lens_phrase = _LENS_PHRASE.get(lens or "", _DEFAULT_LENS_PHRASE)
-    date_str = brief_date.strftime("%a %d %b %Y")
-    return f"The Brief · No. {issue_no} · {date_str} · {lens_phrase}"
-
-
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
-
-_BDT = ZoneInfo("Asia/Dhaka")
-_HOSTED_URL = "https://thebrief.clauding-lab.com/"
-
-
 @dataclass(frozen=True)
 class BriefRow:
-    """Subset of the briefs row that the notifier needs."""
+    """Subset of the briefs row that the notifier needs.
+
+    `published_at` is nullable: legacy briefs may have it unset, and Supabase
+    does not enforce a NOT NULL on the column. Callers downstream (`_hhmm_bdt`,
+    `render_text`, `render_html`) all handle None.
+    """
     id: str
     issue_no: int
     volume: int
     brief_date: date_t
-    published_at: datetime
+    published_at: datetime | None
     todays_call: str
     lens: str | None
 
@@ -74,6 +84,19 @@ class NewsRow:
     published_at: datetime | None
 
 
+# ── Private helpers ──────────────────────────────────────────────────────────
+
+
+def _json_loads(data: bytes) -> list[dict]:
+    """Decode a Supabase / Brevo JSON response body into a list of dicts."""
+    return _stdjson.loads(data.decode("utf-8"))
+
+
+def _esc(s: str) -> str:
+    """HTML-escape a runtime string. Always use for user/editor-derived text."""
+    return _html.escape(s, quote=True)
+
+
 def _hhmm_bdt(ts: datetime | None) -> str:
     """Format a timestamp as HH:MM BDT. None → empty string."""
     if ts is None:
@@ -84,7 +107,40 @@ def _hhmm_bdt(ts: datetime | None) -> str:
 
 
 def _lens_phrase(lens: str | None) -> str:
+    """Map a lens slug to its display phrase, defaulting to 'daily read'."""
     return _LENS_PHRASE.get(lens or "", _DEFAULT_LENS_PHRASE)
+
+
+def _parse_iso(s: str | None) -> datetime | None:
+    """Parse ISO 8601 (with or without timezone) → datetime; None passes through."""
+    if not s:
+        return None
+    # Supabase returns "2026-05-15T09:33:12.488474+00:00" — Python 3.11+ fromisoformat handles it
+    return datetime.fromisoformat(s)
+
+
+def _supabase_config() -> tuple[str, str]:
+    """Same pattern as brief/v6_publisher.py::_config — service-role auth."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+    if not url or not key:
+        raise RuntimeError(
+            "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars. "
+            "On Hetzner these come from /etc/brief.env via systemd EnvironmentFile."
+        )
+    return url.rstrip("/"), key
+
+
+# ── Render layer (pure functions, no I/O) ────────────────────────────────────
+
+
+def render_subject(*, issue_no: int, brief_date: date_t, lens: str | None) -> str:
+    """Return the subject line for a brief release email.
+
+    Format: "The Brief · No. {N} · {Weekday} {DD} {Mmm} {YYYY} · {lens phrase}"
+    """
+    date_str = brief_date.strftime("%a %d %b %Y")
+    return f"The Brief · No. {issue_no} · {date_str} · {_lens_phrase(lens)}"
 
 
 def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
@@ -93,10 +149,11 @@ def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
     LEAD HEADLINE section is omitted entirely when lead_news is None.
     """
     lines: list[str] = []
-    masthead_no = f"No. {brief.issue_no}"
-    masthead_vol = f"Vol. {brief.volume:02d}"
-    lines.append(f"THE BRIEF · {masthead_vol} · {masthead_no}")
-    lines.append(f"{brief.brief_date.strftime('%a %d %b %Y')} · {_hhmm_bdt(brief.published_at)}  [{_lens_phrase(brief.lens)}]")
+    lines.append(f"THE BRIEF · Vol. {brief.volume:02d} · No. {brief.issue_no}")
+    lines.append(
+        f"{brief.brief_date.strftime('%a %d %b %Y')} · "
+        f"{_hhmm_bdt(brief.published_at)} [{_lens_phrase(brief.lens)}]"
+    )
     lines.append("")
 
     lines.append("TODAY'S CALL")
@@ -121,14 +178,6 @@ def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
     lines.append("Unsubscribe: reply to this email with 'Unsubscribe' in the subject.")
 
     return "\n".join(lines)
-
-
-import html as _html
-
-
-def _esc(s: str) -> str:
-    """HTML-escape a runtime string. Always use for user/editor-derived text."""
-    return _html.escape(s, quote=True)
 
 
 def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
@@ -200,20 +249,7 @@ def render_email(*, brief: BriefRow, lead_news: NewsRow | None) -> tuple[str, st
     return subject, html, text
 
 
-import os
-from urllib.request import urlopen, Request
-
-
-def _supabase_config() -> tuple[str, str]:
-    """Same pattern as brief/v6_publisher.py::_config — service-role auth."""
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
-    if not url or not key:
-        raise RuntimeError(
-            "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars. "
-            "On Hetzner these come from /etc/brief.env via systemd EnvironmentFile."
-        )
-    return url.rstrip("/"), key
+# ── Fetch layer (Supabase service-key GETs) ──────────────────────────────────
 
 
 def fetch_subscribers() -> list[Subscriber]:
@@ -235,33 +271,29 @@ def fetch_subscribers() -> list[Subscriber]:
     ]
 
 
-def _json_loads(data: bytes) -> list[dict]:
-    import json as _stdjson
-    return _stdjson.loads(data.decode("utf-8"))
-
-
-def _parse_iso(s: str | None) -> datetime | None:
-    """Parse ISO 8601 (with or without timezone) → datetime."""
-    if not s:
-        return None
-    # Supabase returns "2026-05-15T09:33:12.488474+00:00" — Python 3.11+ fromisoformat handles it
-    return datetime.fromisoformat(s)
-
-
 def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
-    """GET brief row + lead news (first headlines-section row by ord)."""
+    """GET brief row + lead news (first headlines-section row by ord).
+
+    `brief_id` is URL-encoded into the PostgREST query string so a malformed
+    or unexpected value can't corrupt the filter syntax. In practice the id
+    is a Supabase-generated UUID, but encoding costs nothing.
+    """
     url, key = _supabase_config()
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Accept": "application/json",
     }
+    safe_id = _urlquote(brief_id, safe="")
 
     def _get(path: str) -> list[dict]:
         with urlopen(Request(f"{url}/rest/v1{path}", headers=headers), timeout=30) as r:
             return _json_loads(r.read())
 
-    brief_rows = _get(f"/briefs?id=eq.{brief_id}&select=id,issue_no,volume,brief_date,published_at,todays_call,lens")
+    brief_rows = _get(
+        f"/briefs?id=eq.{safe_id}"
+        "&select=id,issue_no,volume,brief_date,published_at,todays_call,lens"
+    )
     if not brief_rows:
         raise RuntimeError(f"brief id={brief_id} not found in Supabase")
     b = brief_rows[0]
@@ -270,17 +302,22 @@ def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
         issue_no=b["issue_no"],
         volume=b["volume"],
         brief_date=date_t.fromisoformat(b["brief_date"]),
-        published_at=_parse_iso(b["published_at"]),  # type: ignore[arg-type]
+        published_at=_parse_iso(b.get("published_at")),
         todays_call=b.get("todays_call") or "",
         lens=b.get("lens"),
     )
 
-    section_rows = _get(f"/sections?brief_id=eq.{brief_id}&slug=eq.headlines&select=id&limit=1")
+    section_rows = _get(
+        f"/sections?brief_id=eq.{safe_id}&slug=eq.headlines&select=id&limit=1"
+    )
     if not section_rows:
         return brief, None
-    section_id = section_rows[0]["id"]
+    section_id = _urlquote(section_rows[0]["id"], safe="")
 
-    news_rows = _get(f"/news?section_id=eq.{section_id}&select=headline,source,source_url,published_at&order=ord.asc&limit=1")
+    news_rows = _get(
+        f"/news?section_id=eq.{section_id}"
+        "&select=headline,source,source_url,published_at&order=ord.asc&limit=1"
+    )
     if not news_rows:
         return brief, None
     n = news_rows[0]
@@ -293,9 +330,7 @@ def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
     return brief, lead
 
 
-import urllib.error
-
-_BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+# ── Send layer (Brevo HTTP POST) ─────────────────────────────────────────────
 
 
 def send_via_brevo(
@@ -313,8 +348,6 @@ def send_via_brevo(
     Returns (sent_count, message_id, error). On any failure, sent_count is 0,
     message_id is None, error is a short string.
     """
-    import json as _stdjson
-
     payload = {
         "sender": {"email": from_email, "name": from_name},
         "to": [{"email": s.email, "name": s.name} for s in subscribers],
@@ -333,17 +366,15 @@ def send_via_brevo(
     )
     try:
         with urlopen(req, timeout=30) as r:
-            body = _stdjson.loads(r.read().decode("utf-8"))
-            return len(subscribers), body.get("messageId"), None
+            body = _json_loads(r.read())
+            return len(subscribers), body.get("messageId") if isinstance(body, dict) else None, None
     except urllib.error.HTTPError as e:
         return 0, None, f"HTTP {e.code}: {e.reason}"
     except Exception as e:
         return 0, None, f"{type(e).__name__}: {e}"
 
 
-import logging
-
-logger = logging.getLogger(__name__)
+# ── Orchestration ────────────────────────────────────────────────────────────
 
 
 def notify(brief_id: str) -> NotifyResult:
@@ -356,7 +387,14 @@ def notify(brief_id: str) -> NotifyResult:
         logger.warning("notifier: BREVO_API_KEY not set, skipping send")
         return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error="no_api_key")
 
-    from_email = os.environ.get("FROM_EMAIL", "").strip() or "noreply@example.com"
+    from_email = os.environ.get("FROM_EMAIL", "").strip()
+    if not from_email:
+        from_email = "noreply@example.com"
+        logger.warning(
+            "notifier: FROM_EMAIL not set, falling back to %s — Brevo will likely "
+            "reject (sender not verified). Set FROM_EMAIL in /etc/brief.env.",
+            from_email,
+        )
 
     try:
         brief, lead_news = fetch_brief_data(brief_id)

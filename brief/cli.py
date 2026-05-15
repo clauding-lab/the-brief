@@ -1,10 +1,13 @@
 """Thin CLI entrypoint for the Brief pipeline.
 
 Usage (V6 publish — writes to Supabase):
-  python -m brief.cli run --publish [--dry-run] [--today=YYYY-MM-DD]
+  python -m brief.cli run --publish [--dry-run] [--today=YYYY-MM-DD] [--no-notify]
 
 Exit codes:
   0 ok                    — editor + subeditor passed, brief published to Supabase
+                            (notifier failures are logged but do NOT change exit code:
+                            the Supabase brief is the canonical artifact; the email
+                            is a best-effort amplifier.)
   1 error                 — pipeline raised; stack to stderr
   3 dry-run-ok            — --dry-run requested, no Supabase write
   4 publish-failed        — V6 subeditor verdict=fail or Supabase write failed

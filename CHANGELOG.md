@@ -6,6 +6,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.0.1] — 2026-05-15 · Same-day patch
+
+### Fixed
+
+- **Every "In this issue" rail item is now clickable** (#71). The keyword→section map shipped in v1.0.0 only matched 7 narrow patterns and had two bugs (`imf → bb` should have been `→ macro`; `remittance → "remit"` slug never existed). Most banking-domain headlines (BB policy, tax, NBR, FDI, budget) had nothing to match, so 8-of-12 rail items in Issue 108 were inert. Expanded the map to seven well-scoped patterns covering bb / banking / tbond / fx / dse / iran / macro with word-boundary anchors on every single-letter token, and added a fallback to the always-present `headlines` section for items that still don't match a specific topic. **Every row in the rail is now clickable.**
+
+### Changed
+
+- **`brief/notifier.py` style + correctness cleanup** (carryover from v1.0.0 reviews):
+  - All stdlib imports hoisted to the top of the file (was: 7 mid-file imports accumulated task-by-task during TDD).
+  - `_json_loads` helper defined before its first caller (was: defined after `fetch_subscribers`, worked via late binding but read strangely).
+  - `BriefRow.published_at` widened to `datetime | None` and the `# type: ignore[arg-type]` comment removed (was: declared non-nullable but `_parse_iso` could return `None`).
+  - `send_via_brevo` response decode now uses `_json_loads(r.read())` for consistency (was: inline `_stdjson.loads(r.read().decode("utf-8"))`).
+  - `_LENS_PHRASE` annotated as `dict[str, str]`.
+  - `_lens_phrase` got a one-line docstring; `_json_loads`, `_parse_iso`, `_supabase_config` similarly.
+  - Double space in `render_text` dateline tightened to single space.
+  - Module re-organized into labeled sections: Constants / Logger / Dataclasses / Private helpers / Render layer / Fetch layer / Send layer / Orchestration. Function bodies unchanged.
+
+- **Defensive `urlencode` on `brief_id` and `section_id`** in `fetch_brief_data` PostgREST queries (low risk today — both are Supabase-generated UUIDs — but cheap insurance against future callers passing tainted strings).
+
+- **`FROM_EMAIL` silent fallback now logs a warning** (`brief/notifier.py`). When the env var is unset and the notifier falls back to `noreply@example.com`, a warning is logged calling out the operational risk (Brevo will reject sends from an unverified sender). Was previously invisible.
+
+- **`brief/cli.py` docstring** now notes that notifier failures don't change exit code 0 — the Supabase brief is the canonical artifact, the email is a best-effort amplifier. Helps operators debugging a missing send.
+
+- **Package version 1.0.0 → 1.0.1** in `package.json`.
+
+### Pull requests
+
+- #71 — `fix(spa): make every 'In this issue' item clickable`
+- (this PR, after merge) — `chore(notifier): cleanup carryover from v1.0.0 reviews + bump to 1.0.1`
+
+### Hetzner deploy
+
+`git pull --ff-only` on `~/the-brief`. No env, no migration, no systemd restart. Next `brief.service` fire (Sun 2026-05-17 06:30 BDT) picks up the cleaner notifier. The rail fix is SPA-only (Vercel auto-deploy).
+
+---
+
 ## [1.0.0] — 2026-05-15 · "Banking professionals release"
 
 The first production release. The brief now publishes itself, validates itself, distributes itself by email, and reads honestly across the full banking professional audience — not just treasury desks.
