@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   title: "The Brief — Bangladesh business intelligence",
   description:
     "Daily macro & markets read for Bangladesh treasury desks. Numbers, news, and a banker's read on what matters.",
+  appleWebApp: {
+    title: "The Brief",
+  },
 };
 
 export default function RootLayout({
