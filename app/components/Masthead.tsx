@@ -55,14 +55,24 @@ export function Masthead({ brief, source, sections, displayOrdBySlug }: Masthead
           <ul>
             {headlines.map((h, i) => {
               const lower = h.headline.toLowerCase();
+              // Most-specific patterns first; first match wins. Patterns operate on the
+              // headline already .toLowerCase()'d. Word-boundary anchors (\b) keep
+              // single letters (bb/car/fx) from matching inside larger words.
               const map: Array<[RegExp, string]> = [
-                [/fx|taka|usd|reserve/, "fx"],
-                [/npl|bank/, "banking"],
-                [/remittance/, "remit"],
-                [/brent|oil|hormuz/, "iran"],
-                [/imf/, "bb"],
-                [/dse/, "dse"],
-                [/t-bill|t-bond/, "tbond"],
+                // BB — central bank / monetary policy
+                [/cenbank|central bank|bangladesh bank|\bbb\b|monetary|policy rate|\brepo\b|\bsdf\b|sukuk|\bcrr\b/, "bb"],
+                // Banking — commercial banks, NPL, lending, borrowers
+                [/\bnpl\b|brac bank|city bank|islami bank|commercial bank|deposit|borrower|\bloan|credit growth|capital adequacy|\bcar\b|provision|\bbanks\b/, "banking"],
+                // T-bond / T-bill — sovereign debt instruments
+                [/t.?bill|t.?bond|\btbill\b|\btbond\b|yield curve|treasury bill|treasury bond|sovereign yield/, "tbond"],
+                // FX — currency, forex, remittance, reserves
+                [/\bfx\b|forex|taka|\busd\b|exchange rate|\breserve|remittance/, "fx"],
+                // DSE — Dhaka Stock Exchange
+                [/\bdse\b|dsex|stock market|equity index|share market|listed compan/, "dse"],
+                // Iran / external shock — oil, Middle East, sovereign ratings
+                [/brent|crude|hormuz|iran|middle east|fitch|moody|s&p|sovereign rating|external shock/, "iran"],
+                // Macro — economic indicators, fiscal, tax, NBR, IMF, budget
+                [/imf|world bank|\btax\b|\bnbr\b|budget|fiscal|revenue|\bgdp\b|inflation|\bcpi\b|\bfdi\b|investment-driven|economic|economy|policy reform/, "macro"],
               ];
               let secOrd = "";
               let matchedSlug = "";
@@ -76,6 +86,13 @@ export function Masthead({ brief, source, sections, displayOrdBySlug }: Masthead
                     break;
                   }
                 }
+              }
+              // Fallback: link unmatched items to the always-present `headlines`
+              // section so every row is clickable. The headlines section lists
+              // every news item in full, so this is a sensible "I can't decide
+              // a topic for this one" destination.
+              if (!matchedSlug && sections.find((s) => s.slug === "headlines")) {
+                matchedSlug = "headlines";
               }
               const numText = secOrd || `§${String(i + 1).padStart(2, "0")}`;
               const inner = (
