@@ -16,7 +16,7 @@ export function Masthead({ brief, source, sections, displayOrdBySlug }: Masthead
   const dateLabel = formatBriefDate(brief?.brief_date);
   const issueNo = brief?.issue_no ?? 87;
   const vol = brief?.volume ?? 1;
-  const readMin = brief?.read_minutes ?? 9;
+  const readMin = brief?.read_minutes ?? 15;
   const sourceLabel = source === "live" ? "Live" : source === "cache" ? "Cached" : "Static";
 
   // 4 most "newsworthy" — first 4 from headlines section

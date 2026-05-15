@@ -223,7 +223,7 @@ export function ClientApp({ initialData }: ClientAppProps) {
           The Brief · Bangladesh business intelligence · Vol. {data.brief?.volume} · Issue{" "}
           {data.brief?.issue_no}
         </div>
-        <div>Curated daily · Read time {data.brief?.read_minutes ?? 9} min</div>
+        <div>Curated daily · Read time {data.brief?.read_minutes ?? 15} min</div>
       </footer>
 
       <StatusBar source={data._source} fetchedAt={data._fetchedAt} />
