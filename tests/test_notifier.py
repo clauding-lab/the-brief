@@ -155,7 +155,7 @@ def test_render_html_renders_lead_headline_with_link():
 
 def test_render_html_omits_lead_section_when_lead_news_is_none():
     html = render_html(brief=_fixture_brief(), lead_news=None)
-    assert "LEAD HEADLINE" not in html
+    assert "Lead Headline" not in html
     # Hairline count is one fewer when no lead section
     assert html.count("border-top:1px solid #e6dfd1") == 2  # date->call, call->cta
 
@@ -170,3 +170,33 @@ def test_render_html_escapes_special_chars_in_todays_call():
     html = render_html(brief=brief, lead_news=None)
     assert "Risk &amp; rate &lt;test&gt; entities" in html
     assert "Risk & rate <test>" not in html  # un-escaped form must NOT appear
+
+
+def test_render_html_drops_non_http_source_url_to_prevent_xss():
+    bad_lead = NewsRow(
+        headline="legitimate-looking headline",
+        source="Some Source",
+        source_url="javascript:alert(1)",
+        published_at=None,
+    )
+    html = render_html(brief=_fixture_brief(), lead_news=bad_lead)
+    # javascript: scheme must NOT appear as an href value
+    assert 'href="javascript:' not in html
+    assert "javascript:alert(1)" not in html
+    # But the headline text should still render
+    assert "legitimate-looking headline" in html
+
+
+def test_render_html_escapes_special_chars_in_lead_headline():
+    bad_lead = NewsRow(
+        headline='Analyst says "buy" & hold <urgent>',
+        source="Source & Co",
+        source_url="https://example.com",
+        published_at=None,
+    )
+    html = render_html(brief=_fixture_brief(), lead_news=bad_lead)
+    # Headline escaped
+    assert "Analyst says &quot;buy&quot; &amp; hold &lt;urgent&gt;" in html
+    assert "<urgent>" not in html  # un-escaped form must NOT appear
+    # Source escaped
+    assert "Source &amp; Co" in html

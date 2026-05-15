@@ -145,14 +145,14 @@ def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
     lead_block = ""
     if lead_news is not None:
         headline_html = _esc(lead_news.headline)
-        if lead_news.source_url:
+        if lead_news.source_url and lead_news.source_url.startswith(("http://", "https://")):
             headline_html = (
                 f'<a href="{_esc(lead_news.source_url)}" '
                 f'style="color:#1a1814;text-decoration:none;border-bottom:1px solid #c9b88a;">'
                 f'{headline_html}</a>'
             )
         time_part = _hhmm_bdt(lead_news.published_at)
-        meta = f"{_esc(lead_news.source)} · {time_part}" if time_part else _esc(lead_news.source)
+        meta = f"{_esc(lead_news.source)} · {_esc(time_part)}" if time_part else _esc(lead_news.source)
         lead_block = (
             '<div style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;'
             'color:#a67c2e;font-weight:600;">Lead Headline</div>'
