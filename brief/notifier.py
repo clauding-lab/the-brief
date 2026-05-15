@@ -121,3 +121,65 @@ def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
     lines.append("Unsubscribe: reply to this email with 'Unsubscribe' in the subject.")
 
     return "\n".join(lines)
+
+
+import html as _html
+
+
+def _esc(s: str) -> str:
+    """HTML-escape a runtime string. Always use for user/editor-derived text."""
+    return _html.escape(s, quote=True)
+
+
+def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
+    """HTML body — single-column 600px, Outlook-safe inline styles.
+
+    Cream-paper palette mirrors the site identity; Georgia for editorial weight,
+    system sans for chrome, amber-gold (#a67c2e) section labels, hairline rules.
+    """
+    paragraphs = [p.strip() for p in brief.todays_call.split("\n\n") if p.strip()]
+    paragraphs_html = "".join(
+        f'<p style="margin:0 0 14px;">{_esc(p)}</p>' for p in paragraphs[:-1]
+    ) + (f'<p style="margin:0;">{_esc(paragraphs[-1])}</p>' if paragraphs else "")
+
+    lead_block = ""
+    if lead_news is not None:
+        headline_html = _esc(lead_news.headline)
+        if lead_news.source_url:
+            headline_html = (
+                f'<a href="{_esc(lead_news.source_url)}" '
+                f'style="color:#1a1814;text-decoration:none;border-bottom:1px solid #c9b88a;">'
+                f'{headline_html}</a>'
+            )
+        time_part = _hhmm_bdt(lead_news.published_at)
+        meta = f"{_esc(lead_news.source)} · {time_part}" if time_part else _esc(lead_news.source)
+        lead_block = (
+            '<div style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;'
+            'color:#a67c2e;font-weight:600;">Lead Headline</div>'
+            f'<div style="font-family:Georgia,serif;font-size:18px;font-weight:400;'
+            f'line-height:1.35;color:#1a1814;margin-top:10px;">{headline_html}</div>'
+            f'<div style="font-size:12px;color:#7a6f5c;margin-top:6px;">{meta}</div>'
+            '<hr style="border:none;border-top:1px solid #e6dfd1;margin:24px 0;">'
+        )
+
+    return f"""<!DOCTYPE html>
+<html><body style="margin:0;padding:32px 16px;background:#f7f2e8;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1a1814;">
+<table cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:600px;width:100%;background:#fdfaf4;padding:32px 28px;border:1px solid #e6dfd1;">
+  <tr><td>
+    <div style="font-family:Georgia,serif;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#7a6f5c;">The Brief &middot; Vol. {brief.volume:02d} &middot; No. {brief.issue_no}</div>
+    <div style="font-family:Georgia,serif;font-size:32px;font-weight:400;line-height:1.1;color:#1a1814;margin-top:6px;">{brief.brief_date.strftime("%a %d %b %Y")}</div>
+    <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#9a8e75;margin-top:4px;">{_hhmm_bdt(brief.published_at)} &middot; {_lens_phrase(brief.lens)}</div>
+    <hr style="border:none;border-top:1px solid #e6dfd1;margin:24px 0;">
+
+    <div style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#a67c2e;font-weight:600;">Today's Call</div>
+    <div style="font-family:Georgia,serif;font-size:15px;line-height:1.65;color:#2a2620;margin-top:10px;">
+      {paragraphs_html}
+    </div>
+    <hr style="border:none;border-top:1px solid #e6dfd1;margin:24px 0;">
+
+    {lead_block}
+    <a href="{_HOSTED_URL}" style="display:inline-block;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#1a1814;font-weight:600;border-bottom:2px solid #1a1814;text-decoration:none;padding-bottom:2px;">Full edition &rarr;</a>
+    <div style="font-size:10px;color:#9a8e75;margin-top:20px;">You're getting this because you subscribed at thebrief.clauding-lab.com. <a href="mailto:adnan.rshd@gmail.com?subject=Unsubscribe%20-%20The%20Brief" style="color:#9a8e75;">Unsubscribe</a>.</div>
+  </td></tr>
+</table>
+</body></html>"""

@@ -114,3 +114,59 @@ def test_render_text_ends_with_full_edition_link_and_unsubscribe():
     text = render_text(brief=_fixture_brief(), lead_news=_fixture_lead_news())
     assert "Full edition → https://thebrief.clauding-lab.com/" in text
     assert "Unsubscribe" in text
+
+
+from brief.notifier import render_html
+
+
+def test_render_html_has_doctype_and_inline_styled_body():
+    html = render_html(brief=_fixture_brief(), lead_news=_fixture_lead_news())
+    assert html.startswith("<!DOCTYPE html>")
+    assert "background:#f7f2e8" in html  # cream-paper outer bg
+    assert "background:#fdfaf4" in html  # card bg
+    # Outlook-safe: NO <style> block, only inline styles
+    assert "<style" not in html
+
+
+def test_render_html_renders_masthead_and_dateline():
+    html = render_html(brief=_fixture_brief(), lead_news=_fixture_lead_news())
+    assert "Vol. 01" in html
+    assert "No. 107" in html
+    assert "Fri 15 May 2026" in html
+    assert "15:33 BDT" in html
+    assert "weekly wrap" in html
+
+
+def test_render_html_renders_todays_call_as_paragraphs():
+    html = render_html(brief=_fixture_brief(), lead_news=_fixture_lead_news())
+    # Each \n\n becomes a <p>
+    assert html.count("<p style=") >= 3  # 3 paragraphs in fixture todays_call
+    assert "Fitch went negative on BD Wednesday" in html
+    assert "USD/BDT held 122.75" in html
+
+
+def test_render_html_renders_lead_headline_with_link():
+    html = render_html(brief=_fixture_brief(), lead_news=_fixture_lead_news())
+    assert 'href="https://www.thedailystar.net/' in html
+    assert "Fitch revises Bangladesh outlook to negative" in html
+    assert "The Daily Star" in html
+    assert "06:30 BDT" in html
+
+
+def test_render_html_omits_lead_section_when_lead_news_is_none():
+    html = render_html(brief=_fixture_brief(), lead_news=None)
+    assert "LEAD HEADLINE" not in html
+    # Hairline count is one fewer when no lead section
+    assert html.count("border-top:1px solid #e6dfd1") == 2  # date->call, call->cta
+
+
+def test_render_html_escapes_special_chars_in_todays_call():
+    brief = BriefRow(
+        id="x", issue_no=1, volume=1, brief_date=date(2026, 1, 1),
+        published_at=datetime(2026, 1, 1, 0, 30, tzinfo=timezone.utc),
+        todays_call="Risk & rate <test> entities",
+        lens=None,
+    )
+    html = render_html(brief=brief, lead_news=None)
+    assert "Risk &amp; rate &lt;test&gt; entities" in html
+    assert "Risk & rate <test>" not in html  # un-escaped form must NOT appear
