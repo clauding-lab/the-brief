@@ -18,7 +18,7 @@ export function formatNewsMeta(n: NewsItem): string {
   if (n.published_at) {
     const d = new Date(n.published_at);
     if (!isNaN(d.getTime())) {
-      parts.push(d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }));
+      parts.push(d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "Asia/Dhaka" }));
     }
   }
   if (n.source) parts.push(n.source);

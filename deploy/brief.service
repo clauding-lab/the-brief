@@ -27,8 +27,11 @@ ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/home/adnan/the-brief /home/adnan/.claude
 
-# Timeouts — pipeline target 15m, hard cap 20m.
-TimeoutStartSec=20min
+# Timeouts — pipeline target ~15m. Hard cap matches the editor_v6 retry budget
+# in brief/pipeline_v6.py (`_call_with_retries`: 3 attempts × 1800s + delays ≈ 90m).
+# Shorten only if the retry budget is also shortened, otherwise the unit kills
+# the python mid-retry and a transient Anthropic blip becomes a missed issue.
+TimeoutStartSec=90min
 
 # Logging — systemd journal + append to file
 StandardOutput=append:/home/adnan/the-brief/logs/brief-systemd.log
