@@ -1,8 +1,10 @@
-# The Long View — workflow
+# The Long View — workflow (v1.2.0)
 
 This file is the contract for the Long View workflow on The Brief. It has two halves: **Editorial** (what to write) and **Operational** (how to ship it). Both halves must be followed for every Long View pin.
 
-The Long View is a pinned editorial section that sits between the Overview group and the Banking group on The Brief's SPA. It replaces whatever was previously pinned. Posted at most once per week. Re-rendered in the brief's cream-paper editorial style from a source PDF or JPEG the editor uploads.
+The Long View is a pinned editorial section between the Overview group and the Banking group on The Brief's SPA. It replaces whatever was previously pinned. Posted at most once per week. The output is composed from a small block vocabulary in the brief's visual language (mono + steel-crimson palette + tone tinting where it earns its keep).
+
+**v1.2.0 design philosophy:** *Be creative within the design theme.* The brief provides four block kinds (`prose`, `comparison`, `stat`, `bullet-list`) and a strict visual contract (mono typography, palette tokens only, small-caps eyebrows, optional tone tinting). Compose blocks to match the source slide's structure. Do not invent new block kinds, new typography, or new colors.
 
 ---
 
@@ -25,11 +27,11 @@ When you see this pattern, follow this entire workflow without improvising.
 
 ### Audience
 
-The Brief is read by banking professionals in Bangladesh — business heads (corporate, SME, retail), risk heads, and treasury heads at Tier-1 banks. Write for that reader.
+The Brief is read by banking professionals in Bangladesh — business heads (corporate, SME, retail), risk heads, treasury heads at Tier-1 banks. Write for that reader.
 
 ### Voice register
 
-- Banker-native vocabulary: NPL, CRR, repo, SDF, Sukuk, ALCO, MPS, BB (Bangladesh Bank), Tier-1 capital, provisioning, advance-deposit ratio.
+- Banker-native vocabulary: NPL, CRR, repo, SDF, Sukuk, ALCO, MPS, BB, Tier-1 capital, provisioning, advance-deposit ratio.
 - Concrete numbers; never round away precision the source provides.
 - Implications oriented to credit committees, ALCO, treasury desks.
 - No journalese ("amid", "in a stunning move", "moreover"), no LLM tells ("delve", "myriad", "tapestry"), no hedging when the source is clear.
@@ -42,26 +44,114 @@ Edit `content/long-view.ts` to look exactly like this (filling in your extracted
 import type { LongViewData } from "@/types/brief";
 
 export const longView: LongViewData | null = {
-  posted_at: "<ISO 8601 UTC timestamp, e.g. 2026-05-18T00:30:00Z — use now()>",
+  posted_at: "<ISO 8601 UTC timestamp — use now()>",
   title: "<5–10 words, no trailing punctuation>",
   lead: "<1–2 sentences setting up the insight>",
-  body_paragraphs: [
-    "<paragraph 1>",
-    "<paragraph 2>",
-    // 1–3 total; never more.
+  blocks: [
+    // 1–4 blocks; pick the right kinds for the slide
   ],
-  chart_spec: null,  // v1.1.0: always null. v1.1.1: chart rendering ships.
   banker_read: "<1 paragraph; the takeaway for a banker reader>",
 };
 ```
 
+### Block kinds
+
+You compose `blocks: []` using these four kinds. Always pick the kind that matches the source slide's structure — do not force a structural block when prose carries the meaning.
+
+**1. Prose** — paragraphs of analysis. Use when the slide is text-driven (an argument, narrative, single-topic analysis) or when no clean structure can be extracted.
+
+```typescript
+{
+  kind: "prose",
+  paragraphs: [
+    "<paragraph 1>",
+    "<paragraph 2>",
+    // 1–3 paragraphs; never more
+  ],
+}
+```
+
+**2. Comparison** — before/after rows with descriptions. Use when the slide is a structured comparison grid (3+ rows of paired values). Each row has a title, before value, after value, and a 1-line description. Optional `tone` per row tints the AFTER value (`"bull"` green for positive direction, `"bear"` red for negative, `"neu"` monochrome).
+
+```typescript
+{
+  kind: "comparison",
+  before_label: "<short label, 1–2 words ideal>",  // e.g., "Interim"
+  after_label: "<short label, 1–2 words ideal>",   // e.g., "BNP-led"
+  rows: [
+    {
+      title: "<row title>",
+      before: "<value>",          // "1.5%" | "BANNED" | "Revealed"
+      after: "<value>",           // "0.5%" | "AT 7.5%" | "Rescheduled"
+      description: "<1-line context>",
+      tone: "bull",               // optional
+    },
+    // 3–10 rows typical; 7+ auto-promotes to 3-column grid
+  ],
+}
+```
+
+Keep `before_label` and `after_label` SHORT (1–2 words). They appear both at the block header and inside each row card.
+
+**3. Stat** — a single headline metric. Use when the slide is built around one number (a ratio, a percentage, a count) with framing context. The value renders huge mono; the label and body sit beside it.
+
+```typescript
+{
+  kind: "stat",
+  value: "<numeric string>",       // "3.8" | "12,400" | "10.0"
+  unit: "<optional unit>",         // "×" | "CR" | "%" | "BPS"
+  label: "<small-caps eyebrow>",   // e.g., "RATIO · TOP-HALF VS BOTTOM-HALF NPL"
+  body: "<1–2 sentence framing>",
+  tone: "bear",                    // optional; tints just the value
+}
+```
+
+**4. Bullet-list** — structured points. Use for "three signals" / "what we learned" / "key takeaways" slides. Items can use `**bold**` markdown-light for leading emphasis. Optional `tone` per item tints the leading mark (▸).
+
+```typescript
+{
+  kind: "bullet-list",
+  eyebrow: "<optional small-caps header>",
+  items: [
+    { text: "**Strong lead.** Body of the point.", tone: "bull" },
+    { text: "Plain point without leading bold.", tone: "warn" },
+    // 2–7 items
+  ],
+}
+```
+
+### Composition rules
+
+| Slide shape | Primary block | Often paired with |
+|---|---|---|
+| Argumentative essay / single-topic analysis | `prose` (1–3 paragraphs) | optional `bullet-list` closer |
+| Before/after comparison grid (3+ rows) | `comparison` | optional `prose` intro + `prose` closing thought |
+| Headline metric driving the slide | `stat` | `bullet-list` of supporting context, or `prose` for narrative |
+| Listed takeaways (e.g., "Three signals") | `bullet-list` | optional `prose` intro |
+| Mixed slide (intro + structure + closing) | composed (multiple blocks) | up to ~4 blocks per pin |
+| Slide that doesn't fit any of the above | `prose` with structural description | flag the gap in your reply to the user |
+
+**Hard constraints:**
+- Maximum **4 blocks** per Long View. More than that, the slide should probably be two pins.
+- Don't repeat the same block kind back-to-back. Two prose blocks in a row → merge.
+- `title`, `lead`, `banker_read` remain mandatory framing. Blocks are the *middle* of the Long View.
+- Block ordering: lead → most-important visual block first → supporting blocks → closing block → banker_read.
+
+**When to fall back to prose despite a tempting structural block:**
+- Comparison with only 1–2 rows → use prose.
+- Stat where the number is approximate or doesn't actually carry the slide → use prose.
+- Bullet-list of 1 item → use prose with that item as a paragraph.
+- Slide where prose carries the meaning even with some numbers → use prose.
+
 ### Forbiddens
 
-- **Do not fabricate numbers** not in the source. If the slide is unclear, say so in your reply to the user and stop.
-- **Do not add a source-attribution field** (no "Source: BB MPS, May 2026" line). The spec explicitly excludes this.
-- **Do not add a "view original" link.** The reader sees only the recreation.
+- **Do not fabricate numbers** not in the source. If the slide is unclear, reply to the user and stop.
+- **Do not introduce block kinds outside the four shipped** (`prose`, `comparison`, `stat`, `bullet-list`).
+- **Do not specify colors, fonts, sizes, or styles in the data.** The component renders with palette tokens. Your job is structural data; the brief handles the visual contract.
+- **Do not add a source-attribution field** (no "Source: BB MPS, May 2026" line).
+- **Do not add a "view original" link.**
 - **Do not fold opinion into the lead.** Opinion lives in `banker_read`.
-- **Do not emit a `chart_spec` other than `null` in v1.1.0.** If the source has a chart, describe its shape in `body_paragraphs` (e.g., "The slide shows cut-off yields falling from 8.95% to 8.57% across four auctions"). Chart rendering ships in v1.1.1.
+- **Do not edit `CHANGELOG.md` or `package.json`** in a Long View pin PR. Per-pin PRs touch ONLY `content/long-view.ts`. Platform version bumps (v1.2.x → v1.3.0) happen in separate platform-change PRs.
 
 ---
 
@@ -92,7 +182,6 @@ git fetch origin main
 git checkout main
 git pull
 git checkout -b longview/<3-4-word-slug-from-your-read>
-# Example: longview/sukuk-spread-deepdive
 ```
 
 ### 3. Read the source
@@ -101,7 +190,7 @@ Open the PDF or JPEG and extract per the Editorial half above. If a hint was pro
 
 ### 4. Edit `content/long-view.ts`
 
-Replace the entire contents with the new `longView` export per the schema. Verify locally:
+Replace the entire contents with the new `longView` export per the schema. Use the appropriate block kind(s). Verify locally:
 
 ```bash
 npx tsc --noEmit
@@ -119,6 +208,8 @@ git push -u origin longview/<your-slug>
 
 ```bash
 gh pr create \
+  --head longview/<your-slug> \
+  --base main \
   --title "longview: <title>" \
   --body "Pinned Long View update. Preview will be ready shortly. Source kept at pins/$UUID.$EXT."
 ```
@@ -133,8 +224,6 @@ gh pr view --json statusCheckRollup --jq '.statusCheckRollup[] | select(.context
 Capture the preview URL — that's what you reply to the user with.
 
 ### 8. Reply to the user
-
-Reply (via the Discord `reply` tool on Hetzner, or normal terminal output on Mac):
 
 ```
 Draft ready.
@@ -162,8 +251,8 @@ Reply: `Merged to main. Vercel deploying production. Live on thebrief.clauding-l
 # Edit content/long-view.ts with the new data
 git commit -am "longview: redo per hint — <hint summary>"
 git push --force-with-lease=longview/<slug>:$(git rev-parse HEAD~1) origin longview/<slug>
-# Note: if the no-arg --force-with-lease fails because the remote-tracking
-# ref doesn't exist (Conductor workspace quirk), use:
+# If the no-arg --force-with-lease fails because the remote-tracking ref
+# doesn't exist (Conductor workspace quirk), use the fetch+FETCH_HEAD fallback:
 #   git fetch origin longview/<slug>
 #   git push --force-with-lease=longview/<slug>:$(git rev-parse FETCH_HEAD) origin longview/<slug>
 gh pr checks --watch
@@ -182,10 +271,11 @@ Reply: `Cancelled. Draft deleted.`
 
 ### 10. Hard rules — do not break
 
-- **Never merge to main without showing the user the Vercel preview URL first.** Even if you're confident the data is good.
-- **Never commit the PDF/JPEG to the repo.** Only `content/long-view.ts` and (later) a CHANGELOG entry change in this PR. The source stays on disk under `pins/`.
-- **Never edit `content/long-view.ts` outside this workflow.** Daily editorial content has its own pipeline (`brief.service`, Supabase); the Long View is the only thing in `content/`.
-- **If anything goes wrong** (Vercel build fails, git push fails, source file is unreadable), reply to the user with the exact error and stop. Do not auto-retry on shared-state writes.
+- **Never merge to main without showing the user the Vercel preview URL first.**
+- **Never commit the PDF/JPEG to the repo.** Only `content/long-view.ts` changes in this PR.
+- **Never edit `content/long-view.ts` outside this workflow.**
+- **Never edit `CHANGELOG.md` or `package.json` in a Long View pin PR.**
+- **If anything goes wrong** (Vercel build fails, git push fails, source unreadable), reply to the user with the exact error and stop. Do not auto-retry on shared-state writes.
 
 ---
 
@@ -193,11 +283,12 @@ Reply: `Cancelled. Draft deleted.`
 
 | Symptom | Likely cause | Action |
 |---|---|---|
-| `npx tsc --noEmit` fails after your edit | Type mismatch in your new `longView` value | Re-check the `LongViewData` shape in `types/brief.ts`; fix and retry. |
-| Vercel build fails on the preview | Usually a runtime React error from the new data | Pull the failure summary from `gh pr checks`, fix locally, push. If still failing, hand back to user. |
-| `gh pr merge` fails | Merge conflict on `content/long-view.ts` (another `longview/*` branch landed) | Surface the error verbatim. Rebase or ask the user. Don't auto-resolve. |
-| User goes silent after preview | Normal | Draft branch sits indefinitely. Leave it; no auto-cleanup. |
-| User starts a second `longview` upload before resolving the first | Pending draft conflict | Reply: "There's an open Long View draft on branch `longview/<previous>` (preview: …). Cancel that and start fresh, or treat this as a `redo` of the open draft?" |
+| `npx tsc --noEmit` fails after your edit | Type mismatch in your new `longView` value | Re-check the `LongViewData` + `Block` shapes in `types/brief.ts`; fix and retry. |
+| Vercel build fails on the preview | Runtime React error from the new data | Pull the failure summary from `gh pr checks`, fix locally, push. If still failing, hand back to user. |
+| `gh pr merge` fails | Merge conflict on `content/long-view.ts` | Surface the error verbatim. Rebase or ask the user. Don't auto-resolve. |
+| User goes silent after preview | Normal | Draft branch sits indefinitely. Leave it. |
+| Slide doesn't fit any block kind | Genuinely unique structure | Use `prose` with descriptive paragraphs; flag the gap in your reply so the user can design a new block kind in a future v1.2.x. |
+| User starts a second `longview` before resolving first | Pending draft conflict | Reply: "There's an open Long View draft on branch `longview/<previous>` (preview: …). Cancel or treat as redo?" |
 
 ---
 
@@ -208,4 +299,4 @@ Reply: `Cancelled. Draft deleted.`
 | `content/long-view.ts` | The pinned data. Edit per workflow. |
 | `pins/<uuid>.<ext>` | Local copy of the source on disk. Not in git. |
 
-That's it. Everything else (the component, the styles, the wiring) lives outside the per-pin workflow and is not edited here.
+That's it. Everything else (the component, the styles, the wiring, the recipe) lives outside the per-pin workflow and is not edited here.
