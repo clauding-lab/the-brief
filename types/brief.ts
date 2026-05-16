@@ -115,13 +115,18 @@ export interface ChartSpecSeries {
   data: Array<[string | number, number]>; // [x, y] tuples; x can be a label or ISO date
 }
 
+export interface ChartSpecAnnotation {
+  x: string | number;
+  label: string;
+}
+
 export interface ChartSpec {
   kind: "line" | "bar" | "stacked_bar" | "donut";
   title: string;
   x_axis: string;
   y_axis: string;
   series: ChartSpecSeries[];
-  annotations?: Array<{ x: string | number; label: string }>;
+  annotations?: ChartSpecAnnotation[];
 }
 
 export interface LongViewData {
