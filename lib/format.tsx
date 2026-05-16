@@ -45,3 +45,27 @@ export function cleanMetricValue(v: string | undefined | null): string {
   if (!v) return "";
   return v.replace(/\${2,}/g, "$");
 }
+
+// Format an ISO timestamp as the Long View eyebrow:
+//   EDITOR'S PIN · POSTED MON 12 MAY
+// Day-of-week + day + month, all caps, pinned to Asia/Dhaka to avoid the
+// SSR (UTC) vs CSR (BDT) day-number mismatch that bit us on news-item dates
+// (React #418). See lib/format.tsx::formatNewsMeta for the same pattern.
+export function formatLongViewEyebrow(postedAt: string): string {
+  const d = new Date(postedAt);
+  if (isNaN(d.getTime())) return "EDITOR'S PIN";
+  const parts = d
+    .toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      timeZone: "Asia/Dhaka",
+    })
+    .toUpperCase()
+    .split(" ");
+  // en-GB returns "MON, 12 MAY" — strip the comma after weekday, keep the rest.
+  const weekday = parts[0]?.replace(",", "") ?? "";
+  const day = parts[1] ?? "";
+  const month = parts[2] ?? "";
+  return `EDITOR'S PIN · POSTED ${weekday} ${day} ${month}`;
+}
