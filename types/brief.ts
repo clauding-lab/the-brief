@@ -107,3 +107,28 @@ export interface BriefPayload {
   _fetchedAt?: number;
   _cachedAt?: number;
 }
+
+// --- Long View (pinned editorial insert, v1.1.0+) ---
+
+export interface ChartSpecSeries {
+  name: string;
+  data: Array<[string | number, number]>; // [x, y] tuples; x can be a label or ISO date
+}
+
+export interface ChartSpec {
+  kind: "line" | "bar" | "stacked_bar" | "donut";
+  title: string;
+  x_axis: string;
+  y_axis: string;
+  series: ChartSpecSeries[];
+  annotations?: Array<{ x: string | number; label: string }>;
+}
+
+export interface LongViewData {
+  posted_at: string;          // ISO 8601 UTC; rendered to Asia/Dhaka in the eyebrow
+  title: string;              // 5–10 words, no trailing punctuation
+  lead: string;               // 1–2 sentences
+  body_paragraphs: string[];  // 1–3 paragraphs
+  chart_spec: ChartSpec | null; // v1.1.0: always null. v1.1.1: chart-capable.
+  banker_read: string;        // 1 paragraph takeaway
+}
