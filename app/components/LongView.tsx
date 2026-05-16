@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { LongViewData } from "@/types/brief";
+import type { Block, LongViewData } from "@/types/brief";
 import { Hair } from "./Hair";
 import { formatLongViewEyebrow } from "@/lib/format";
+import { LongViewProse } from "./LongViewProse";
+import { LongViewComparison } from "./LongViewComparison";
+import { LongViewStat } from "./LongViewStat";
+import { LongViewBulletList } from "./LongViewBulletList";
 
 interface LongViewProps {
   data: LongViewData | null;
@@ -21,9 +25,21 @@ function isPostedBeforeToday(postedAt: string): boolean {
   return todayBDT > postedBDT;
 }
 
+// Dispatch a block to its render component by discriminator.
+function renderBlock(block: Block, index: number) {
+  switch (block.kind) {
+    case "prose":
+      return <LongViewProse key={index} block={block} />;
+    case "comparison":
+      return <LongViewComparison key={index} block={block} />;
+    case "stat":
+      return <LongViewStat key={index} block={block} />;
+    case "bullet-list":
+      return <LongViewBulletList key={index} block={block} />;
+  }
+}
+
 export function LongView({ data }: LongViewProps) {
-  // Track whether the section should render with the diff-stale treatment.
-  // True iff: body has the .tb-diff class AND today (BDT) > posted_at (BDT).
   const [stale, setStale] = useState(false);
 
   useEffect(() => {
@@ -36,7 +52,6 @@ export function LongView({ data }: LongViewProps) {
 
     recompute();
 
-    // Watch for diff-mode toggle (ClientApp toggles body.tb-diff via classList).
     const obs = new MutationObserver(recompute);
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     return () => obs.disconnect();
@@ -59,17 +74,8 @@ export function LongView({ data }: LongViewProps) {
 
       <p className="tb-longview-lead">{data.lead}</p>
 
-      {data.chart_spec && (
-        <div className="tb-longview-chart-placeholder" role="note">
-          <em>Chart rendering for The Long View ships in v1.1.1. The data below
-          and in the body paragraphs reflects the source.</em>
-        </div>
-      )}
-
-      <div className="tb-longview-body">
-        {data.body_paragraphs.map((paragraph, i) => (
-          <p key={i}>{paragraph}</p>
-        ))}
+      <div className="tb-longview-blocks">
+        {data.blocks.map((block, i) => renderBlock(block, i))}
       </div>
 
       <Hair style={{ marginTop: 28, marginBottom: 16 }} />
