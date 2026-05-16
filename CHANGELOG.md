@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.2.0] — 2026-05-18
+
+### Added
+- **Composable Long View blocks.** `LongViewData.blocks: Block[]` replaces `body_paragraphs` + `chart_spec`. Four block kinds ship: `prose`, `comparison`, `stat`, `bullet-list`. Claude composes a Long View by stacking blocks; mixing kinds within a single pin is supported.
+- `LongViewProse`, `LongViewComparison`, `LongViewStat`, `LongViewBulletList` — one render component per block kind, each in its own file under `app/components/`.
+- Auto column-count for comparison block: 2-col default, 3-col when row count ≥ 7.
+- Optional tone tinting (`"bull" | "bear" | "warn" | "neu"`) on comparison row AFTER values, stat values, and bullet-list marks. Defaults to monochrome.
+- Markdown-light (`**bold**`) inside bullet-list item text.
+
+### Changed
+- **Mono typography enforced.** Every `.tb-longview*` CSS class now sets `font-family: var(--mono)` explicitly. Fixes the v1.1.0 inheritance bug where headings rendered in browser-default serif.
+- `LongView.tsx` is now a thin dispatcher: iterates `data.blocks` and switches on `block.kind` to render the right block component. The eyebrow / title / lead / banker_read structure is unchanged.
+- `docs/longview-workflow.md` recipe rewritten with the block vocabulary, composition rules, and the explicit "per-pin PRs touch only `content/long-view.ts`" rule (resolves the CHANGELOG ambiguity that surfaced in v1.1.0).
+
+### Fixed
+- v1.1.0 Long View rendered in serif because the CSS didn't specify `font-family`. v1.2.0 makes mono explicit on every `.tb-longview*` class so the section blends with the rest of the brief.
+
+### Removed
+- `ChartSpec`, `ChartSpecAnnotation`, `ChartSpecSeries` interfaces removed from `types/brief.ts`.
+- `chart_spec` field on `LongViewData` removed.
+- `.tb-longview-chart-placeholder` and `.tb-longview-body p` CSS rules removed (replaced by per-block CSS).
+
+### Deferred
+- Chart rendering. Will return as a `ChartBlock` kind in v1.3.0+ when the first chart-bearing slide upload arrives. Until then, slides with charts should describe the chart's shape in a `prose` block (per the recipe).
+
+---
+
 ## [1.1.0] — 2026-05-18
 
 ### Added

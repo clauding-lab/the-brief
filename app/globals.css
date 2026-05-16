@@ -950,7 +950,9 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   text-transform: uppercase;
 }
 
-/* --- The Long View (pinned editorial insert, v1.1.0+) --- */
+/* --- The Long View (pinned editorial insert, v1.2.0+) --- */
+/* All .tb-longview* classes set font-family explicitly to fix the v1.1.0
+   serif inheritance bug where headings rendered in browser-default serif. */
 
 .tb-longview {
   padding: 56px 0 48px;
@@ -959,7 +961,9 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   scroll-margin-top: 110px;
   border-top: 1px solid var(--rule-soft);
   border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono);
 }
+.tb-longview * { font-family: var(--mono); }
 
 .tb-longview-eyebrow {
   font-size: 10.5px;
@@ -970,47 +974,215 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
 }
 
 .tb-longview-title {
-  font-size: clamp(28px, 3.2vw, 40px);
-  line-height: 1.18;
+  font-size: clamp(24px, 2.8vw, 36px);
+  line-height: 1.12;
   font-weight: 400;
-  letter-spacing: -0.015em;
-  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
   text-wrap: balance;
+  color: var(--ink);
 }
 
 .tb-longview-lead {
-  font-size: 18px;
+  font-size: 14px;
   line-height: 1.55;
   font-style: italic;
-  color: var(--ink-2, var(--ink-3));
+  color: var(--ink-2);
   margin: 0 0 24px;
   max-width: 62ch;
 }
 
-.tb-longview-chart-placeholder {
-  padding: 16px 20px;
-  background: var(--color-surface-2, #f4f4f4);
-  border-left: 3px solid var(--accent);
-  color: var(--color-muted, #666);
-  font-size: 13px;
-  margin: 0 0 24px;
+/* Vertical gap between consecutive blocks */
+.tb-longview-blocks > * + * {
+  margin-top: 24px;
 }
 
-.tb-longview-body p {
-  font-size: 15.5px;
+/* --- Prose block --- */
+.tb-longview-prose p {
+  font-size: 13.5px;
   line-height: 1.65;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   max-width: 70ch;
+  color: var(--ink-2);
+}
+.tb-longview-prose p:last-child { margin-bottom: 0; }
+
+/* --- Comparison block --- */
+.tb-longview-cmp-header {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.tb-longview-cmp-rule {
+  height: 1px;
+  background: var(--rule);
+  margin-bottom: 14px;
+}
+.tb-longview-cmp-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.tb-longview-cmp-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .tb-longview-cmp-grid-2,
+  .tb-longview-cmp-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+.tb-longview-cmp-row {
+  border: 1px solid var(--rule-soft);
+  padding: 14px 16px;
+  background: var(--paper-2);
+}
+.tb-longview-cmp-grid-3 .tb-longview-cmp-row {
+  padding: 12px 14px;
+}
+.tb-longview-cmp-row-title {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin: 0 0 12px;
+  line-height: 1.45;
+  min-height: 2.4em;
+}
+.tb-longview-cmp-vals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.tb-longview-cmp-lab {
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.tb-longview-cmp-val {
+  font-size: 18px;
+  color: var(--ink);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.tb-longview-cmp-grid-3 .tb-longview-cmp-val { font-size: 17px; }
+.tb-longview-cmp-val-bull { color: var(--bull); }
+.tb-longview-cmp-val-bear { color: var(--bear); }
+.tb-longview-cmp-val-neu  { color: var(--ink); }
+.tb-longview-cmp-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0;
 }
 
-.tb-longview-body p:last-child {
-  margin-bottom: 0;
+/* --- Stat block --- */
+.tb-longview-stat {
+  border: 1px solid var(--rule);
+  padding: 24px 28px;
+  background: var(--paper-2);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 28px;
+  align-items: center;
+}
+@media (max-width: 480px) {
+  .tb-longview-stat {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+.tb-longview-stat-num {
+  font-size: clamp(40px, 5vw, 64px);
+  font-weight: 200;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  color: var(--ink);
+}
+.tb-longview-stat-unit {
+  font-size: 0.5em;
+  color: var(--ink-3);
+  margin-left: 4px;
+}
+.tb-longview-stat-tone-bull { color: var(--bull); }
+.tb-longview-stat-tone-bear { color: var(--bear); }
+.tb-longview-stat-tone-warn { color: var(--warn); }
+.tb-longview-stat-tone-neu  { color: var(--ink); }
+.tb-longview-stat-label {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.tb-longview-stat-body {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  margin: 0;
+  max-width: 50ch;
 }
 
+/* --- Bullet-list block --- */
+.tb-longview-bullets-eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.tb-longview-bullets-rule {
+  height: 1px;
+  background: var(--rule-soft);
+  margin: 8px 0 0;
+}
+.tb-longview-bullets ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.tb-longview-bullets li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rule-soft);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.tb-longview-bullets li:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+.tb-longview-bullets-mark {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.tb-longview-bullets-tone-bull .tb-longview-bullets-mark { color: var(--bull); }
+.tb-longview-bullets-tone-bear .tb-longview-bullets-mark { color: var(--bear); }
+.tb-longview-bullets-tone-warn .tb-longview-bullets-mark { color: var(--warn); }
+.tb-longview-bullets strong {
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+/* --- Banker read takeaway (kept from v1.1.0, mono explicit) --- */
 .tb-longview-takeaway {
   padding: 12px 0;
 }
-
 .tb-longview-takeaway-label {
   font-size: 10.5px;
   letter-spacing: 0.22em;
@@ -1018,7 +1190,6 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   font-weight: 600;
   margin-bottom: 10px;
 }
-
 .tb-longview-takeaway p {
   font-size: 17px;
   line-height: 1.5;
@@ -1029,9 +1200,7 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   text-wrap: pretty;
 }
 
-/* Diff-mode: the section is stale after its posted_at day. Recede so the
-   daily diff view stays focused on the day's fresh content. Mirrors the
-   existing body.tb-diff dimming pattern but with an additional blur. */
+/* Diff-stale state (kept from v1.1.0) */
 .tb-longview.tb-diff-stale {
   opacity: 0.42;
   filter: blur(1px);
@@ -1039,11 +1208,9 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   transition: opacity 200ms ease, filter 200ms ease;
 }
 
-/* When LongView sits between Overview and Banking, the existing
-   .tb-group + .tb-group rule (margin-top: 64px) doesn't match Banking
-   anymore because LongView is between them. Restore the same spacing
-   so the Overview→LongView→Banking flow keeps the brief's existing
-   inter-group rhythm. */
+/* Sibling-margin restore — Banking group sits after LongView, not after
+   a .tb-group, so the existing .tb-group + .tb-group rule doesn't match.
+   (Kept from v1.1.0.) */
 .tb-longview + .tb-group {
   margin-top: 64px;
 }

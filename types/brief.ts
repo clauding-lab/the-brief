@@ -108,32 +108,61 @@ export interface BriefPayload {
   _cachedAt?: number;
 }
 
-// --- Long View (pinned editorial insert, v1.1.0+) ---
+// --- Long View (pinned editorial insert, v1.2.0+) ---
+// v1.2.0 replaces the single-shape model with a composable Block system.
+// ChartSpec types removed; chart rendering will return as a `ChartBlock`
+// kind in v1.3.0+ when the first chart-bearing upload arrives.
 
-export interface ChartSpecSeries {
-  name: string;
-  data: Array<[string | number, number]>; // [x, y] tuples; x can be a label or ISO date
+export interface ProseBlock {
+  kind: "prose";
+  paragraphs: string[];          // 1-3 paragraphs; never more
 }
 
-export interface ChartSpecAnnotation {
-  x: string | number;
-  label: string;
+export interface ComparisonRow {
+  title: string;                 // "Penal interest on overdue loans"
+  before: string;                // "1.5%" | "BANNED" | "Revealed"
+  after: string;                 // "0.5%" | "AT 7.5%" | "Rescheduled"
+  description: string;           // 1-line context (required)
+  tone?: Tone;                   // optional; "bull"|"bear"|"neu" semantically meaningful
 }
 
-export interface ChartSpec {
-  kind: "line" | "bar" | "stacked_bar" | "donut";
-  title: string;
-  x_axis: string;
-  y_axis: string;
-  series: ChartSpecSeries[];
-  annotations?: ChartSpecAnnotation[];
+export interface ComparisonBlock {
+  kind: "comparison";
+  before_label: string;          // "Interim" — short, 1-2 words ideal
+  after_label: string;           // "BNP-led" — short, 1-2 words ideal
+  rows: ComparisonRow[];         // 3-10 rows typical; auto 3-col grid when >= 7
 }
+
+export interface StatBlock {
+  kind: "stat";
+  value: string;                 // "3.8" | "12,400" | "10.0"
+  unit?: string;                 // "×" | "CR" | "%" | "BPS" — rendered smaller
+  label: string;                 // small-caps eyebrow text
+  body: string;                  // 1-2 sentence framing paragraph
+  tone?: Tone;                   // optional; tints just the value
+}
+
+export interface BulletListItem {
+  text: string;                  // supports inline **bold** via markdown-light
+  tone?: Tone;                   // optional; tints just the leading mark
+}
+
+export interface BulletListBlock {
+  kind: "bullet-list";
+  eyebrow?: string;              // optional small-caps header above the list
+  items: BulletListItem[];       // 2-7 items
+}
+
+export type Block =
+  | ProseBlock
+  | ComparisonBlock
+  | StatBlock
+  | BulletListBlock;
 
 export interface LongViewData {
-  posted_at: string;          // ISO 8601 UTC; rendered to Asia/Dhaka in the eyebrow
-  title: string;              // 5–10 words, no trailing punctuation
-  lead: string;               // 1–2 sentences
-  body_paragraphs: string[];  // 1–3 paragraphs
-  chart_spec: ChartSpec | null; // v1.1.0: always null. v1.1.1: chart-capable.
-  banker_read: string;        // 1 paragraph takeaway
+  posted_at: string;             // ISO 8601 UTC (unchanged from v1.1.0)
+  title: string;                 // 5–10 words (unchanged)
+  lead: string;                  // 1–2 sentences (unchanged)
+  blocks: Block[];               // REPLACES v1.1.0's body_paragraphs + chart_spec
+  banker_read: string;           // 1 paragraph (unchanged)
 }
