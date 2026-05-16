@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import type { BriefPayload, SectionGroup } from "@/types/brief";
 import { getBrowserSupabase } from "@/lib/supabase";
 import { Masthead } from "./Masthead";
@@ -11,6 +11,8 @@ import { Cover } from "./Cover";
 import { Section } from "./Section";
 import { SubscribeCTA } from "./SubscribeCTA";
 import { StatusBar } from "./StatusBar";
+import { LongView } from "./LongView";
+import { longView } from "@/content/long-view";
 
 const CACHE_KEY = "thebrief.lastBrief";
 
@@ -200,20 +202,30 @@ export function ClientApp({ initialData }: ClientAppProps) {
         />
         <Cover brief={data.brief} sections={data.sections} />
         {groupedSections.map(({ key, sections }) => (
-          <div key={key} className="tb-group" data-group={key}>
-            <div className="tb-group-header">
-              <span className="tb-group-label">{GROUP_LABELS[key]}</span>
-              <span className="tb-group-rule" aria-hidden="true" />
+          <Fragment key={key}>
+            <div className="tb-group" data-group={key}>
+              <div className="tb-group-header">
+                <span className="tb-group-label">{GROUP_LABELS[key]}</span>
+                <span className="tb-group-rule" aria-hidden="true" />
+              </div>
+              {sections.map((s) => (
+                <Section
+                  key={s.slug}
+                  section={s}
+                  diffMode={diffMode}
+                  displayOrd={displayOrdBySlug.get(s.slug)}
+                />
+              ))}
             </div>
-            {sections.map((s) => (
-              <Section
-                key={s.slug}
-                section={s}
-                diffMode={diffMode}
-                displayOrd={displayOrdBySlug.get(s.slug)}
-              />
-            ))}
-          </div>
+            {/* The Long View sits between Overview and the next group (Banking).
+                Renders nothing when `longView` is null. Fragment is used (vs. a
+                wrapping div) so the existing `.tb-group + .tb-group` adjacent-
+                sibling CSS rule still matches across groups. The new rule
+                `.tb-longview + .tb-group` (added in Task 5) restores the 64px
+                top margin on Banking, which is preceded by LongView instead of
+                an adjacent .tb-group. */}
+            {key === "overview" && <LongView data={longView} />}
+          </Fragment>
         ))}
         <SubscribeCTA volume={data.brief?.volume} issueNo={data.brief?.issue_no} />
       </main>
