@@ -949,3 +949,101 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   font-weight: 600;
   text-transform: uppercase;
 }
+
+/* --- The Long View (pinned editorial insert, v1.1.0+) --- */
+
+.tb-longview {
+  padding: 56px 0 48px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  scroll-margin-top: 110px;
+  border-top: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.tb-longview-eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tb-longview-title {
+  font-size: clamp(28px, 3.2vw, 40px);
+  line-height: 1.18;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  margin: 0 0 16px;
+  text-wrap: balance;
+}
+
+.tb-longview-lead {
+  font-size: 18px;
+  line-height: 1.55;
+  font-style: italic;
+  color: var(--ink-2, var(--ink-3));
+  margin: 0 0 24px;
+  max-width: 62ch;
+}
+
+.tb-longview-chart-placeholder {
+  padding: 16px 20px;
+  background: var(--color-surface-2, #f4f4f4);
+  border-left: 3px solid var(--accent);
+  color: var(--color-muted, #666);
+  font-size: 13px;
+  margin: 0 0 24px;
+}
+
+.tb-longview-body p {
+  font-size: 15.5px;
+  line-height: 1.65;
+  margin: 0 0 16px;
+  max-width: 70ch;
+}
+
+.tb-longview-body p:last-child {
+  margin-bottom: 0;
+}
+
+.tb-longview-takeaway {
+  padding: 12px 0;
+}
+
+.tb-longview-takeaway-label {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-3);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.tb-longview-takeaway p {
+  font-size: 17px;
+  line-height: 1.5;
+  font-weight: 300;
+  letter-spacing: -0.005em;
+  margin: 0;
+  max-width: 65ch;
+  text-wrap: pretty;
+}
+
+/* Diff-mode: the section is stale after its posted_at day. Recede so the
+   daily diff view stays focused on the day's fresh content. Mirrors the
+   existing body.tb-diff dimming pattern but with an additional blur. */
+.tb-longview.tb-diff-stale {
+  opacity: 0.42;
+  filter: blur(1px);
+  pointer-events: none;
+  transition: opacity 200ms ease, filter 200ms ease;
+}
+
+/* When LongView sits between Overview and Banking, the existing
+   .tb-group + .tb-group rule (margin-top: 64px) doesn't match Banking
+   anymore because LongView is between them. Restore the same spacing
+   so the Overview→LongView→Banking flow keeps the brief's existing
+   inter-group rhythm. */
+.tb-longview + .tb-group {
+  margin-top: 64px;
+}

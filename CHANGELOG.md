@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.1.0] — 2026-05-18
+
+### Added
+- **The Long View** — a pinned editorial section that the editor uploads via Discord (Copotron on Hetzner) or local terminal. Claude Code reads the uploaded PDF or JPEG natively and re-renders it as a native cream-paper section. Sits between the Overview and Banking groups; replaces only when a new upload lands. Blurs in diff mode after its posted date.
+- `content/long-view.ts` — the pinned data file; edited via the workflow recipe.
+- `app/components/LongView.tsx` — the render component.
+- `docs/longview-workflow.md` — the recipe (editorial + operational halves).
+- `CLAUDE.md` at repo root — pointer to the recipe for any Claude Code session opened in the repo.
+- `LongViewData` + `ChartSpec` interfaces in `types/brief.ts`.
+- `formatLongViewEyebrow` in `lib/format.tsx` (Asia/Dhaka-pinned).
+
+### Changed
+- `app/components/ClientApp.tsx` renders `<LongView>` between the Overview group and the Banking group when `content/long-view.ts` exports non-null.
+
+### Deferred
+- Chart rendering in the Long View (`chart_spec` field exists in the type, but the v1.1.0 component renders a placeholder if a non-null `chart_spec` is provided). Real Chart.js rendering ships in v1.1.1 if and when a user upload contains a chart that needs recreation.
+
+---
+
 ## [1.0.1] — 2026-05-15 · Same-day patch
 
 ### Fixed
