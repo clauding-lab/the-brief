@@ -6,57 +6,34 @@ import type { LongViewData } from "@/types/brief";
 // before merging to main. See docs/longview-workflow.md for the full recipe.
 
 export const longView: LongViewData | null = {
-  posted_at: "2026-05-16T12:42:00Z",
-  title: "BNP government loosens six prudential rules in three months",
-  lead: "Bangladesh's banking prudential frame has eased across six dimensions in the BNP government's first three months, reversing tightening the Interim government had introduced post-Hasina. The shifts touch penal-interest rates, the loan-exit downpayment, the single-group lending cap, the non-funded conversion factor, NPL treatment, and pre-merger ownership rules.",
+  posted_at: "2026-05-19T01:27:00Z",
+  title: "Mapping the six expenditures behind rising treasury yields",
+  lead: "Bangladesh's treasury yields have crossed 11% again, and the supply-side story is the new government's expenditure profile — six concurrent programs adding fresh demand to the bond market without matching revenue. Some are sized; some, like bank recapitalisation, are still 'tens of thousands of crore' away from quantification, leaving the bond market to price the uncertainty.",
   blocks: [
     {
-      kind: "comparison",
-      before_label: "Interim",
-      after_label: "BNP-led",
-      rows: [
+      kind: "bullet-list",
+      eyebrow: "BD GOVERNMENT · MAJOR EXPENDITURE PROGRAMMES",
+      items: [
         {
-          title: "Penal interest on overdue loans",
-          before: "1.5%",
-          after: "0.5%",
-          description: "Lower carry cost on delinquent paper; modest hit to penal-interest revenue, friction reduction in workouts.",
+          text: "**Family Card · BDT 133,616 cr (5-yr plan).** Pure transfer to 16m+ beneficiaries; rapid scale-up underway. The single largest fiscal expansion in the set, with no revenue offset on the other side.",
         },
         {
-          title: "Loan-exit downpayment",
-          before: "10%",
-          after: "1–2%",
-          description: "Far easier loan closures; correspondingly lower borrower skin in the exit.",
-          tone: "bear",
+          text: "**Power & energy subsidies · BDT 37,000–55,600 cr per year.** The \"hidden deficit,\" BPDB losses included. Politically irreducible; suppresses headline inflation short-term while structurally feeding borrowing needs.",
         },
         {
-          title: "Single-group lending cap (funded)",
-          before: "15%",
-          after: "25%",
-          description: "Single-name concentration limit widens by two-thirds.",
-          tone: "bear",
+          text: "**Farmer Card + agri support · BDT 7,000 cr initial + multi-year scaling.** Pilot launched. Blurs the subsidy-versus-productivity policy line; cash and credit arrive before any output gains.",
         },
         {
-          title: "Non-funded conversion factor",
-          before: "0.50",
-          after: "0.25",
-          description: "Halves the RWA loading on non-cash exposures (guarantees, LCs); directly relieves Tier-1 ratios.",
+          text: "**Bank recapitalisation · tens of thousands of crore (not yet disclosed).** Problem acknowledged; recap plan pending. The \"unknown mega liability\" — if government-funded, immediate pressure on bond supply and yields.",
         },
         {
-          title: "Pre-merger owner return",
-          before: "BANNED",
-          after: "AT 7.5%",
-          description: "Selective re-entry permitted at a set threshold; previously prohibited outright.",
-          tone: "bear",
+          text: "**Education expansion to 5% of GDP (recurring, not fully costed).** Policy announced; partial rollout under way. Near-term it is a wage + subsidy bill, not revenue. The long-term human-capital case is real but pays out beyond the current curve.",
         },
         {
-          title: "Non-performing loan (NPL) treatment",
-          before: "Revealed",
-          after: "Rescheduled",
-          description: "Stressed assets pulled behind a forbearance line rather than carried in public disclosure.",
-          tone: "bear",
+          text: "**Health expansion to 5% of GDP · 100,000 workers (recurring, not yet quantified).** Recruitment and system expansion planned. A permanent expenditure step-up that raises the structural deficit unless the tax base expands materially.",
         },
       ],
     },
   ],
-  banker_read: "This is a coordinated prudential loosening, not a tweak. The NPL-treatment shift and the NCF cut do the heaviest lifting on reported numbers — Tier-1 ratios improve by RWA construction, headline NPLs improve by recognition rule rather than underlying asset quality. Credit committees should expect single-name concentrations to widen at the system level; risk teams should price the next stress cycle assuming the buffer the Interim built has been substantially given back. Treasury desks watching peer disclosures will see optical improvement diverge from underlying portfolio health — calibrate your own view accordingly.",
+  banker_read: "Two of these six aren't sized yet — bank recapitalisation and health expansion — and that is where the yield pressure converges. Treasury desks should expect heavy primary supply through any quarter when the recap-plan disclosure lands; positioning the curve as if those tens-of-thousands-of-crore live in 91-day and 182-day issuance is the conservative read. For credit teams: a deficit financed mainly through banking-system absorption crowds out term lending to private corporates — your relationship borrowers are competing with sovereign paper for the same capital, at sovereign rates plus credit spread. That is a tighter origination environment than the headline ADR caps suggest.",
 };
