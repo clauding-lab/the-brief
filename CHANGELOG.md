@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.2.1] — 2026-05-22
+
+### Changed
+- **Banker-read typography tightened.** `.tb-longview-takeaway p` reduced from `font-size: 17px` to `14.5px` and `line-height: 1.5` to `1.55`. The takeaway paragraph was the largest body element in the Long View — heavier than the lead (14px) and prose (13.5px) — which made it dominate narrow mobile viewports. The "BANKER READ" small-caps label above the paragraph already carries the emphasis; the body text doesn't need to be larger than the lead.
+
+---
+
 ## [1.2.0] — 2026-05-18
 
 ### Added
