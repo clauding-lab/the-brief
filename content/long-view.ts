@@ -6,7 +6,7 @@ import type { LongViewData } from "@/types/brief";
 // before merging to main. See docs/longview-workflow.md for the full recipe.
 
 export const longView: LongViewData | null = {
-  posted_at: "2026-05-24T07:14:00Z",
+  posted_at: "2026-05-24T07:30:00Z",
   title: "BB picked the wrong ruler for bank cash dividends",
   lead: "BB SPCD Circular No. 06 (23 May 2026) gates any cash dividend on Tk 2,000 cr in paid-up capital. Of the 11 largest listed banks, only NBL (Tk 3,220 cr) and BRAC Bank (Tk 2,290 cr) clear the line — and NBL's paid-up is roughly equal to its Tk 3,200 cr bad-loan book. Section 23 of the Income Tax Act 2023 then layers a 10% additional tax on any of the nine blocked banks that issue stock dividends exceeding cash, or no cash at all.",
   blocks: [
@@ -51,6 +51,25 @@ export const longView: LongViewData | null = {
           description: "NBL (Tk 3,220 cr paid-up) — Tk 3,200 cr in bad loans, but passes on capital size alone.",
           tone: "bear",
         },
+      ],
+    },
+    {
+      kind: "bar-chart",
+      eyebrow: "PAID-UP CAPITAL · 11 LARGEST LISTED BANKS",
+      unit: "Tk cr",
+      reference: { value: 2000, label: "BDT 2,000 cr line" },
+      items: [
+        { label: "NBL", value: 3220, display: "3,220", tone: "bear" },
+        { label: "BRAC Bank", value: 2290, display: "2,290", tone: "bull" },
+        { label: "IFIC", value: 1922, display: "1,922" },
+        { label: "City Bank", value: 1749, display: "1,749" },
+        { label: "EBL", value: 1644, display: "1,644" },
+        { label: "Islami Bank", value: 1610, display: "1,610" },
+        { label: "UCB", value: 1550, display: "1,550" },
+        { label: "Pubali Bank", value: 1497, display: "1,497" },
+        { label: "Bank Asia", value: 1392, display: "1,392" },
+        { label: "Southeast", value: 1337, display: "1,337" },
+        { label: "Premier Bank", value: 1233, display: "1,233" },
       ],
     },
     {
