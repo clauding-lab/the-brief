@@ -1179,6 +1179,66 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   letter-spacing: -0.005em;
 }
 
+/* --- Bar chart block (v1.3.0) --- */
+.tb-longview-bar {
+  font-family: var(--mono);
+}
+.tb-longview-bar-eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.tb-longview-bar-rule {
+  height: 1px;
+  background: var(--rule-soft);
+  margin: 8px 0 12px;
+}
+.tb-longview-bar-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  font-family: var(--mono);
+}
+.tb-longview-bar-label {
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--ink-2);
+  letter-spacing: -0.005em;
+}
+.tb-longview-bar-value {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--ink);
+  letter-spacing: -0.005em;
+}
+.tb-longview-bar-fill-default { fill: var(--ink-4, var(--rule-soft)); }
+.tb-longview-bar-fill-bull { fill: var(--bull); }
+.tb-longview-bar-fill-bear { fill: var(--bear); }
+.tb-longview-bar-fill-warn { fill: var(--warn); }
+.tb-longview-bar-fill-neu  { fill: var(--ink-3); }
+.tb-longview-bar-ref-line {
+  stroke: var(--bear);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+.tb-longview-bar-ref-text {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  fill: var(--bear);
+  text-transform: uppercase;
+}
+.tb-longview-bar-unit {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-top: 8px;
+  font-style: italic;
+}
+
 /* --- Banker read takeaway (kept from v1.1.0, mono explicit) --- */
 .tb-longview-takeaway {
   padding: 12px 0;
