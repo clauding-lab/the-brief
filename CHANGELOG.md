@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.3.0] — 2026-05-24
+
+### Added
+- **`bar-chart` block kind for Long View.** Renders a horizontal bar chart with optional vertical reference line (e.g., a regulatory threshold), per-item tone tinting, and an optional unit caption. Implemented as inline SVG with `viewBox`-driven responsive scaling; preserves the mono typography and palette-token visual contract. `BarChartBlock` adds to the `Block` union; `LongViewBarChart.tsx` is the dispatched component.
+- Tone classes for bar fills (`bull`, `bear`, `warn`, `neu`) plus a neutral default. Reference line uses the `bear` palette token to signal a regulatory cut.
+
+### Changed
+- `LongView.tsx` dispatcher gains a fifth `case "bar-chart"`. No change to the eyebrow / title / lead / blocks / banker_read frame.
+- `docs/longview-workflow.md` editorial-half should be updated separately to teach composers when to use bar-chart vs comparison. (Not in this PR — typo-fix CSS-only versioning rule preserves docs-as-separate-PR.)
+
+### Notes
+- Triggered by the first chart-bearing Long View upload (BB SPCD Circular No. 06 + listed-bank paid-up-capital ranking, 24 May 2026). The v1.2.0 CHANGELOG entry deferred chart rendering to "v1.3.0+ when the first chart-bearing slide upload arrives" — that day is today.
+
+---
+
 ## [1.2.1] — 2026-05-22
 
 ### Changed

@@ -8,6 +8,7 @@ import { LongViewProse } from "./LongViewProse";
 import { LongViewComparison } from "./LongViewComparison";
 import { LongViewStat } from "./LongViewStat";
 import { LongViewBulletList } from "./LongViewBulletList";
+import { LongViewBarChart } from "./LongViewBarChart";
 
 interface LongViewProps {
   data: LongViewData | null;
@@ -36,6 +37,8 @@ function renderBlock(block: Block, index: number) {
       return <LongViewStat key={index} block={block} />;
     case "bullet-list":
       return <LongViewBulletList key={index} block={block} />;
+    case "bar-chart":
+      return <LongViewBarChart key={index} block={block} />;
   }
 }
 
