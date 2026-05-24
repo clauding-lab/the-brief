@@ -110,8 +110,8 @@ export interface BriefPayload {
 
 // --- Long View (pinned editorial insert, v1.2.0+) ---
 // v1.2.0 replaces the single-shape model with a composable Block system.
-// ChartSpec types removed; chart rendering will return as a `ChartBlock`
-// kind in v1.3.0+ when the first chart-bearing upload arrives.
+// v1.3.0 adds `bar-chart` for ranked-value visualisations with an optional
+// vertical reference line (the first chart-bearing upload landed 2026-05-24).
 
 export interface ProseBlock {
   kind: "prose";
@@ -153,11 +153,32 @@ export interface BulletListBlock {
   items: BulletListItem[];       // 2-7 items
 }
 
+export interface BarChartItem {
+  label: string;                 // e.g., "BRAC Bank"
+  value: number;                 // numeric, used for bar-length scaling
+  display?: string;              // optional override; defaults to value.toLocaleString()
+  tone?: Tone;                   // optional bar tint
+}
+
+export interface BarChartReference {
+  value: number;                 // position of the vertical reference line
+  label: string;                 // text drawn next to the line, e.g., "BDT 2,000 cr"
+}
+
+export interface BarChartBlock {
+  kind: "bar-chart";
+  eyebrow?: string;              // optional small-caps header
+  unit?: string;                 // e.g., "Tk cr" — rendered as a caption
+  reference?: BarChartReference; // optional vertical dashed line
+  items: BarChartItem[];         // 2-12 items, in display order (top to bottom)
+}
+
 export type Block =
   | ProseBlock
   | ComparisonBlock
   | StatBlock
-  | BulletListBlock;
+  | BulletListBlock
+  | BarChartBlock;
 
 export interface LongViewData {
   posted_at: string;             // ISO 8601 UTC (unchanged from v1.1.0)
