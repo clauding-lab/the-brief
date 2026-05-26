@@ -215,6 +215,6 @@ When the brief is being viewed as "today's diff vs prior issue":
 
 ## Versioning
 
-This document tracks the visual contract as of **v1.3.0**. Changes that affect the contract — new block kinds, palette tweaks, typography revisions — bump the minor or major version per `CHANGELOG.md` and require a separate platform-level PR (not a per-pin Long View PR).
+This document tracks the visual contract as of **v1.3.1**. Changes that affect the contract — new block kinds, palette tweaks, typography revisions — bump the minor or major version per `CHANGELOG.md` and require a separate platform-level PR (not a per-pin Long View PR).
 
 Per-pin Long View PRs must NOT touch `app/globals.css`, `Design.md`, `CHANGELOG.md`, or `package.json`.

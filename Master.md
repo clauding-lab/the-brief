@@ -200,4 +200,4 @@ Before merging a Long View pin or shipping any editorial copy:
 
 ## Version
 
-This document tracks the voice contract as of **v1.3.0**. Voice-level changes (new banned terms, vocabulary additions, structural shifts in Banker's Read) bump the minor version in `CHANGELOG.md` with an entry under "Changed."
+This document tracks the voice contract as of **v1.3.1**. Voice-level changes (new banned terms, vocabulary additions, structural shifts in Banker's Read) bump the minor version in `CHANGELOG.md` with an entry under "Changed."

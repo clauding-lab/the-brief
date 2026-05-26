@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.3.1] — 2026-05-26
+
+### Added
+- **`Master.md` at the repo root** — canonical brand & voice guide. Covers audience (Tier-1 BD banking professionals: business / risk / treasury / management committee / ALCO / credit committee), tone (clinical, fact-based, quietly analytical; explicitly neutral and diplomatic toward regulators and government while keeping substance fact-based), voice register, surface-specific voice (Today's Call, Banker's Read, Long View, email subject/body), word-level conventions (preferred-abbreviations table + avoid table), numbers/currency rules, honorifics, channel norms, pre-publish checklist.
+- **`Design.md` at the repo root** — canonical design language guide. Captures identity (steel-crimson production palette, bone alternate for email), tokens (geometry, type, both palettes, semantic tone with oklch values), typography scale, Long View block kinds (all 5 shipped including bar-chart), hair rules, section structure, email design, diff-stale state, responsive rules, forbiddens, versioning rules.
+
+### Fixed
+- **Notifier privacy.** `brief/notifier.py::send_via_brevo` previously packed every subscriber into a single Brevo `to` array, exposing each recipient's address to every other recipient. Each subscriber now gets their own Brevo API call so the To: header only contains their own address. Sequential per-subscriber posts — well under any rate limit at current subscriber counts. Return contract preserved: `(sent_count, last_message_id, first_error_or_None)`. Tests updated to assert the privacy contract directly + cover partial-failure shape (succeed, fail, succeed).
+
+---
+
 ## [1.3.0] — 2026-05-24
 
 ### Added
