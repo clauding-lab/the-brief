@@ -377,14 +377,26 @@ def test_fetch_brief_data_returns_none_lead_when_section_has_no_news(monkeypatch
 from brief.notifier import send_via_brevo
 
 
-def test_send_via_brevo_posts_correct_payload_and_returns_message_id(monkeypatch):
-    captured = {}
+def test_send_via_brevo_posts_one_call_per_subscriber(monkeypatch):
+    """Privacy guarantee: each subscriber gets their own Brevo call with
+    only their own address in `to`, so recipients never see each other.
+    Also asserts shared-fields (sender / subject / bodies) and that the
+    returned message_id is the LAST successful messageId."""
+    captured: list[dict] = []
+    counter = {"n": 0}
 
     def fake_urlopen(req, timeout=None):
-        captured["url"] = req.full_url
-        captured["headers"] = dict(req.headers)
-        captured["body"] = _json.loads(req.data.decode())
-        return _FakeResp(b'{"messageId":"<abc@brevo>"}', status=201)
+        counter["n"] += 1
+        captured.append({
+            "url": req.full_url,
+            "headers": dict(req.headers),
+            "body": _json.loads(req.data.decode()),
+        })
+        # Each call returns a distinct messageId so we can verify "last wins"
+        return _FakeResp(
+            f'{{"messageId":"<msg-{counter["n"]}@brevo>"}}'.encode(),
+            status=201,
+        )
 
     monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
 
@@ -401,16 +413,50 @@ def test_send_via_brevo_posts_correct_payload_and_returns_message_id(monkeypatch
         text_body="plain",
     )
 
-    assert result == (2, "<abc@brevo>", None)  # (sent_count, message_id, error)
-    assert captured["url"] == "https://api.brevo.com/v3/smtp/email"
-    assert captured["body"]["sender"] == {"email": "adnan.rshd@gmail.com", "name": "The Brief"}
-    assert captured["body"]["to"] == [
-        {"email": "a@x.com", "name": "A"},
-        {"email": "b@y.com", "name": "B"},
-    ]
-    assert captured["body"]["subject"] == "The Brief · No. 107"
-    assert captured["body"]["htmlContent"] == "<html/>"
-    assert captured["body"]["textContent"] == "plain"
+    # Privacy assertion: exactly one POST per subscriber, each `to` isolated.
+    assert len(captured) == 2
+    assert captured[0]["body"]["to"] == [{"email": "a@x.com", "name": "A"}]
+    assert captured[1]["body"]["to"] == [{"email": "b@y.com", "name": "B"}]
+
+    # Shared fields are identical across calls.
+    for call in captured:
+        assert call["url"] == "https://api.brevo.com/v3/smtp/email"
+        assert call["body"]["sender"] == {"email": "adnan.rshd@gmail.com", "name": "The Brief"}
+        assert call["body"]["subject"] == "The Brief · No. 107"
+        assert call["body"]["htmlContent"] == "<html/>"
+        assert call["body"]["textContent"] == "plain"
+
+    # Return contract: (sent_count, last_message_id, error)
+    assert result == (2, "<msg-2@brevo>", None)
+
+
+def test_send_via_brevo_partial_failure_reports_sent_count_and_first_error(monkeypatch):
+    """If subscriber 2 of 3 fails but 1 and 3 succeed, sent_count=2 and the
+    error string surfaces the first failure. Caller can decide to retry."""
+    counter = {"n": 0}
+
+    def fake_urlopen(req, timeout=None):
+        counter["n"] += 1
+        if counter["n"] == 2:
+            raise OSError("transient network blip")
+        return _FakeResp(b'{"messageId":"<ok@brevo>"}', status=201)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fake_urlopen)
+
+    sent, msg_id, err = send_via_brevo(
+        api_key="k",
+        from_email="from@x.com",
+        from_name="The Brief",
+        subscribers=[
+            Subscriber(name="A", email="a@x.com", organisation=None),
+            Subscriber(name="B", email="b@y.com", organisation=None),
+            Subscriber(name="C", email="c@z.com", organisation=None),
+        ],
+        subject="s", html_body="h", text_body="t",
+    )
+    assert sent == 2
+    assert msg_id == "<ok@brevo>"
+    assert "transient network blip" in err
 
 
 def test_send_via_brevo_returns_error_on_network_failure(monkeypatch):

@@ -343,35 +343,57 @@ def send_via_brevo(
     html_body: str,
     text_body: str,
 ) -> tuple[int, str | None, str | None]:
-    """POST to Brevo's transactional API.
+    """POST one email per subscriber to Brevo's transactional API.
 
-    Returns (sent_count, message_id, error). On any failure, sent_count is 0,
-    message_id is None, error is a short string.
+    Each subscriber gets their own API call with only their own address in `to`,
+    so recipients never see each other's emails. Sequential — for the current
+    subscriber count this is well under any rate limit and keeps the logic
+    auditable.
+
+    Returns (sent_count, message_id, error):
+      - sent_count: subscribers Brevo accepted (2xx response)
+      - message_id: the Brevo messageId from the LAST successful send, or None
+      - error: the FIRST failure tag encountered, or None if all sends succeeded
     """
-    payload = {
-        "sender": {"email": from_email, "name": from_name},
-        "to": [{"email": s.email, "name": s.name} for s in subscribers],
-        "subject": subject,
-        "htmlContent": html_body,
-        "textContent": text_body,
-    }
-    req = Request(
-        _BREVO_URL,
-        data=_stdjson.dumps(payload).encode("utf-8"),
-        headers={
-            "api-key": api_key,
-            "content-type": "application/json",
-            "accept": "application/json",
-        },
-    )
-    try:
-        with urlopen(req, timeout=30) as r:
-            body = _json_loads(r.read())
-            return len(subscribers), body.get("messageId") if isinstance(body, dict) else None, None
-    except urllib.error.HTTPError as e:
-        return 0, None, f"HTTP {e.code}: {e.reason}"
-    except Exception as e:
-        return 0, None, f"{type(e).__name__}: {e}"
+    sent_count = 0
+    last_message_id: str | None = None
+    first_error: str | None = None
+
+    for sub in subscribers:
+        payload = {
+            "sender": {"email": from_email, "name": from_name},
+            "to": [{"email": sub.email, "name": sub.name}],
+            "subject": subject,
+            "htmlContent": html_body,
+            "textContent": text_body,
+        }
+        req = Request(
+            _BREVO_URL,
+            data=_stdjson.dumps(payload).encode("utf-8"),
+            headers={
+                "api-key": api_key,
+                "content-type": "application/json",
+                "accept": "application/json",
+            },
+        )
+        try:
+            with urlopen(req, timeout=30) as r:
+                body = _json_loads(r.read())
+                sent_count += 1
+                if isinstance(body, dict) and body.get("messageId"):
+                    last_message_id = body["messageId"]
+        except urllib.error.HTTPError as e:
+            err = f"HTTP {e.code}: {e.reason}"
+            logger.warning("notifier: send to %s failed: %s", sub.email, err)
+            if first_error is None:
+                first_error = err
+        except Exception as e:
+            err = f"{type(e).__name__}: {e}"
+            logger.warning("notifier: send to %s failed: %s", sub.email, err)
+            if first_error is None:
+                first_error = err
+
+    return sent_count, last_message_id, first_error
 
 
 # ── Orchestration ────────────────────────────────────────────────────────────
