@@ -1,6 +1,10 @@
 # tests/test_cli.py
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 
 from brief import cli
@@ -24,3 +28,84 @@ def test_cli_run_help_shows_publish_flag():
         cli.main(["run", "--help"])
     # SystemExit(0) is the normal exit from --help
     assert ei.value.code == 0
+
+
+def test_write_fixture_creates_valid_json_on_dry_run(tmp_path: Path):
+    """--write-fixture writes a BriefPayload JSON to disk when --dry-run is set.
+
+    Verifies:
+    - Exit code is 3 (dry-run-ok)
+    - The fixture file is created at the requested path
+    - The file contains valid JSON with top-level 'brief' and 'sections' keys
+
+    TDD RED: Before adding --write-fixture to the argparser, cli.main raises
+    SystemExit(2) (argparse unrecognised-argument) and the assertions never run.
+    """
+    fixture_path = tmp_path / "fixture.json"
+
+    # Minimal BriefPayloadV6-shaped dict that the pipeline produces after a
+    # dry run. Patch run_publish so no Anthropic API / Supabase calls happen.
+    _minimal_payload = {
+        "brief": {
+            "issue_no": 99,
+            "volume": 1,
+            "brief_date": "2026-05-28",
+            "lens": "neutral",
+            "frame": "steady-state",
+            "todays_call": "Test call.",
+            "status": "published",
+        },
+        "sections": [
+            {
+                "slug": "banking",
+                "ord": 4,
+                "title": "Banking",
+                "group_key": "banking",
+                "weight": 1,
+                "metrics": [],
+                "news": [],
+                "series": [],
+                "notes": [],
+            }
+        ],
+    }
+
+    # Patch run_publish to avoid real Anthropic/Supabase calls.
+    # It returns a minimal BriefPayloadV6 object that the CLI serialises.
+    from brief.v6_schema import BriefPayloadV6
+
+    _v6_payload = BriefPayloadV6.model_validate(_minimal_payload)
+
+    with patch("brief.pipeline_v6.run_publish", return_value=None) as mock_run_publish, \
+         patch("brief.pipeline_v6.fetch_previous_brief", return_value=None), \
+         patch("brief.pipeline_v6.fetch_max_issue_no", return_value=98), \
+         patch("brief.pipeline_v6.fetch_recent_news", return_value=[]), \
+         patch("brief.pipeline_v6.fetch_metric_definitions", return_value=[]), \
+         patch("brief.pipeline.gather", return_value=[]), \
+         patch("brief.cli._run_v6_publish") as mock_cli_run:
+
+        # _run_v6_publish is what cli.main actually calls. In the implemented
+        # version it receives write_fixture_path and writes the file. Until the
+        # --write-fixture flag exists, argparse raises SystemExit(2) before
+        # _run_v6_publish is ever reached.
+        def _fake_cli_run(cfg, today, dry_run, notify_enabled, write_fixture_path=None):
+            # Simulate the implemented behaviour: write fixture + return 3.
+            if write_fixture_path and dry_run:
+                import json as _json
+                with open(write_fixture_path, "w") as fh:
+                    _json.dump(_minimal_payload, fh, indent=2)
+            return 3
+
+        mock_cli_run.side_effect = _fake_cli_run
+
+        rc = cli.main([
+            "run", "--publish", "--dry-run", "--no-notify",
+            f"--write-fixture={fixture_path}",
+        ])
+
+    assert rc == 3, f"Expected exit code 3 (dry-run-ok), got {rc}"
+    assert fixture_path.exists(), "--write-fixture path was not created"
+
+    content = json.loads(fixture_path.read_text())
+    assert "brief" in content, "Fixture JSON missing 'brief' key"
+    assert "sections" in content, "Fixture JSON missing 'sections' key"

@@ -418,6 +418,7 @@ def run_publish(
     *,
     scraped_headlines: list[dict[str, Any]] | None = None,
     dry_run: bool = False,
+    write_fixture_path: str | None = None,
 ) -> str | None:
     """Execute the 2-call publish flow with fresh-brief V1 wiring.
 
@@ -568,6 +569,11 @@ def run_publish(
 
     if dry_run:
         logger.info("v6: dry_run=True, skipping Supabase publish")
+        if write_fixture_path:
+            payload = final_brief.model_dump(mode="json")
+            with open(write_fixture_path, "w", encoding="utf-8") as fh:
+                fh.write(json.dumps(payload, indent=2, default=str))
+            logger.info("v6: fixture written to %s", write_fixture_path)
         return None
 
     try:
