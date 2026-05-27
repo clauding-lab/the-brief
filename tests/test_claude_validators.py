@@ -76,3 +76,29 @@ def test_validate_no_banal_language_fails_on_amid():
 def test_validate_no_banal_language_is_case_insensitive():
     result = validate_no_banal_language("Markets navigate INTRICATE terrain.")
     assert not result.ok
+
+
+# ---------------------------------------------------------------------------
+# Task 2.3: validate_chart_read_temporal_anchor
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_chart_read_temporal_anchor
+
+
+def test_validate_chart_read_temporal_anchor_passes_with_since():
+    chart_read = {
+        "signal": "Brent +2.4% to $87.20.",
+        "context": "Highest since Q2 2024 ($91.40 then).",
+        "implication": "Watch H2 import bills.",
+    }
+    assert validate_chart_read_temporal_anchor(chart_read).ok
+
+
+def test_validate_chart_read_temporal_anchor_passes_with_year_token():
+    chart_read = {"signal": "x", "context": "First time above 5% in 2025.", "implication": "y"}
+    assert validate_chart_read_temporal_anchor(chart_read).ok
+
+
+def test_validate_chart_read_temporal_anchor_fails_without_anchor():
+    chart_read = {"signal": "x", "context": "Inflation remains elevated.", "implication": "y"}
+    assert not validate_chart_read_temporal_anchor(chart_read).ok

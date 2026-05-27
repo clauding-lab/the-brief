@@ -559,6 +559,22 @@ def validate_no_banal_language(text: str) -> ValidationResult:
     return ValidationResult(True)
 
 
+def validate_chart_read_temporal_anchor(chart_read: dict) -> ValidationResult:
+    """ChartRead.context must contain a temporal anchor token or a month/year/Q token."""
+    context = chart_read.get("context", "") or ""
+    if not context:
+        return ValidationResult(False, reason="chart_read.context is empty")
+    lower = context.lower()
+    if any(token in lower for token in TEMPORAL_TOKENS):
+        return ValidationResult(True)
+    if TEMPORAL_REGEX.search(context):
+        return ValidationResult(True)
+    return ValidationResult(
+        False,
+        reason="chart_read.context lacks temporal anchor (need 'since'/'vs'/'last'/'above'/'below'/'next' or a month/year/Q token)",
+    )
+
+
 # Tier-2: expand on first use per section, bare thereafter
 TIER2_ABBREVS_AND_EXPANSIONS = {
     # Prudential ratios
