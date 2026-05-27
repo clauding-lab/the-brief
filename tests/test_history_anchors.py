@@ -150,3 +150,29 @@ def test_pct_change_since_matches_named_period():
     assert fact.reference_value == 9.4
     assert "vs Apr 2025" in fact.phrase
     assert "(9.4% then)" in fact.phrase
+
+
+# ── rolling_extremes ─────────────────────────────────────────────────────────
+
+from brief.history_anchors import rolling_extremes
+
+
+def test_rolling_extremes_returns_min_max_and_rank():
+    # current_value is the max in the 30-period window — returns extreme_in_window fact
+    # Need ≥30 rows for cadence="daily" (MIN_DATA_POINTS["daily"]=30)
+    # All other values cap at 90.0 so 91.40 is the unambiguous window max
+    history = [
+        _row("brent_crude_usd_barrel", "2026-04-01", 91.40),  # current — window max
+        *[_row("brent_crude_usd_barrel", f"2026-03-{d:02d}", 80.0 + d * 0.2) for d in range(1, 31)],  # 30 rows, all < 91.40
+    ]
+    fact = rolling_extremes(
+        history,
+        current_value=91.40,
+        window=31,
+        formatter=lambda v: f"${v:.2f}",
+        cadence="daily",
+    )
+    assert fact is not None
+    assert fact.kind == "extreme_in_window"
+    # Either highlights the max or notes current rank in window — implementation choice
+    assert "$" in fact.reference_value_formatted

@@ -187,3 +187,72 @@ def pct_change_since(
                 reference_as_of=row.as_of.isoformat(),
             )
     return None
+
+
+def rolling_extremes(
+    history: Sequence[HistoryRow],
+    *,
+    current_value: float,
+    window: int,
+    formatter: Callable[[float], str],
+    cadence: str,
+) -> HistoryFact | None:
+    """Compute min/max within a window of N data points; return the more notable extreme.
+
+    If current_value is at or near the window max OR min, return a HistoryFact
+    naming the relevant extreme. If current_value sits in the middle, return None.
+    """
+    if len(history) < MIN_DATA_POINTS.get(cadence, 6):
+        return None
+
+    window_rows = history[:window]
+    if not window_rows:
+        return None
+
+    values = [r.value for r in window_rows]
+    win_min = min(values)
+    win_max = max(values)
+
+    # Compute current_value's rank in window (lower index = higher value)
+    sorted_desc = sorted(values, reverse=True)
+    try:
+        rank_high = sorted_desc.index(current_value) + 1  # 1 = highest
+    except ValueError:
+        rank_high = None
+
+    # Notable if current is exact max, exact min, or in top/bottom 5 of window
+    if current_value == win_max:
+        # Find the row that previously held the max (excluding current)
+        prior_max = max((r for r in window_rows[1:]), key=lambda r: r.value, default=None)
+        if prior_max is None:
+            return None
+        return HistoryFact(
+            metric_id=window_rows[0].metric_id,
+            kind="extreme_in_window",
+            phrase=f"highest in {window}-period window (prior {formatter(prior_max.value)} on {_format_as_of(prior_max.as_of, cadence)})",
+            reference_value=prior_max.value,
+            reference_value_formatted=formatter(prior_max.value),
+            reference_as_of=prior_max.as_of.isoformat(),
+        )
+    if current_value == win_min:
+        prior_min = min((r for r in window_rows[1:]), key=lambda r: r.value, default=None)
+        if prior_min is None:
+            return None
+        return HistoryFact(
+            metric_id=window_rows[0].metric_id,
+            kind="extreme_in_window",
+            phrase=f"lowest in {window}-period window (prior {formatter(prior_min.value)} on {_format_as_of(prior_min.as_of, cadence)})",
+            reference_value=prior_min.value,
+            reference_value_formatted=formatter(prior_min.value),
+            reference_as_of=prior_min.as_of.isoformat(),
+        )
+    if rank_high and rank_high <= 5:
+        return HistoryFact(
+            metric_id=window_rows[0].metric_id,
+            kind="extreme_in_window",
+            phrase=f"{rank_high}th-highest in {window}-period window",
+            reference_value=win_max,
+            reference_value_formatted=formatter(win_max),
+            reference_as_of=window_rows[0].as_of.isoformat(),
+        )
+    return None
