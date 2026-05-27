@@ -42,6 +42,12 @@
 
 ---
 
+## Phase 0 outcomes (recorded 2026-05-27)
+
+- **Task 0.1 — Anthropic SDK web_search: RED.** `brief/claude/max_client.py` wraps the Claude CLI subprocess (`claude -p --tools ""`); the empty `--tools` arg disables all tools. Enabling web_search would require changing `--tools ""` to `--tools web_search` plus CLI-version verification. **Decision: scope §3.4 check #5 (web search sanity check) out of v1.4.0 and defer to a v1.4.x patch.** Phase 2 below skips the web_search wiring task; sub-editor ships with checks #1-4 and #6-7 only (no #5).
+- **Task 0.4 — React test infrastructure: OPTION B (skip).** No existing test infrastructure. ChartRead is structurally trivial. Verification via Vercel preview + Phase 0.5 fixture-loading.
+- **Tasks 0.2 and 0.3 — Adnan-owned, out-of-band.** Brevo baseline open-rate capture + Supabase monthly data spot-check. Not blocking implementation work.
+
 ## Preview-before-prod governance (applies to every phase)
 
 **Adnan's hard rule:** every change must be live-tested on a separate URL before merging to main or replacing the live site. Subagent workflow MUST end each phase PR with a "PREVIEW READY — please review at <URL>" nudge and wait for explicit user approval before merging.
@@ -1371,7 +1377,7 @@ isolation with ~12 unit tests.
 
 ## Phase 2 — Validators + sub-editor + Master.md (8 tasks, 1 PR)
 
-> **PR boundary:** Phase 2 ships as a single PR titled `feat(validators): banker-grade specificity enforcement + abbreviation tiers`. Can run in parallel with Phase 1 (no shared files). Web search wiring (Task 2.7) is **CONDITIONAL on Phase 0 Task 0.1 GREEN outcome** — skip if RED.
+> **PR boundary:** Phase 2 ships as a single PR titled `feat(validators): banker-grade specificity enforcement + abbreviation tiers`. Can run in parallel with Phase 1 (no shared files). Web search wiring (Task 2.7) is **SCOPED OUT** per Phase 0 Task 0.1 RED outcome — `max_client.py` wraps Claude CLI with `--tools ""` so tools are disabled. Sub-editor ships with checks #1-4 + #6-7 only; web search deferred to v1.4.x.
 
 > Before starting, switch branches: `git switch main && git pull --ff-only && git switch -c feat/v1.4.0-phase2-validators`
 
