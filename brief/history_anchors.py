@@ -124,3 +124,37 @@ def last_lower_than(
                 reference_as_of=row.as_of.isoformat(),
             )
     return None
+
+
+def last_higher_than(
+    history: Sequence[HistoryRow],
+    *,
+    current_value: float,
+    cadence: str,
+    formatter: Callable[[float], str],
+) -> HistoryFact | None:
+    """Mirror of last_lower_than — returns the most recent row above current_value.
+
+    `history` MUST be ordered most-recent-first (PostgREST `order=as_of.desc`).
+    Returns None when:
+      - fewer than MIN_DATA_POINTS[cadence] rows are available
+      - no row in `history` is above `current_value`
+    """
+    min_pts = MIN_DATA_POINTS.get(cadence, 6)
+    if len(history) < min_pts:
+        return None
+
+    metric_id = history[0].metric_id
+    for row in history:
+        if row.value > current_value:
+            ref_formatted = formatter(row.value)
+            period_label = _format_as_of(row.as_of, cadence)
+            return HistoryFact(
+                metric_id=metric_id,
+                kind="since_higher",
+                phrase=f"highest since {period_label} ({ref_formatted} then)",
+                reference_value=row.value,
+                reference_value_formatted=ref_formatted,
+                reference_as_of=row.as_of.isoformat(),
+            )
+    return None

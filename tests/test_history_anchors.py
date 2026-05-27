@@ -101,3 +101,25 @@ def test_last_lower_than_returns_none_when_history_too_sparse():
     # Only 2 monthly data points — below MIN_DATA_POINTS["monthly"]=6
     fact = last_lower_than(history, current_value=5.2, cadence="monthly", formatter=_format_pct_1dp)
     assert fact is None
+
+
+# ── last_higher_than ─────────────────────────────────────────────────────────
+
+from brief.history_anchors import last_higher_than
+
+
+def test_last_higher_than_finds_most_recent_higher():
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 5.2),
+        _row("cpi_12m_avg_monthly", "2026-03-01", 5.0),
+        _row("cpi_12m_avg_monthly", "2022-03-01", 7.5),  # last higher
+        _row("cpi_12m_avg_monthly", "2022-02-01", 6.0),
+        # pad to meet min_data_points threshold (need 6 total)
+        *[_row("cpi_12m_avg_monthly", f"2021-{m:02d}-01", 4.0) for m in range(1, 3)],
+    ]
+    fact = last_higher_than(history, current_value=5.2, cadence="monthly", formatter=_format_pct_1dp)
+    assert fact is not None
+    assert fact.kind == "since_higher"
+    assert fact.reference_value == 7.5
+    assert "highest since Mar 2022" in fact.phrase
+    assert "(7.5% then)" in fact.phrase
