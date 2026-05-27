@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.4.0] — 2026-05-27
+
+### Added
+- **Historical anchors compute layer** (`brief/history_anchors.py`) — five cadence-aware primitives (`last_lower_than`, `last_higher_than`, `pct_change_since`, `rolling_extremes`, `first_cross_since`) that produce `HistoryFact` instances with pre-formatted parens phrases. Reads `metric_history` for daily/weekly/quarterly/fiscal_year and `metric_history_monthly` for monthly long-horizon. The compute layer is the sole formatter of "lowest since X (Y then)" prose — the editor inlines verbatim.
+- **`Section.chart_read` field** with structured `{signal, context, implication}` — three short paragraphs rendered as a "Chart read" eyebrow block under every chart card using existing `.tb-analysis` styling. No new CSS, no new component.
+- **`ChartReadV6` Pydantic model** in `brief/v6_schema.py` validating the new field.
+- **Eight banker-essential monthly metrics in the Macro section**, read from `metric_history_monthly` (previously unused by The Brief): `cpi_12m_avg_monthly`, `cpi_p2p_food_monthly`, `cpi_p2p_nonfood_monthly`, `real_policy_rate_monthly`, `reer_monthly`, `private_credit_growth_yoy_monthly`, `m2_growth_yoy_monthly`, `import_cover_months_monthly`.
+- **CPI 24-month trend chart in the Macro section** — new `chartConfigs.cpiTrend` config with three lines (headline 12m-avg, food, non-food).
+- **Six new validators** in `brief/claude/validators.py`: `validate_no_banal_language`, `validate_chart_read_temporal_anchor`, `validate_chart_read_implication_quality`, `validate_chart_read_length`, `validate_history_claim_has_reference`, `validate_abbreviation_policy`.
+- **Banker Vocabulary Tiers** subsection in `Master.md` defining Tier-1 (bare use), Tier-2 (expand on first use per section), Tier-3 (always expand or rephrase) abbreviation policy.
+- **`/preview?fixture=<name>` SPA route** (shipped earlier in v1.4.0 as Phase 0.5) — server-rendered preview path for dry-run fixtures with a yellow "PREVIEW MODE" banner. Enables editorial review of brief content on a separate URL before production publish.
+- **`brief/cli.py --write-fixture` flag** — dry-runs can now write directly to a fixture JSON file ready for SPA loading.
+
+### Changed
+- **Editor prompt** (`brief/claude/prompts/editor_v6.txt` + `editor_v6_friday.txt`) — banker-grade specificity contract (time-anchored AND implications-oriented), history_facts weaving rules (use `phrase` verbatim including parens), three-tier abbreviation policy, macro section per-section override allowing all 8 metrics (not capped at 5), `chart_read` added to OUTPUT SCHEMA.
+- **Sub-editor prompt** (`brief/claude/prompts/subeditor_v6.txt`) — six new checklist items: specificity, temporal anchor on `chart_read.context`, history claim audit, history reference-value preservation, banal-language scan, abbreviation policy.
+- **`Cover.sub`** — packs historical anchors verbatim when a `since_lower / since_higher / first_cross_since` HistoryFact exists for the cover metric.
+- **`MetricHistoryClient.get_latest()` and `.get_history_window()`** — extended with optional `table` kwarg supporting `metric_history_monthly`.
+
+### Scoped out for v1.4.0 (deferred)
+- **Web search sanity check on historical claims** (spec §3.4 #5) — `max_client.py` wraps the Claude CLI subprocess with `--tools ""`, which disables tool-use. Enabling `web_search` requires a code change and CLI version verification. Deferred to a v1.4.x patch.
+
+### Dependencies
+- No new dependencies. No version bumps on `next`, `react`, `chart.js`, or `@supabase/supabase-js`.
+
+---
+
 ## [1.3.2] — 2026-05-27
 
 ### Added
