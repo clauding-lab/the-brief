@@ -45,3 +45,59 @@ def test_cadence_table_routing():
     assert CADENCE_TABLE["monthly"] == "metric_history_monthly"
     assert CADENCE_TABLE["quarterly"] == "metric_history"
     assert CADENCE_TABLE["fiscal_year"] == "metric_history"
+
+
+# ── last_lower_than ──────────────────────────────────────────────────────────
+
+from datetime import date as _date
+from brief.history_anchors import last_lower_than
+from brief.history import HistoryRow
+
+
+def _format_pct_1dp(v: float) -> str:
+    return f"{v:.1f}%"
+
+
+def _row(metric_id: str, as_of: str, value: float) -> HistoryRow:
+    return HistoryRow(metric_id=metric_id, as_of=_date.fromisoformat(as_of), value=value, source="t")
+
+
+def test_last_lower_than_finds_most_recent_lower():
+    # History sorted most-recent-first (as PostgREST order=as_of.desc returns)
+    # 6 rows: meets MIN_DATA_POINTS["monthly"]=6
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 5.2),  # current
+        _row("cpi_12m_avg_monthly", "2026-03-01", 5.4),
+        _row("cpi_12m_avg_monthly", "2026-02-01", 5.6),
+        _row("cpi_12m_avg_monthly", "2026-01-01", 5.7),
+        _row("cpi_12m_avg_monthly", "2021-09-01", 4.8),  # last lower
+        _row("cpi_12m_avg_monthly", "2021-08-01", 5.1),
+    ]
+    fact = last_lower_than(history, current_value=5.2, cadence="monthly", formatter=_format_pct_1dp)
+    assert fact is not None
+    assert fact.kind == "since_lower"
+    assert fact.reference_value == 4.8
+    assert fact.reference_value_formatted == "4.8%"
+    assert fact.reference_as_of == "2021-09-01"
+    assert "since Sep 2021" in fact.phrase
+    assert "(4.8% then)" in fact.phrase
+
+
+def test_last_lower_than_returns_none_when_no_lower_exists():
+    # No row with value < 5.2 in the window
+    history_with_higher_only = [_row("x", "2026-04-01", 5.2)] + [
+        _row("x", f"2026-{m:02d}-01", 10.0) for m in range(1, 4)
+    ]
+    # Pad to meet min_data_points threshold
+    extended = history_with_higher_only + [
+        _row("x", f"2025-{m:02d}-01", 10.0) for m in range(1, 13)
+    ]
+    fact = last_lower_than(extended, current_value=5.2, cadence="monthly", formatter=_format_pct_1dp)
+    assert fact is None
+
+
+def test_last_lower_than_returns_none_when_history_too_sparse():
+    history = [_row("x", "2026-04-01", 5.2), _row("x", "2026-03-01", 4.8)]
+    # Only 2 monthly data points — below MIN_DATA_POINTS["monthly"]=6
+    fact = last_lower_than(history, current_value=5.2, cadence="monthly", formatter=_format_pct_1dp)
+    assert fact is None
