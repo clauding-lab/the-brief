@@ -32,11 +32,17 @@ const GROUP_LABELS: Record<SectionGroup, string> = {
   policy: "Policy",
 };
 
-interface ClientAppProps {
-  initialData: BriefPayload;
-}
+type ClientAppProps =
+  | { initialData: BriefPayload; brief?: never; sections?: never; preview?: never }
+  | { brief: BriefPayload["brief"]; sections: BriefPayload["sections"]; initialData?: never; preview?: boolean };
 
-export function ClientApp({ initialData }: ClientAppProps) {
+export function ClientApp(props: ClientAppProps) {
+  const initialData: BriefPayload =
+    "initialData" in props && props.initialData !== undefined
+      ? props.initialData
+      : { brief: props.brief!, sections: props.sections!, _source: "static" };
+  const preview = ("preview" in props && props.preview) ?? false;
+
   const [data, setData] = useState<BriefPayload>(initialData);
   const [active, setActive] = useState<string>(() => {
     if (typeof window === "undefined") return "snapshot";
@@ -78,7 +84,9 @@ export function ClientApp({ initialData }: ClientAppProps) {
 
   // Hydrate from Supabase on mount — initialData was server-fetched but we re-fetch
   // to get the freshest state and to write the localStorage cache for next visit.
+  // Skipped in preview mode: the fixture payload is the source of truth there.
   useEffect(() => {
+    if (preview) return;
     let cancelled = false;
     (async () => {
       try {
@@ -102,7 +110,7 @@ export function ClientApp({ initialData }: ClientAppProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [preview]);
 
   // Hash sync
   useEffect(() => {
@@ -180,6 +188,31 @@ export function ClientApp({ initialData }: ClientAppProps) {
 
   return (
     <div className="tb-shell">
+      {preview && (
+        <div
+          role="status"
+          aria-label="Preview mode — fixture data"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            backgroundColor: "var(--warn)",
+            color: "var(--ink)",
+            fontFamily: "var(--mono)",
+            fontSize: "11px",
+            fontWeight: 600,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            textAlign: "center",
+            padding: "6px var(--gutter)",
+            borderRadius: 0,
+          }}
+        >
+          PREVIEW MODE · fixture-loaded · NOT live data
+        </div>
+      )}
       <a href="#cover" className="tb-skip">
         Skip to content
       </a>
