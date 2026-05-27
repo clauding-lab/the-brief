@@ -123,3 +123,30 @@ def test_last_higher_than_finds_most_recent_higher():
     assert fact.reference_value == 7.5
     assert "highest since Mar 2022" in fact.phrase
     assert "(7.5% then)" in fact.phrase
+
+
+# ── pct_change_since ─────────────────────────────────────────────────────────
+
+from brief.history_anchors import pct_change_since
+
+
+def test_pct_change_since_matches_named_period():
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 5.2),
+        _row("cpi_12m_avg_monthly", "2026-03-01", 5.4),
+        _row("cpi_12m_avg_monthly", "2026-02-01", 5.5),
+        _row("cpi_12m_avg_monthly", "2025-04-01", 9.4),  # YoY anchor
+        *[_row("cpi_12m_avg_monthly", f"2025-{m:02d}-01", 8.5) for m in range(1, 13)],
+    ]
+    fact = pct_change_since(
+        history,
+        current_value=5.2,
+        reference_as_of="2025-04-01",
+        formatter=_format_pct_1dp,
+        cadence="monthly",
+    )
+    assert fact is not None
+    assert fact.kind == "vs_period"
+    assert fact.reference_value == 9.4
+    assert "vs Apr 2025" in fact.phrase
+    assert "(9.4% then)" in fact.phrase

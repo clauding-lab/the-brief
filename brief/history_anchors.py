@@ -158,3 +158,32 @@ def last_higher_than(
                 reference_as_of=row.as_of.isoformat(),
             )
     return None
+
+
+def pct_change_since(
+    history: Sequence[HistoryRow],
+    *,
+    current_value: float,
+    reference_as_of: str,
+    formatter: Callable[[float], str],
+    cadence: str,
+) -> HistoryFact | None:
+    """Compute the delta from current to a specific reference date.
+
+    `reference_as_of` is an ISO date string. Looks up the exact row; returns None
+    if not present (caller's responsibility to pass a date that exists in history).
+    """
+    target = date.fromisoformat(reference_as_of)
+    for row in history:
+        if row.as_of == target:
+            ref_formatted = formatter(row.value)
+            period_label = _format_as_of(row.as_of, cadence)
+            return HistoryFact(
+                metric_id=row.metric_id,
+                kind="vs_period",
+                phrase=f"vs {period_label} ({ref_formatted} then)",
+                reference_value=row.value,
+                reference_value_formatted=ref_formatted,
+                reference_as_of=row.as_of.isoformat(),
+            )
+    return None
