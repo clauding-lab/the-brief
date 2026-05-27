@@ -110,7 +110,7 @@ class MetricHistoryClient:
 
         # ── Anchor mode: limit-based, returns HistoryRow objects ─────────────
         if limit is not None:
-            ids_csv = ",".join(metric_ids)
+            ids_csv = ",".join(urllib.parse.quote(mid) for mid in metric_ids)
             url = (
                 f"{self.url}/rest/v1/{table}"
                 f"?metric_id=in.({ids_csv})"

@@ -72,6 +72,7 @@ CADENCE_TABLE: dict[str, str] = {
 }
 
 _MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+_ORD = {1: "st", 2: "nd", 3: "rd"}  # ordinal suffix map; default "th" for all others
 
 
 def _format_as_of(d: date, cadence: str) -> str:
@@ -86,8 +87,9 @@ def _format_as_of(d: date, cadence: str) -> str:
         q = (d.month - 1) // 3 + 1
         return f"Q{q} {d.year}"
     if cadence == "fiscal_year":
-        # BD FY runs Jul-Jun; FY24 ends Jun 2024
-        fy = d.year if d.month >= 7 else d.year - 1
+        # BD FY runs Jul-Jun; label by END year: Jul 2023–Jun 2024 = FY24.
+        # If month >= 7 we are in the NEW fiscal year that ends next calendar year.
+        fy = d.year + 1 if d.month >= 7 else d.year
         return f"FY{str(fy)[-2:]}"
     return f"{_MONTH_ABBR[d.month - 1]} {d.year}"
 
@@ -111,7 +113,7 @@ def last_lower_than(
         return None
 
     metric_id = history[0].metric_id
-    for row in history:
+    for row in history[1:]:
         if row.value < current_value:
             ref_formatted = formatter(row.value)
             period_label = _format_as_of(row.as_of, cadence)
@@ -145,7 +147,7 @@ def last_higher_than(
         return None
 
     metric_id = history[0].metric_id
-    for row in history:
+    for row in history[1:]:
         if row.value > current_value:
             ref_formatted = formatter(row.value)
             period_label = _format_as_of(row.as_of, cadence)
@@ -247,10 +249,11 @@ def rolling_extremes(
             reference_as_of=prior_min.as_of.isoformat(),
         )
     if rank_high and rank_high <= 5:
+        suffix = _ORD.get(rank_high, "th")
         return HistoryFact(
             metric_id=window_rows[0].metric_id,
             kind="extreme_in_window",
-            phrase=f"{rank_high}th-highest in {window}-period window",
+            phrase=f"{rank_high}{suffix}-highest in {window}-period window",
             reference_value=win_max,
             reference_value_formatted=formatter(win_max),
             reference_as_of=window_rows[0].as_of.isoformat(),
@@ -267,10 +270,22 @@ def first_cross_since(
     formatter: Callable[[float], str],
     cadence: str,
 ) -> HistoryFact | None:
-    """Return a HistoryFact for the most recent time the metric was on the other side of `threshold`.
+    """Find the most recent crossing of `threshold` in the given direction.
 
-    direction='up' means current is above threshold; find the last time the metric was above threshold previously.
-    direction='down' means current is below threshold; find the last time the metric was below threshold previously.
+    direction='up'   means current_value > threshold; we walk back to find the
+                     most recent stretch where the metric was on the OTHER side
+                     (i.e., ≤ threshold), then return the row immediately before
+                     that stretch began — the last same-side row that preceded it.
+
+    direction='down' is the mirror: current_value < threshold; find the most
+                     recent row that was on the other side (≥ threshold), then
+                     return the row just before that stretch.
+
+    Returns None when:
+      - fewer than MIN_DATA_POINTS[cadence] rows are available
+      - current_value is already on the wrong side of threshold
+      - the metric has been continuously on the current side throughout the window
+        (i.e., no crossing event exists in the available history)
     """
     if len(history) < MIN_DATA_POINTS.get(cadence, 6):
         return None
@@ -283,20 +298,44 @@ def first_cross_since(
     threshold_formatted = formatter(threshold)
     direction_word = "above" if direction == "up" else "below"
 
-    # Skip the current row (history[0])
-    for row in history[1:]:
+    # Walk desc-ordered history[1:] to find the first OPPOSITE-side row.
+    # Then continue past that stretch to find the first SAME-side row —
+    # that is the last time the metric was on the current side before the
+    # opposite-side stretch, i.e., the true prior crossing boundary.
+    opposite_idx: int | None = None
+    for idx, row in enumerate(history[1:], start=1):
+        if (direction == "up" and row.value <= threshold) or (direction == "down" and row.value >= threshold):
+            opposite_idx = idx
+            break
+
+    if opposite_idx is None:
+        # Never crossed in this window — metric has always been on the current side.
+        return None
+
+    # Now find the first SAME-side row after the opposite-side stretch.
+    # This is the row at the chronological boundary where the metric last
+    # crossed the threshold before falling to the other side.
+    cross_row = None
+    for row in history[opposite_idx + 1:]:
         if (direction == "up" and row.value > threshold) or (direction == "down" and row.value < threshold):
-            period_label = _format_as_of(row.as_of, cadence)
-            ref_formatted = formatter(row.value)
-            return HistoryFact(
-                metric_id=row.metric_id,
-                kind="first_cross_since",
-                phrase=f"first time {direction_word} {threshold_formatted} since {period_label} ({ref_formatted} last cross)",
-                reference_value=row.value,
-                reference_value_formatted=ref_formatted,
-                reference_as_of=row.as_of.isoformat(),
-            )
-    return None
+            cross_row = row
+            break
+
+    if cross_row is None:
+        # The metric has been on the opposite side for the entire prior history —
+        # no prior same-side period exists, so there is no crossing to anchor.
+        return None
+
+    period_label = _format_as_of(cross_row.as_of, cadence)
+    ref_formatted = formatter(cross_row.value)
+    return HistoryFact(
+        metric_id=cross_row.metric_id,
+        kind="first_cross_since",
+        phrase=f"first time {direction_word} {threshold_formatted} since {period_label} ({ref_formatted} last cross)",
+        reference_value=cross_row.value,
+        reference_value_formatted=ref_formatted,
+        reference_as_of=cross_row.as_of.isoformat(),
+    )
 
 
 def compute_history_facts(

@@ -5,6 +5,7 @@ from brief.history_anchors import (
     MIN_DATA_POINTS,
     DEFAULT_WINDOW,
     CADENCE_TABLE,
+    _format_as_of,
 )
 
 
@@ -247,3 +248,45 @@ def test_compute_history_facts_returns_empty_when_current_value_is_none():
     history = [_row("x", "2026-04-01", 5.0)] * 10
     facts = compute_history_facts(history, cadence="monthly", current_value=None, formatter=_format_pct_1dp)
     assert facts == []
+
+
+# ── _format_as_of: quarterly cadence ────────────────────────────────────────
+
+def test_format_as_of_quarterly():
+    assert _format_as_of(_date(2026, 1, 1), "quarterly") == "Q1 2026"
+    assert _format_as_of(_date(2026, 4, 1), "quarterly") == "Q2 2026"
+    assert _format_as_of(_date(2026, 7, 1), "quarterly") == "Q3 2026"
+    assert _format_as_of(_date(2026, 10, 1), "quarterly") == "Q4 2026"
+    assert _format_as_of(_date(2026, 12, 31), "quarterly") == "Q4 2026"
+
+
+# ── _format_as_of: fiscal_year cadence (BD FY convention) ───────────────────
+
+def test_format_as_of_fiscal_year_bd_convention():
+    # BD FY runs Jul-Jun; labels by END year: Jul 2023–Jun 2024 = FY24.
+    assert _format_as_of(_date(2023, 7, 1), "fiscal_year") == "FY24"    # start of FY24
+    assert _format_as_of(_date(2024, 5, 1), "fiscal_year") == "FY24"    # mid-FY24
+    assert _format_as_of(_date(2024, 6, 30), "fiscal_year") == "FY24"   # last day of FY24
+    assert _format_as_of(_date(2024, 7, 1), "fiscal_year") == "FY25"    # start of FY25
+    assert _format_as_of(_date(2024, 8, 15), "fiscal_year") == "FY25"   # mid-FY25
+
+
+# ── first_cross_since: returns None when never crossed in window ─────────────
+
+def test_first_cross_since_returns_none_when_always_same_side():
+    # All 30+ rows above 90 — no opposite-side stretch in the window → None
+    history = [
+        _row("brent_crude_usd_barrel", "2026-04-01", 91.40),
+        *[_row("brent_crude_usd_barrel", f"2025-{m:02d}-01", 91.0 + m * 0.1) for m in range(1, 13)],
+        *[_row("brent_crude_usd_barrel", f"2024-{m:02d}-01", 90.5) for m in range(1, 13)],
+        *[_row("brent_crude_usd_barrel", f"2023-{m:02d}-01", 90.1) for m in range(1, 7)],
+    ]
+    fact = first_cross_since(
+        history,
+        current_value=91.40,
+        threshold=90.0,
+        direction="up",
+        formatter=lambda v: f"${v:.2f}",
+        cadence="daily",
+    )
+    assert fact is None
