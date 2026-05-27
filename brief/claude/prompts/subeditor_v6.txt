@@ -84,7 +84,7 @@ For each section, compare the Editor's voice to the section's freshness flag in 
 ## 7. Voice / style sanity
 
 These are warn (not error) — fix if obvious, otherwise let pass:
-- No banned clichés ("perfect storm", "uncharted waters", "unprecedented", "navigate")
+- No banned clichés ("perfect storm", "uncharted waters", "unprecedented")
 - Em-dashes (—), not hyphens
 - "we believe / in our view" → restate as a declaration
 - Currency format consistency: `USD/BDT 122.75`, `BDT 1.4tn`, `$108.17 (Brent)`

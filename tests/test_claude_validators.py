@@ -208,10 +208,46 @@ def test_validate_abbreviation_policy_fails_when_tier2_unexpanded():
     assert "LCR" in result.reason
 
 
-def test_validate_abbreviation_policy_allows_tier1_bare():
+def test_validate_abbreviation_policy_passes_when_no_tier2_in_text():
     text = "NPL ratio at 35.7% — BB MPS due Wednesday."
     assert validate_abbreviation_policy(
         text,
         tier1_set=TIER1_ABBREVS,
         tier2_expansions=TIER2_ABBREVS_AND_EXPANSIONS,
     ).ok
+
+
+# ---------------------------------------------------------------------------
+# Fix 1: Word-boundary checks — substring false-positive regressions
+# ---------------------------------------------------------------------------
+
+
+def test_validate_no_banal_language_does_not_match_substring():
+    # "robustly" should NOT trigger "robust" banal flag
+    assert validate_no_banal_language("Robustly capitalised banks weathered the storm.").ok
+    # But "robust" alone or with punctuation SHOULD
+    assert not validate_no_banal_language("A robust framework is needed.").ok
+
+
+def test_validate_chart_read_implication_quality_does_not_match_car_in_scar():
+    # "car" is a desk word substring but should not match in "scar"
+    chart_read = {"signal": "x", "context": "y", "implication": "Old scar healing slowly."}
+    assert not validate_chart_read_implication_quality(chart_read).ok
+
+
+def test_validate_chart_read_temporal_anchor_does_not_match_next_in_context():
+    # "next" in "context" should not trigger temporal anchor
+    chart_read = {"signal": "x", "context": "Within the context of policy.", "implication": "y"}
+    assert not validate_chart_read_temporal_anchor(chart_read).ok
+
+
+# ---------------------------------------------------------------------------
+# Fix 5: validate_chart_read_length — implication-over-25 test
+# ---------------------------------------------------------------------------
+
+
+def test_validate_chart_read_length_fails_on_implication_over_25():
+    chart_read = {"signal": "x", "context": "y", "implication": " ".join(["w"] * 26)}
+    result = validate_chart_read_length(chart_read)
+    assert not result.ok
+    assert "implication" in result.reason

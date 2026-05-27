@@ -489,6 +489,13 @@ def validate_editorial_qa(payload: Any) -> ValidationResult:
 # Module-level constants for banker-grade specificity validators.
 # ---------------------------------------------------------------------------
 
+
+def _contains_token(text: str, token: str) -> bool:
+    """Word-boundary match for single-word tokens; substring for multi-word phrases."""
+    if " " in token:
+        return token in text   # multi-word phrase — substring is fine
+    return bool(re.search(rf"\b{re.escape(token)}\b", text))
+
 BANAL_TOKENS = frozenset({
     # AI tells
     "delve", "myriad", "tapestry", "navigate", "intricate", "robust",
@@ -553,7 +560,7 @@ TIER1_ABBREVS = frozenset({
 def validate_no_banal_language(text: str) -> ValidationResult:
     """Reject text containing AI-tell tokens, journalese, or vague hedging."""
     lower = text.lower()
-    hits = sorted(token for token in BANAL_TOKENS if token in lower)
+    hits = sorted(token for token in BANAL_TOKENS if _contains_token(lower, token))
     if hits:
         return ValidationResult(False, reason=f"banal language present: {hits}")
     return ValidationResult(True)
@@ -565,13 +572,13 @@ def validate_chart_read_temporal_anchor(chart_read: dict) -> ValidationResult:
     if not context:
         return ValidationResult(False, reason="chart_read.context is empty")
     lower = context.lower()
-    if any(token in lower for token in TEMPORAL_TOKENS):
+    if any(_contains_token(lower, token) for token in TEMPORAL_TOKENS):
         return ValidationResult(True)
     if TEMPORAL_REGEX.search(context):
         return ValidationResult(True)
     return ValidationResult(
         False,
-        reason="chart_read.context lacks temporal anchor (need 'since'/'vs'/'last'/'above'/'below'/'next' or a month/year/Q token)",
+        reason="chart_read.context lacks temporal anchor (need 'since'/'vs'/'last'/'above'/'below'/'back to'/'next' or a month/year/Q token)",
     )
 
 
@@ -581,10 +588,10 @@ def validate_chart_read_length(chart_read: dict) -> ValidationResult:
         return len(s.split()) if s else 0
 
     caps = (("signal", 25), ("context", 20), ("implication", 25))
-    for field, cap in caps:
-        wc = _wc(chart_read.get(field, ""))
+    for fname, cap in caps:
+        wc = _wc(chart_read.get(fname, ""))
         if wc > cap:
-            return ValidationResult(False, reason=f"chart_read.{field} exceeds {cap} words (got {wc})")
+            return ValidationResult(False, reason=f"chart_read.{fname} exceeds {cap} words (got {wc})")
     return ValidationResult(True)
 
 
@@ -662,9 +669,9 @@ def validate_chart_read_implication_quality(chart_read: dict) -> ValidationResul
     if not impl:
         return ValidationResult(False, reason="chart_read.implication is empty")
     lower = impl.lower()
-    has_desk = any(w in lower for w in DESK_WORDS)
-    has_verb = any(v in lower for v in ACTION_VERBS)
-    has_time = any(t in lower for t in TEMPORAL_TOKENS)
+    has_desk = any(_contains_token(lower, w) for w in DESK_WORDS)
+    has_verb = any(_contains_token(lower, v) for v in ACTION_VERBS)
+    has_time = any(_contains_token(lower, t) for t in TEMPORAL_TOKENS)
     if has_desk or has_verb or has_time:
         return ValidationResult(True)
     return ValidationResult(
