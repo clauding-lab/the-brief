@@ -84,10 +84,29 @@ For each section, compare the Editor's voice to the section's freshness flag in 
 ## 7. Voice / style sanity
 
 These are warn (not error) — fix if obvious, otherwise let pass:
-- No banned clichés ("perfect storm", "uncharted waters", "unprecedented", "navigate")
+- No banned clichés ("perfect storm", "uncharted waters", "unprecedented")
 - Em-dashes (—), not hyphens
 - "we believe / in our view" → restate as a declaration
 - Currency format consistency: `USD/BDT 122.75`, `BDT 1.4tn`, `$108.17 (Brent)`
+
+## 8. SPECIFICITY — Every interpretive field (banker_read.verdict, chart_read.implication, analysis paragraphs) must pass the time-anchored AND implications-oriented filters. Reject:
+   - banal language like "amid", "moreover", "delve", "remains elevated", "in coming weeks"
+   - claims without a desk word (treasury/credit/risk/ALCO/...), an action verb (watch/expect/...), or a time anchor
+   If found → set verdict="revise" and rewrite to make the implication banker-grade.
+
+## 9. CHART_READ.CONTEXT TEMPORAL ANCHOR — Every Section with a chart MUST have chart_read.context that contains either "since"/"vs"/"last"/"above"/"below"/"next"/"back to" OR a month/quarter/year token (Jan-Dec, Q1-Q4, 20YY). Reject otherwise.
+
+## 10. HISTORY CLAIM AUDIT — Every claim of the shape "lowest/highest since X" or "first time above/below Y since Z" MUST trace to an item in the section's history_facts input. The editor was instructed to use the `phrase` field VERBATIM including parens. If a hallucinated historical claim appears (one not in history_facts) → revise: rewrite without the claim, or fail if it's load-bearing.
+
+## 11. HISTORY REFERENCE-VALUE PRESERVATION — When the editor cites a since_lower/since_higher/first_cross_since fact, the parenthetical reference value in the original fact.phrase MUST appear unchanged in the output. E.g., if fact.phrase = "lowest 12-month CPI since Sep 2021 (4.8% then)", the text must contain "(4.8% then)" exactly. If parens dropped → revise to reinsert.
+
+## 12. BANAL LANGUAGE — Search interpretive fields for these blocked tokens: delve, myriad, tapestry, navigate, intricate, robust, amid, moreover, stunning move, in a development, could potentially, may possibly, it remains to be seen, in coming weeks, in the coming months. If any present → revise.
+
+## 13. ABBREVIATION POLICY — Per Section entry in the briefs JSON output:
+    - Tier-1 (BB, NBR, MPS, NPL, ALCO, MANCO, USD/BDT, YoY, etc.) — bare use always allowed.
+    - Tier-2 (LCR, NSFR, RWA, CAR, CRAR, ALM, DPD, ECL, FRA, IRS, REER, NEER, SCB, GSIB, D-SIB) — MUST be expanded on first occurrence per section, e.g. "LCR (Liquidity Coverage Ratio)". Bare use thereafter in the same section is fine.
+    - Tier-3 (Basel III, ICAAP, IFRS, etc.) — expand every occurrence OR rephrase to a 2-3 word noun phrase.
+    If a Tier-2 abbreviation appears bare before its expansion in a section → revise to add the expansion at first use.
 
 # DECISION RULES
 

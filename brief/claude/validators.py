@@ -7,6 +7,7 @@ per section.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -482,3 +483,222 @@ def validate_editorial_qa(payload: Any) -> ValidationResult:
         )
 
     return ValidationResult(True, value=EditorialQAResult(status=status, issues=issues, shippable=shippable))
+
+
+# ---------------------------------------------------------------------------
+# Module-level constants for banker-grade specificity validators.
+# ---------------------------------------------------------------------------
+
+
+def _contains_token(text: str, token: str) -> bool:
+    """Word-boundary match for single-word tokens; substring for multi-word phrases."""
+    if " " in token:
+        return token in text   # multi-word phrase — substring is fine
+    return bool(re.search(rf"\b{re.escape(token)}\b", text))
+
+BANAL_TOKENS = frozenset({
+    # AI tells
+    "delve", "myriad", "tapestry", "navigate", "intricate", "robust",
+    # journalese
+    "amid", "moreover", "stunning move", "in a development",
+    # hedging without source
+    "could potentially", "may possibly", "it remains to be seen",
+    # vague time
+    "in coming weeks", "in the coming months",
+})
+
+TEMPORAL_TOKENS = frozenset({
+    "since", "vs", "last", "above", "below", "back to", "next",
+})
+
+# Match Jan/Feb/.../Dec (title-cased), Q1-Q4, and 20YY years.
+# No IGNORECASE flag — lowercase "may" is a modal verb, not a month.
+TEMPORAL_REGEX = re.compile(
+    r"\b("
+    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
+    r"|Q[1-4]"
+    r"|20\d{2}"
+    r")\b",
+)
+
+DESK_WORDS = frozenset({
+    "treasury", "credit", "risk", "alm", "alco", "manco",
+    "lcr", "rwa", "npl", "car", "tier-1", "tier-2", "primary dealer",
+    "remittance", "import lc", "export lc", "fdr", "deposit",
+})
+
+ACTION_VERBS = frozenset({
+    "watch", "expect", "position", "brace", "firm", "soften",
+    "tighten", "ease", "widen", "narrow", "anchor", "signal",
+    "hold", "pause", "cut", "hike",
+})
+
+# Tier-1: bare use always, never expand
+TIER1_ABBREVS = frozenset({
+    # Institutions
+    "BB", "NBR", "BSEC", "IMF", "WB", "ADB", "GoB",
+    # Policy
+    "MPS", "MPC", "ADP", "SDF", "SLF", "CRR", "SLR",
+    # Instruments
+    "T-Bill", "T-Bond", "FDR",
+    # Markets
+    "USD/BDT", "NPL", "ALCO", "MANCO",
+    # Capital
+    "Tier-1", "Tier-2",
+    # Time
+    "YoY", "MoM", "QoQ", "MTD", "YTD", "FY", "H1", "H2",
+    "Q1", "Q2", "Q3", "Q4",
+    # Units (handled as tokens, not abbreviations per se, but listed for completeness)
+    "bp", "cr", "Tk",
+})
+
+# ---------------------------------------------------------------------------
+# Banker-grade specificity validators
+# ---------------------------------------------------------------------------
+
+
+def validate_no_banal_language(text: str) -> ValidationResult:
+    """Reject text containing AI-tell tokens, journalese, or vague hedging."""
+    lower = text.lower()
+    hits = sorted(token for token in BANAL_TOKENS if _contains_token(lower, token))
+    if hits:
+        return ValidationResult(False, reason=f"banal language present: {hits}")
+    return ValidationResult(True)
+
+
+def validate_chart_read_temporal_anchor(chart_read: dict) -> ValidationResult:
+    """ChartRead.context must contain a temporal anchor token or a month/year/Q token."""
+    context = chart_read.get("context", "") or ""
+    if not context:
+        return ValidationResult(False, reason="chart_read.context is empty")
+    lower = context.lower()
+    if any(_contains_token(lower, token) for token in TEMPORAL_TOKENS):
+        return ValidationResult(True)
+    if TEMPORAL_REGEX.search(context):
+        return ValidationResult(True)
+    return ValidationResult(
+        False,
+        reason="chart_read.context lacks temporal anchor (need 'since'/'vs'/'last'/'above'/'below'/'back to'/'next' or a month/year/Q token)",
+    )
+
+
+def validate_chart_read_length(chart_read: dict) -> ValidationResult:
+    """Enforce 25/20/25-word caps on signal/context/implication."""
+    def _wc(s: str) -> int:
+        return len(s.split()) if s else 0
+
+    caps = (("signal", 25), ("context", 20), ("implication", 25))
+    for fname, cap in caps:
+        wc = _wc(chart_read.get(fname, ""))
+        if wc > cap:
+            return ValidationResult(False, reason=f"chart_read.{fname} exceeds {cap} words (got {wc})")
+    return ValidationResult(True)
+
+
+def validate_history_claim_has_reference(text: str, used_facts: list[dict]) -> ValidationResult:
+    """Every historical-anchor claim cited from history_facts must preserve its parens phrase.
+
+    `used_facts` is a list of fact dicts whose `phrase` field is the canonical
+    parenthetical-bearing text the editor was supposed to inline verbatim.
+    """
+    for fact in used_facts:
+        phrase = fact.get("phrase", "")
+        if not phrase:
+            continue
+        # Extract the parens substring from the canonical phrase
+        # e.g. "(4.8% then)" or "($91.40 last cross)"
+        m = re.search(r"\([^)]+\)", phrase)
+        if not m:
+            continue
+        parens = m.group(0)
+        if parens not in text:
+            return ValidationResult(
+                False,
+                reason=f"history-claim parens reference missing from text: {parens!r}",
+            )
+    return ValidationResult(True)
+
+
+def validate_abbreviation_policy(
+    text: str,
+    *,
+    tier1_set: frozenset[str],
+    tier2_expansions: dict[str, str],
+) -> ValidationResult:
+    """Per-section text: every Tier-2 abbreviation's first occurrence must be expanded.
+
+    Tier-1 abbreviations are allowed bare. Tier-2 must be 'LCR (Liquidity Coverage Ratio)'
+    on first occurrence; bare 'LCR' thereafter is fine.
+    """
+    for abbr, expansion in tier2_expansions.items():
+        # Build a regex that matches the bare abbreviation at a word boundary
+        bare_pattern = re.compile(rf"\b{re.escape(abbr)}\b")
+        expanded_pattern = re.compile(rf"\b{re.escape(abbr)}\s*\(\s*{re.escape(expansion)}\s*\)")
+
+        bare_matches = list(bare_pattern.finditer(text))
+        if not bare_matches:
+            continue  # not used in this text — fine
+
+        # Find the FIRST occurrence position
+        first_occurrence = bare_matches[0].start()
+
+        # Check if the expanded form appears at or before the first bare occurrence
+        expanded_matches = list(expanded_pattern.finditer(text))
+        if not expanded_matches:
+            return ValidationResult(
+                False,
+                reason=f"Tier-2 abbreviation {abbr!r} used without first-use expansion",
+            )
+        first_expansion = expanded_matches[0].start()
+        if first_expansion > first_occurrence:
+            return ValidationResult(
+                False,
+                reason=f"Tier-2 abbreviation {abbr!r} used bare before its expansion",
+            )
+    return ValidationResult(True)
+
+
+def validate_chart_read_implication_quality(chart_read: dict) -> ValidationResult:
+    """ChartRead.implication must contain desk word OR action verb OR time anchor.
+
+    Uses TEMPORAL_TOKENS (since/vs/last/above/below/next) for time anchors rather
+    than TEMPORAL_REGEX, to avoid false positives from month-name homophones
+    (e.g. "May affect" where "May" is a modal verb, not a month reference).
+    """
+    impl = chart_read.get("implication", "") or ""
+    if not impl:
+        return ValidationResult(False, reason="chart_read.implication is empty")
+    lower = impl.lower()
+    has_desk = any(_contains_token(lower, w) for w in DESK_WORDS)
+    has_verb = any(_contains_token(lower, v) for v in ACTION_VERBS)
+    has_time = any(_contains_token(lower, t) for t in TEMPORAL_TOKENS)
+    if has_desk or has_verb or has_time:
+        return ValidationResult(True)
+    return ValidationResult(
+        False,
+        reason="chart_read.implication needs at least one of: desk word (treasury/ALCO/...), action verb (watch/expect/...), or time anchor",
+    )
+
+
+# Tier-2: expand on first use per section, bare thereafter
+TIER2_ABBREVS_AND_EXPANSIONS = {
+    # Prudential ratios
+    "LCR":   "Liquidity Coverage Ratio",
+    "NSFR":  "Net Stable Funding Ratio",
+    "RWA":   "Risk-Weighted Assets",
+    "CAR":   "Capital Adequacy Ratio",
+    "CRAR":  "Capital to Risk-weighted Assets Ratio",
+    # Risk
+    "ALM":   "Asset-Liability Management",
+    "DPD":   "Days Past Due",
+    "ECL":   "Expected Credit Loss",
+    # Treasury
+    "FRA":   "Forward Rate Agreement",
+    "IRS":   "Interest Rate Swap",
+    "REER":  "Real Effective Exchange Rate",
+    "NEER":  "Nominal Effective Exchange Rate",
+    # Banks
+    "SCB":   "State-Owned Commercial Bank",
+    "GSIB":  "Global Systemically Important Bank",
+    "D-SIB": "Domestic Systemically Important Bank",
+}

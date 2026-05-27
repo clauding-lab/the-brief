@@ -140,6 +140,44 @@ Use these abbreviations on first and subsequent reference; readers know them.
 | H1 / H2 | First half / second half (of the fiscal year) |
 | Q1 / Q2 / Q3 / Q4 | Calendar quarters |
 
+### Banker vocabulary tiers
+
+The brief uses banker-domain abbreviations heavily. To keep editorial copy scannable for senior bankers without losing readers from adjacent desks, three tiers govern usage:
+
+**Tier 1 — bare use always (never expand).** Daily banker vocab; every Tier-1 reader knows these.
+
+| Category | Abbreviations |
+|---|---|
+| Institutions | BB, NBR, BSEC, IMF, WB, ADB, GoB |
+| Policy | MPS, MPC, ADP, SDF, SLF, CRR, SLR |
+| Instruments | T-Bill, T-Bond, FDR |
+| Markets | USD/BDT, NPL, ALCO, MANCO |
+| Capital | Tier-1, Tier-2 |
+| Time | YoY, MoM, QoQ, MTD, YTD, FY, H1, H2, Q1-Q4 |
+| Units | bp, cr, Tk, $ |
+
+**Tier 2 — expand on first use per section, bare thereafter.** First occurrence in a section: `LCR (Liquidity Coverage Ratio)`. Subsequent occurrences in the same section: `LCR`. Each section accounts independently — if "LCR" appears in Banking and again in FX, both need the expansion on first use.
+
+| Abbreviation | Expansion |
+|---|---|
+| LCR | Liquidity Coverage Ratio |
+| NSFR | Net Stable Funding Ratio |
+| RWA | Risk-Weighted Assets |
+| CAR | Capital Adequacy Ratio |
+| CRAR | Capital to Risk-weighted Assets Ratio |
+| ALM | Asset-Liability Management |
+| DPD | Days Past Due |
+| ECL | Expected Credit Loss |
+| FRA | Forward Rate Agreement |
+| IRS | Interest Rate Swap |
+| REER | Real Effective Exchange Rate |
+| NEER | Nominal Effective Exchange Rate |
+| SCB | State-Owned Commercial Bank |
+| GSIB | Global Systemically Important Bank |
+| D-SIB | Domestic Systemically Important Bank |
+
+**Tier 3 — always expand, or rephrase to a 2-3 word noun phrase.** Anything not in Tier 1 or Tier 2. If forced to use, expand every occurrence; otherwise rephrase. Examples: Basel III, ICAAP, IFRS, IBOR, ESG, KYC/AML. Prefer "under Basel capital framework" over "under Basel III."
+
 ### Avoid
 
 | Use | Don't use |
