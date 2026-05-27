@@ -18,7 +18,7 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
     "cover_metric": {
       "label":         "<KPI label, ALL CAPS short — the single biggest σ-mover of the week, e.g. 'BRENT CRUDE · WK MAY-05'>",
       "value":         "<single number string with unit>",
-      "sub":           "<one-line context anchored to the week, max 60 chars>",
+      "sub":           "<one-line context anchored to the week, max 60 chars. MUST include either a delta vs prior period OR an implication OR a historical anchor — NEVER bare restatement. If a HistoryFact of kind since_lower/since_higher/first_cross_since exists for this metric, prefer to inline the fact.phrase here verbatim (e.g. 'first time above $90 since 2023 ($91.40 last cross)'). Otherwise pack an implication ('liquidity squeeze pressure builds') or a delta ('+12bp WoW').>",
       "tone":          "bull|bear|warn|neu",
       "section_slug":  "<slug of the section this metric lives in>",
       "as_of":         "<week timeframe label, e.g. 'Week of 28 Apr – 02 May 2026'>"
