@@ -17,6 +17,7 @@ import os
 import re
 import time
 from datetime import date as date_t
+from pathlib import Path
 from typing import Any
 
 from brief import chart_series_fetcher, pipeline as _pipeline
@@ -571,6 +572,7 @@ def run_publish(
         logger.info("v6: dry_run=True, skipping Supabase publish")
         if write_fixture_path:
             payload = final_brief.model_dump(mode="json")
+            Path(write_fixture_path).parent.mkdir(parents=True, exist_ok=True)
             with open(write_fixture_path, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps(payload, indent=2, default=str))
             logger.info("v6: fixture written to %s", write_fixture_path)

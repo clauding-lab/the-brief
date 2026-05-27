@@ -30,6 +30,15 @@ def test_cli_run_help_shows_publish_flag():
     assert ei.value.code == 0
 
 
+def test_write_fixture_without_dry_run_exits_with_error(capsys):
+    """--write-fixture without --dry-run must exit 1 and print a clear error."""
+    args = ["run", "--publish", "--write-fixture=/tmp/x.json"]  # NO --dry-run
+    exit_code = cli.main(args)
+    assert exit_code == 1
+    err = capsys.readouterr().err
+    assert "--write-fixture requires --dry-run" in err
+
+
 def test_write_fixture_creates_valid_json_on_dry_run(tmp_path: Path):
     """--write-fixture writes a BriefPayload JSON to disk when --dry-run is set.
 
@@ -70,19 +79,7 @@ def test_write_fixture_creates_valid_json_on_dry_run(tmp_path: Path):
         ],
     }
 
-    # Patch run_publish to avoid real Anthropic/Supabase calls.
-    # It returns a minimal BriefPayloadV6 object that the CLI serialises.
-    from brief.v6_schema import BriefPayloadV6
-
-    _v6_payload = BriefPayloadV6.model_validate(_minimal_payload)
-
-    with patch("brief.pipeline_v6.run_publish", return_value=None) as mock_run_publish, \
-         patch("brief.pipeline_v6.fetch_previous_brief", return_value=None), \
-         patch("brief.pipeline_v6.fetch_max_issue_no", return_value=98), \
-         patch("brief.pipeline_v6.fetch_recent_news", return_value=[]), \
-         patch("brief.pipeline_v6.fetch_metric_definitions", return_value=[]), \
-         patch("brief.pipeline.gather", return_value=[]), \
-         patch("brief.cli._run_v6_publish") as mock_cli_run:
+    with patch("brief.cli._run_v6_publish") as mock_cli_run:
 
         # _run_v6_publish is what cli.main actually calls. In the implemented
         # version it receives write_fixture_path and writes the file. Until the

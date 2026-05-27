@@ -98,6 +98,11 @@ def _run_v6_publish(
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     ns = _parse(argv or sys.argv[1:])
+
+    if ns.write_fixture and not ns.dry_run:
+        print("--write-fixture requires --dry-run; use both flags together", file=sys.stderr)
+        return 1
+
     today = date.fromisoformat(ns.today) if ns.today else date.today()
     cfg = PipelineConfig(today=today)
 
