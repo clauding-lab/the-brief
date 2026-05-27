@@ -545,6 +545,20 @@ TIER1_ABBREVS = frozenset({
     "bp", "cr", "Tk",
 })
 
+# ---------------------------------------------------------------------------
+# Banker-grade specificity validators
+# ---------------------------------------------------------------------------
+
+
+def validate_no_banal_language(text: str) -> ValidationResult:
+    """Reject text containing AI-tell tokens, journalese, or vague hedging."""
+    lower = text.lower()
+    hits = sorted(token for token in BANAL_TOKENS if token in lower)
+    if hits:
+        return ValidationResult(False, reason=f"banal language present: {hits}")
+    return ValidationResult(True)
+
+
 # Tier-2: expand on first use per section, bare thereafter
 TIER2_ABBREVS_AND_EXPANSIONS = {
     # Prudential ratios

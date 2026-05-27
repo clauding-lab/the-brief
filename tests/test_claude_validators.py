@@ -48,3 +48,31 @@ def test_tier2_expansions_includes_prudential_ratios():
     assert TIER2_ABBREVS_AND_EXPANSIONS["LCR"] == "Liquidity Coverage Ratio"
     assert TIER2_ABBREVS_AND_EXPANSIONS["NSFR"] == "Net Stable Funding Ratio"
     assert TIER2_ABBREVS_AND_EXPANSIONS["REER"] == "Real Effective Exchange Rate"
+
+
+# ---------------------------------------------------------------------------
+# Task 2.2: validate_no_banal_language
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_no_banal_language
+
+
+def test_validate_no_banal_language_passes_clean_text():
+    result = validate_no_banal_language("Brent +2.4% to $87.20, third weekly gain since Q2 2024.")
+    assert result.ok
+
+
+def test_validate_no_banal_language_fails_on_delve():
+    result = validate_no_banal_language("We delve into the implications for ALCO.")
+    assert not result.ok
+    assert "delve" in result.reason.lower()
+
+
+def test_validate_no_banal_language_fails_on_amid():
+    result = validate_no_banal_language("Sentiment soured amid policy uncertainty.")
+    assert not result.ok
+
+
+def test_validate_no_banal_language_is_case_insensitive():
+    result = validate_no_banal_language("Markets navigate INTRICATE terrain.")
+    assert not result.ok
