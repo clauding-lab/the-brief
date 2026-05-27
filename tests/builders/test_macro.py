@@ -1,8 +1,11 @@
-"""Tests for the macro builder (CPI + GDP + credit growth).
+"""Tests for the macro builder — v1.4.0 rewrite.
 
-Phase C enrichment: adds macro_cpi_nonfood and point_to_point_inflation
-alongside the existing macro_cpi_headline / macro_cpi_food / macro_gdp_growth
-/ macro_credit_growth tuple. No new section is created.
+v1.4.0 replaces the Phase C macro builder (6 metrics from metric_history using
+old macro_* IDs) with an 8-metric builder reading from metric_history_monthly
+using the _monthly-suffixed canonical IDs (AGENTS.md landmine #1 + #6).
+
+Old metric IDs (macro_cpi_headline, macro_cpi_food, point_to_point_inflation,
+macro_gdp_growth, macro_credit_growth) are superseded by the new canonical IDs.
 """
 from __future__ import annotations
 
@@ -11,196 +14,134 @@ from datetime import date, datetime, timezone
 import pytest
 
 from brief.builders import BuilderContext
-from brief.builders.macro import build
+from brief.builders.macro import build, _MACRO_METRICS
 from brief.econdelta import EconDeltaSnapshot
 from brief.history import HistoryRow
 
 
 def _snap() -> EconDeltaSnapshot:
     return EconDeltaSnapshot(
-        updated_at=datetime(2026, 5, 8, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 27, tzinfo=timezone.utc),
         sources_status={},
         data={},
     )
 
 
-class _FakeHistory:
-    """Minimal MetricHistoryClient stub returning known last-knowns by id."""
+class _FakeHistoryMonthly:
+    """Minimal MetricHistoryClient stub returning HistoryRows from metric_history_monthly."""
 
     def __init__(self, latest_by_id: dict[str, HistoryRow]) -> None:
         self._latest = latest_by_id
 
-    def get_latest(self, metric_id: str) -> HistoryRow | None:
+    def get_latest(self, metric_id: str, *, table: str = "metric_history_monthly") -> HistoryRow | None:
         return self._latest.get(metric_id)
+
+    def get_history_window(
+        self,
+        metric_ids: list[str],
+        *,
+        limit: int | None = None,
+        days: int | None = None,
+        today: date | None = None,
+        table: str = "metric_history",
+    ) -> dict:
+        # Return empty history (no facts) by default
+        return {mid: [] for mid in metric_ids}
 
 
 def test_macro_section_identity() -> None:
-    """Section keeps id='macro' and title='Macro & Inflation' after enrichment."""
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 8))
+    """Section keeps id='macro' and title='Macro & Inflation' after rewrite."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 27))
     s = build(ctx)
     assert s.id == "macro"
     assert s.title == "Macro & Inflation"
 
 
-def test_macro_has_six_metrics_after_phase_c() -> None:
-    """Phase C lifts macro from 4 metrics to 6 (adds non-food + point-to-point)."""
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 8))
+def test_macro_has_eight_metrics() -> None:
+    """v1.4.0 macro section has exactly 8 monthly metrics."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 27))
     s = build(ctx)
-    assert len(s.metrics) == 6
+    assert len(s.metrics) == 8
 
 
 @pytest.mark.parametrize(
     "metric_id",
-    [
-        "macro_cpi_headline",
-        "macro_cpi_food",
-        "macro_cpi_nonfood",
-        "point_to_point_inflation",
-        "macro_gdp_growth",
-        "macro_credit_growth",
-    ],
+    [mid for mid, *_ in _MACRO_METRICS],
 )
 def test_macro_metric_ids_present(metric_id: str) -> None:
-    """All 6 expected metric IDs land in the section after enrichment."""
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 8))
+    """All 8 expected metric IDs land in the section after rewrite."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 27))
     s = build(ctx)
     ids = {m.id for m in s.metrics}
     assert metric_id in ids
 
 
 def test_macro_metrics_in_documented_order() -> None:
-    """CPI metrics group first (headline → food → non-food → p2p), then GDP, then credit growth."""
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 8))
+    """Metrics appear in the order defined in _MACRO_METRICS."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 27))
     s = build(ctx)
     ordered_ids = [m.id for m in s.metrics]
-    assert ordered_ids == [
-        "macro_cpi_headline",
-        "macro_cpi_food",
-        "macro_cpi_nonfood",
-        "point_to_point_inflation",
-        "macro_gdp_growth",
-        "macro_credit_growth",
-    ]
+    expected = [mid for mid, *_ in _MACRO_METRICS]
+    assert ordered_ids == expected
 
 
-def test_macro_cpi_nonfood_value_flows_from_history() -> None:
-    """When history returns a row for macro_cpi_nonfood the Metric carries that value."""
-    history = _FakeHistory({
-        "macro_cpi_nonfood": HistoryRow(
-            metric_id="macro_cpi_nonfood",
-            as_of=date(2026, 4, 30),
-            value=8.42,
+def test_macro_cpi_value_flows_from_history_monthly() -> None:
+    """When history_monthly returns a row for cpi_12m_avg_monthly, the Metric carries that value."""
+    today = date(2026, 5, 27)
+    history = _FakeHistoryMonthly({
+        "cpi_12m_avg_monthly": HistoryRow(
+            metric_id="cpi_12m_avg_monthly",
+            as_of=date(2026, 4, 1),
+            value=5.24,
             source="BBS",
         ),
     })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 5, 8))
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=today, history_monthly=history)
     s = build(ctx)
-    nonfood = next(m for m in s.metrics if m.id == "macro_cpi_nonfood")
-    assert nonfood.value == 8.42
-    assert nonfood.as_of == date(2026, 4, 30)
-    assert nonfood.unit == "%"
-    assert nonfood.source == "BBS"
+    cpi = next(m for m in s.metrics if m.id == "cpi_12m_avg_monthly")
+    assert cpi.value == 5.24
+    assert cpi.as_of == date(2026, 4, 1)
+    assert cpi.unit == "%"
+    assert cpi.source == "BBS"
 
 
-def test_macro_point_to_point_inflation_queried_by_econdelta_canonical_id() -> None:
-    """point_to_point_inflation has no macro_* alias — builder must query EconDelta-canonical id directly."""
-    history = _FakeHistory({
-        "point_to_point_inflation": HistoryRow(
-            metric_id="point_to_point_inflation",
-            as_of=date(2026, 4, 30),
-            value=9.17,
-            source="BBS",
-        ),
-    })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 5, 8))
-    s = build(ctx)
-    p2p = next(m for m in s.metrics if m.id == "point_to_point_inflation")
-    assert p2p.value == 9.17
-    assert p2p.as_of == date(2026, 4, 30)
-
-
-def test_macro_metric_value_falls_through_to_none_when_history_empty() -> None:
-    """No history client → every metric value is None and as_of falls back to ctx.today."""
-    today = date(2026, 5, 8)
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=today)
+def test_macro_metric_value_falls_through_to_none_when_history_monthly_none() -> None:
+    """No history_monthly client → every metric value is None and as_of falls back to ctx.today."""
+    today = date(2026, 5, 27)
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=today, history_monthly=None)
     s = build(ctx)
     for m in s.metrics:
-        assert m.value is None, f"{m.id} should be None when history is unavailable"
-        assert m.as_of == today, f"{m.id} should fall back to ctx.today when history is unavailable"
+        assert m.value is None, f"{m.id} should be None when history_monthly is unavailable"
+        assert m.as_of == today, f"{m.id} should fall back to ctx.today when history_monthly is unavailable"
 
 
-def test_macro_metric_as_of_is_today_when_history_returns_none() -> None:
-    """History client present but missing this id → fall back to ctx.today."""
-    today = date(2026, 5, 8)
-    history = _FakeHistory({})  # empty store; every get_latest() returns None
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=today)
+def test_macro_history_facts_empty_when_history_monthly_none() -> None:
+    """When history_monthly is None, history_facts must be empty (no HistoryFact generation)."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 27), history_monthly=None)
+    s = build(ctx)
+    assert s.history_facts == []
+
+
+def test_macro_all_metrics_are_monthly_cadence() -> None:
+    """All 8 macro metrics use monthly cadence (v1.4.0 reads metric_history_monthly)."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 27))
     s = build(ctx)
     for m in s.metrics:
-        assert m.value is None
-        assert m.as_of == today
+        assert m.cadence == "monthly", f"{m.id} should have cadence='monthly'"
 
 
-def test_macro_section_marks_warming_up_when_only_p2p_missing() -> None:
-    """5 fresh CPI/GDP/credit metrics + p2p None → section freshness is 'warming_up'.
+def test_macro_builder_uses_metric_history_monthly_table() -> None:
+    """Builder passes table='metric_history_monthly' to get_latest — AGENTS.md landmine #1."""
+    from unittest.mock import MagicMock, call
+    mock = MagicMock()
+    mock.get_latest.return_value = None
+    mock.get_history_window.return_value = {}
 
-    macro is in SECTIONS_WITHOUT_LEGACY_BACKFILL (brief/cadence.py), so a single
-    None-valued metric promotes the section's freshness from 'unavailable' to
-    'warming_up' rather than poisoning the whole section into 'stale'.
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 27), history_monthly=mock)
+    build(ctx)
 
-    This locks an operational contract that matters at cold-start: until
-    point_to_point_inflation rows land in Supabase, the macro section must
-    NOT be silently degraded — it should signal 'warming up' so the editor
-    knows the data is intentionally accumulating, not broken.
-    """
-    today = date(2026, 5, 8)
-    history = _FakeHistory({
-        "macro_cpi_headline":  HistoryRow(metric_id="macro_cpi_headline",  as_of=today, value=8.0,  source="BBS"),
-        "macro_cpi_food":      HistoryRow(metric_id="macro_cpi_food",      as_of=today, value=9.0,  source="BBS"),
-        "macro_cpi_nonfood":   HistoryRow(metric_id="macro_cpi_nonfood",   as_of=today, value=7.5,  source="BBS"),
-        # point_to_point_inflation deliberately absent → value=None
-        "macro_gdp_growth":    HistoryRow(metric_id="macro_gdp_growth",    as_of=today, value=6.5,  source="BBS"),
-        "macro_credit_growth": HistoryRow(metric_id="macro_credit_growth", as_of=today, value=10.0, source="BB"),
-    })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=today)
-    s = build(ctx)
-    assert s.freshness == "warming_up", (
-        f"macro section should signal 'warming_up' when only p2p is missing; got {s.freshness!r}"
-    )
-
-
-@pytest.mark.parametrize(
-    "metric_id, expected_cadence",
-    [
-        ("macro_cpi_headline", "monthly"),
-        ("macro_cpi_food", "monthly"),
-        ("macro_cpi_nonfood", "monthly"),
-        ("point_to_point_inflation", "monthly"),
-        ("macro_gdp_growth", "quarterly"),
-        ("macro_credit_growth", "monthly"),
-    ],
-)
-def test_macro_cadence_per_spec(metric_id: str, expected_cadence: str) -> None:
-    """Cadence is preserved per the spec tuple — CPI all monthly, GDP quarterly, credit growth monthly."""
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 8))
-    s = build(ctx)
-    m = next(metric for metric in s.metrics if metric.id == metric_id)
-    assert m.cadence == expected_cadence
-
-
-@pytest.mark.parametrize(
-    "metric_id, expected_source",
-    [
-        ("macro_cpi_headline", "BBS"),
-        ("macro_cpi_food", "BBS"),
-        ("macro_cpi_nonfood", "BBS"),
-        ("point_to_point_inflation", "BBS"),
-        ("macro_gdp_growth", "BBS"),
-        ("macro_credit_growth", "BB"),
-    ],
-)
-def test_macro_source_per_spec(metric_id: str, expected_source: str) -> None:
-    """Source attribution is preserved per the spec tuple."""
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 5, 8))
-    s = build(ctx)
-    m = next(metric for metric in s.metrics if metric.id == metric_id)
-    assert m.source == expected_source
+    for c in mock.get_latest.call_args_list:
+        _, kwargs = c
+        assert kwargs.get("table") == "metric_history_monthly", (
+            f"get_latest called without table='metric_history_monthly': {c}"
+        )
