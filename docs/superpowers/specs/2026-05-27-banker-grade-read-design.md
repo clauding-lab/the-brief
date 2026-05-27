@@ -38,9 +38,13 @@ New module `brief/history_anchors.py`. Reads `metric_history` (daily/weekly) and
 class HistoryFact:
     metric_id: str
     kind: Literal["since_lower", "since_higher", "vs_period", "extreme_in_window", "first_cross_since"]
-    phrase: str                        # pre-formatted prose, e.g. "lowest 12-month CPI since Sep 2021"
-    reference_value: float             # raw numeric reference point
+    phrase: str                        # FULLY pre-formatted prose INCLUDING the reference value in parens
+                                       #   e.g. "lowest 12-month CPI since Sep 2021 (4.8% then)"
+                                       # Single source of truth — the editor inlines `phrase` verbatim.
+                                       # The compute layer is the only place that formats the parens phrase.
+    reference_value: float             # raw numeric reference point (for downstream computation)
     reference_value_formatted: str     # display-ready ("4.8%", "$87.20", "Tk 12,400 cr")
+                                       # Already embedded inside `phrase`; exposed separately for non-phrase uses.
     reference_as_of: str               # ISO date or period label ("2021-09-01", "Q3 2024")
 ```
 
@@ -115,13 +119,13 @@ Worked contrast for an oil-price chart read:
 **Editor instructions:**
 
 1. Weave **at least one** fact into `chart_read.context` for chart-bearing sections, and into `banker_read.verdict` or `analysis` where it sharpens the call.
-2. When you cite a `since_lower / since_higher / first_cross_since` fact, **append the reference value in parens** so the claim is auditable: "lowest 12-month CPI since Sep 2021 **(4.8% then)**", "first time Brent above $90 since 2023 **($91.40 last cross)**".
+2. When you cite a `since_lower / since_higher / first_cross_since` fact, **use the `phrase` field verbatim** — it already includes the reference value in parens for auditability. Example: `phrase = "lowest 12-month CPI since Sep 2021 (4.8% then)"`. You may paraphrase the surrounding sentence to fit prose, but **the parenthetical reference value must appear exactly as written in `phrase`** — never invent your own parens phrasing.
 3. Never invent historical claims not present in `history_facts`. If you want to say "lowest since X", X must come from facts.
 
 **Voice safeguards:**
 
 - No new historical claims outside `history_facts`.
-- No tone shift toward regulators or government — Master.md's *neutral and diplomatic* rule remains dominant. Sharper desk talk is allowed; sharper political talk is not.
+- No tone shift toward regulators or government — Master.md's *neutral and diplomatic* rule remains dominant. Sharper desk talk is allowed; sharper political talk is not. *Enforcement note:* this safeguard is trusted-by-prompt (the rule lives in the prompt context via Master.md), NOT enforced by a deterministic validator. If false-tone outputs become frequent, a follow-up patch can add a heuristic check ("flag if pejoratives like 'failed' / 'mismanaged' / 'incompetent' appear in proximity to 'BB' / 'NBR' / 'GoB' / 'MoF'").
 
 ### 3.3 Abbreviation tier policy (extends `Master.md`)
 
@@ -149,17 +153,19 @@ Master.md currently defines a starter "Preferred abbreviations" list (BB, NBR, B
 - Anything not in Tier 1-2. Including ICAAP, IFRS, Basel III/IV, IBOR, ESG, KYC/AML.
 - If forced to use, expand every occurrence; otherwise rephrase ("under Basel capital framework" instead of "under Basel III").
 
+**Section-scope definition:** "first use per section" means **per `Section` entry in the briefs JSON output** — each Section has its own expansion accounting. The Cover counts as a Section for this purpose. The Long View counts as a Section. The Headlines grid counts as a Section. If "LCR" appears in the Banking section's banker_read AND in the FX section's banker_read, it must be expanded the first time in EACH section.
+
 **Where it lives:** Master.md gains a new subsection "Banker vocabulary tiers" between the existing "Preferred abbreviations" and "Avoid" tables.
 
 ### 3.4 Sub-editor checks (`brief/claude/prompts/subeditor_v6.txt`)
 
 Seven new checklist items, added to the existing checklist:
 
-1. **Specificity check** — every interpretive field (`banker_read.verdict`, `chart_read.implication`, `analysis` paragraphs) passes time-anchored AND implications-oriented filters. Banal language only → `revise`.
+1. **Specificity check** — every interpretive field (`banker_read.verdict`, `chart_read.implication`, `analysis` paragraphs) passes time-anchored AND implications-oriented filters. Banal language only → `revise`. *Layering note:* the deterministic floor for `chart_read.implication` is enforced via `validate_chart_read_implication_quality` (must contain desk word OR action verb OR time anchor). The sub-editor adds editorial judgment beyond the floor — catches things like "implication is technically present but adds nothing a banker doesn't already know."
 2. **Temporal-anchor check on `chart_read.context`** — must contain at least one of: `since`, `vs`, `last`, `above`, `below`, `back to`, `next`, a YYYY year, or a month/quarter token. Otherwise → `revise`.
 3. **History claim audit** — every claim of the shape "lowest/highest since X" or "first time above/below Y since Z" must trace to an item in the section's `history_facts` input. Hallucinated history → `revise` (rewrite without the claim) or `fail` if it's load-bearing.
 4. **History reference-value check** — time-anchored claims of kind `since_lower` / `since_higher` / `first_cross_since` MUST append the reference value in parens. If missing → `revise` with value inserted from `history_facts`.
-5. **Web search sanity check** (NEW — uses Anthropic SDK `web_search` tool):
+5. **Web search sanity check** (NEW — uses Anthropic SDK `web_search` tool). **CONDITIONAL** on Phase 2 verification that the SDK and current auth scheme (Claude Code OAuth in `brief/claude/max_client.py`) support tool-use. If unsupported → scope this check out of v1.4.0 and defer to a v1.4.x patch.
    - Budget: **max 3 web searches per brief**.
    - Trigger: only on `since_lower / since_higher / first_cross_since` claims (high-confidence, audit-worthy). Skip `vs_period` and `extreme_in_window`.
    - **Materiality threshold: contradiction = >25% delta on metric value OR a different reference period.**
@@ -170,8 +176,9 @@ Seven new checklist items, added to the existing checklist:
      | No signal / sources thin | no action (trust EconDelta) |
      | Contradicts EconDelta, **>25% delta** OR different reference period | `revise` — soften or omit, log divergence |
      | Contradicts but ≤25% delta and same reference period | log only (treat as noise, trust EconDelta) |
-   - Failure mode: network/rate-limit error → proceed without verification. Brief never blocks on web search.
-   - Logging: every search result + decision goes into the run report (extend `run_report` schema with `history_audit: [{claim, search_result, action}]`).
+   - Per-search timeout: **5 seconds**. Total budget timeout: **15 seconds** (3 × 5s, no overlap accounting).
+   - Failure mode: network/rate-limit error or timeout → proceed without verification. Brief never blocks on web search.
+   - Logging: every search result + decision goes into the run report (extend `run_report` schema with `history_audit: [{claim, search_result, action}]`). Phase 2 task includes verifying the current run_report schema before extending.
 6. **Banal-language scan** — search interpretive fields for any token in the blocklist (see §3.5). Hits → `revise`.
 7. **Abbreviation policy check** — per section, scan for non-Tier-1 abbreviations. First occurrence must be expanded. Tier-3 must be expanded every time. Violations → `revise`.
 
@@ -183,9 +190,23 @@ Five new functions, callable at both sub-editor time AND JSON schema validation 
 def validate_no_banal_language(text: str) -> ValidationResult: ...
 def validate_chart_read_temporal_anchor(chart_read: dict) -> ValidationResult: ...
 def validate_chart_read_implication_quality(chart_read: dict) -> ValidationResult: ...
+def validate_chart_read_length(chart_read: dict) -> ValidationResult: ...                       # 25 / 20 / 25 word caps
 def validate_history_claim_has_reference(text: str, used_facts: list[HistoryFact]) -> ValidationResult: ...
 def validate_abbreviation_policy(section_text: str, tier1_set: frozenset, tier2_set: frozenset) -> ValidationResult: ...
 ```
+
+**Validator-to-sub-editor-check coverage map:**
+
+| Sub-editor check (§3.4) | Rule-based validator | Coverage |
+|---|---|---|
+| #1 Specificity | `validate_chart_read_implication_quality` | floor only — LLM judgment on top |
+| #2 Temporal anchor | `validate_chart_read_temporal_anchor` | full |
+| #3 History claim audit | (no validator) | LLM-only — needs full context |
+| #4 History reference value | `validate_history_claim_has_reference` | full |
+| #5 Web search | (no validator) | LLM tool-use only |
+| #6 Banal language | `validate_no_banal_language` | full |
+| #7 Abbreviation policy | `validate_abbreviation_policy` | full |
+| (chart_read length) | `validate_chart_read_length` | enforced at JSON validation stage, fails fast |
 
 **Module-level constants:**
 
@@ -241,6 +262,8 @@ Each metric:
 - Calls `history_anchors.py` to produce HistoryFacts.
 - Facts piped to the editor through the section's `history_facts` input.
 
+**Per-section override on the 5-metric cap:** the editor prompt's standard rule is *"drop low-signal metrics (max 5 per section)"*. The macro section gets a **per-section override to 8**, encoded in `editor_v6.txt` as: *"The `macro` section is the analytical anchor of the brief — emit all 8 metrics returned by the builder; do not drop on signal grounds."* The cap stays at 5 for every other section. This is the only section-specific cap override in v1.4.0.
+
 **ONE new chart in macro section: CPI 24-month trend.**
 
 - New `chartConfigs.cpiTrend` entry in `lib/chartConfigs.ts`.
@@ -279,6 +302,7 @@ export interface Section {
 )}
 ```
 
+- `chartConfigKey` is derived in `Section.tsx` from `section.slug` via the existing chartConfigs lookup (e.g., `section.slug === "brent"` → `chartConfigs.brent`). NOT a new field on the Section schema. The implementation plan should grep for the current derivation site.
 - `.tb-chart-read` is a **marker class for spec / future targeting** — ships with **zero CSS rules**.
 - All styling cascades from existing `.tb-analysis` — no new component, no new CSS variables, no new typography scale.
 - Email render uses the same existing `.tb-analysis` patterns; no email-specific overrides needed.
@@ -323,6 +347,18 @@ export interface Section {
 
 ## 6. Implementation phases (proposed — implementation plan refines)
 
+**Phase ordering rules (NEW):**
+- Phases 1 and 2 can run in parallel — both touch backend/Python only, no shared files.
+- Phase 3 requires both Phase 1 (uses `history_anchors.py`) and Phase 2 (uses validators) to be merged first.
+- Phase 4 requires Phase 3 (the editor must be producing `chart_read` content before the UI renders it; otherwise the new field is null and nothing shows).
+- Phase 5 happens only after Phases 1-4 are all merged and have run at least one production publish successfully.
+
+**Phase 0 — Baseline + pre-flight checks** (no shipped code, but landed before Phase 1 starts)
+- Capture pre-v1.4.0 email open-rate baseline (rolling 14-day) — needed to evaluate the "+5pp or stable" success criterion.
+- Spot-check 3 monthly series in `metric_history_monthly` against published BB/BBS data — confirm the one-shot Macro Observer backfill is still trustworthy.
+- Verify Anthropic SDK in `brief/claude/max_client.py` supports the `web_search` tool with current auth (Claude Code OAuth). If unsupported, scope §3.4 check #5 out of v1.4.0 and defer to v1.4.x.
+- Read current `run_report` schema to confirm where the new `history_audit` field plugs in.
+
 **Phase 1 — Compute layer + tests** (no UI impact, no prompt change)
 - `brief/history_anchors.py` module — 5 primitive functions, cadence-aware
 - HistoryFact dataclass + serialization for editor input
@@ -330,30 +366,32 @@ export interface Section {
 - Module-level constants in `validators.py`
 
 **Phase 2 — Validators + sub-editor checklist + Master.md vocabulary tiers** (no UI impact)
-- Five new validator functions in `validators.py`
-- Sub-editor prompt checklist additions (specificity, temporal anchor, history reference, web search, banal, abbreviation)
-- Web search tool wiring in sub-editor (Anthropic SDK `web_search`, 3-search budget)
+- Six new validator functions in `validators.py` (incl. `validate_chart_read_length`)
+- Sub-editor prompt checklist additions (specificity, temporal anchor, history reference, web search if Phase 0 verifies, banal, abbreviation)
+- Web search tool wiring in sub-editor — *only* if Phase 0 verified support
+- `run_report` schema extension for `history_audit` (if web search shipped)
 - Master.md "Banker vocabulary tiers" subsection
 - Tests: validator unit tests against banal/specific examples
 
 **Phase 3 — Editor prompt + macro builder + new CPI chart config**
-- `editor_v6.txt` and `editor_v6_friday.txt` updates: specificity contract, field constraints, history_facts weaving, abbreviation policy, reference-value-in-parens
+- `editor_v6.txt` and `editor_v6_friday.txt` updates: specificity contract, field constraints, history_facts weaving, abbreviation policy, reference-value-via-`phrase`-verbatim, macro section 8-metric override
 - `brief/builders/macro.py` rewrite: 8 monthly metrics from `metric_history_monthly`, history_facts pipe to editor
 - `lib/chartConfigs.ts`: new `cpiTrend` config
 - Tests: macro builder integration, chartConfigs unit test
 
 **Phase 4 — ChartRead schema + render**
 - `types/brief.ts`: `ChartRead` interface + `Section.chart_read` field
-- `app/components/Section.tsx`: render block under `<BriefChart>`
+- `app/components/Section.tsx`: render block under `<BriefChart>` (chartConfigKey derived from `section.slug`)
 - Editor instruction: populate `chart_read` for every chart-bearing section
-- Cover.sub editor instruction: write historical anchor here when notable
-- Tests: Section.tsx render unit tests (3 states — full, partial, null)
+- `Cover.sub` editor instruction: write historical anchor here when notable
+- Tests: Section.tsx render — see §10 for whether React component test infrastructure exists or needs setup
 
 **Phase 5 — Release: v1.4.0**
 - CHANGELOG entry
-- package.json bump
+- `package.json` bump
 - README badge + footer sync
 - Tag + GH release (per AGENTS.md landmine #11)
+- Append a v1.4.0 entry to `AGENT_LEARNINGS.md` capturing any incidents from the shipping process
 
 ## 7. Out-of-scope decisions deferred
 
@@ -382,15 +420,19 @@ export interface Section {
 
 ## 9. Risks
 
-1. **Editor prompt bloat.** Adding ~50-80 lines to `editor_v6.txt` may push the prompt above token budgets or change model behavior in non-obvious ways. Mitigation: phase 3 testing on a fresh-brief test fixture first, side-by-side with the current prompt.
+1. **Editor prompt bloat.** Adding ~50-80 lines to `editor_v6.txt` may push the prompt above token budgets or change model behavior in non-obvious ways. Also the editor's input grows: 8 macro metrics + `history_facts` per section + larger output (`chart_read` per section). Mitigation: Phase 3 testing on a fresh-brief test fixture first, side-by-side with the current prompt. Estimate input/output tokens before merge.
 
-2. **Web search latency.** Each search adds ~1-2s. With budget 3 per brief, worst-case +6s on the sub-editor call. Mitigation: parallel search calls where possible; hard timeout per search.
+2. **Web search latency + Anthropic SDK availability.** Each search adds ~1-2s. With budget 3 per brief, worst-case +6s on the sub-editor call. **Mitigation: per-search 5s timeout, total 15s budget, hard fail-open on timeout.** Bigger upstream risk: **the current Anthropic SDK / auth setup may not support `web_search` tool use at all** — Phase 0 verifies this; if unavailable, the entire check is scoped out cleanly.
 
 3. **History data sparsity on newer metrics.** Some metrics in `metric_history_monthly` may have <6 months of data. The `min_data_points` guard handles this gracefully — editor sees empty facts and writes non-historical context. Risk is silent under-anchoring, not failure.
 
-4. **`.tb-analysis` density on non-hero sections.** Today `.tb-analysis` only renders on hero sections (1-2 per brief). With ChartRead, it appears on every chart-bearing section (5-6 per brief). Visual density goes up. Mitigation: ship as-is; if mobile feels heavy, tighten `.tb-chart-read p { margin-block: 0.4em }` as a CSS-only follow-up (the AGENT_LEARNINGS v1.2.1 lesson is the precedent).
+4. **History data QUALITY** in `metric_history_monthly`. The table was seeded once via `scripts/seed_macro_monthly.py` from Macro Observer's `macro_monthly_data.json`. That backfill hasn't been audited recently. A bad row would produce a wrong historical anchor that the editor inlines verbatim from `phrase`. **Mitigation:** Phase 0 spot-check task — pick 3 monthly series, verify the most recent and the most extreme rows against published BB/BBS sources.
 
-5. **Banal-language false positives.** "Robust" is on the blocklist but could appear legitimately ("Robust deposit growth at 14% YoY"). Mitigation: blocklist is a heuristic; sub-editor's `revise` is recoverable; if false positives are high, narrow the blocklist via a v1.4.x patch.
+5. **`.tb-analysis` density on non-hero sections.** Today `.tb-analysis` only renders on hero sections (1-2 per brief). With ChartRead, it appears on every chart-bearing section (5-6 per brief). Visual density goes up. Mitigation: ship as-is; if mobile feels heavy, tighten `.tb-chart-read p { margin-block: 0.4em }` as a CSS-only follow-up (the AGENT_LEARNINGS v1.2.1 lesson is the precedent).
+
+6. **Banal-language false positives.** "Robust" is on the blocklist but could appear legitimately ("Robust deposit growth at 14% YoY"). Mitigation: blocklist is a heuristic; sub-editor's `revise` is recoverable; if false positives are high, narrow the blocklist via a v1.4.x patch.
+
+7. **Sub-editor call duration crossing Anthropic API timeout.** Web search adds up to 15s; revise-retry adds another sub-editor call; the cumulative path could approach the 60s API default. Mitigation: each sub-editor call has its own timeout; if the first call returns `revise`, the retry runs sequentially with a fresh budget; both calls log timing to `run_report`.
 
 ## 10. Test plan
 
@@ -404,12 +446,15 @@ export interface Section {
 - `tests/test_pipeline_v6_macro_enrichment.py`: macro builder reads 8 monthly metrics; HistoryFacts populated; editor input shape verified.
 
 **Component tests (Phase 4):**
-- `tests/components/section_chart_read.spec.tsx` (or equivalent React testing setup): 3 render states — full, partial, null.
+- The brief currently has **no visible React component testing setup** (no Vitest, no Jest config, no `__tests__` under `app/`). Phase 4 needs an upstream decision: **(a) set up Vitest + React Testing Library** (small infra add, ~1 PR before render work) **or (b) skip component tests** and rely on Vercel preview visual eyeballing for the render piece. Implementation plan picks one.
+- If (a): `app/components/__tests__/ChartRead.test.tsx` — 3 render states (full / partial / null).
+- If (b): Vercel preview eyeball checklist added to the Phase 4 PR description.
 
 **End-to-end smoke (Phase 5):**
-- Dry-run publish locally: `python -m brief.cli run --publish --dry-run --no-notify`. Inspect output for `chart_read` population per section, abbreviation expansion, historical anchors with reference values.
+- Dry-run publish locally: `python -m brief.cli run --publish --dry-run --no-notify`. Inspect output for `chart_read` population per section, abbreviation expansion, historical anchors with reference values, macro section showing all 8 monthly metrics.
 - Vercel preview deploy: visual eyeball that the macro CPI chart renders and Chart Read paragraphs appear under each chart.
-- First production publish: monitor `run_report` for web search budget compliance, sub-editor reject rate, validator pass rate.
+- First production publish: monitor `run_report` for web search budget compliance (if shipped), sub-editor reject rate, validator pass rate, history audit divergences.
+- Compare email open rate (rolling 14-day) against Phase 0 baseline at +1 week, +2 weeks, +4 weeks post-ship.
 
 ---
 
