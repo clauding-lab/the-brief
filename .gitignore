@@ -25,6 +25,11 @@ build/
 .superpowers/
 .worktrees/
 
+# Local-only tool outputs
+.graphifyignore
+graphify-out/
+.playwright-mcp/
+
 # Next.js / Node frontend
 /.next/
 /out/
