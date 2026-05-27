@@ -61,6 +61,9 @@ def _to_v6_raw(sections: list[SectionData]) -> list[dict[str, Any]]:
 
     V5 doesn't carry verdict/verdict_tone fields directly; the editor derives
     them from the section's kicker/tldr/bankerread.pull text and metric tones.
+
+    v1.4.0: also serialises SectionData.history_facts so the editor can weave
+    pre-formatted historical anchor phrases verbatim into prose (spec §3.2).
     """
     out: list[dict[str, Any]] = []
     for s in sections:
@@ -80,6 +83,16 @@ def _to_v6_raw(sections: list[SectionData]) -> list[dict[str, Any]]:
                 "pull": s.pull,
                 "metrics": [m.model_dump(mode="json") for m in s.metrics],
                 "news": [n.model_dump(mode="json") for n in s.news],
+                "history_facts": [
+                    {
+                        "metric_id": f.metric_id,
+                        "kind": f.kind,
+                        "phrase": f.phrase,
+                        "reference_value_formatted": f.reference_value_formatted,
+                        "reference_as_of": f.reference_as_of,
+                    }
+                    for f in (s.history_facts or [])
+                ],
             }
         )
     out.sort(key=lambda x: x["ord"])
@@ -335,11 +348,33 @@ def _stamp_chart_series(
     function and assigns the result to `section.series` (and `section.notes`
     for the dse fetcher which returns both).
 
+    v1.4.0: the macro section's CPI trend chart is fetched via
+    `fetch_macro_cpi_series` which uses `MetricHistoryClient` (not the direct
+    HTTP helpers used by the other fetchers) to read `metric_history_monthly`.
+
     Failures on individual fetchers log a warning and leave that section's
     series empty — graceful degradation, one bad scrape does not break the
     whole publish.
     """
+    from brief.history import MetricHistoryClient as _MetricHistoryClient
+    history_monthly_client = _MetricHistoryClient(
+        url=supabase_url, service_key=service_key, http=http,
+    )
+
     for section in final_brief.sections:
+        # v1.4.0 — macro CPI trend chart uses metric_history_monthly
+        if section.slug == "macro":
+            try:
+                series_by_id = chart_series_fetcher.fetch_macro_cpi_series(history_monthly_client)
+                flat_series = [pt for pts in series_by_id.values() for pt in pts]
+                section.series = flat_series
+            except Exception:  # noqa: BLE001 — graceful degradation
+                logger.warning(
+                    "v6: macro CPI series fetch failed for slug=macro",
+                    exc_info=True,
+                )
+            continue
+
         fn_suffix: str | None = _CHART_FETCHERS_BY_SLUG.get(section.slug)
         if fn_suffix is None:
             continue
