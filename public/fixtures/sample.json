@@ -1,0 +1,59 @@
+{
+  "brief": {
+    "id": "sample-fixture-00000000",
+    "issue_no": 0,
+    "volume": 1,
+    "brief_date": "2026-05-28",
+    "read_minutes": 15,
+    "published_at": "2026-05-28T00:30:00.000Z",
+    "status": "published",
+    "todays_call": "Sample fixture — this is NOT live data. Load via /preview?fixture=sample.json to confirm the preview route and banner render correctly.",
+    "lens": "neutral",
+    "frame": "steady-state",
+    "cover_metric": {
+      "label": "FIXTURE",
+      "value": "SAMPLE",
+      "sub": "Not live data",
+      "tone": "neu"
+    }
+  },
+  "sections": [
+    {
+      "slug": "snapshot",
+      "ord": 1,
+      "title": "Snapshot",
+      "group_key": "overview",
+      "freshness": "fresh",
+      "verdict": "Sample snapshot section — fixture only.",
+      "verdict_tone": "neu",
+      "tldr": "This brief is a fixture loaded via the preview route. It is not live data.",
+      "summary_pills": [
+        { "key": "mode", "value": "PREVIEW", "tone": "warn" }
+      ],
+      "banker_read": {
+        "verdict": "This is a sample fixture brief used to smoke-test the /preview route.",
+        "watch": ["Verify the PREVIEW MODE banner is visible at the top of the page."],
+        "risk": ["This is not live data — do not act on it."]
+      },
+      "metrics": [
+        {
+          "label": "Fixture Status",
+          "value": "OK",
+          "sub": "preview only",
+          "tone": "neu"
+        }
+      ],
+      "news": [
+        {
+          "headline": "Sample fixture loaded successfully via /preview route.",
+          "detail": "This confirms the preview infrastructure is working.",
+          "source": "The Brief fixture system",
+          "tone": "neu"
+        }
+      ],
+      "series": [],
+      "notes": []
+    }
+  ],
+  "_source": "static"
+}
