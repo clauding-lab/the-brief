@@ -36,10 +36,19 @@ def _parse(argv: list[str]) -> argparse.Namespace:
                    help="Override today's date (YYYY-MM-DD); default: system date")
     r.add_argument("--no-notify", action="store_true",
                    help="Skip the subscriber email notifier after a successful publish")
+    r.add_argument("--write-fixture", default=None, metavar="PATH",
+                   help="When used with --dry-run, write the final brief JSON to PATH "
+                        "(for SPA preview at /preview?fixture=<name>)")
     return p.parse_args(argv)
 
 
-def _run_v6_publish(cfg: PipelineConfig, today: date, dry_run: bool, notify_enabled: bool) -> int:
+def _run_v6_publish(
+    cfg: PipelineConfig,
+    today: date,
+    dry_run: bool,
+    notify_enabled: bool,
+    write_fixture_path: str | None = None,
+) -> int:
     """V6 publish path: gather → editor_v6 → subeditor_v6 → Supabase."""
     from brief.headlines import scrape_all
     from brief.pipeline_v6 import V6PublishError, run_publish
@@ -52,7 +61,12 @@ def _run_v6_publish(cfg: PipelineConfig, today: date, dry_run: bool, notify_enab
              "published": h.published.isoformat() if h.published else None}
             for h in scrape_all()
         ] if cfg.enable_headlines else []
-        brief_id = run_publish(sections, today, scraped_headlines=scraped, dry_run=dry_run)
+        brief_id = run_publish(
+            sections, today,
+            scraped_headlines=scraped,
+            dry_run=dry_run,
+            write_fixture_path=write_fixture_path,
+        )
     except V6PublishError as e:
         log.error("V6 publish failed: %s", e)
         traceback.print_exc(file=sys.stderr)
@@ -84,11 +98,21 @@ def _run_v6_publish(cfg: PipelineConfig, today: date, dry_run: bool, notify_enab
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     ns = _parse(argv or sys.argv[1:])
+
+    if ns.write_fixture and not ns.dry_run:
+        print("--write-fixture requires --dry-run; use both flags together", file=sys.stderr)
+        return 1
+
     today = date.fromisoformat(ns.today) if ns.today else date.today()
     cfg = PipelineConfig(today=today)
 
     if ns.publish:
-        return _run_v6_publish(cfg, today, dry_run=ns.dry_run, notify_enabled=not ns.no_notify)
+        return _run_v6_publish(
+            cfg, today,
+            dry_run=ns.dry_run,
+            notify_enabled=not ns.no_notify,
+            write_fixture_path=ns.write_fixture,
+        )
 
     print("--publish is required (V5 HTML path has been removed)", file=sys.stderr)
     return 1
