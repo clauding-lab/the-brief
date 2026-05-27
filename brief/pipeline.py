@@ -77,6 +77,8 @@ def gather(
         today=cfg.today,
         headlines=tuple(headlines),
         claude_outputs=cfg.claude_outputs,
+        # v1.4.0 — same client used with table="metric_history_monthly" per call
+        history_monthly=history,
     )
 
     sections: list[SectionData] = []

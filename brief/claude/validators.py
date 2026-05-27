@@ -549,7 +549,7 @@ TIER1_ABBREVS = frozenset({
     "YoY", "MoM", "QoQ", "MTD", "YTD", "FY", "H1", "H2",
     "Q1", "Q2", "Q3", "Q4",
     # Units (handled as tokens, not abbreviations per se, but listed for completeness)
-    "bp", "cr", "Tk",
+    "bp", "cr", "Tk", "$",
 })
 
 # ---------------------------------------------------------------------------

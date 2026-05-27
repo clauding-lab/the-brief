@@ -4,11 +4,15 @@ Pure functions that pull time-series from `metric_history` (the EconDelta-fed
 canonical store) and return `SeriesPointV6` (and optionally `SeriesNoteV6`)
 objects ready to be stamped onto `BriefPayloadV6.sections[i].series`.
 
-All four fetchers query the same `metric_history` table with different
+All four original fetchers query the same `metric_history` table with different
 `metric_id` filters. The legacy `tb_brent_daily` / `tb_dsex_daily` /
 `tb_yield_curve` tables are frozen (last writer was the deleted
 `the-brief/ingest.py` from V6 cutover, commit 2317436); the live data now
 flows through EconDelta scrapers into `metric_history` under different ids.
+
+v1.4.0: adds `fetch_macro_cpi_series` which reads from `metric_history_monthly`
+(not `metric_history`) to fetch 24-month CPI series for the macro section's
+cpiTrend chart. AGENTS.md landmine #1 — never reads tb_* tables.
 
 Each fetcher accepts an injectable `HttpClient` (mirrors
 `brief.history.MetricHistoryClient`'s seam) so tests can mock without hitting
@@ -23,7 +27,7 @@ from datetime import date as date_t
 from datetime import timedelta
 from typing import Any
 
-from brief.history import HttpClient
+from brief.history import HttpClient, MetricHistoryClient
 from brief.v6_schema import SeriesNoteV6, SeriesPointV6
 
 logger = logging.getLogger(__name__)
@@ -43,6 +47,12 @@ _DSEX_METRIC_ID: str = "dsex"
 # Yield curve canonical keys — metric_id → "yield_<tenor>" matching
 # lib/chartConfigs.ts tenorMap. Five tenors live in metric_history:
 # 3M / 6M / 1Y T-bills, plus 5Y / 10Y T-bonds.
+_CPI_METRIC_IDS: tuple[str, ...] = (
+    "cpi_12m_avg_monthly",
+    "cpi_p2p_food_monthly",
+    "cpi_p2p_nonfood_monthly",
+)
+
 _YIELD_TENOR_KEY_BY_METRIC_ID: dict[str, str] = {
     "tbill_91d_yield_pct": "yield_3m",
     "tbill_182d_yield": "yield_6m",
@@ -213,6 +223,36 @@ def fetch_brent(
         if price is None or not isinstance(ts, str):
             continue
         out.append(SeriesPointV6(key="brent", ts=ts, value=price))
+    return out
+
+
+def fetch_macro_cpi_series(
+    history_monthly: MetricHistoryClient,
+    *,
+    months: int = 24,
+) -> dict[str, list[SeriesPointV6]]:
+    """Pull `months` rows of the three CPI series from `metric_history_monthly`.
+
+    Returns a dict keyed by metric_id, each value a list of SeriesPointV6
+    objects ordered chronologically (oldest-first) for the SPA chart renderer.
+
+    AGENTS.md landmine #1: reads from metric_history_monthly, NOT tb_* tables.
+    AGENTS.md landmine #6: uses _monthly-suffixed metric IDs.
+    """
+    grouped = history_monthly.get_history_window(
+        _CPI_METRIC_IDS,
+        limit=months * len(_CPI_METRIC_IDS),
+        table="metric_history_monthly",
+    )
+    out: dict[str, list[SeriesPointV6]] = {}
+    for mid in _CPI_METRIC_IDS:
+        rows = grouped.get(mid, [])
+        # rows are most-recent-first from PostgREST anchor mode; flip to chronological
+        points: list[SeriesPointV6] = [
+            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            for r in reversed(rows)
+        ]
+        out[mid] = points
     return out
 
 

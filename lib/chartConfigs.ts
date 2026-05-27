@@ -679,6 +679,80 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   } as unknown as ChartConfiguration<"line">;
 }
 
+/**
+ * cpiTrend — 24-month CPI line chart with 3 datasets.
+ *
+ * Reads three monthly series from section.series:
+ *   cpi_12m_avg_monthly   (headline 12-month average)
+ *   cpi_p2p_food_monthly  (food P-to-P)
+ *   cpi_p2p_nonfood_monthly (non-food P-to-P)
+ *
+ * Y-axis = percent. X-axis = TimeScale (already registered in BriefChart.tsx
+ * per AGENTS.md landmine #2 — no new registration needed).
+ */
+function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
+  const HEADLINE_KEY = "cpi_12m_avg_monthly";
+  const FOOD_KEY = "cpi_p2p_food_monthly";
+  const NONFOOD_KEY = "cpi_p2p_nonfood_monthly";
+
+  if (!hasAnyData(ctx.series, [HEADLINE_KEY, FOOD_KEY, NONFOOD_KEY])) {
+    return emptyLineConfig();
+  }
+
+  const palette = buildPalette();
+
+  const datasets: ChartDataset<"line", XYPoint[]>[] = [
+    {
+      label: "Headline (12m avg)",
+      data: toPoints(ctx.series[HEADLINE_KEY]),
+      borderColor: palette.ink,
+      borderWidth: 1.8,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+    {
+      label: "Food (P-to-P)",
+      data: toPoints(ctx.series[FOOD_KEY]),
+      borderColor: palette.warn,
+      borderWidth: 1.2,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+    {
+      label: "Non-Food (P-to-P)",
+      data: toPoints(ctx.series[NONFOOD_KEY]),
+      borderColor: palette.ink3,
+      borderWidth: 1.2,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+  ];
+
+  const baseOpts = baseLineOptions({
+    legend: true,
+    yTicks: { callback: (v: number) => r2str(v) + "%" },
+  });
+
+  return {
+    type: "line",
+    data: { datasets },
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: {
+          ...baseOpts.scales.x,
+          time: { unit: "month" as const, tooltipFormat: "MMM yyyy" },
+          ticks: { ...baseOpts.scales.x.ticks, maxTicksLimit: 8 },
+        },
+      },
+    },
+  } as unknown as ChartConfiguration<"line">;
+}
+
 // Format a YYYY-MM-DD date string as "MMM DD" (e.g. "May 09"). Falls back
 // to the input on any parse mismatch.
 function shortDate(iso: string): string {
@@ -746,6 +820,7 @@ export const chartConfigs = {
   brent: brentConfig,
   yieldCurve: yieldCurveConfig,
   lng: lngConfig,
+  cpiTrend: cpiTrendConfig,
 } as const;
 
 export type ChartConfigKey = keyof typeof chartConfigs;
@@ -760,6 +835,7 @@ export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
   iran: "brent",
   tbond: "yieldCurve",
   comm: "lng",
+  macro: "cpiTrend",
 };
 
 // Per-chart card-head metadata — mirrors EconDelta /macro's FIG.NN + title
@@ -796,6 +872,11 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
     fig: "05",
     title: "Brent Crude",
     subtitle: "Daily · USD/bbl",
+  },
+  macro: {
+    fig: "06",
+    title: "CPI Trend",
+    subtitle: "24-month · headline 12m-avg · food · non-food",
   },
 };
 

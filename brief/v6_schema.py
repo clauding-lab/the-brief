@@ -111,6 +111,14 @@ class BankerReadV6(_Strict):
     runway: Optional[RunwayV6] = None
 
 
+class ChartReadV6(_Strict):
+    """Pre-rendered interpretive read under a section's chart card (v1.4.0)."""
+
+    signal: str = Field(min_length=1)
+    context: str = Field(min_length=1)
+    implication: str = Field(min_length=1)
+
+
 class SectionV6(_Strict):
     slug: str
     ord: int = Field(ge=1, le=18)
@@ -124,6 +132,7 @@ class SectionV6(_Strict):
     tldr: Optional[str] = None
     summary_pills: list[SummaryPillV6] = Field(default_factory=list, max_length=6)
     analysis: Optional[str] = None
+    chart_read: Optional[ChartReadV6] = None
     metrics: list[MetricV6] = Field(default_factory=list)
     news: list[NewsItemV6] = Field(default_factory=list)
     series: list[SeriesPointV6] = Field(default_factory=list)
