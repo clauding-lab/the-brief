@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.3.2] — 2026-05-27
+
+### Added
+- **`AGENTS.md` at the repo root** — operational rules for AI coding agents working in this repo. Covers build/test/release commands, repo structure (Next.js SPA + Python pipeline + Supabase), key conventions (timestamp storage, Long View schema, chart series IDs, editor/sub-editor split, CSS-only/docs-as-separate-PR rule), and 13 numbered landmines covering recent incidents: `tb_*` legacy tables, Chart.js scale registration, notifier privacy, Vercel build wiping `.venv`, V1 GHA cron retirement, live-vs-legacy metric_id renames, `source_as_of` migration gap, Long View schema as contract, BDT/UTC time conventions, the 2026-05-27 CHANGELOG/tag drift, `package.json` as version source of truth, and Anthropic API transient retry rule.
+- **`VISION.md` at the repo root** — auto-merge vs sign-off scopes. Long View content PRs that follow the recipe auto-merge; new block kinds, prompt edits, notifier changes, schema migrations, framework bumps, Master.md / Design.md / longview-workflow.md edits all need sign-off.
+- **`AGENT_LEARNINGS.md` at the repo root** — running incident log. Seeded with four entries (most recent first): the 2026-05-27 CHANGELOG/tag drift caught at session-resume; the v1.3.1 notifier privacy leak (PR #83); the May 9 `tb_*` legacy tables ambush (PRs #60, #61); the May 9 Chart.js `CategoryScale` silent failure (PR #62).
+
+### Changed
+- **`CLAUDE.md` rewritten** from a 5-line longview-workflow pointer to a proper orientation file. Points at all five governance/content docs (AGENTS.md, VISION.md, AGENT_LEARNINGS.md, Master.md, Design.md) in a "read these first" table. The longview-upload workflow trigger is preserved in a Special workflows section.
+- **README version badge + footer** bumped 1.0.0 → 1.3.1 (had been stale since v1.0.0 shipped 2026-05-15), then to 1.3.2 with this release.
+
+### Chore
+- **`.gitignore`** now ignores three local-only tool outputs: `.graphifyignore` (graphify config), `graphify-out/` (graphify HTML/JSON outputs, ~6.4MB), `.playwright-mcp/` (Playwright MCP cache).
+- **V5 Plan-B wave 1 and wave 2 plan docs** committed to `docs/superpowers/plans/`. All sibling plan docs (pre-wave, wave-3) were already tracked; wave-1 and wave-2 had been written and used to ship PRs #21 and #22 (2026-04-29) but were never committed.
+
+---
+
 ## [1.3.1] — 2026-05-26
 
 ### Added
