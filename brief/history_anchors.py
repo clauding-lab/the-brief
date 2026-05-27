@@ -297,3 +297,72 @@ def first_cross_since(
                 reference_as_of=row.as_of.isoformat(),
             )
     return None
+
+
+def compute_history_facts(
+    history: Sequence[HistoryRow],
+    *,
+    cadence: str,
+    current_value: float | None,
+    formatter: Callable[[float], str],
+    rolling_window: int | None = None,
+) -> list[HistoryFact]:
+    """Run all primitives over a metric's history and return all non-None facts.
+
+    Returns an empty list when:
+      - current_value is None (no live value to anchor against)
+      - history is shorter than MIN_DATA_POINTS for the cadence
+    """
+    if current_value is None:
+        return []
+    if len(history) < MIN_DATA_POINTS.get(cadence, 6):
+        return []
+
+    facts: list[HistoryFact] = []
+
+    # since_lower / since_higher are mutually exclusive on the same current value
+    lower = last_lower_than(history, current_value=current_value, cadence=cadence, formatter=formatter)
+    if lower:
+        facts.append(lower)
+    else:
+        higher = last_higher_than(history, current_value=current_value, cadence=cadence, formatter=formatter)
+        if higher:
+            facts.append(higher)
+
+    # rolling_extremes adds a window-rank fact if current is near an extreme
+    window = rolling_window or DEFAULT_WINDOW.get(cadence, 30)
+    extreme = rolling_extremes(
+        history,
+        current_value=current_value,
+        window=window,
+        formatter=formatter,
+        cadence=cadence,
+    )
+    if extreme:
+        facts.append(extreme)
+
+    return facts
+
+
+def fetch_and_compute(
+    client: MetricHistoryClient,
+    metric_id: str,
+    *,
+    cadence: str,
+    current_value: float | None,
+    formatter: Callable[[float], str],
+) -> list[HistoryFact]:
+    """Pull history for a single metric and compute facts.
+
+    Cadence-aware: chooses the right Supabase table per CADENCE_TABLE.
+    """
+    table = CADENCE_TABLE.get(cadence, "metric_history")
+    window = DEFAULT_WINDOW.get(cadence, 365)
+    grouped = client.get_history_window([metric_id], limit=window, table=table)
+    history = grouped.get(metric_id, [])
+    return compute_history_facts(
+        history,
+        cadence=cadence,
+        current_value=current_value,
+        formatter=formatter,
+    )

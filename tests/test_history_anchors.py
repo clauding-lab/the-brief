@@ -208,3 +208,42 @@ def test_first_cross_since_detects_threshold_cross_up():
     assert "above $90" in fact.phrase
     assert "Oct 2023" in fact.phrase
     assert "($92.10" in fact.phrase
+
+
+# ── compute_history_facts + fetch_and_compute ─────────────────────────────────
+
+from brief.history_anchors import compute_history_facts, fetch_and_compute
+
+
+def test_compute_history_facts_combines_primitives_for_monthly_metric():
+    # Monthly cadence: current_value=5.2 with a history containing a prior low (4.8)
+    # → since_lower fact should be produced (last time CPI was below 5.2 was 4.8 in 2021)
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 5.2),  # current
+        _row("cpi_12m_avg_monthly", "2026-03-01", 5.4),
+        _row("cpi_12m_avg_monthly", "2026-02-01", 5.6),
+        _row("cpi_12m_avg_monthly", "2026-01-01", 5.7),
+        _row("cpi_12m_avg_monthly", "2021-09-01", 4.8),  # below current → since_lower
+        *[_row("cpi_12m_avg_monthly", f"2025-{m:02d}-01", 5.5 + m * 0.1) for m in range(1, 13)],
+    ]
+    facts = compute_history_facts(
+        history,
+        cadence="monthly",
+        current_value=5.2,
+        formatter=_format_pct_1dp,
+    )
+    assert len(facts) >= 1
+    kinds = {f.kind for f in facts}
+    assert "since_lower" in kinds
+
+
+def test_compute_history_facts_returns_empty_for_sparse_history():
+    history = [_row("x", "2026-04-01", 5.0), _row("x", "2026-03-01", 4.8)]
+    facts = compute_history_facts(history, cadence="monthly", current_value=5.0, formatter=_format_pct_1dp)
+    assert facts == []
+
+
+def test_compute_history_facts_returns_empty_when_current_value_is_none():
+    history = [_row("x", "2026-04-01", 5.0)] * 10
+    facts = compute_history_facts(history, cadence="monthly", current_value=None, formatter=_format_pct_1dp)
+    assert facts == []
