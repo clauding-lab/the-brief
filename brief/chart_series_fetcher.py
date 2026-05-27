@@ -47,6 +47,12 @@ _DSEX_METRIC_ID: str = "dsex"
 # Yield curve canonical keys — metric_id → "yield_<tenor>" matching
 # lib/chartConfigs.ts tenorMap. Five tenors live in metric_history:
 # 3M / 6M / 1Y T-bills, plus 5Y / 10Y T-bonds.
+_CPI_METRIC_IDS: tuple[str, ...] = (
+    "cpi_12m_avg_monthly",
+    "cpi_p2p_food_monthly",
+    "cpi_p2p_nonfood_monthly",
+)
+
 _YIELD_TENOR_KEY_BY_METRIC_ID: dict[str, str] = {
     "tbill_91d_yield_pct": "yield_3m",
     "tbill_182d_yield": "yield_6m",
@@ -233,14 +239,9 @@ def fetch_macro_cpi_series(
     AGENTS.md landmine #1: reads from metric_history_monthly, NOT tb_* tables.
     AGENTS.md landmine #6: uses _monthly-suffixed metric IDs.
     """
-    _CPI_METRIC_IDS: list[str] = [
-        "cpi_12m_avg_monthly",
-        "cpi_p2p_food_monthly",
-        "cpi_p2p_nonfood_monthly",
-    ]
     grouped = history_monthly.get_history_window(
         _CPI_METRIC_IDS,
-        limit=months,
+        limit=months * len(_CPI_METRIC_IDS),
         table="metric_history_monthly",
     )
     out: dict[str, list[SeriesPointV6]] = {}

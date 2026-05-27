@@ -161,8 +161,9 @@ def test_macro_section_series_populated_with_cpi_24_months():
     def _get_history_window(metric_ids, *, limit=None, days=None, today=None, table="metric_history"):
         result = {}
         for mid in metric_ids:
-            rows = [_make_row(mid, f"2024-{m:02d}-01", 5.0 + m * 0.1) for m in range(1, 13)]
-            rows += [_make_row(mid, f"2025-{m:02d}-01", 5.2 + m * 0.05) for m in range(1, 13)]
+            # Production PostgREST returns most-recent-first (desc); match that ordering
+            rows = [_make_row(mid, f"2025-{m:02d}-01", 5.2 + m * 0.05) for m in range(12, 0, -1)]
+            rows += [_make_row(mid, f"2024-{m:02d}-01", 5.0 + m * 0.1) for m in range(12, 0, -1)]
             result[mid] = rows
         return result
 
@@ -178,6 +179,10 @@ def test_macro_section_series_populated_with_cpi_24_months():
         for pt in result[cid]:
             assert isinstance(pt, SeriesPointV6)
             assert pt.key == cid
+        # Result must be chronological (oldest-first) regardless of PostgREST desc ordering
+        points = result[cid]
+        assert len(points) >= 2
+        assert points[0].ts < points[-1].ts, f"{cid} should be chronological (oldest-first)"
 
     # Check that get_history_window was called with metric_history_monthly table
     for call in mock.get_history_window.call_args_list:
@@ -247,3 +252,4 @@ def test_editor_input_includes_history_facts_for_macro():
     assert hf["phrase"] == "lowest 12-month CPI since Sep 2021 (4.8% then)"
     assert hf["reference_value_formatted"] == "4.8%"
     assert hf["reference_as_of"] == "2021-09-01"
+    assert "reference_value" not in hf, "raw float reference_value should be excluded from editor input"
