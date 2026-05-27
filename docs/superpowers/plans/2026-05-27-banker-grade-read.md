@@ -42,6 +42,23 @@
 
 ---
 
+## Preview-before-prod governance (applies to every phase)
+
+**Adnan's hard rule:** every change must be live-tested on a separate URL before merging to main or replacing the live site. Subagent workflow MUST end each phase PR with a "PREVIEW READY — please review at <URL>" nudge and wait for explicit user approval before merging.
+
+| Change type | Preview path |
+|---|---|
+| SPA-only (Phase 4) | Vercel auto-deploys a preview URL per PR. Eyeball the preview deploy. |
+| Editorial pipeline (Phase 3) | Use the fixture-loading mechanism built in Phase 0.5. Dry-run pipeline locally → commit JSON fixture → Vercel preview SPA renders v1.4.0 brief content. |
+| Pure backend (Phases 1, 2) | No visual preview applicable; verify via local pytest + dry-run pipeline JSON inspection. Adnan-visible artifact: the dry-run JSON file path. |
+
+**Nudge protocol per phase:**
+1. Subagent completes all tasks in a phase.
+2. Subagent pushes PR + waits for Vercel preview URL to be ready.
+3. Orchestrator (this session) summarizes to Adnan with the preview URL.
+4. Adnan reviews preview, replies "merge" / "needs changes" / "reject".
+5. Only then is the phase PR merged.
+
 ## Phase 0 — Pre-flight verifications (no code shipped, 4 tasks)
 
 > **PR boundary:** Phase 0 is investigation-only. Findings are recorded in this plan via task completion notes; no commits go to a feature branch. If Phase 0 surfaces blockers (e.g., web_search unsupported), revise Phase 2 scope BEFORE starting Phase 2.
@@ -158,6 +175,253 @@ find . -name "vitest.config.*" -not -path "./node_modules/*" -not -path "./.next
 - [ ] **Step 3:** Record the decision in plan task 4.5 below.
 
 - [ ] **Step 4:** No commit.
+
+---
+
+## Phase 0.5 — Preview fixture infrastructure (3 tasks, 1 PR)
+
+> **PR boundary:** Phase 0.5 ships as a small standalone PR titled `feat(spa): /preview route with fixture-loading for pre-prod review`. Permanent infrastructure — used by v1.4.0 and every future release. ~50-80 LOC.
+
+> Before starting: `git switch main && git pull --ff-only && git switch -c feat/spa-preview-fixture-route`
+
+### Task 0.5.1: Add `/preview` route that loads brief from a fixture JSON path
+
+**Files:**
+- Create: `app/preview/page.tsx`
+- Modify: `app/components/ClientApp.tsx` (if needed — to skip Supabase fetch when fixture mode)
+- Create: `public/fixtures/.gitkeep` (placeholder, fixture JSONs land here)
+
+- [ ] **Step 1: Read current ClientApp / page entry point** to understand the brief loading path.
+
+```bash
+grep -n "get_latest_brief\|supabase\.rpc\|useEffect" app/components/ClientApp.tsx app/page.tsx
+```
+
+- [ ] **Step 2: Create `app/preview/page.tsx`** — server component that reads the `?fixture=<filename>` query param and loads JSON from `public/fixtures/<filename>`:
+
+```tsx
+// app/preview/page.tsx
+import { notFound } from "next/navigation";
+import fs from "node:fs/promises";
+import path from "node:path";
+
+import { ClientApp } from "@/app/components/ClientApp";
+import type { BriefPayload } from "@/types/brief";
+
+export const dynamic = "force-dynamic";
+
+interface PageProps {
+  searchParams: Promise<{ fixture?: string }>;
+}
+
+export default async function PreviewPage({ searchParams }: PageProps) {
+  const { fixture } = await searchParams;
+  if (!fixture) {
+    return (
+      <main style={{ padding: "2rem", fontFamily: "var(--mono, monospace)" }}>
+        <h1>Preview mode</h1>
+        <p>
+          Append <code>?fixture=&lt;filename&gt;</code> to load a brief JSON from
+          <code>public/fixtures/</code>.
+        </p>
+        <p>
+          Example: <code>/preview?fixture=v1.4.0-dryrun-2026-05-28.json</code>
+        </p>
+      </main>
+    );
+  }
+
+  // Allowlist filename — only .json files, no path traversal
+  if (!/^[a-zA-Z0-9._-]+\.json$/.test(fixture)) {
+    return notFound();
+  }
+
+  const fixturePath = path.join(process.cwd(), "public", "fixtures", fixture);
+  let raw: string;
+  try {
+    raw = await fs.readFile(fixturePath, "utf-8");
+  } catch {
+    return notFound();
+  }
+
+  let payload: BriefPayload;
+  try {
+    payload = JSON.parse(raw) as BriefPayload;
+  } catch {
+    return notFound();
+  }
+
+  return <ClientApp brief={payload.brief} sections={payload.sections} preview />;
+}
+```
+
+- [ ] **Step 3: Add `preview?: boolean` prop to ClientApp** — when true, render a small "PREVIEW MODE" indicator and skip any Supabase polling:
+
+```tsx
+// app/components/ClientApp.tsx — add to props interface and render
+interface ClientAppProps {
+  brief?: Brief;
+  sections: Section[];
+  preview?: boolean;  // NEW
+}
+
+export function ClientApp({ brief, sections, preview = false }: ClientAppProps) {
+  // ... existing logic ...
+  return (
+    <>
+      {preview && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0,
+          background: "var(--tone-warn)", color: "var(--ink-1)",
+          padding: "4px 12px", fontFamily: "var(--mono)", fontSize: 12,
+          textAlign: "center", zIndex: 1000,
+        }}>
+          PREVIEW MODE · fixture-loaded · NOT live data
+        </div>
+      )}
+      {/* existing render */}
+    </>
+  );
+}
+```
+
+- [ ] **Step 4: Create the fixtures directory** with a placeholder:
+
+```bash
+mkdir -p public/fixtures
+touch public/fixtures/.gitkeep
+```
+
+- [ ] **Step 5: Type-check + lint**
+
+```bash
+npx tsc --noEmit
+npm run lint
+```
+Expected: clean.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add app/preview/page.tsx app/components/ClientApp.tsx public/fixtures/.gitkeep
+git commit -m "feat(spa): /preview route with fixture-loading for pre-prod review
+
+Adds app/preview/page.tsx — server component reading ?fixture=<name>
+query param, loading JSON from public/fixtures/<name>, rendering via
+ClientApp with a 'PREVIEW MODE' banner.
+
+Permanent infra for the preview-before-prod governance rule. Used by
+v1.4.0 (and every future release) to let Adnan eyeball editorial
+content changes on a Vercel preview URL before they go live."
+```
+
+### Task 0.5.2: Add CLI flag to write dry-run output to a fixture file
+
+**Files:**
+- Modify: `brief/cli.py` — add `--write-fixture=<filename>` flag
+- Modify: `tests/test_cli.py` (extend existing)
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+def test_cli_writes_fixture_on_dry_run(tmp_path, monkeypatch):
+    fixture_path = tmp_path / "test-fixture.json"
+    # ... set up mock pipeline output ...
+    args = [
+        "run", "--publish", "--dry-run", "--no-notify",
+        f"--write-fixture={fixture_path}",
+    ]
+    exit_code = main(args)
+    assert exit_code == 3  # dry-run-ok
+    assert fixture_path.exists()
+    payload = json.loads(fixture_path.read_text())
+    assert "brief" in payload
+    assert "sections" in payload
+```
+
+- [ ] **Step 2: Run** — expected FAIL.
+
+- [ ] **Step 3: Extend `brief/cli.py`** — add `--write-fixture` argparse flag; on dry-run, serialize the editor's output to the path:
+
+```python
+# In _parse():
+r.add_argument(
+    "--write-fixture",
+    type=str,
+    default=None,
+    help="When set, write the dry-run output JSON to this path (for SPA preview)",
+)
+
+# In run():
+if args.write_fixture and args.dry_run:
+    fixture_path = Path(args.write_fixture)
+    fixture_path.parent.mkdir(parents=True, exist_ok=True)
+    fixture_path.write_text(json.dumps(payload, indent=2, default=str))
+    logger.info("Wrote dry-run fixture: %s", fixture_path)
+```
+
+- [ ] **Step 4: Run** — expected PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add brief/cli.py tests/test_cli.py
+git commit -m "feat(cli): add --write-fixture flag for SPA preview workflow
+
+CLI usage: python -m brief.cli run --publish --dry-run --no-notify
+  --write-fixture=public/fixtures/v1.4.0-dryrun-YYYY-MM-DD.json
+
+Then load on preview URL: <preview-url>/preview?fixture=v1.4.0-dryrun-YYYY-MM-DD.json"
+```
+
+### Task 0.5.3: Push Phase 0.5 PR and verify preview URL works
+
+**Files:** none
+
+- [ ] **Step 1: Push**
+
+```bash
+git push -u origin feat/spa-preview-fixture-route
+```
+
+- [ ] **Step 2: Open PR**
+
+```bash
+gh pr create --base main --head feat/spa-preview-fixture-route \
+  --title "feat(spa): /preview route with fixture-loading for pre-prod review" \
+  --body "Permanent infrastructure for the preview-before-prod governance rule.
+
+## What it does
+
+- Adds /preview route at app/preview/page.tsx — server component reading ?fixture=<name>
+  query param, loading JSON from public/fixtures/<name>, rendering via ClientApp with
+  a yellow 'PREVIEW MODE' banner.
+- Adds --write-fixture flag to brief/cli.py — pipeline dry-runs write directly to a
+  fixture file ready for SPA loading.
+
+## Workflow this enables
+
+1. Run pipeline locally: python -m brief.cli run --publish --dry-run --no-notify --write-fixture=public/fixtures/<release>-<date>.json
+2. Commit fixture JSON to the feature branch
+3. Vercel auto-deploys preview
+4. Load <preview-url>/preview?fixture=<release>-<date>.json
+5. Eyeball editorial content on a real browser hitting a real URL before approving merge
+
+## Test plan
+- [x] /preview without ?fixture shows helpful instructions
+- [x] /preview?fixture=missing.json returns 404
+- [x] /preview?fixture=valid.json renders the brief with PREVIEW MODE banner
+- [x] /preview?fixture=../etc/passwd is rejected by the filename allowlist
+- [ ] Vercel preview URL works end-to-end with a sample fixture"
+```
+
+- [ ] **Step 3: Wait for Vercel preview**, then visit `<preview-url>/preview?fixture=` and confirm the helpful message appears.
+
+- [ ] **Step 4: Drop a sample fixture file** (a copy of the most recent production brief, anonymized if needed) at `public/fixtures/sample.json`, commit, push, and verify `<preview-url>/preview?fixture=sample.json` renders the brief with the yellow PREVIEW MODE banner.
+
+- [ ] **Step 5:** **NUDGE Adnan with the preview URL. Wait for approval.**
+
+- [ ] **Step 6:** After approval — squash-merge PR.
 
 ---
 
