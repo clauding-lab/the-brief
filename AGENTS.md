@@ -116,6 +116,10 @@ These are shape rules that govern HOW code/configs/data are named, structured, a
 
 13. **Anthropic API transient failures are common at 04:00–06:00 BDT.** The publish window overlaps with high traffic / token rotation on Anthropic's side. If `brief.service` fails with timeout or 401, a manual re-fire often succeeds. See the manual-fire snippet in README's Operations section. Don't deep-dive an Anthropic issue without trying a retry first.
 
+14. **PostgREST `in.(...)` query `limit` is GLOBAL across all matched `metric_id`s, NOT per-id.** When batching multiple metric_ids in a single `get_history_window` call (e.g., the 3 CPI series for the macro chart), use `limit = months * len(metric_ids)` — not `limit = months`. Caught in v1.4.0 Phase 3: `fetch_macro_cpi_series([3 ids], limit=24)` was returning ~8 rows per metric instead of 24 months each, because PostgREST sorts the merged result set by `as_of.desc` then caps at 24 rows total. The denser metric eats the cap.
+
+15. **`.tb-analysis` is a `display: grid; grid-template-columns: 140px 1fr` container.** Bare children become grid items in alternating columns — a `<p>` placed directly inside would scatter across the label/body columns and render broken. When reusing `.tb-analysis` (e.g., the new ChartRead block in v1.4.0), wrap children in the canonical `<span className="label">EYEBROW</span>` + `<div className="body"><p>...</p>...</div>` structure. The pattern is already in use for the regular Analysis block at the bottom of each `app/components/Section.tsx` — copy that shape.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
