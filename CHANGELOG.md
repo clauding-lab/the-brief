@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.5.0] — 2026-05-27
+
+### Added
+- **Preview-ready notifications.** New module `brief/preview_notify.py` sends two pings when the pipeline runs in dry-run with `--write-fixture` and the new `--preview-notify` flag: a Discord webhook message and a Brevo email to a dedicated recipient (NOT the subscriber list). Each channel is independent — one failing does not block the other. The ping includes the production-reachable preview URL (`https://thebrief.clauding-lab.com/preview?fixture=<name>.json`), the brief date + issue number, and the draft `todays_call` snippet for at-a-glance review.
+- **New CLI flag `--preview-notify`** on `brief.cli`. Requires `--write-fixture`. Fires the notify module after the dry-run completes; failures log a warning but never change the exit code (the fixture write is the canonical artifact).
+- **New env vars in `deploy/brief.env.example`**: `DISCORD_PREVIEW_WEBHOOK_URL` (channel webhook in Discord Server Settings → Integrations → Webhooks), `PREVIEW_EMAIL_RECIPIENT` (single address for editorial review, deliberately not the subscriber list). Reuses existing `BREVO_API_KEY` + `FROM_EMAIL` from the subscriber notifier.
+- **10 new tests** in `tests/test_preview_notify.py` covering: URL builder, fixture metadata extraction (with missing-field tolerance), Discord ping body shape + error handling, Brevo email payload + HTML-escape on `todays_call` (XSS guard), and the orchestrator's independent-channel + missing-env paths.
+
+### Notes
+- No production data path changes. Daily auto-fire publish behaviour at 06:30 BDT is unchanged — preview notifications only fire when both `--write-fixture` and `--preview-notify` are explicitly passed.
+
+---
+
 ## [1.4.0] — 2026-05-27
 
 ### Added

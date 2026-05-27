@@ -39,6 +39,11 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     r.add_argument("--write-fixture", default=None, metavar="PATH",
                    help="When used with --dry-run, write the final brief JSON to PATH "
                         "(for SPA preview at /preview?fixture=<name>)")
+    r.add_argument("--preview-notify", action="store_true",
+                   help="After --write-fixture writes the JSON, ping Discord webhook "
+                        "(DISCORD_PREVIEW_WEBHOOK_URL) and email (PREVIEW_EMAIL_RECIPIENT) "
+                        "with the preview URL. Each channel is best-effort; failures "
+                        "are logged but do not change exit code.")
     return p.parse_args(argv)
 
 
@@ -48,6 +53,7 @@ def _run_v6_publish(
     dry_run: bool,
     notify_enabled: bool,
     write_fixture_path: str | None = None,
+    preview_notify_enabled: bool = False,
 ) -> int:
     """V6 publish path: gather → editor_v6 → subeditor_v6 → Supabase."""
     from brief.headlines import scrape_all
@@ -77,6 +83,16 @@ def _run_v6_publish(
 
     if dry_run:
         log.info("V6 dry-run: editor + subeditor passed, no Supabase write")
+        if preview_notify_enabled and write_fixture_path:
+            try:
+                from brief.preview_notify import notify_preview
+                res = notify_preview(write_fixture_path)
+                log.info(
+                    "preview_notify: discord_ok=%s email_ok=%s url=%s",
+                    res.discord_ok, res.email_ok, res.preview_url,
+                )
+            except Exception:
+                log.exception("preview_notify: unexpected exception (dry-run remains successful)")
         return 3
     log.info("V6 publish ok: brief_id=%s", brief_id)
 
@@ -103,6 +119,10 @@ def main(argv: list[str] | None = None) -> int:
         print("--write-fixture requires --dry-run; use both flags together", file=sys.stderr)
         return 1
 
+    if ns.preview_notify and not ns.write_fixture:
+        print("--preview-notify requires --write-fixture (nothing to point at otherwise)", file=sys.stderr)
+        return 1
+
     today = date.fromisoformat(ns.today) if ns.today else date.today()
     cfg = PipelineConfig(today=today)
 
@@ -112,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=ns.dry_run,
             notify_enabled=not ns.no_notify,
             write_fixture_path=ns.write_fixture,
+            preview_notify_enabled=ns.preview_notify,
         )
 
     print("--publish is required (V5 HTML path has been removed)", file=sys.stderr)
