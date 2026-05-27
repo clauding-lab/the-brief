@@ -7,6 +7,7 @@ per section.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -482,3 +483,87 @@ def validate_editorial_qa(payload: Any) -> ValidationResult:
         )
 
     return ValidationResult(True, value=EditorialQAResult(status=status, issues=issues, shippable=shippable))
+
+
+# ---------------------------------------------------------------------------
+# Module-level constants for banker-grade specificity validators.
+# ---------------------------------------------------------------------------
+
+BANAL_TOKENS = frozenset({
+    # AI tells
+    "delve", "myriad", "tapestry", "navigate", "intricate", "robust",
+    # journalese
+    "amid", "moreover", "stunning move", "in a development",
+    # hedging without source
+    "could potentially", "may possibly", "it remains to be seen",
+    # vague time
+    "in coming weeks", "in the coming months",
+})
+
+TEMPORAL_TOKENS = frozenset({
+    "since", "vs", "last", "above", "below", "back to", "next",
+})
+
+# Match Jan/Feb/.../Dec, Q1-Q4, and 20YY years
+TEMPORAL_REGEX = re.compile(
+    r"\b("
+    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
+    r"|Q[1-4]"
+    r"|20\d{2}"
+    r")\b",
+    re.IGNORECASE,
+)
+
+DESK_WORDS = frozenset({
+    "treasury", "credit", "risk", "alm", "alco", "manco",
+    "lcr", "rwa", "npl", "car", "tier-1", "tier-2", "primary dealer",
+    "remittance", "import lc", "export lc", "fdr", "deposit",
+})
+
+ACTION_VERBS = frozenset({
+    "watch", "expect", "position", "brace", "firm", "soften",
+    "tighten", "ease", "widen", "narrow", "anchor", "signal",
+    "hold", "pause", "cut", "hike",
+})
+
+# Tier-1: bare use always, never expand
+TIER1_ABBREVS = frozenset({
+    # Institutions
+    "BB", "NBR", "BSEC", "IMF", "WB", "ADB", "GoB",
+    # Policy
+    "MPS", "MPC", "ADP", "SDF", "SLF", "CRR", "SLR",
+    # Instruments
+    "T-Bill", "T-Bond", "FDR",
+    # Markets
+    "USD/BDT", "NPL", "ALCO", "MANCO",
+    # Capital
+    "Tier-1", "Tier-2",
+    # Time
+    "YoY", "MoM", "QoQ", "MTD", "YTD", "FY", "H1", "H2",
+    "Q1", "Q2", "Q3", "Q4",
+    # Units (handled as tokens, not abbreviations per se, but listed for completeness)
+    "bp", "cr", "Tk",
+})
+
+# Tier-2: expand on first use per section, bare thereafter
+TIER2_ABBREVS_AND_EXPANSIONS = {
+    # Prudential ratios
+    "LCR":   "Liquidity Coverage Ratio",
+    "NSFR":  "Net Stable Funding Ratio",
+    "RWA":   "Risk-Weighted Assets",
+    "CAR":   "Capital Adequacy Ratio",
+    "CRAR":  "Capital to Risk-weighted Assets Ratio",
+    # Risk
+    "ALM":   "Asset-Liability Management",
+    "DPD":   "Days Past Due",
+    "ECL":   "Expected Credit Loss",
+    # Treasury
+    "FRA":   "Forward Rate Agreement",
+    "IRS":   "Interest Rate Swap",
+    "REER":  "Real Effective Exchange Rate",
+    "NEER":  "Nominal Effective Exchange Rate",
+    # Banks
+    "SCB":   "State-Owned Commercial Bank",
+    "GSIB":  "Global Systemically Important Bank",
+    "D-SIB": "Domestic Systemically Important Bank",
+}
