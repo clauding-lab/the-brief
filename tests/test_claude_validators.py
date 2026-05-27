@@ -102,3 +102,25 @@ def test_validate_chart_read_temporal_anchor_passes_with_year_token():
 def test_validate_chart_read_temporal_anchor_fails_without_anchor():
     chart_read = {"signal": "x", "context": "Inflation remains elevated.", "implication": "y"}
     assert not validate_chart_read_temporal_anchor(chart_read).ok
+
+
+# ---------------------------------------------------------------------------
+# Task 2.4: validate_chart_read_implication_quality
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_chart_read_implication_quality
+
+
+def test_validate_chart_read_implication_quality_passes_with_desk_word():
+    chart_read = {"signal": "x", "context": "y", "implication": "Watch ALCO positioning."}
+    assert validate_chart_read_implication_quality(chart_read).ok
+
+
+def test_validate_chart_read_implication_quality_passes_with_action_verb():
+    chart_read = {"signal": "x", "context": "y", "implication": "Expect rate hold next MPS."}
+    assert validate_chart_read_implication_quality(chart_read).ok
+
+
+def test_validate_chart_read_implication_quality_fails_on_generic():
+    chart_read = {"signal": "x", "context": "y", "implication": "May affect the economy."}
+    assert not validate_chart_read_implication_quality(chart_read).ok

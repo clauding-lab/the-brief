@@ -504,14 +504,14 @@ TEMPORAL_TOKENS = frozenset({
     "since", "vs", "last", "above", "below", "back to", "next",
 })
 
-# Match Jan/Feb/.../Dec, Q1-Q4, and 20YY years
+# Match Jan/Feb/.../Dec (title-cased), Q1-Q4, and 20YY years.
+# No IGNORECASE flag — lowercase "may" is a modal verb, not a month.
 TEMPORAL_REGEX = re.compile(
     r"\b("
     r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
     r"|Q[1-4]"
     r"|20\d{2}"
     r")\b",
-    re.IGNORECASE,
 )
 
 DESK_WORDS = frozenset({
@@ -572,6 +572,28 @@ def validate_chart_read_temporal_anchor(chart_read: dict) -> ValidationResult:
     return ValidationResult(
         False,
         reason="chart_read.context lacks temporal anchor (need 'since'/'vs'/'last'/'above'/'below'/'next' or a month/year/Q token)",
+    )
+
+
+def validate_chart_read_implication_quality(chart_read: dict) -> ValidationResult:
+    """ChartRead.implication must contain desk word OR action verb OR time anchor.
+
+    Uses TEMPORAL_TOKENS (since/vs/last/above/below/next) for time anchors rather
+    than TEMPORAL_REGEX, to avoid false positives from month-name homophones
+    (e.g. "May affect" where "May" is a modal verb, not a month reference).
+    """
+    impl = chart_read.get("implication", "") or ""
+    if not impl:
+        return ValidationResult(False, reason="chart_read.implication is empty")
+    lower = impl.lower()
+    has_desk = any(w in lower for w in DESK_WORDS)
+    has_verb = any(v in lower for v in ACTION_VERBS)
+    has_time = any(t in lower for t in TEMPORAL_TOKENS)
+    if has_desk or has_verb or has_time:
+        return ValidationResult(True)
+    return ValidationResult(
+        False,
+        reason="chart_read.implication needs at least one of: desk word (treasury/ALCO/...), action verb (watch/expect/...), or time anchor",
     )
 
 
