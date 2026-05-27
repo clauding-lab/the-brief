@@ -37,6 +37,47 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-05-27 — v1.4.0 | Banker-Grade Read shipped via 5-PR phased rollout
+
+**Trigger:** session-resume brainstorm asked "what more can we develop to attract the banker audience feeding their info, insight, and analytical needs." Bottleneck identified as DEPTH (not acquisition/retention); depth flavor as INTERPRETATION (not history alone / peer / desk). Five phases shipped over the same session via subagent-driven-development: Phase 0.5 (preview infra), Phase 1 (history_anchors compute), Phase 2 (6 new validators + sub-editor checks + Master.md vocabulary tiers), Phase 3 (editor prompt rewrite + macro builder reading 8 monthly metrics from metric_history_monthly + CPI 24-month chart), Phase 4 (ChartRead SPA render).
+
+**What went well:**
+- Two-stage review per phase (spec compliance → code quality) caught real bugs before merge: Phase 1's FY formula inversion (would have labelled every FY metric one year off), Phase 1's self-anchor in last_lower_than (could return current month as historical anchor), Phase 2's substring matching on single-word tokens ("robust" matching "robustly"), Phase 3's CPI chart series limit bug (PostgREST `limit=24` for 3 metric_ids returns 8 rows per metric not 24 — see below), Phase 4's grid layout bug (bare `<p>` tags as direct children of `.tb-analysis` would scatter across the 2-column grid).
+- The `/preview?fixture=<name>` infrastructure (Phase 0.5) was load-bearing — it let the user verify the real v1.4.0 editor output on a Vercel preview URL before any production publish, satisfying the preview-before-prod rule even for editorial pipeline changes that normally would only verify on the next 06:30 BDT auto-fire.
+- Sub-editor revised 13 issues during the Phase 3 dry-run — banker-grade specificity enforcement caught real banal language and missing time anchors and rewrote them. The validators are actually working.
+- Brevo 14d baseline: 46.15% unique open rate (36/78 delivered, 0 bounces) — frozen as v1.4.0 success-criterion baseline.
+
+**What went wrong:**
+1. **Phase-ordering bug: editor prompt added `chart_read` to OUTPUT SCHEMA in Phase 3, but the Pydantic `BriefPayloadV6` schema update was scheduled for Phase 4 Task 4.2.** Result: Phase 3 dry-run failed because the editor produced a field the strict Pydantic validator rejected with `extra_forbidden`. Caught at Phase 3 dry-run (Vercel preview gate); fixed by pulling Task 4.2 forward into Phase 3 (commit `96469ed`). **Lesson:** editor prompt and editor-output schema validation must move in lockstep — they're two sides of the same contract.
+
+2. **CPI chart series under-fetched.** Code-quality reviewer caught that `fetch_macro_cpi_series` called `get_history_window([3 metric_ids], limit=24)`, but PostgREST applies `limit` to the TOTAL result set across all metric_ids interleaved. Result: ~8 rows per metric instead of the intended 24 months. Fix: multiply the limit by the metric count. **Lesson:** when batching multiple ids in PostgREST `in.()`, limits are global, not per-id. See AGENTS.md addendum below.
+
+3. **`.tb-analysis` grid layout swallowed bare children.** Phase 4 implementer's first version rendered `chart_read` as three bare `<p>` tags inside `<div className="tb-analysis tb-chart-read">`. But `.tb-analysis` is `display: grid; grid-template-columns: 140px 1fr` — direct children become grid items in alternating columns. Caught by code-quality review before merge; fixed by wrapping in `<span className="label">Chart read</span>` + `<div className="body">` matching the canonical `.tb-analysis` use in the same file. **Lesson:** always read the CSS of "reused" classes before assuming they just style text. Grid + flex container classes have child-position semantics.
+
+4. **Vercel deployment protection blocked the preview-before-prod workflow.** Every Vercel `.vercel.app` preview URL was gated behind Vercel SSO by default, blocking unauthenticated review. Toggled in Vercel dashboard → set "Vercel Authentication" to "Only Production Deployments" so previews are publicly accessible. Brief content is already public; no privacy concern.
+
+5. **Test mock data ordering hid a real bug.** Phase 3 test mock for `get_history_window` returned rows in ASC order, but production PostgREST returns DESC. The `reversed()` call in `fetch_macro_cpi_series` was untested. Code-quality reviewer flagged; fixed by aligning mock to production + adding chronological-order assertion that fails if `reversed()` is removed.
+
+**Lessons (durable):**
+- The 2-stage review (spec then quality) per PR is genuinely catching real bugs. Don't skip either even when phases feel small.
+- For PostgREST `in.()` batched queries, `limit` is GLOBAL across all ids — multiply by ID count to get per-id rows.
+- Reused CSS classes carry child-position semantics if they're grid/flex containers. Always check the class definition before assuming it's "just styling".
+- Editor prompt extensions that touch OUTPUT SCHEMA need the Pydantic validator extended at the SAME TIME. Phase-splitting these is fragile.
+- Preview-before-prod is the right discipline; the cost is one small infrastructure PR (`/preview` route + `--write-fixture` flag) but the value is genuine pre-merge confidence on every editorial change.
+
+**Prevention:**
+- New AGENTS.md landmine (see addendum below) for PostgREST `in.()` limit gotcha.
+- The grid-class hazard worth a landmine too — but it's adjacent to existing landmine #2 (Chart.js scale registration). Adding a generic "always check CSS class definition before reusing" landmine would be too broad. Adnan to consider whether this graduates to a landmine.
+
+**Hotfix path if first 06:30 BDT publish post-merge fails:**
+- If editor voice is off → patch in v1.4.1 by tightening prompt.
+- If render breaks → CSS-only patch in v1.4.1.
+- If macro data is wrong → re-run EconDelta backfill via `scripts/seed_macro_monthly.py` (separate repo).
+
+**Cross-references:** PRs #92, #93, #94, #95, #96, #97. Spec: `docs/superpowers/specs/2026-05-27-banker-grade-read-design.md`. Plan: `docs/superpowers/plans/2026-05-27-banker-grade-read.md`. Brevo baseline: 46.15% unique opens over 2026-05-13 to 2026-05-27.
+
+---
+
 ## 2026-05-27 — v1.2.1 / v1.3.0 / v1.3.1 | Three CHANGELOG entries shipped without git tags or GH releases
 
 **Trigger:** session resume after 18 days idle. Auditing the repo's GitHub state surfaced that the latest release on GH was v1.2.0 (2026-05-16), but CHANGELOG.md already contained `[1.2.1]`, `[1.3.0]`, `[1.3.1]` entries. `package.json` was on `1.3.1`. Only `v1.3.1` had a git tag and GH release; v1.2.1 and v1.3.0 had drifted silent for weeks.
