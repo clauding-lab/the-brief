@@ -256,3 +256,44 @@ def rolling_extremes(
             reference_as_of=window_rows[0].as_of.isoformat(),
         )
     return None
+
+
+def first_cross_since(
+    history: Sequence[HistoryRow],
+    *,
+    current_value: float,
+    threshold: float,
+    direction: Literal["up", "down"],
+    formatter: Callable[[float], str],
+    cadence: str,
+) -> HistoryFact | None:
+    """Return a HistoryFact for the most recent time the metric was on the other side of `threshold`.
+
+    direction='up' means current is above threshold; find the last time the metric was above threshold previously.
+    direction='down' means current is below threshold; find the last time the metric was below threshold previously.
+    """
+    if len(history) < MIN_DATA_POINTS.get(cadence, 6):
+        return None
+
+    if direction == "up" and current_value <= threshold:
+        return None
+    if direction == "down" and current_value >= threshold:
+        return None
+
+    threshold_formatted = formatter(threshold)
+    direction_word = "above" if direction == "up" else "below"
+
+    # Skip the current row (history[0])
+    for row in history[1:]:
+        if (direction == "up" and row.value > threshold) or (direction == "down" and row.value < threshold):
+            period_label = _format_as_of(row.as_of, cadence)
+            ref_formatted = formatter(row.value)
+            return HistoryFact(
+                metric_id=row.metric_id,
+                kind="first_cross_since",
+                phrase=f"first time {direction_word} {threshold_formatted} since {period_label} ({ref_formatted} last cross)",
+                reference_value=row.value,
+                reference_value_formatted=ref_formatted,
+                reference_as_of=row.as_of.isoformat(),
+            )
+    return None

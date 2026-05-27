@@ -176,3 +176,35 @@ def test_rolling_extremes_returns_min_max_and_rank():
     assert fact.kind == "extreme_in_window"
     # Either highlights the max or notes current rank in window — implementation choice
     assert "$" in fact.reference_value_formatted
+
+
+# ── first_cross_since ────────────────────────────────────────────────────────
+
+from brief.history_anchors import first_cross_since
+
+
+def test_first_cross_since_detects_threshold_cross_up():
+    # Need ≥30 rows for cadence="daily" (MIN_DATA_POINTS["daily"]=30)
+    history = [
+        _row("brent_crude_usd_barrel", "2026-04-01", 91.40),  # current — crossed above 90
+        _row("brent_crude_usd_barrel", "2026-03-15", 87.00),
+        _row("brent_crude_usd_barrel", "2026-03-01", 86.00),
+        _row("brent_crude_usd_barrel", "2026-02-15", 85.00),  # extra row to meet threshold
+        _row("brent_crude_usd_barrel", "2023-10-01", 92.10),  # last above threshold
+        _row("brent_crude_usd_barrel", "2023-09-01", 88.00),
+        *[_row("brent_crude_usd_barrel", f"2024-{m:02d}-01", 80.0) for m in range(1, 13)],
+        *[_row("brent_crude_usd_barrel", f"2025-{m:02d}-01", 82.0) for m in range(1, 13)],
+    ]
+    fact = first_cross_since(
+        history,
+        current_value=91.40,
+        threshold=90.0,
+        direction="up",
+        formatter=lambda v: f"${v:.2f}",
+        cadence="daily",
+    )
+    assert fact is not None
+    assert fact.kind == "first_cross_since"
+    assert "above $90" in fact.phrase
+    assert "Oct 2023" in fact.phrase
+    assert "($92.10" in fact.phrase
