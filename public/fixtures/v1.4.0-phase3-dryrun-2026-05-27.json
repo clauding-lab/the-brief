@@ -1,0 +1,2723 @@
+{
+  "brief": {
+    "issue_no": 118,
+    "volume": 1,
+    "brief_date": "2026-05-27",
+    "read_minutes": 14,
+    "cover_metric": null,
+    "todays_call": "Brent last printed $94.11 \u2014 oil feed dark today as global markets thin into Eid-ul-Azha. The $17 retreat from the May $111 peak holds; import-bill arithmetic favourable at ~$680M/month of relief. The live structural story: IMF's new 3-year reform programme arrives while government bank borrowing has crossed its annual target in nine months. External shock premium unwinding \u2014 but the fiscal absorber that should capture the gain is itself overstretched. Book stays defensive on demand certainty through H2.",
+    "status": "published",
+    "lens": "iran",
+    "frame": "external-shock"
+  },
+  "sections": [
+    {
+      "slug": "headlines",
+      "ord": 2,
+      "title": "Headlines",
+      "group_key": "overview",
+      "freshness": "fresh",
+      "verdict": "Thin pre-Eid cycle; IMF programme and fiscal stress lead.",
+      "verdict_tone": "neu",
+      "banker_read": null,
+      "weight": 1,
+      "tldr": "IMF three-year programme and fiscal strain dominate an Eid-eve wire.",
+      "summary_pills": [
+        {
+          "key": "WIRES",
+          "value": "8",
+          "tone": "neu"
+        },
+        {
+          "key": "IMF",
+          "value": "3yr prog",
+          "tone": "warn"
+        },
+        {
+          "key": "FISCAL",
+          "value": "borrow > target",
+          "tone": "warn"
+        }
+      ],
+      "analysis": null,
+      "chart_read": null,
+      "metrics": [],
+      "news": [
+        {
+          "headline": "Bangladesh, IMF agree on new realistic three-year reform programme",
+          "detail": "AL-era deal scrapped; new 3-year programme with fiscal, banking, and monetary conditionality through FY29.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/govt-officially-scraps-al-era-imf-loan-deal-seeks-fresh-5b-package-1448201",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "warn",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "Govt's bank borrowing crosses annual target in nine months",
+          "detail": "Annual target crossed in nine months \u2014 bank borrowing crowds private credit pipeline.",
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/economy/news/govts-bank-borrowing-crosses-annual-target-nine-months-4184651",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "bear",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "ADB president meets PM Tarique, says it intends to provide $5b over five years",
+          "detail": "Programme commitment upgraded from $1.4B project-level to $5B over five years.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/adb-president-meets-pm-announces-5b-bangladeshs-development-1448261",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "bull",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "LPG market slows as price hikes hit demand",
+          "detail": "Price-driven demand destruction signals consumer sensitivity in energy.",
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/economy/news/lpg-market-slows-price-hikes-hit-demand-4184636",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "warn",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "BSEC's new governance code: Right diagnosis, incomplete prescription",
+          "detail": "Governance code overhaul for listed firms \u2014 regulatory tightening ahead of budget.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/bsecs-new-governance-code-right-diagnosis-incomplete-prescription-1449016",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "neu",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "Over 95% of apparel factories pay April salaries",
+          "detail": "95%+ April salary compliance confirms RMG sector wage stability.",
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/economy/news/over-95-apparel-factories-pay-april-salaries-4184631",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "neu",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "Govt appoints Ataur Rahman Khan as commerce secretary",
+          "detail": null,
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/news/govt-appoints-ataur-rahman-khan-commerce-secretary-4184741",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "neu",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "Amirul Haque elected Ctg chamber president",
+          "detail": null,
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/amirul-haque-elected-ctg-chamber-president-1448811",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "neu",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [],
+      "notes": []
+    },
+    {
+      "slug": "bb",
+      "ord": 3,
+      "title": "Policy & Rates (Bangladesh Bank)",
+      "group_key": "banking",
+      "freshness": "stale",
+      "verdict": "Corridor held at 8.50\u201311.50%; reserves $34.12B on March print.",
+      "verdict_tone": "neu",
+      "banker_read": {
+        "verdict": "Corridor at 8.50\u201311.50%, repo at 10.00% \u2014 unchanged since the Apr 18 MPC. Gross reserves at $34.12B on the March print, pending refresh. IMF 3-year programme conditionality may constrain BB's corridor and facility operations.",
+        "watch": [
+          "Next MPC timing and corridor guidance",
+          "IMF conditionality terms for monetary policy autonomy"
+        ],
+        "risk": [
+          "IMF programme may require tighter monetary stance than BB prefers",
+          "Post-ACU settlement may erode reserves cushion"
+        ],
+        "runway": null
+      },
+      "weight": 1,
+      "tldr": "Corridor unchanged since Apr 18 MPC; reserves stale on March print.",
+      "summary_pills": [
+        {
+          "key": "POLICY RATE",
+          "value": "10.00%",
+          "tone": "neu"
+        },
+        {
+          "key": "RESERVES",
+          "value": "$34.12B",
+          "tone": "warn"
+        },
+        {
+          "key": "CORRIDOR",
+          "value": "8.50\u201311.50%",
+          "tone": "neu"
+        }
+      ],
+      "analysis": null,
+      "chart_read": null,
+      "metrics": [
+        {
+          "label": "Gross Reserves",
+          "value": "$34.12B",
+          "sub": "March 2026 print \u00b7 stale \u2014 pending refresh",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "Policy Rate",
+          "value": "10.00%",
+          "sub": "Unchanged since 18 Apr MPC",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "SDF",
+          "value": "8.50%",
+          "sub": "Floor \u00b7 set 18 Apr",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "SLF",
+          "value": "11.50%",
+          "sub": "Ceiling \u00b7 set 18 Apr",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [
+        {
+          "headline": "Bangladesh, IMF agree on new realistic three-year reform programme",
+          "detail": "New programme conditionality may constrain BB's corridor and facility operations.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/govt-officially-scraps-al-era-imf-loan-deal-seeks-fresh-5b-package-1448201",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "warn",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [],
+      "notes": []
+    },
+    {
+      "slug": "banking",
+      "ord": 4,
+      "title": "Banking",
+      "group_key": "banking",
+      "freshness": "fresh",
+      "verdict": "NPL 35.73%, CAR (Capital Adequacy Ratio) 1.56% \u2014 Q4 print held; Q1 disclosure pending.",
+      "verdict_tone": "warn",
+      "banker_read": {
+        "verdict": "NPL at 35.73% and Capital Adequacy Ratio (CAR) at 1.56% on the Q4 2025 print \u2014 pending Q1 2026 disclosure. IMF 3-year programme conditionality will impose recapitalization timelines the system has been deferring.",
+        "watch": [
+          "Q1 2026 NPL/CAR disclosure \u2014 first post-crisis quarterly print",
+          "IMF banking conditionality terms and recapitalization timeline"
+        ],
+        "risk": [
+          "Lending into 35.73% NPL creates adverse selection trap",
+          "IMF-mandated recapitalization pressures an already strained fiscal balance sheet"
+        ],
+        "runway": {
+          "value": "0",
+          "unit": "mo buffer"
+        }
+      },
+      "weight": 1,
+      "tldr": "NPL and CAR held on Q4 print; IMF reshapes recapitalization clock.",
+      "summary_pills": [
+        {
+          "key": "NPL",
+          "value": "35.73%",
+          "tone": "bear"
+        },
+        {
+          "key": "CAR",
+          "value": "1.56%",
+          "tone": "bear"
+        }
+      ],
+      "analysis": "NPL at 35.73% and CAR at 1.56% \u2014 both Q4 2025 prints, pending Q1 disclosure. The new IMF 3-year reform programme shifts the structural calculus: conditionality will include recapitalization targets and NPL resolution timelines that State-Owned Commercial Banks (SCBs) have deferred since the crisis. Government bank borrowing crossing its annual target in nine months sharpens the circularity \u2014 the sovereign balance sheet that must fund bank rescues is itself drawing banking-system liquidity beyond plan. The BSEC governance code overhaul addresses listed-firm transparency but does not touch the capital adequacy gap driving sector risk. Zero duration on bank paper until Q1 data prints and IMF conditionality terms arrive.",
+      "chart_read": null,
+      "metrics": [
+        {
+          "label": "NPL Ratio",
+          "value": "35.73%",
+          "sub": "Q4 2025 print \u00b7 pending Q1 2026 disclosure",
+          "tone": "bear",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "CAR",
+          "value": "1.56%",
+          "sub": "Below Basel III 10.5% \u00b7 Q4 2025 \u00b7 dividend bar threshold",
+          "tone": "bear",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [
+        {
+          "headline": "Bangladesh, IMF agree on new realistic three-year reform programme",
+          "detail": "Banking sector conditionality expected \u2014 recapitalization timeline likely accelerates.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/govt-officially-scraps-al-era-imf-loan-deal-seeks-fresh-5b-package-1448201",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "warn",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "BSEC's new governance code: Right diagnosis, incomplete prescription",
+          "detail": "Governance overhaul for listed firms \u2014 does not address bank capital adequacy.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/bsecs-new-governance-code-right-diagnosis-incomplete-prescription-1449016",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "neu",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [],
+      "notes": []
+    },
+    {
+      "slug": "fx",
+      "ord": 5,
+      "title": "FX & External",
+      "group_key": "markets",
+      "freshness": "unavailable",
+      "verdict": "Data pending \u2014 BB reference rate unavailable; next print post-Eid.",
+      "verdict_tone": "neu",
+      "banker_read": null,
+      "weight": 1,
+      "tldr": "BB rate feed dark; reserves at $35.11B, trade prints held.",
+      "summary_pills": [
+        {
+          "key": "RESERVES",
+          "value": "$35.11B",
+          "tone": "neu"
+        },
+        {
+          "key": "REMITTANCE",
+          "value": "$3.13B",
+          "tone": "warn"
+        },
+        {
+          "key": "TRADE GAP",
+          "value": "-$2.26B",
+          "tone": "warn"
+        }
+      ],
+      "analysis": null,
+      "chart_read": {
+        "signal": "USD/BDT feed dark \u2014 BB reference rate unavailable, likely Eid holiday.",
+        "context": "Last traded at USD/BDT 122.75; reserves at $35.11B on weekly print.",
+        "implication": "FX desks: no live spot mark today; post-Eid session is the next rate-setting event."
+      },
+      "metrics": [
+        {
+          "label": "Gross Reserves",
+          "value": "$35.11B",
+          "sub": "Weekly print \u00b7 as of 27 May",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "Monthly Remittance",
+          "value": "$3.13B",
+          "sub": "Down 17% from $3.76B record \u00b7 reversion toward mean",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "Monthly Exports",
+          "value": "$3.12B",
+          "sub": "Prior-month print \u00b7 unchanged",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "Trade Gap",
+          "value": "-$2.26B",
+          "sub": "Prior print \u00b7 narrowed from -$3.14B",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [],
+      "series": [
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-02",
+          "value": 3.64748
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-03",
+          "value": 3.65
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-04",
+          "value": 3.65
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-05",
+          "value": 3.65
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-06",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-07",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-08",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-09",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-10",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-11",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-12",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-13",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-14",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-15",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-16",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-17",
+          "value": 3.17
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-18",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-19",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-20",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-21",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-22",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-23",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-24",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-25",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-26",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_export",
+          "ts": "2026-05-27",
+          "value": 3.12
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-02",
+          "value": 3.48163
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-03",
+          "value": 3.48163
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-04",
+          "value": 3.48163
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-05",
+          "value": 3.48163
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-06",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-07",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-08",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-09",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-10",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-11",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-12",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-13",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-14",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-15",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-16",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-17",
+          "value": 6.31
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-18",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-19",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-20",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-21",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-22",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-23",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-24",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-25",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-26",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_import",
+          "ts": "2026-05-27",
+          "value": 5.38
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-02",
+          "value": 2.88949
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-03",
+          "value": 2.89
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-04",
+          "value": 2.89
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-05",
+          "value": 2.89
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-06",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-07",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-08",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-09",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-10",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-11",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-12",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-13",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-14",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-15",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-16",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-17",
+          "value": 3.76
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-18",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-19",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-20",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-21",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-22",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-23",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-24",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-25",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-26",
+          "value": 3.13
+        },
+        {
+          "key": "monthly_remittance",
+          "ts": "2026-05-27",
+          "value": 3.13
+        }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "dse",
+      "ord": 6,
+      "title": "DSE Markets",
+      "group_key": "markets",
+      "freshness": "stale",
+      "verdict": "DSEX 5,257 on Apr 21 session \u2014 market dark through Eid.",
+      "verdict_tone": "neu",
+      "banker_read": {
+        "verdict": "DSEX at 5,257 on the Apr 21 session \u2014 stale through the pre-Eid market closure. Directional signal deferred to post-Eid reopening.",
+        "watch": [
+          "Post-Eid session volume for directional confirmation",
+          "Q1 2026 banking disclosure for earnings repricing"
+        ],
+        "risk": [
+          "Budget uncertainty and IMF conditionality overhang post-Eid sessions",
+          "Extended market closure masks underlying sentiment deterioration"
+        ],
+        "runway": null
+      },
+      "weight": 1,
+      "tldr": "DSE stale from Apr 21 at 5,257; next live session post-Eid.",
+      "summary_pills": [
+        {
+          "key": "DSEX",
+          "value": "5,257",
+          "tone": "neu"
+        },
+        {
+          "key": "LAST SESSION",
+          "value": "Apr 21",
+          "tone": "neu"
+        }
+      ],
+      "analysis": null,
+      "chart_read": {
+        "signal": "DSEX at 5,257 on Apr 21 \u2014 stale; no live session data through Eid closure.",
+        "context": "Market dark since Apr 21 session; no intraday breadth or volume available through Eid.",
+        "implication": "Risk desks: post-Eid reopening is the next directional data point; model gap risk."
+      },
+      "metrics": [
+        {
+          "label": "DSEX close",
+          "value": "5,257",
+          "sub": "Apr 21 session \u00b7 stale \u2014 pending post-Eid reopening",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [
+        {
+          "headline": "BSEC's new governance code: Right diagnosis, incomplete prescription",
+          "detail": "Market governance overhaul \u2014 regulatory upgrade for listed firms.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/bsecs-new-governance-code-right-diagnosis-incomplete-prescription-1449016",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "neu",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [
+        {
+          "key": "dsex",
+          "ts": "2026-05-03",
+          "value": 5265.39264
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-04",
+          "value": 5277.80549
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-05",
+          "value": 5267.22628
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-06",
+          "value": 5248.36846
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-07",
+          "value": 5248.36846
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-09",
+          "value": 5234.10034
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-10",
+          "value": 5220.94656
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-11",
+          "value": 5205.26311
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-12",
+          "value": 5229.95888
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-13",
+          "value": 5243.4345
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-14",
+          "value": 5243.4345
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-16",
+          "value": 5245.22272
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-17",
+          "value": 5226.18365
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-18",
+          "value": 5226.18365
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-19",
+          "value": 5211.54156
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-20",
+          "value": 5211.54156
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-21",
+          "value": 5264.12281
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-24",
+          "value": 5328.35993
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-25",
+          "value": 5335.86964
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-26",
+          "value": 5335.86964
+        },
+        {
+          "key": "dsex",
+          "ts": "2026-05-27",
+          "value": 5335.86964
+        }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "tbond",
+      "ord": 7,
+      "title": "T-Bonds & T-Bills",
+      "group_key": "markets",
+      "freshness": "fresh",
+      "verdict": "Short-end easing holds \u2014 364d at 10.50%; long end flat.",
+      "verdict_tone": "neu",
+      "banker_read": {
+        "verdict": "Short-end easing: 364d at 10.50% (down ~15bp), 182d at 10.41%, 91d at 10.15%. Long end flat \u2014 10Y at 10.91%, 5Y sole tenor backing up to 10.78%. Demand clustering at sub-1Y tenor ahead of budget.",
+        "watch": [
+          "Budget June 7 domestic borrowing target for H2 supply",
+          "Government borrowing pace \u2014 issuance dynamics for bill auction sizing"
+        ],
+        "risk": [
+          "Budget supply overhang pressures long end from June",
+          "Fiscal borrowing pace may reverse short-end easing via issuance surge"
+        ],
+        "runway": null
+      },
+      "weight": 1,
+      "tldr": "Bills ease across the curve; 364d at 10.50%, 10Y unchanged.",
+      "summary_pills": [
+        {
+          "key": "364D",
+          "value": "10.50%",
+          "tone": "neu"
+        },
+        {
+          "key": "10Y",
+          "value": "10.91%",
+          "tone": "neu"
+        },
+        {
+          "key": "91D",
+          "value": "10.15%",
+          "tone": "neu"
+        }
+      ],
+      "analysis": null,
+      "chart_read": {
+        "signal": "Curve bull-flattening \u2014 364d eased 15bp to 10.50%, 10Y down 7bp to 10.91%.",
+        "context": "5Y sole tenor to back up (+3bp vs prior to 10.78%); demand clustering at short end ahead of June 7 budget.",
+        "implication": "Treasury: favour sub-1Y duration; budget June 7 supply overhang is the curve risk event."
+      },
+      "metrics": [
+        {
+          "label": "364d T-Bill cut-off",
+          "value": "10.50%",
+          "sub": "Down ~15bp from prior auction \u00b7 steepest short-end move",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "182d T-Bill cut-off",
+          "value": "10.41%",
+          "sub": "Down ~6bp from prior",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "91d T-Bill cut-off",
+          "value": "10.15%",
+          "sub": "Down ~2bp from prior",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "10y Govt Bond",
+          "value": "10.91%",
+          "sub": "Down ~7bp from 10.98% \u00b7 easing",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "5y Govt Bond",
+          "value": "10.78%",
+          "sub": "Up 3bp from 10.75% \u00b7 sole tenor to back up",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [
+        {
+          "headline": "Govt's bank borrowing crosses annual target in nine months",
+          "detail": "Supply pressure on the curve \u2014 financing pace exceeds plan.",
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/economy/news/govts-bank-borrowing-crosses-annual-target-nine-months-4184651",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "bear",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [
+        {
+          "key": "yield_5y",
+          "ts": "2026-04-10",
+          "value": 9.0
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-04-10",
+          "value": 10.39
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-02",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-03",
+          "value": 10.638
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-03",
+          "value": 10.23
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-03",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-03",
+          "value": 10.98
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-03",
+          "value": 10.4899
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-04",
+          "value": 10.4899
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-04",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-04",
+          "value": 10.75
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-04",
+          "value": 10.98
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-04",
+          "value": 10.638
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-05",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-05",
+          "value": 10.98
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-05",
+          "value": 10.4899
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-05",
+          "value": 10.638
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-05",
+          "value": 10.75
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-06",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-06",
+          "value": 10.169
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-06",
+          "value": 10.23
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-06",
+          "value": 10.98
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-06",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-07",
+          "value": 10.98
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-07",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-07",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-07",
+          "value": 10.169
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-07",
+          "value": 10.23
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-08",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-08",
+          "value": 10.169
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-08",
+          "value": 10.23
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-08",
+          "value": 10.98
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-08",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-09",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-09",
+          "value": 10.169
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-09",
+          "value": 10.75
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-09",
+          "value": 10.98
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-09",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-10",
+          "value": 10.75
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-10",
+          "value": 10.98
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-10",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-10",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-10",
+          "value": 10.169
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-11",
+          "value": 10.169
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-11",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-11",
+          "value": 10.98
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-11",
+          "value": 10.75
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-11",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-12",
+          "value": 10.169
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-12",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-12",
+          "value": 10.75
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-12",
+          "value": 10.98
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-12",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-13",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-13",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-13",
+          "value": 10.98
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-13",
+          "value": 10.75
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-13",
+          "value": 10.169
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-14",
+          "value": 10.169
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-14",
+          "value": 10.4999
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-14",
+          "value": 10.6876
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-14",
+          "value": 10.75
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-14",
+          "value": 10.98
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-15",
+          "value": 10.78
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-15",
+          "value": 10.1901
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-15",
+          "value": 10.67
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-15",
+          "value": 10.4995
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-15",
+          "value": 10.98
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-16",
+          "value": 10.67
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-16",
+          "value": 10.1901
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-16",
+          "value": 10.78
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-16",
+          "value": 10.98
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-16",
+          "value": 10.4995
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-17",
+          "value": 10.1901
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-17",
+          "value": 10.98
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-17",
+          "value": 10.78
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-17",
+          "value": 10.4995
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-17",
+          "value": 10.67
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-18",
+          "value": 10.78
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-18",
+          "value": 10.1901
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-18",
+          "value": 10.67
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-18",
+          "value": 10.4995
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-18",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-19",
+          "value": 10.78
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-19",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-19",
+          "value": 10.6497
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-19",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-19",
+          "value": 10.4699
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-20",
+          "value": 10.78
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-20",
+          "value": 10.4699
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-20",
+          "value": 10.6497
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-20",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-20",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-21",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-21",
+          "value": 10.4699
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-21",
+          "value": 10.6497
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-21",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-21",
+          "value": 10.78
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-22",
+          "value": 10.6497
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-22",
+          "value": 10.4699
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-22",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-22",
+          "value": 10.78
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-22",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-23",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-23",
+          "value": 10.4699
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-23",
+          "value": 10.78
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-23",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-23",
+          "value": 10.6497
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-24",
+          "value": 10.78
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-24",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-24",
+          "value": 10.4699
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-24",
+          "value": 10.1699
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-24",
+          "value": 10.6497
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-25",
+          "value": 10.78
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-25",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-25",
+          "value": 10.4085
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-25",
+          "value": 10.5
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-25",
+          "value": 10.15
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-26",
+          "value": 10.78
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-26",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-26",
+          "value": 10.5
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-26",
+          "value": 10.4085
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-26",
+          "value": 10.15
+        },
+        {
+          "key": "yield_6m",
+          "ts": "2026-05-27",
+          "value": 10.4085
+        },
+        {
+          "key": "yield_10y",
+          "ts": "2026-05-27",
+          "value": 10.9099
+        },
+        {
+          "key": "yield_5y",
+          "ts": "2026-05-27",
+          "value": 10.78
+        },
+        {
+          "key": "yield_3m",
+          "ts": "2026-05-27",
+          "value": 10.15
+        },
+        {
+          "key": "yield_1y",
+          "ts": "2026-05-27",
+          "value": 10.5
+        }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "fiscal",
+      "ord": 8,
+      "title": "Fiscal",
+      "group_key": "policy",
+      "freshness": "warming_up",
+      "verdict": "Bank borrowing beyond target \u2014 fiscal stress persists pre-budget.",
+      "verdict_tone": "warn",
+      "banker_read": {
+        "verdict": "Government bank borrowing at BDT 0.92tn \u2014 annual target crossed in nine months, fiscal financing ahead of plan. IMF programme provides external lifeline but conditionality constrains FY27 budget parameters. Budget June 7.",
+        "watch": [
+          "Budget June 7 \u2014 domestic borrowing and revenue targets",
+          "IMF conditionality terms for fiscal consolidation"
+        ],
+        "risk": [
+          "Accelerating fiscal borrowing crowds private credit further",
+          "IMF consolidation requirements during downturn create procyclical squeeze"
+        ],
+        "runway": null
+      },
+      "weight": 1,
+      "tldr": "Borrowing exceeds target in 9 months; budget June 7 the next catalyst.",
+      "summary_pills": [
+        {
+          "key": "GOVT BORROW",
+          "value": "BDT 0.92tn",
+          "tone": "warn"
+        },
+        {
+          "key": "NBR YTD",
+          "value": "BDT 2.88tn",
+          "tone": "warn"
+        }
+      ],
+      "analysis": "Government bank borrowing at BDT 0.92tn has crossed the annual target in nine months \u2014 fiscal financing running well ahead of plan. The IMF agreement on a 3-year reform programme provides an external financing lifeline but introduces conditionality constraining FY27 budget parameters on both revenue and expenditure. ADB's $5B five-year programme commitment adds project-level depth but does not address the recurrent fiscal gap. The binding constraint: fiscal consolidation conditionality arrives while private credit growth sits at 6.03% and NPL at 35.73% \u2014 the sovereign that must fund bank recapitalization is itself borrowing beyond plan. Budget June 7 is the decision point.",
+      "chart_read": null,
+      "metrics": [
+        {
+          "label": "Govt bank borrow YTD",
+          "value": "BDT 0.92tn",
+          "sub": "Crossed annual target in 9 months \u00b7 crowds credit",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "NBR collected YTD",
+          "value": "BDT 2.88tn",
+          "sub": "Prior print \u00b7 consecutive target misses",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [
+        {
+          "headline": "Govt's bank borrowing crosses annual target in nine months",
+          "detail": "Fiscal financing via banking system running ahead of plan.",
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/economy/news/govts-bank-borrowing-crosses-annual-target-nine-months-4184651",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "bear",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "Bangladesh, IMF agree on new realistic three-year reform programme",
+          "detail": "External financing lifeline with fiscal consolidation conditionality.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/govt-officially-scraps-al-era-imf-loan-deal-seeks-fresh-5b-package-1448201",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "warn",
+          "changed": false,
+          "held_from": null
+        },
+        {
+          "headline": "ADB president meets PM Tarique, says it intends to provide $5b over five years",
+          "detail": "Programme-level commitment \u2014 project depth but not a recurrent-gap fix.",
+          "source": "TBS",
+          "source_url": "https://www.tbsnews.net/economy/adb-president-meets-pm-announces-5b-bangladeshs-development-1448261",
+          "published_at": "2026-05-27T13:04:37.927741+00:00",
+          "tone": "bull",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [],
+      "notes": []
+    },
+    {
+      "slug": "macro",
+      "ord": 9,
+      "title": "Macro & Inflation",
+      "group_key": "markets",
+      "freshness": "stale",
+      "verdict": "Inflation sticky, credit frozen \u2014 no rate-cut runway on March prints.",
+      "verdict_tone": "warn",
+      "banker_read": {
+        "verdict": "CPI 12m-avg at 8.60% on the March BBS print \u2014 lowest since Mar 2023 (8.4% then). Non-food sticky at 9.09% blocks rate-cut runway. Private credit at 6.03%, lowest in 60-period window (prior 6.0% on Jan 2026).",
+        "watch": [
+          "Next BBS CPI release for April/May data",
+          "Credit growth response to BDT 600B facility"
+        ],
+        "risk": [
+          "Non-food CPI above 9% closes rate-cut runway through H2",
+          "M2 at 10.52% outpacing credit at 6.03% \u2014 liquidity pooling, not transmitting"
+        ],
+        "runway": null
+      },
+      "weight": 1,
+      "tldr": "CPI and credit unchanged from prior prints; rate-cut runway closed.",
+      "summary_pills": [
+        {
+          "key": "CPI 12M AVG",
+          "value": "8.60%",
+          "tone": "warn"
+        },
+        {
+          "key": "CPI NON-FOOD",
+          "value": "9.09%",
+          "tone": "warn"
+        },
+        {
+          "key": "CREDIT GROWTH",
+          "value": "6.03%",
+          "tone": "bear"
+        }
+      ],
+      "analysis": null,
+      "chart_read": {
+        "signal": "CPI 12m-avg at 8.60% on March print; non-food anchored at 9.09%, food at 8.24%.",
+        "context": "12m-avg lowest since Mar 2023 (8.4% then) \u2014 headline easing but non-food holds above 9%.",
+        "implication": "MPC: real policy rate positive at 1.29%; no rate-cut runway while non-food stays elevated."
+      },
+      "metrics": [
+        {
+          "label": "CPI 12m Avg",
+          "value": "8.60%",
+          "sub": "March BBS print \u00b7 lowest since Mar 2023 (8.4% then)",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "CPI Food (P-to-P)",
+          "value": "8.24%",
+          "sub": "March BBS print \u00b7 lowest since Dec 2025 (7.7% then)",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "CPI Non-Food (P-to-P)",
+          "value": "9.09%",
+          "sub": "March BBS print \u00b7 sticky above 9% \u00b7 blocks rate-cut runway",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "Real Policy Rate",
+          "value": "1.29%",
+          "sub": "March BB+BBS \u00b7 positive but narrow",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "REER",
+          "value": "102.78",
+          "sub": "March BB print \u00b7 near neutral",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "Private Credit YoY",
+          "value": "6.03%",
+          "sub": "Feb BB print \u00b7 highest since Dec 2025 (6.1% then)",
+          "tone": "bear",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "M2 YoY",
+          "value": "10.52%",
+          "sub": "Feb BB print \u00b7 outpacing credit at 6.03%",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "Import Cover",
+          "value": "5.86 mo",
+          "sub": "March BB print",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": true,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [
+        {
+          "headline": "LPG market slows as price hikes hit demand",
+          "detail": "Demand destruction signals consumer price-sensitivity in energy.",
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/economy/news/lpg-market-slows-price-hikes-hit-demand-4184636",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "warn",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-04-01",
+          "value": 9.73
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-05-01",
+          "value": 9.73
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-06-01",
+          "value": 9.73
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-07-01",
+          "value": 9.9
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-08-01",
+          "value": 9.95
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-09-01",
+          "value": 9.97
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-10-01",
+          "value": 10.05
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-11-01",
+          "value": 10.22
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2024-12-01",
+          "value": 10.34
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-01-01",
+          "value": 10.34
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-02-01",
+          "value": 10.31
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-03-01",
+          "value": 10.26
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-04-01",
+          "value": 10.21
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-05-01",
+          "value": 10.13
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-06-01",
+          "value": 10.03
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-07-01",
+          "value": 9.77
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-08-01",
+          "value": 9.58
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-09-01",
+          "value": 9.45
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-10-01",
+          "value": 9.22
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-11-01",
+          "value": 8.96
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2025-12-01",
+          "value": 8.77
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2026-01-01",
+          "value": 8.66
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2026-02-01",
+          "value": 8.65
+        },
+        {
+          "key": "cpi_12m_avg_monthly",
+          "ts": "2026-03-01",
+          "value": 8.6
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-04-01",
+          "value": 10.22
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-05-01",
+          "value": 10.76
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-06-01",
+          "value": 10.42
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-07-01",
+          "value": 14.1
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-08-01",
+          "value": 11.36
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-09-01",
+          "value": 10.4
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-10-01",
+          "value": 12.66
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-11-01",
+          "value": 13.8
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2024-12-01",
+          "value": 12.92
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-01-01",
+          "value": 10.72
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-02-01",
+          "value": 9.24
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-03-01",
+          "value": 8.93
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-04-01",
+          "value": 8.63
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-05-01",
+          "value": 8.59
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-06-01",
+          "value": 7.39
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-07-01",
+          "value": 7.56
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-08-01",
+          "value": 7.6
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-09-01",
+          "value": 7.64
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-10-01",
+          "value": 7.08
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-11-01",
+          "value": 7.36
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2025-12-01",
+          "value": 7.71
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2026-01-01",
+          "value": 8.29
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2026-02-01",
+          "value": 9.3
+        },
+        {
+          "key": "cpi_p2p_food_monthly",
+          "ts": "2026-03-01",
+          "value": 8.24
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-04-01",
+          "value": 9.34
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-05-01",
+          "value": 9.2
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-06-01",
+          "value": 9.15
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-07-01",
+          "value": 9.68
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-08-01",
+          "value": 9.74
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-09-01",
+          "value": 9.5
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-10-01",
+          "value": 9.34
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-11-01",
+          "value": 9.39
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2024-12-01",
+          "value": 9.26
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-01-01",
+          "value": 9.32
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-02-01",
+          "value": 9.38
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-03-01",
+          "value": 9.7
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-04-01",
+          "value": 9.61
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-05-01",
+          "value": 9.42
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-06-01",
+          "value": 9.37
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-07-01",
+          "value": 9.38
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-08-01",
+          "value": 8.9
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-09-01",
+          "value": 8.98
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-10-01",
+          "value": 9.13
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-11-01",
+          "value": 9.08
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2025-12-01",
+          "value": 9.13
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2026-01-01",
+          "value": 8.81
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2026-02-01",
+          "value": 9.01
+        },
+        {
+          "key": "cpi_p2p_nonfood_monthly",
+          "ts": "2026-03-01",
+          "value": 9.09
+        }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "iran",
+      "ord": 10,
+      "title": "Iran War & Oil",
+      "group_key": "policy",
+      "freshness": "unavailable",
+      "verdict": "Brent last at $94.11 \u2014 feed dark pre-Eid; $17 off May peak, import-bill relief persists.",
+      "verdict_tone": "bull",
+      "banker_read": null,
+      "weight": 2,
+      "tldr": "Brent feed dark; last print $94.11, $17 below May peak.",
+      "summary_pills": [
+        {
+          "key": "BRENT",
+          "value": "$94.11",
+          "tone": "neu"
+        },
+        {
+          "key": "WTI",
+          "value": "$90.55",
+          "tone": "neu"
+        },
+        {
+          "key": "\u0394 FROM PEAK",
+          "value": "-$17",
+          "tone": "bull"
+        }
+      ],
+      "analysis": "Brent feed dark this session \u2014 last print $94.11, flat from the prior session's $6 crash through $100. The $17 decline from the May $111 peak represents cumulative import-bill relief of ~$680M/month, partially offsetting reserves pressure from ACU settlements and narrowing the trade gap. The question from the prior session stands: is $90\u201395 a floor or a pause before further demand-driven decline. WTI last at $90.55, Brent-WTI spread compressed to $3.56 as the geopolitical premium continues unwinding. For BD-exposed energy credit, the demand-destruction signal matters more than the level \u2014 crude declining at this velocity typically leads global demand by 2\u20133 months, putting garment order books in the crosshairs. Treasury desks: bank the import-bill gain and model $85\u201395 for H2.",
+      "chart_read": {
+        "signal": "Brent feed dark \u2014 last print $94.11, down $17 from the May $111 peak.",
+        "context": "Prior session flat after the late-May $6 crash; Brent-WTI spread at $3.56.",
+        "implication": "Treasury: hold $85\u201395 H2 model range; next live price post-Eid confirms $90 support."
+      },
+      "metrics": [
+        {
+          "label": "Brent spot",
+          "value": "$94.11",
+          "sub": "Prior session print \u00b7 feed unavailable",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        },
+        {
+          "label": "WTI spot",
+          "value": "$90.55",
+          "sub": "Prior session print \u00b7 feed unavailable",
+          "tone": "neu",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [],
+      "series": [
+        {
+          "key": "brent",
+          "ts": "2026-05-02",
+          "value": 108.83000183105469
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-03",
+          "value": 107.55999755859375
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-04",
+          "value": 113.94999694824219
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-05",
+          "value": 107.98999786376953
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-06",
+          "value": 101.80000305175781
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-07",
+          "value": 102.62999725341797
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-08",
+          "value": 100.48999786376953
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-09",
+          "value": 101.29000091552734
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-10",
+          "value": 104.51000213623047
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-11",
+          "value": 104.23999786376953
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-12",
+          "value": 107.30000305175781
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-13",
+          "value": 105.45999908447266
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-14",
+          "value": 106.4800033569336
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-15",
+          "value": 109.23999786376953
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-16",
+          "value": 109.26000213623047
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-17",
+          "value": 110.36000061035156
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-18",
+          "value": 110.36000061035156
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-19",
+          "value": 109.26000213623047
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-20",
+          "value": 111.0999984741211
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-21",
+          "value": 105.4000015258789
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-22",
+          "value": 104.62999725341797
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-23",
+          "value": 103.94000244140625
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-24",
+          "value": 103.54000091552734
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-25",
+          "value": 100.20999908447266
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-26",
+          "value": 94.11000061035156
+        },
+        {
+          "key": "brent",
+          "ts": "2026-05-27",
+          "value": 96.58999633789062
+        }
+      ],
+      "notes": []
+    },
+    {
+      "slug": "remit",
+      "ord": 11,
+      "title": "Remittance",
+      "group_key": "markets",
+      "freshness": "warming_up",
+      "verdict": "$3.13B monthly \u2014 reverting from $3.76B record toward mean.",
+      "verdict_tone": "warn",
+      "banker_read": {
+        "verdict": "Monthly remittance at $3.13B \u2014 down 17% from the $3.76B record, reverting toward the $2.89B historical mean. Still above-mean but trajectory is downward. Critical offset for the trade gap narrows if reversion continues.",
+        "watch": [
+          "May remittance print for reversion velocity",
+          "Informal channel spread vs formal rate"
+        ],
+        "risk": [
+          "Further reversion below $3B erases trade-gap offset",
+          "Seasonal Eid spike may mask underlying trend decline"
+        ],
+        "runway": null
+      },
+      "weight": 1,
+      "tldr": "Remittance at $3.13B; down 17% from record, trending toward mean.",
+      "summary_pills": [
+        {
+          "key": "MONTHLY",
+          "value": "$3.13B",
+          "tone": "warn"
+        },
+        {
+          "key": "VS RECORD",
+          "value": "-17%",
+          "tone": "warn"
+        }
+      ],
+      "analysis": null,
+      "chart_read": null,
+      "metrics": [
+        {
+          "label": "Monthly Remittance",
+          "value": "$3.13B",
+          "sub": "Down 17% from $3.76B record \u00b7 reversion toward $2.89B mean",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 2,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [],
+      "series": [],
+      "notes": []
+    },
+    {
+      "slug": "comm",
+      "ord": 12,
+      "title": "Commodities",
+      "group_key": "markets",
+      "freshness": "unavailable",
+      "verdict": "Data pending \u2014 gold feed dark; LNG JKM $15 on Apr 20 print.",
+      "verdict_tone": "neu",
+      "banker_read": null,
+      "weight": 1,
+      "tldr": "Gold unavailable; LNG stale from April at $15/MMBtu.",
+      "summary_pills": [
+        {
+          "key": "LNG JKM",
+          "value": "$15/MMBtu",
+          "tone": "warn"
+        },
+        {
+          "key": "GOLD",
+          "value": "feed dark",
+          "tone": "neu"
+        }
+      ],
+      "analysis": null,
+      "chart_read": null,
+      "metrics": [
+        {
+          "label": "LNG JKM",
+          "value": "$15/MMBtu",
+          "sub": "Apr 20 print \u00b7 pending refresh",
+          "tone": "warn",
+          "is_snapshot": false,
+          "spark": null,
+          "delta": null,
+          "delta_pct": null,
+          "changed": false,
+          "weight": 1,
+          "held_from": null,
+          "next_print": null
+        }
+      ],
+      "news": [
+        {
+          "headline": "LPG market slows as price hikes hit demand",
+          "detail": "Demand destruction signals consumer price-sensitivity in energy.",
+          "source": "DS",
+          "source_url": "https://www.thedailystar.net/business/economy/news/lpg-market-slows-price-hikes-hit-demand-4184636",
+          "published_at": "2026-05-27T13:04:37.769319+00:00",
+          "tone": "warn",
+          "changed": false,
+          "held_from": null
+        }
+      ],
+      "series": [],
+      "notes": []
+    }
+  ]
+}
