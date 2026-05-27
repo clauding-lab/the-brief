@@ -612,6 +612,45 @@ def validate_history_claim_has_reference(text: str, used_facts: list[dict]) -> V
     return ValidationResult(True)
 
 
+def validate_abbreviation_policy(
+    text: str,
+    *,
+    tier1_set: frozenset[str],
+    tier2_expansions: dict[str, str],
+) -> ValidationResult:
+    """Per-section text: every Tier-2 abbreviation's first occurrence must be expanded.
+
+    Tier-1 abbreviations are allowed bare. Tier-2 must be 'LCR (Liquidity Coverage Ratio)'
+    on first occurrence; bare 'LCR' thereafter is fine.
+    """
+    for abbr, expansion in tier2_expansions.items():
+        # Build a regex that matches the bare abbreviation at a word boundary
+        bare_pattern = re.compile(rf"\b{re.escape(abbr)}\b")
+        expanded_pattern = re.compile(rf"\b{re.escape(abbr)}\s*\(\s*{re.escape(expansion)}\s*\)")
+
+        bare_matches = list(bare_pattern.finditer(text))
+        if not bare_matches:
+            continue  # not used in this text — fine
+
+        # Find the FIRST occurrence position
+        first_occurrence = bare_matches[0].start()
+
+        # Check if the expanded form appears at or before the first bare occurrence
+        expanded_matches = list(expanded_pattern.finditer(text))
+        if not expanded_matches:
+            return ValidationResult(
+                False,
+                reason=f"Tier-2 abbreviation {abbr!r} used without first-use expansion",
+            )
+        first_expansion = expanded_matches[0].start()
+        if first_expansion > first_occurrence:
+            return ValidationResult(
+                False,
+                reason=f"Tier-2 abbreviation {abbr!r} used bare before its expansion",
+            )
+    return ValidationResult(True)
+
+
 def validate_chart_read_implication_quality(chart_read: dict) -> ValidationResult:
     """ChartRead.implication must contain desk word OR action verb OR time anchor.
 

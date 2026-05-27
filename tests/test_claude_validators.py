@@ -176,3 +176,42 @@ def test_validate_history_claim_has_reference_fails_when_parens_dropped():
     text = "Inflation eased to 5.2% — lowest 12-month CPI since Sep 2021."  # parens dropped
     result = validate_history_claim_has_reference(text, used_facts)
     assert not result.ok
+
+
+# ---------------------------------------------------------------------------
+# Task 2.6: validate_abbreviation_policy
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import validate_abbreviation_policy
+
+
+def test_validate_abbreviation_policy_passes_when_tier2_expanded_on_first_use():
+    text = (
+        "LCR (Liquidity Coverage Ratio) pressure rises in mid-tier banks. "
+        "LCR will tighten further if BB acts."
+    )
+    assert validate_abbreviation_policy(
+        text,
+        tier1_set=TIER1_ABBREVS,
+        tier2_expansions=TIER2_ABBREVS_AND_EXPANSIONS,
+    ).ok
+
+
+def test_validate_abbreviation_policy_fails_when_tier2_unexpanded():
+    text = "LCR pressure rises in mid-tier banks. Treasury desks should watch the rate."
+    result = validate_abbreviation_policy(
+        text,
+        tier1_set=TIER1_ABBREVS,
+        tier2_expansions=TIER2_ABBREVS_AND_EXPANSIONS,
+    )
+    assert not result.ok
+    assert "LCR" in result.reason
+
+
+def test_validate_abbreviation_policy_allows_tier1_bare():
+    text = "NPL ratio at 35.7% — BB MPS due Wednesday."
+    assert validate_abbreviation_policy(
+        text,
+        tier1_set=TIER1_ABBREVS,
+        tier2_expansions=TIER2_ABBREVS_AND_EXPANSIONS,
+    ).ok
