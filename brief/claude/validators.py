@@ -575,6 +575,43 @@ def validate_chart_read_temporal_anchor(chart_read: dict) -> ValidationResult:
     )
 
 
+def validate_chart_read_length(chart_read: dict) -> ValidationResult:
+    """Enforce 25/20/25-word caps on signal/context/implication."""
+    def _wc(s: str) -> int:
+        return len(s.split()) if s else 0
+
+    caps = (("signal", 25), ("context", 20), ("implication", 25))
+    for field, cap in caps:
+        wc = _wc(chart_read.get(field, ""))
+        if wc > cap:
+            return ValidationResult(False, reason=f"chart_read.{field} exceeds {cap} words (got {wc})")
+    return ValidationResult(True)
+
+
+def validate_history_claim_has_reference(text: str, used_facts: list[dict]) -> ValidationResult:
+    """Every historical-anchor claim cited from history_facts must preserve its parens phrase.
+
+    `used_facts` is a list of fact dicts whose `phrase` field is the canonical
+    parenthetical-bearing text the editor was supposed to inline verbatim.
+    """
+    for fact in used_facts:
+        phrase = fact.get("phrase", "")
+        if not phrase:
+            continue
+        # Extract the parens substring from the canonical phrase
+        # e.g. "(4.8% then)" or "($91.40 last cross)"
+        m = re.search(r"\([^)]+\)", phrase)
+        if not m:
+            continue
+        parens = m.group(0)
+        if parens not in text:
+            return ValidationResult(
+                False,
+                reason=f"history-claim parens reference missing from text: {parens!r}",
+            )
+    return ValidationResult(True)
+
+
 def validate_chart_read_implication_quality(chart_read: dict) -> ValidationResult:
     """ChartRead.implication must contain desk word OR action verb OR time anchor.
 

@@ -124,3 +124,55 @@ def test_validate_chart_read_implication_quality_passes_with_action_verb():
 def test_validate_chart_read_implication_quality_fails_on_generic():
     chart_read = {"signal": "x", "context": "y", "implication": "May affect the economy."}
     assert not validate_chart_read_implication_quality(chart_read).ok
+
+
+# ---------------------------------------------------------------------------
+# Task 2.5: validate_chart_read_length + validate_history_claim_has_reference
+# ---------------------------------------------------------------------------
+
+from brief.claude.validators import (
+    validate_chart_read_length,
+    validate_history_claim_has_reference,
+)
+
+
+def test_validate_chart_read_length_passes_under_caps():
+    chart_read = {
+        "signal": " ".join(["word"] * 25),       # exactly 25
+        "context": " ".join(["word"] * 20),      # exactly 20
+        "implication": " ".join(["word"] * 25),  # exactly 25
+    }
+    assert validate_chart_read_length(chart_read).ok
+
+
+def test_validate_chart_read_length_fails_on_signal_over_25():
+    chart_read = {"signal": " ".join(["word"] * 26), "context": "x", "implication": "y"}
+    result = validate_chart_read_length(chart_read)
+    assert not result.ok
+    assert "signal" in result.reason
+
+
+def test_validate_chart_read_length_fails_on_context_over_20():
+    chart_read = {"signal": "x", "context": " ".join(["w"] * 21), "implication": "y"}
+    result = validate_chart_read_length(chart_read)
+    assert not result.ok
+    assert "context" in result.reason
+
+
+def test_validate_history_claim_has_reference_passes_with_parens():
+    used_facts = [{
+        "phrase": "lowest 12-month CPI since Sep 2021 (4.8% then)",
+        "reference_value_formatted": "4.8%",
+    }]
+    text = "Inflation eased to 5.2% — lowest 12-month CPI since Sep 2021 (4.8% then)."
+    assert validate_history_claim_has_reference(text, used_facts).ok
+
+
+def test_validate_history_claim_has_reference_fails_when_parens_dropped():
+    used_facts = [{
+        "phrase": "lowest 12-month CPI since Sep 2021 (4.8% then)",
+        "reference_value_formatted": "4.8%",
+    }]
+    text = "Inflation eased to 5.2% — lowest 12-month CPI since Sep 2021."  # parens dropped
+    result = validate_history_claim_has_reference(text, used_facts)
+    assert not result.ok
