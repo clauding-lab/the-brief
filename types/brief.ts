@@ -80,6 +80,12 @@ export interface BankerRead {
   runway?: { value: string; unit: string };
 }
 
+export interface ChartRead {
+  signal: string;        // ≤25 words, direction-clear, ≥1 number
+  context: string;       // ≤20 words, REQUIRED temporal anchor + reference value
+  implication: string;   // ≤25 words, desk word OR action verb OR time anchor
+}
+
 export interface Section {
   id?: string;
   slug: string;
@@ -98,6 +104,7 @@ export interface Section {
   news: NewsItem[];
   series: SeriesPoint[];
   notes: SeriesNote[];
+  chart_read?: ChartRead | null;
 }
 
 export interface BriefPayload {
