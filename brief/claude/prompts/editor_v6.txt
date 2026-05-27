@@ -18,7 +18,7 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
     "cover_metric": {
       "label":         "<KPI label, ALL CAPS short, e.g. 'NPL RATIO · Q4 2025'>",
       "value":         "<single number string with unit, e.g. '35.73%'>",
-      "sub":           "<one-line context, max 60 chars>",
+      "sub":           "<one-line context, max 60 chars. MUST include either a delta vs prior period OR an implication OR a historical anchor — NEVER bare restatement. If a HistoryFact of kind since_lower/since_higher/first_cross_since exists for this metric, prefer to inline the fact.phrase here verbatim (e.g. 'first time above $90 since 2023 ($91.40 last cross)'). Otherwise pack an implication ('liquidity squeeze pressure builds') or a delta ('+12bp WoW').>",
       "tone":          "bull|bear|warn|neu",
       "section_slug":  "<slug of the section this metric lives in>",
       "as_of":         "<short timeframe label, e.g. 'Q4 2025 · published 18 Apr 2026'>"

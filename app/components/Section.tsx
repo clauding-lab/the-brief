@@ -31,6 +31,7 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
     summary_pills,
     analysis,
     freshness,
+    chart_read,
   } = section;
 
   // SPA-side sequential numbering (1, 2, 3, …) — falls back to backend ord
@@ -141,6 +142,16 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
               <BriefChart section={section} configKey={SECTION_TO_CHART[slug]!} />
             ) : (
               <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
+            )}
+            {chart_read && (
+              <div className="tb-analysis tb-chart-read">
+                <span className="label">Chart read</span>
+                <div className="body">
+                  <p>{chart_read.signal}</p>
+                  {chart_read.context && <p>{chart_read.context}</p>}
+                  <p>{chart_read.implication}</p>
+                </div>
+              </div>
             )}
           </div>
         ) : (
