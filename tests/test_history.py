@@ -102,3 +102,47 @@ def test_get_history_window_returns_empty_on_http_error():
     mock.get.return_value = (500, None)
     c = _client(mock)
     assert c.get_history_window(["a"], today=date(2026, 4, 22)) == {}
+
+
+# ── metric_history_monthly table kwarg ───────────────────────────────────────
+
+class _StubHttp:
+    """Minimal HTTP stub: maps URL substrings to (status, body) tuples."""
+
+    def __init__(self, routes: dict[str, tuple[int, object]]):
+        self._routes = routes
+
+    def get(self, url: str, *, headers: dict) -> tuple[int, object]:
+        for path, response in self._routes.items():
+            if path in url:
+                return response
+        return (404, None)
+
+    def post(self, url: str, *, headers: dict, json: object) -> tuple[int, object]:
+        return (201, None)
+
+
+def test_get_latest_from_monthly_table():
+    http = _StubHttp(
+        {"/rest/v1/metric_history_monthly?metric_id=eq.cpi_12m_avg_monthly&order=as_of.desc&limit=1":
+            (200, [{"metric_id": "cpi_12m_avg_monthly", "as_of": "2026-04-01", "value": 5.2, "source": "macro_observer_seed"}])}
+    )
+    client = MetricHistoryClient(url="https://x", service_key="k", http=http)
+    row = client.get_latest("cpi_12m_avg_monthly", table="metric_history_monthly")
+    assert row is not None
+    assert row.metric_id == "cpi_12m_avg_monthly"
+    assert row.value == 5.2
+    assert row.as_of.isoformat() == "2026-04-01"
+
+
+def test_get_history_window_from_monthly_table():
+    http = _StubHttp(
+        {"/rest/v1/metric_history_monthly?metric_id=in.(cpi_12m_avg_monthly)&order=as_of.desc&limit=60":
+            (200, [
+                {"metric_id": "cpi_12m_avg_monthly", "as_of": "2026-04-01", "value": 5.2, "source": "x"},
+                {"metric_id": "cpi_12m_avg_monthly", "as_of": "2026-03-01", "value": 5.4, "source": "x"},
+            ])}
+    )
+    client = MetricHistoryClient(url="https://x", service_key="k", http=http)
+    rows = client.get_history_window(["cpi_12m_avg_monthly"], limit=60, table="metric_history_monthly")
+    assert len(rows["cpi_12m_avg_monthly"]) == 2

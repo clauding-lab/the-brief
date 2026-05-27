@@ -61,14 +61,17 @@ class MetricHistoryClient:
             h.update(extra)
         return h
 
-    def get_latest(self, metric_id: str) -> HistoryRow | None:
-        q = urllib.parse.urlencode({
-            "metric_id": f"eq.{metric_id}",
-            "select":    "metric_id,as_of,value,source,ingested_at",
-            "order":     "as_of.desc",
-            "limit":     "1",
-        })
-        url = f"{self.url}/rest/v1/metric_history?{q}"
+    def get_latest(self, metric_id: str, *, table: str = "metric_history") -> HistoryRow | None:
+        """Fetch the most recent row for `metric_id` from `table`.
+
+        `table` defaults to 'metric_history'. Pass 'metric_history_monthly' to
+        read the long-horizon monthly archive used by history_anchors.
+        """
+        url = (
+            f"{self.url}/rest/v1/{table}"
+            f"?metric_id=eq.{urllib.parse.quote(metric_id)}"
+            "&order=as_of.desc&limit=1"
+        )
         status, body = self.http.get(url, headers=self._headers())
         if status != 200 or not body:
             return None
@@ -76,7 +79,7 @@ class MetricHistoryClient:
         return HistoryRow(
             metric_id=row["metric_id"],
             as_of=date.fromisoformat(row["as_of"]),
-            value=row["value"],
+            value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
             source=row["source"],
         )
 
@@ -86,16 +89,53 @@ class MetricHistoryClient:
         *,
         days: int = 14,
         today: date | None = None,
-    ) -> dict[str, list[float]]:
-        """Batched fetch of last `days` chronological readings for many metric ids.
+        limit: int | None = None,
+        table: str = "metric_history",
+    ) -> dict[str, list[float]] | dict[str, list[HistoryRow]]:
+        """Batched fetch for many metric ids, with two calling modes:
 
-        Returns a dict keyed by metric_id with values ordered oldest-to-newest.
-        Non-numeric and null values are filtered out (sparkline-friendly).
-        Returns an empty dict on empty input or HTTP failure — best-effort,
-        the render layer treats missing history as no sparkline.
+        **Sparkline mode** (existing): pass `days` + optionally `today`.
+        Returns `dict[str, list[float]]` ordered oldest-to-newest. Non-numeric
+        values are filtered out — sparkline-friendly.
+
+        **Anchor mode** (new): pass `limit` and optionally `table`.
+        Returns `dict[str, list[HistoryRow]]` ordered most-recent-first
+        (PostgREST `order=as_of.desc`). Used by history_anchors.py to compute
+        historical facts from metric_history or metric_history_monthly.
+
+        Returns an empty dict on empty input or HTTP failure — best-effort.
         """
         if not metric_ids:
-            return {}
+            return {} if limit is None else {mid: [] for mid in metric_ids}
+
+        # ── Anchor mode: limit-based, returns HistoryRow objects ─────────────
+        if limit is not None:
+            ids_csv = ",".join(metric_ids)
+            url = (
+                f"{self.url}/rest/v1/{table}"
+                f"?metric_id=in.({ids_csv})"
+                f"&order=as_of.desc&limit={limit}"
+            )
+            status, body = self.http.get(url, headers=self._headers())
+            if status != 200 or not body:
+                return {mid: [] for mid in metric_ids}
+            grouped: dict[str, list[HistoryRow]] = {mid: [] for mid in metric_ids}
+            for row in body:
+                try:
+                    value = float(row["value"])
+                except (TypeError, ValueError):
+                    continue
+                grouped.setdefault(row["metric_id"], []).append(
+                    HistoryRow(
+                        metric_id=row["metric_id"],
+                        as_of=date.fromisoformat(row["as_of"]),
+                        value=value,
+                        source=row["source"],
+                    )
+                )
+            return grouped
+
+        # ── Sparkline mode: days-based, returns float lists ─────────────────
         if today is None:
             today = date.today()
         cutoff = today - timedelta(days=days)
