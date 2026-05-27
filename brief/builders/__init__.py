@@ -32,3 +32,7 @@ class BuilderContext:
     today: date
     headlines: Sequence[Headline] = ()
     claude_outputs: Mapping[str, Any] = field(default_factory=dict)
+    # v1.4.0 — same client as `history` but callers pass
+    # table="metric_history_monthly" per call. Separate field so builders that
+    # don't need monthly data don't need to be updated.
+    history_monthly: "MetricHistoryClient | None" = None
