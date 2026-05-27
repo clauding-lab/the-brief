@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from brief.history_anchors import HistoryFact
 
 CadenceKind = Literal["daily", "weekly", "monthly", "quarterly", "event"]
 FreshnessKind = Literal["fresh", "warning", "stale", "pending", "unavailable", "warming_up"]
@@ -128,6 +131,11 @@ class SectionData(BaseModel):
     systemic_risk: Optional["SystemicRisk"] = None  # V5
     risk_active: bool = False                        # V5
     history_values: list[float] | None = None        # V5
+    # V6 / v1.4.0 — pre-computed HistoryFact instances from brief.history_anchors.
+    # Builders attach these; the pipeline serialises them into the editor input JSON
+    # so the editor can weave historical anchor phrases verbatim (spec §3.2).
+    # Defaults to [] so all existing builders continue to work without changes.
+    history_facts: list = Field(default_factory=list)  # list[HistoryFact] — Any to avoid circular import
 
 
 # ---------------------------------------------------------------------------

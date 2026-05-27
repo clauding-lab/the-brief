@@ -271,3 +271,34 @@ def test_section_data_v5_optional_fields_default_safe():
     assert section.systemic_risk is None
     assert section.risk_active is False
     assert section.history_values is None
+
+
+# ---------------------------------------------------------------------------
+# v1.4.0 — history_facts field
+# ---------------------------------------------------------------------------
+
+def test_section_data_has_history_facts_field():
+    from brief.history_anchors import HistoryFact
+    fact = HistoryFact(
+        metric_id="cpi_12m_avg_monthly",
+        kind="since_lower",
+        phrase="lowest 12-month CPI since Sep 2021 (4.8% then)",
+        reference_value=4.8,
+        reference_value_formatted="4.8%",
+        reference_as_of="2021-09-01",
+    )
+    sd = SectionData(
+        id="macro",
+        title="Macro & Inflation",
+        metrics=[],
+        freshness="fresh",
+        history_facts=[fact],
+    )
+    assert len(sd.history_facts) == 1
+    assert sd.history_facts[0].metric_id == "cpi_12m_avg_monthly"
+    assert sd.history_facts[0].kind == "since_lower"
+
+
+def test_section_data_history_facts_defaults_to_empty():
+    sd = SectionData(id="macro", title="Macro & Inflation", freshness="fresh", metrics=[])
+    assert sd.history_facts == []
