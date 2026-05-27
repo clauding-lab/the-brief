@@ -145,9 +145,12 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
             )}
             {chart_read && (
               <div className="tb-analysis tb-chart-read">
-                <p>{chart_read.signal}</p>
-                {chart_read.context && <p>{chart_read.context}</p>}
-                <p>{chart_read.implication}</p>
+                <span className="label">Chart read</span>
+                <div className="body">
+                  <p>{chart_read.signal}</p>
+                  {chart_read.context && <p>{chart_read.context}</p>}
+                  <p>{chart_read.implication}</p>
+                </div>
               </div>
             )}
           </div>
