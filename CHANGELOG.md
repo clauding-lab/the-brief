@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.5.1] — 2026-05-29
+
+### Fixed
+- **v1.4.0 publish regression unblocked.** The v1.4.0 banker-grade editor prompt occasionally emitted `MetricV6.value` as a raw number (e.g., `35.1112`) and `MetricV6.delta` as a structured `{value, direction, window}` dict where the schema previously required pre-formatted strings. Every publish since v1.4.0 (Thursday #118 and Friday #119) failed Pydantic validation before reaching Supabase. `MetricV6` now ships two `field_validator(mode="before")` coercers that stringify numerics (preserving precision via `:.10g`) and render the delta dict as banker-style `"+0.99% WoW"` / `"−0.99% WoW"`. Pre-formatted strings still pass through unchanged.
+- **Adjacent test fix:** `tests/test_cli.py::test_write_fixture_creates_valid_json_on_dry_run` had a stale mock signature missing the `preview_notify_enabled` kwarg added in v1.5.0 (PR #98). Now accepts the flag.
+
+### Schema migration shipped separately (also part of the v1.4.0 unblock)
+- **`migrations/0004_section_chart_read.sql`** (PR #99, merged earlier today) — added the `chart_read` jsonb column to the production `sections` table. v1.4.0 shipped the Pydantic + SPA render for `Section.chart_read` but skipped writing the matching SQL migration, so the first publish under v1.4.0 (Thursday) blew up with `PGRST204: column not found` and Brief #118 ended up orphaned in production (status=published, 0 sections / 0 metrics / 0 news). Migration applied, schema cache reloaded, PostgREST now sees the column.
+
+### Tests
+- 9 new tests on `MetricV6.value` / `MetricV6.delta` covering: string pass-through, int + float coercion (with precision preservation), delta-dict rendering for up/down directions with and without window, plain-string passthrough, None passthrough, numeric delta coercion.
+- Full suite green: 545 passed in 161s.
+
+### Followup
+- Append `AGENT_LEARNINGS.md` entry: "code-schema and DB-schema must ship together — when adding a field to a Pydantic / TS type that flows to Supabase, write the matching SQL migration in the SAME PR." Distill into a new `AGENTS.md` landmine alongside #7.
+- After merge: re-fire Thursday's #118 (`brief.cli run --publish --today=2026-05-28`) to overwrite the orphaned brief with full sections; then re-fire Friday's #119 (`--today=2026-05-29`) as a normal weekly_wrap retry.
+
+---
+
 ## [1.5.0] — 2026-05-27
 
 ### Added

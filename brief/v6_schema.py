@@ -7,9 +7,9 @@ drift surfaces as a validation error, not silent breakage downstream.
 from __future__ import annotations
 
 from datetime import date as date_t
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Tone = Literal["bull", "bear", "warn", "neu"]
 SectionGroup = Literal["overview", "banking", "markets", "realeco", "policy"]
@@ -54,6 +54,53 @@ class BriefV6(_Strict):
     frame: Optional[str] = None
 
 
+def _stringify_numeric(v: Any) -> Any:
+    """Coerce int/float to str without forcing precision; pass strings through.
+
+    The v1.4.0 banker-grade editor occasionally emits metric `value` and `delta`
+    fields as raw numbers (e.g., `35.1112`) where the schema previously required
+    pre-formatted strings (e.g., `"$35.11B"`). Stringify so the publish doesn't
+    crash; SPA display is best-effort. Prompt-side cleanup is the proper fix.
+    """
+    if v is None or isinstance(v, str):
+        return v
+    if isinstance(v, bool):  # bool is a subclass of int; treat as literal
+        return str(v)
+    if isinstance(v, (int, float)):
+        # f"{x:.10g}" trims trailing zeros while preserving genuine precision
+        return f"{v:.10g}"
+    return v
+
+
+def _stringify_delta(v: Any) -> Any:
+    """Stringify a delta field that may arrive as a structured dict.
+
+    The editor sometimes emits delta as `{value, direction, window}` rather
+    than a banker-formatted string. Render dicts as "+0.99% WoW" / "−0.99% WoW".
+    Plain numerics use `_stringify_numeric`. None and strings pass through.
+    """
+    if v is None or isinstance(v, str):
+        return v
+    if isinstance(v, dict):
+        raw = v.get("value")
+        direction = (v.get("direction") or "").lower()
+        window = (v.get("window") or "").upper()
+        if raw is None:
+            return ""
+        try:
+            num = float(raw)
+        except (TypeError, ValueError):
+            return str(raw)
+        sign = "+" if direction == "up" else ("−" if direction == "down" else "")
+        magnitude = f"{abs(num):.2f}%"
+        window_pretty = {
+            "DOD": "DoD", "WOW": "WoW", "MOM": "MoM",
+            "YOY": "YoY", "QOQ": "QoQ",
+        }.get(window, window)
+        return f"{sign}{magnitude} {window_pretty}".strip()
+    return _stringify_numeric(v)
+
+
 class MetricV6(_Lenient):
     label: str
     value: str
@@ -67,6 +114,16 @@ class MetricV6(_Lenient):
     weight: Optional[int] = Field(default=1, ge=1, le=2)
     held_from: Optional[date_t] = None
     next_print: Optional[str] = None
+
+    @field_validator("value", "delta_pct", mode="before")
+    @classmethod
+    def _coerce_value(cls, v: Any) -> Any:
+        return _stringify_numeric(v)
+
+    @field_validator("delta", mode="before")
+    @classmethod
+    def _coerce_delta(cls, v: Any) -> Any:
+        return _stringify_delta(v)
 
 
 class NewsItemV6(_Lenient):

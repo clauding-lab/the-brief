@@ -146,7 +146,71 @@ def test_subeditor_review_fail() -> None:
     assert review.issues[0].severity == "error"
 
 
-def test_metric_value_must_be_string() -> None:
-    """The schema requires metric.value as string for tabular display in the SPA."""
-    with pytest.raises(ValidationError):
-        MetricV6(label="NPL", value=35.73)  # type: ignore[arg-type]
+def test_metric_value_string_passes_through_unchanged() -> None:
+    """The canonical happy path: a pre-formatted string flows through as-is."""
+    m = MetricV6(label="NPL", value="35.73%")
+    assert m.value == "35.73%"
+
+
+def test_metric_value_accepts_float_and_coerces_to_string() -> None:
+    """v1.5.1: editor occasionally emits numeric values; schema stringifies
+    rather than crashing the publish. Trailing zeros are trimmed via :.10g."""
+    m = MetricV6(label="NPL", value=35.73)  # type: ignore[arg-type]
+    assert m.value == "35.73"
+
+
+def test_metric_value_accepts_int_and_coerces_to_string() -> None:
+    m = MetricV6(label="Sections", value=8)  # type: ignore[arg-type]
+    assert m.value == "8"
+
+
+def test_metric_value_preserves_full_precision() -> None:
+    """A genuinely-precise float (e.g., FX reserves 35.1112) is kept, not rounded."""
+    m = MetricV6(label="FX reserves $B", value=35.1112)  # type: ignore[arg-type]
+    assert m.value == "35.1112"
+
+
+def test_metric_delta_dict_stringifies_with_direction_and_window() -> None:
+    """v1.5.1: editor sometimes emits delta as {value, direction, window};
+    schema renders 'up' as '+', 'down' as '−' (Unicode minus), formats
+    magnitude as N.NN%, and pretty-cases the window suffix."""
+    m = MetricV6(
+        label="BB",
+        value="35.11",
+        delta={"value": 0.9946, "direction": "up", "window": "wow"},  # type: ignore[arg-type]
+    )
+    assert m.delta == "+0.99% WoW"
+
+
+def test_metric_delta_dict_down_direction_uses_unicode_minus() -> None:
+    m = MetricV6(
+        label="NPL",
+        value="11.5",
+        delta={"value": 0.42, "direction": "down", "window": "mom"},  # type: ignore[arg-type]
+    )
+    assert m.delta == "−0.42% MoM"
+
+
+def test_metric_delta_dict_without_window_still_renders() -> None:
+    m = MetricV6(
+        label="Call money",
+        value="9.5",
+        delta={"value": 0.25, "direction": "up"},  # type: ignore[arg-type]
+    )
+    assert m.delta == "+0.25%"
+
+
+def test_metric_delta_string_passes_through_unchanged() -> None:
+    """Already-formatted delta strings (the editor's primary intent) are not touched."""
+    m = MetricV6(label="x", value="1", delta="+1.2% WoW")
+    assert m.delta == "+1.2% WoW"
+
+
+def test_metric_delta_none_passes_through_unchanged() -> None:
+    m = MetricV6(label="x", value="1")
+    assert m.delta is None
+
+
+def test_metric_delta_numeric_coerces_via_stringify_numeric() -> None:
+    m = MetricV6(label="x", value="1", delta=0.42)  # type: ignore[arg-type]
+    assert m.delta == "0.42"

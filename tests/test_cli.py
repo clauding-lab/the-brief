@@ -85,7 +85,8 @@ def test_write_fixture_creates_valid_json_on_dry_run(tmp_path: Path):
         # version it receives write_fixture_path and writes the file. Until the
         # --write-fixture flag exists, argparse raises SystemExit(2) before
         # _run_v6_publish is ever reached.
-        def _fake_cli_run(cfg, today, dry_run, notify_enabled, write_fixture_path=None):
+        def _fake_cli_run(cfg, today, dry_run, notify_enabled, write_fixture_path=None,
+                          preview_notify_enabled=False):
             # Simulate the implemented behaviour: write fixture + return 3.
             if write_fixture_path and dry_run:
                 import json as _json
