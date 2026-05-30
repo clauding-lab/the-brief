@@ -160,8 +160,12 @@ def run_max(
         raise MaxCallError(f"Claude CLI binary not found: {claude_binary}") from e
 
     if cp.returncode != 0:
+        # In --output-format json mode the CLI writes its error payload to
+        # STDOUT (stderr is frequently empty) and exits non-zero. Surface BOTH
+        # so a failure is diagnosable instead of an opaque "exited 1".
         raise MaxCallError(
-            f"Claude CLI exited {cp.returncode}: {cp.stderr.strip()[:500]}"
+            f"Claude CLI exited {cp.returncode}: "
+            f"stderr={cp.stderr.strip()[:500]!r} stdout={cp.stdout.strip()[:1200]!r}"
         )
 
     try:
