@@ -41,6 +41,9 @@ _FX_METRIC_IDS: tuple[str, ...] = (
     "monthly_import",
 )
 
+# F6 — §08 remittance 12-month chart (metric_history_monthly, USD mn).
+_REMIT_MONTHLY_METRIC_IDS: tuple[str, ...] = ("remittance_usd_mn_monthly",)
+
 _BRENT_METRIC_ID: str = "brent_crude_usd_barrel"
 _DSEX_METRIC_ID: str = "dsex"
 
@@ -253,6 +256,35 @@ def fetch_macro_cpi_series(
             for r in reversed(rows)
         ]
         out[mid] = points
+    return out
+
+
+def fetch_remit_monthly(
+    history_monthly: MetricHistoryClient,
+    *,
+    months: int = 12,
+) -> dict[str, list[SeriesPointV6]]:
+    """Pull `months` rows of monthly remittance from `metric_history_monthly`.
+
+    Single-series sibling of `fetch_macro_cpi_series`; returns a dict keyed by
+    metric_id with chronological (oldest-first) SeriesPointV6 lists.
+
+    AGENTS.md landmine #1: reads metric_history_monthly, NOT tb_* tables.
+    AGENTS.md landmine #6: uses the _monthly-suffixed metric ID.
+    AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
+    """
+    grouped = history_monthly.get_history_window(
+        _REMIT_MONTHLY_METRIC_IDS,
+        limit=months * len(_REMIT_MONTHLY_METRIC_IDS),
+        table="metric_history_monthly",
+    )
+    out: dict[str, list[SeriesPointV6]] = {}
+    for mid in _REMIT_MONTHLY_METRIC_IDS:
+        rows = grouped.get(mid, [])
+        out[mid] = [
+            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            for r in reversed(rows)
+        ]
     return out
 
 

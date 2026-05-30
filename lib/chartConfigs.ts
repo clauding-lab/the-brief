@@ -753,6 +753,61 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   } as unknown as ChartConfiguration<"line">;
 }
 
+/**
+ * remitFlow — 12-month monthly remittance inflow line (USD mn) for §08.
+ *
+ * Reads remittance_usd_mn_monthly from section.series. Single-series,
+ * newspaper-thin (mirrors the cpiTrend treatment). Y-axis = USD mn,
+ * X-axis = monthly TimeScale (registered in BriefChart.tsx per landmine #2).
+ *
+ * NB: the §08 KPI headline ($3,130mn) comes from the daily-tracked
+ * remit_monthly_mn series; this chart plots a different BB monthly vintage
+ * (remittance_usd_mn_monthly), so its latest point may differ — the subtitle
+ * flags the monthly basis so a banker doesn't read it as a discrepancy.
+ */
+function remitFlowConfig(ctx: BuildContext): ChartConfiguration<"line"> {
+  const KEY = "remittance_usd_mn_monthly";
+
+  if (!hasAnyData(ctx.series, [KEY])) {
+    return emptyLineConfig();
+  }
+
+  const palette = buildPalette();
+
+  const datasets: ChartDataset<"line", XYPoint[]>[] = [
+    {
+      label: "Remittance (monthly)",
+      data: toPoints(ctx.series[KEY]),
+      borderColor: palette.ink,
+      borderWidth: 1.8,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+  ];
+
+  const baseOpts = baseLineOptions({
+    legend: false,
+    yTicks: { callback: (v: number) => Number(v).toLocaleString() },
+  });
+
+  return {
+    type: "line",
+    data: { datasets },
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: {
+          ...baseOpts.scales.x,
+          time: { unit: "month" as const, tooltipFormat: "MMM yyyy" },
+          ticks: { ...baseOpts.scales.x.ticks, maxTicksLimit: 8 },
+        },
+      },
+    },
+  } as unknown as ChartConfiguration<"line">;
+}
+
 // Format a YYYY-MM-DD date string as "MMM DD" (e.g. "May 09"). Falls back
 // to the input on any parse mismatch.
 function shortDate(iso: string): string {
@@ -821,6 +876,7 @@ export const chartConfigs = {
   yieldCurve: yieldCurveConfig,
   lng: lngConfig,
   cpiTrend: cpiTrendConfig,
+  remitFlow: remitFlowConfig,
 } as const;
 
 export type ChartConfigKey = keyof typeof chartConfigs;
@@ -836,6 +892,7 @@ export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
   tbond: "yieldCurve",
   comm: "lng",
   macro: "cpiTrend",
+  remit: "remitFlow",
 };
 
 // Per-chart card-head metadata — mirrors EconDelta /macro's FIG.NN + title
@@ -877,6 +934,11 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
     fig: "06",
     title: "CPI Trend",
     subtitle: "24-month · headline 12m-avg · food · non-food",
+  },
+  remit: {
+    fig: "07",
+    title: "Remittance Inflow",
+    subtitle: "12-month · monthly · USD mn",
   },
 };
 
