@@ -375,6 +375,18 @@ def _stamp_chart_series(
                 )
             continue
 
+        # F6 — §08 remittance 12-month chart also reads metric_history_monthly
+        if section.slug == "remit":
+            try:
+                series_by_id = chart_series_fetcher.fetch_remit_monthly(history_monthly_client)
+                section.series = [pt for pts in series_by_id.values() for pt in pts]
+            except Exception:  # noqa: BLE001 — graceful degradation
+                logger.warning(
+                    "v6: remit series fetch failed for slug=remit",
+                    exc_info=True,
+                )
+            continue
+
         fn_suffix: str | None = _CHART_FETCHERS_BY_SLUG.get(section.slug)
         if fn_suffix is None:
             continue
