@@ -95,10 +95,10 @@ class MaxCallResult:
 def run_max(
     *,
     prompt: str,
-    model: str = "claude-opus-4-6",
+    model: str = "claude-opus-4-8",
     timeout_s: int = 1800,
     claude_binary: str | None = None,
-    effort: str = "high",
+    effort: str = "xhigh",
     via_stdin: bool | None = None,
 ) -> MaxCallResult:
     """Invoke the Claude Max CLI, return parsed result.
@@ -135,6 +135,10 @@ def run_max(
         # zero MCP tools load. Pure stdout JSON, no side channels.
         "--strict-mcp-config",
         "--permission-mode", "bypassPermissions",
+        # On Opus 4.7+ (we pin 4.8) effort drives *adaptive thinking*: at
+        # high/xhigh/max the model almost always thinks deeply. There is NO
+        # separate thinking flag/env in headless mode — MAX_THINKING_TOKENS is
+        # ignored by Opus 4.7+. So --effort xhigh == "xhigh + thinking on".
         "--effort", effort,
     ]
     if via_stdin:
