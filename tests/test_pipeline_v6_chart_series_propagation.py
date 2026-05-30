@@ -2,12 +2,13 @@
 
 After the LLM produces final_brief, a deterministic helper fetches time-series
 from `metric_history` and stamps it onto `final_brief.sections[i].series` so
-the SPA can render charts. Four sections are chartable (fx/dse/iran/tbond);
-all others get an empty series list and the frontend hides their chart slot.
+the SPA can render charts. fx/dse/iran are HTTP-dispatched; bb/tbond/macro/remit
+are stamped from metric_history_monthly via their own branches; the rest get an
+empty series list and the frontend hides their chart slot.
 
 Coverage:
-  1. `_CHART_FETCHERS_BY_SLUG` dispatch table contains exactly the 4 chartable
-     slugs and no others (LNG/comm dropped post-V6 chart repoint).
+  1. `_CHART_FETCHERS_BY_SLUG` dispatch table contains exactly the HTTP-dispatched
+     slugs (fx/dse/iran) and no others (tbond moved to the monthly ladder branch).
   2. Each per-section fetcher in `chart_series_fetcher` produces well-formed
      `SeriesPointV6` objects (key + ISO date + numeric value) given a mocked
      PostgREST `metric_history` response.
@@ -79,13 +80,17 @@ TODAY = date(2026, 5, 8)
 # ─── Dispatch table ────────────────────────────────────────────────────
 
 
-def test_chart_fetchers_by_slug_only_includes_4_chartable_sections() -> None:
-    """The dispatch dict contains exactly fx/dse/iran/tbond — nothing else."""
+def test_chart_fetchers_by_slug_only_includes_http_dispatched_sections() -> None:
+    """The HTTP dispatch dict contains exactly fx/dse/iran.
+
+    tbond moved to the metric_history_monthly yield-ladder branch (F5), and
+    bb/macro/remit are stamped via their own monthly-archive branches — none of
+    those go through _CHART_FETCHERS_BY_SLUG.
+    """
     assert set(pipeline_v6._CHART_FETCHERS_BY_SLUG.keys()) == {
         "fx",
         "dse",
         "iran",
-        "tbond",
     }
 
 
@@ -403,32 +408,39 @@ def _full_brief() -> BriefPayloadV6:
     )
 
 
-def test_stamp_chart_series_populates_4_sections_only(
+def test_stamp_chart_series_populates_chartable_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only fx/dse/iran/tbond get series; other sections (incl. comm) stay empty."""
+    """All chartable slugs get series; the chartless ones stay empty.
+
+    HTTP-dispatched: fx/dse/iran. Monthly-archive branches: bb (F2 reserves),
+    tbond (F5 yield ladder), macro (CPI), remit (F6). Chartless: headlines,
+    banking, fiscal, comm (comm de-charted post-LNG-drop).
+    """
     fx_series: list[SeriesPointV6] = [SeriesPointV6(key="monthly_export", ts="2026-04-30", value=4.2)]
     dsex_series: list[SeriesPointV6] = [SeriesPointV6(key="dsex", ts="2026-05-01", value=5210.0)]
     dsex_notes: list[SeriesNoteV6] = []
     brent_series: list[SeriesPointV6] = [SeriesPointV6(key="brent", ts="2026-05-08", value=91.2)]
-    yc_series: list[SeriesPointV6] = [SeriesPointV6(key="yield_5y", ts="2026-05-01", value=7.5)]
+    reserves_pt = SeriesPointV6(key="gross_reserves_usd_bn_monthly", ts="2026-03-01", value=34.1)
+    ladder_pt = SeriesPointV6(key="yield_5y_monthly", ts="2026-04-01", value=10.75)
+    macro_pt = SeriesPointV6(key="cpi_12m_avg_monthly", ts="2026-04-01", value=9.5)
+    remit_pt = SeriesPointV6(key="remittance_usd_mn_monthly", ts="2026-03-01", value=3755.1)
 
-    def _fake_fx(**_: Any) -> list[SeriesPointV6]:
-        return fx_series
-
-    def _fake_dsex(**_: Any) -> tuple[list[SeriesPointV6], list[SeriesNoteV6]]:
-        return dsex_series, dsex_notes
-
-    def _fake_brent(**_: Any) -> list[SeriesPointV6]:
-        return brent_series
-
-    def _fake_yc(**_: Any) -> list[SeriesPointV6]:
-        return yc_series
-
-    monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", _fake_fx)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _fake_dsex)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _fake_brent)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _fake_yc)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", lambda **_: fx_series)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: (dsex_series, dsex_notes))
+    monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: brent_series)
+    monkeypatch.setattr(
+        chart_series_fetcher, "fetch_reserves_monthly", lambda *_a, **_k: {reserves_pt.key: [reserves_pt]}
+    )
+    monkeypatch.setattr(
+        chart_series_fetcher, "fetch_yield_ladder_monthly", lambda *_a, **_k: {ladder_pt.key: [ladder_pt]}
+    )
+    monkeypatch.setattr(
+        chart_series_fetcher, "fetch_macro_cpi_series", lambda *_a, **_k: {macro_pt.key: [macro_pt]}
+    )
+    monkeypatch.setattr(
+        chart_series_fetcher, "fetch_remit_monthly", lambda *_a, **_k: {remit_pt.key: [remit_pt]}
+    )
 
     final_brief: BriefPayloadV6 = _full_brief()
     pipeline_v6._stamp_chart_series(
@@ -445,10 +457,13 @@ def test_stamp_chart_series_populates_4_sections_only(
     assert by_slug["dse"].series == dsex_series
     assert by_slug["dse"].notes == dsex_notes
     assert by_slug["iran"].series == brent_series
-    assert by_slug["tbond"].series == yc_series
+    assert by_slug["bb"].series == [reserves_pt]
+    assert by_slug["tbond"].series == [ladder_pt]
+    assert by_slug["macro"].series == [macro_pt]
+    assert by_slug["remit"].series == [remit_pt]
 
-    # Non-chartable (incl. comm post-LNG-drop): empty
-    for slug in ("headlines", "bb", "banking", "fiscal", "macro", "remit", "comm"):
+    # Chartless: empty
+    for slug in ("headlines", "banking", "fiscal", "comm"):
         assert by_slug[slug].series == [], f"{slug} should have empty series"
         assert by_slug[slug].notes == [], f"{slug} should have empty notes"
 
@@ -470,13 +485,18 @@ def test_stamp_chart_series_handles_fetcher_exception_gracefully(
     def _ok_brent(**_: Any) -> list[SeriesPointV6]:
         return brent_series
 
-    def _empty_yc(**_: Any) -> list[SeriesPointV6]:
-        return []
+    def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
+        return {}
 
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", _ok_fx)
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _bad_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _ok_brent)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _empty_yc)
+    # Isolate the monthly-archive branches so they don't hit the real client
+    # via the fake HTTP stub (they're exercised in their own tests below).
+    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
 
     final_brief: BriefPayloadV6 = _full_brief()
 
@@ -501,6 +521,48 @@ def test_stamp_chart_series_handles_fetcher_exception_gracefully(
     ), f"expected warning mentioning dse fetcher; got {[r.getMessage() for r in caplog.records]}"
 
 
+def test_stamp_chart_series_handles_monthly_branch_exception_gracefully(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the bb (reserves) or tbond (yield-ladder) monthly fetchers raise, the
+    pipeline leaves those series empty, logs a warning, and does not crash."""
+
+    def _raise(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
+        raise RuntimeError("simulated monthly-archive blip")
+
+    def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
+        return {}
+
+    monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _raise)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _raise)
+    # Isolate the other branches so only bb/tbond failures are under test.
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", lambda **_: [])
+    monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: ([], []))
+    monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
+    monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
+
+    final_brief: BriefPayloadV6 = _full_brief()
+
+    with caplog.at_level(logging.WARNING, logger="brief.pipeline_v6"):
+        pipeline_v6._stamp_chart_series(
+            final_brief,
+            today=TODAY,
+            http=_http([]),
+            supabase_url=SUPABASE_URL,
+            service_key=SERVICE_KEY,
+        )
+
+    by_slug: dict[str, SectionV6] = {s.slug: s for s in final_brief.sections}
+    # Both raising branches degrade to empty without crashing the publish.
+    assert by_slug["bb"].series == [], "bb left empty after reserves fetcher exception"
+    assert by_slug["tbond"].series == [], "tbond left empty after yield-ladder fetcher exception"
+    messages = " ".join(r.getMessage().lower() for r in caplog.records)
+    assert "bb" in messages, f"expected a warning mentioning bb; got {messages!r}"
+    assert "tbond" in messages, f"expected a warning mentioning tbond; got {messages!r}"
+
+
 def test_stamp_chart_series_skips_when_section_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -519,21 +581,27 @@ def test_stamp_chart_series_skips_when_section_absent(
         called.append("iran")
         return []
 
-    def _ok_yc(**_: Any) -> list[SeriesPointV6]:
+    def _ok_ladder(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
         called.append("tbond")
-        return []
+        return {}
+
+    def _ok_reserves(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
+        called.append("bb")
+        return {}
 
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", _ok_fx)
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _ok_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _ok_brent)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _ok_yc)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _ok_ladder)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _ok_reserves)
 
-    # Brief with only bb + banking — none of the chartable slugs.
+    # Brief with only banking + fiscal — none of the chartable slugs
+    # (bb is now chartable via the F2 reserves branch, so it can't stand in here).
     minimal_brief: BriefPayloadV6 = BriefPayloadV6(
         brief=BriefV6(issue_no=1, volume=1, brief_date=TODAY),
         sections=[
-            _make_section("bb", 3, "banking"),
             _make_section("banking", 4, "banking"),
+            _make_section("fiscal", 8, "policy"),
         ],
     )
     pipeline_v6._stamp_chart_series(
@@ -576,7 +644,7 @@ def test_run_publish_stamps_chart_series_on_final_brief(
         lambda **_: ([], []),
     )
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
-    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", lambda **_: [])
+    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", lambda *_a, **_k: {})
 
     editor_output: dict[str, Any] = {
         "brief": {
@@ -709,7 +777,9 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
 def test_stamp_chart_series_threads_http_and_today_to_fetchers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every dispatched fetcher receives http, supabase_url, service_key, today."""
+    """Every HTTP-dispatched fetcher (fx/dse/iran) receives http, supabase_url,
+    service_key, today. The monthly-archive branches (bb/tbond/macro/remit) take
+    a history client instead and are covered separately."""
     captured: list[dict[str, Any]] = []
 
     def _record(**kwargs: Any) -> list[SeriesPointV6]:
@@ -723,7 +793,15 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_flows", _record)
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _record_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _record)
-    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_curve", _record)
+    # Isolate the monthly-archive branches (history-client signature, not the
+    # http/today kwargs under test here) so they don't hit the fake HTTP stub.
+    def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
+        return {}
+
+    monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
 
     final_brief: BriefPayloadV6 = _full_brief()
     http: HttpClient = _http([])
@@ -734,7 +812,7 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
         supabase_url=SUPABASE_URL,
         service_key=SERVICE_KEY,
     )
-    assert len(captured) == 4, "all 4 chartable fetchers should be dispatched"
+    assert len(captured) == 3, "all 3 HTTP-dispatched fetchers should be dispatched"
     for kw in captured:
         assert kw["http"] is http
         assert kw["supabase_url"] == SUPABASE_URL

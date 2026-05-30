@@ -680,6 +680,150 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 }
 
 /**
+ * yieldLadder — F5. Full 8-tenor BD govt yield ladder (91D · 182D · 364D · 2Y ·
+ * 5Y · 10Y · 15Y · 20Y) over the last 2 month-ends, read from
+ * metric_history_monthly. Replaces the daily 5-point yieldCurve on §tbond
+ * (FIG.03) with the full term structure plus month-over-month shift.
+ *
+ * Category x-axis (tenor), latest month-end solid (accent), prior dashed —
+ * mirrors yieldCurveConfig. CategoryScale is already registered in
+ * BriefChart.tsx per AGENTS.md landmine #2 (no new registration needed).
+ */
+function yieldLadderConfig(ctx: BuildContext): ChartConfiguration<"line"> {
+  const tenorMap: Array<{ id: string; label: string }> = [
+    { id: "tbill_91d_yield_monthly", label: "91D" },
+    { id: "tbill_182d_yield_monthly", label: "182D" },
+    { id: "tbill_364d_yield_monthly", label: "364D" },
+    { id: "yield_2y_monthly", label: "2Y" },
+    { id: "yield_5y_monthly", label: "5Y" },
+    { id: "yield_10y_monthly", label: "10Y" },
+    { id: "yield_15y_monthly", label: "15Y" },
+    { id: "yield_20y_monthly", label: "20Y" },
+  ];
+  const labels: string[] = tenorMap.map((t) => t.label);
+
+  if (!hasAnyData(
+    ctx.series,
+    tenorMap.map((t) => t.id),
+  )) {
+    return emptyLineConfig();
+  }
+
+  const palette = buildPalette();
+  // For each as_of date, build a tenor-aligned y-array with null for missing points.
+  // Category axis means dataset.data is positional: index N corresponds to labels[N].
+  const byDate: Record<string, Array<number | null>> = {};
+  tenorMap.forEach((t, idx) => {
+    (ctx.series[t.id] || []).forEach(([d, v]) => {
+      if (!byDate[d]) byDate[d] = Array(tenorMap.length).fill(null);
+      byDate[d][idx] = v;
+    });
+  });
+  const dates = Object.keys(byDate).sort();
+  if (!dates.length) return emptyLineConfig();
+
+  // Show the last 2 month-ends only: latest (solid accent) + 1 prior (dashed).
+  const latest = dates[dates.length - 1];
+  const prior = dates.length > 1 ? dates[dates.length - 2] : null;
+
+  const datasets: ChartDataset<"line", Array<number | null>>[] = [];
+  if (prior) {
+    datasets.push({
+      label: monthLabel(prior),
+      data: byDate[prior],
+      borderColor: palette.ruleSoft,
+      backgroundColor: palette.ruleSoft,
+      borderWidth: 1.4,
+      borderDash: [4, 4],
+      pointRadius: 2,
+      pointHoverRadius: 4,
+      tension: 0.1,
+      showLine: true,
+      spanGaps: true,
+    });
+  }
+  datasets.push({
+    label: monthLabel(latest),
+    data: byDate[latest],
+    borderColor: palette.accent,
+    backgroundColor: palette.accent,
+    borderWidth: 2.5,
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    tension: 0.1,
+    showLine: true,
+    spanGaps: true,
+  });
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 300 },
+    interaction: { mode: "nearest" as const, intersect: false, axis: "x" as const },
+    elements: {
+      line: { tension: 0.1, borderJoinStyle: "round" as const },
+      point: {
+        hoverRadius: 5,
+        hoverBorderWidth: 2,
+        hoverBackgroundColor: palette.paper,
+      },
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: "top" as const,
+        align: "end" as const,
+        labels: {
+          usePointStyle: true,
+          boxWidth: 8,
+          font: FONT,
+          color: palette.ink2,
+        },
+      },
+      tooltip: {
+        backgroundColor: palette.ink,
+        titleColor: palette.paper,
+        bodyColor: palette.paper,
+        titleFont: { size: 11, weight: "bold" as const, family: FONT.family },
+        bodyFont: { size: 11, family: FONT.family },
+        padding: 10,
+        cornerRadius: 2,
+        callbacks: {
+          title: (items: Array<{ dataset: { label?: string } }>) =>
+            items[0]?.dataset.label ?? "",
+          label: (ctxPt: { parsed: { x: number; y: number }; label?: string }) => {
+            const tenorLabel = ctxPt.label ?? labels[ctxPt.parsed.x] ?? "";
+            return tenorLabel + ": " + Number(ctxPt.parsed.y).toFixed(2) + "%";
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        type: "category" as const,
+        title: { display: true, text: "Tenor", font: FONT, color: palette.ink3 },
+        grid: { color: palette.ruleFaint },
+        ticks: { color: palette.ink3, font: FONT },
+      },
+      y: {
+        ticks: {
+          color: palette.ink3,
+          font: FONT,
+          callback: (v: number | string) => r2str(typeof v === "number" ? v : Number(v)) + "%",
+        },
+        grid: { color: palette.ruleFaint },
+      },
+    },
+  };
+
+  return {
+    type: "line",
+    data: { labels, datasets },
+    options,
+  } as unknown as ChartConfiguration<"line">;
+}
+
+/**
  * cpiTrend — 24-month CPI line chart with 3 datasets.
  *
  * Reads three monthly series from section.series:
@@ -808,6 +952,71 @@ function remitFlowConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   } as unknown as ChartConfiguration<"line">;
 }
 
+/**
+ * reserves — F2. 13-month gross + net (BPM6) foreign-exchange reserves
+ * two-line (USD bn) for §02 Policy & Rates (slug `bb`).
+ *
+ * Reads gross_reserves_usd_bn_monthly + net_reserves_bpm6_usd_bn_monthly from
+ * section.series. Mirrors cpiTrend (multi-dataset monthly time-line). Y-axis =
+ * USD bn, X-axis = monthly TimeScale (registered in BriefChart.tsx per
+ * AGENTS.md landmine #2 — no new registration needed).
+ *
+ * NB: the gross/net gap is BB's reported reserve-asset buffer minus BPM6
+ * adjustments (ACU, swaps); the legend labels keep both lines distinct.
+ */
+function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
+  const GROSS_KEY = "gross_reserves_usd_bn_monthly";
+  const BPM6_KEY = "net_reserves_bpm6_usd_bn_monthly";
+
+  if (!hasAnyData(ctx.series, [GROSS_KEY, BPM6_KEY])) {
+    return emptyLineConfig();
+  }
+
+  const palette = buildPalette();
+
+  const datasets: ChartDataset<"line", XYPoint[]>[] = [
+    {
+      label: "Gross",
+      data: toPoints(ctx.series[GROSS_KEY]),
+      borderColor: palette.ink,
+      borderWidth: 1.8,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+    {
+      label: "Net (BPM6)",
+      data: toPoints(ctx.series[BPM6_KEY]),
+      borderColor: palette.accent,
+      borderWidth: 1.4,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+  ];
+
+  const baseOpts = baseLineOptions({
+    legend: true,
+    yTicks: { callback: (v: number) => r2str(v) },
+  });
+
+  return {
+    type: "line",
+    data: { datasets },
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: {
+          ...baseOpts.scales.x,
+          time: { unit: "month" as const, tooltipFormat: "MMM yyyy" },
+          ticks: { ...baseOpts.scales.x.ticks, maxTicksLimit: 8 },
+        },
+      },
+    },
+  } as unknown as ChartConfiguration<"line">;
+}
+
 // Format a YYYY-MM-DD date string as "MMM DD" (e.g. "May 09"). Falls back
 // to the input on any parse mismatch.
 function shortDate(iso: string): string {
@@ -817,6 +1026,17 @@ function shortDate(iso: string): string {
   const monthIdx = parseInt(m[2], 10) - 1;
   if (monthIdx < 0 || monthIdx > 11) return iso;
   return `${months[monthIdx]} ${m[3]}`;
+}
+
+// Format a YYYY-MM-DD date string as "MMM yyyy" (e.g. "Apr 2026"). Used for
+// monthly-snapshot dataset labels (yieldLadder). Falls back to the input.
+function monthLabel(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthIdx = parseInt(m[2], 10) - 1;
+  if (monthIdx < 0 || monthIdx > 11) return iso;
+  return `${months[monthIdx]} ${m[1]}`;
 }
 
 /**
@@ -874,9 +1094,11 @@ export const chartConfigs = {
   dsex: dsexConfig,
   brent: brentConfig,
   yieldCurve: yieldCurveConfig,
+  yieldLadder: yieldLadderConfig,
   lng: lngConfig,
   cpiTrend: cpiTrendConfig,
   remitFlow: remitFlowConfig,
+  reserves: reservesConfig,
 } as const;
 
 export type ChartConfigKey = keyof typeof chartConfigs;
@@ -886,18 +1108,21 @@ export type ChartConfigBuilder = (ctx: BuildContext) => AnyChartConfig;
 // Convenience: section slug → which chart key to render.
 // Section.tsx (Phase E.3) will look up by section.slug.
 export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
+  bb: "reserves",
   fx: "fxFlows",
   dse: "dsex",
   iran: "brent",
-  tbond: "yieldCurve",
+  tbond: "yieldLadder",
   comm: "lng",
   macro: "cpiTrend",
   remit: "remitFlow",
 };
 
 // Per-chart card-head metadata — mirrors EconDelta /macro's FIG.NN + title
-// + subtitle pattern. FIG numbers are stable across issues and follow the
-// brief's body-render order (fx → dse → tbond → comm → iran).
+// + subtitle pattern. FIG numbers are stable across issues and assigned in
+// chart-addition order (NOT render order): fx=01, dse=02, tbond=03, comm=04,
+// iran=05, macro=06, remit=07, bb=08. When adding a chart, take the next free
+// number from this table rather than inferring from where the section renders.
 export interface ChartCardHead {
   fig: string;
   title: string;
@@ -905,6 +1130,11 @@ export interface ChartCardHead {
 }
 
 export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
+  bb: {
+    fig: "08",
+    title: "FX Reserves",
+    subtitle: "13-month · gross + net (BPM6) · USD bn",
+  },
   fx: {
     fig: "01",
     title: "FX Flows",
@@ -917,8 +1147,8 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
   },
   tbond: {
     fig: "03",
-    title: "BD Govt Yield Curve",
-    subtitle: "Latest snapshot · 3M to 10Y",
+    title: "BD Govt Yield Ladder",
+    subtitle: "8-tenor · last 2 months · 91D to 20Y",
   },
   comm: {
     fig: "04",

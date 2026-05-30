@@ -44,6 +44,24 @@ _FX_METRIC_IDS: tuple[str, ...] = (
 # F6 — §08 remittance 12-month chart (metric_history_monthly, USD mn).
 _REMIT_MONTHLY_METRIC_IDS: tuple[str, ...] = ("remittance_usd_mn_monthly",)
 
+# F2 — §02 Policy & Rates reserves two-line chart (metric_history_monthly, USD bn).
+_RESERVES_MONTHLY_METRIC_IDS: tuple[str, ...] = (
+    "gross_reserves_usd_bn_monthly",
+    "net_reserves_bpm6_usd_bn_monthly",
+)
+
+# F5 — §tbond full 8-tenor yield ladder (metric_history_monthly, yield %).
+_YIELD_LADDER_MONTHLY_METRIC_IDS: tuple[str, ...] = (
+    "tbill_91d_yield_monthly",
+    "tbill_182d_yield_monthly",
+    "tbill_364d_yield_monthly",
+    "yield_2y_monthly",
+    "yield_5y_monthly",
+    "yield_10y_monthly",
+    "yield_15y_monthly",
+    "yield_20y_monthly",
+)
+
 _BRENT_METRIC_ID: str = "brent_crude_usd_barrel"
 _DSEX_METRIC_ID: str = "dsex"
 
@@ -280,6 +298,68 @@ def fetch_remit_monthly(
     )
     out: dict[str, list[SeriesPointV6]] = {}
     for mid in _REMIT_MONTHLY_METRIC_IDS:
+        rows = grouped.get(mid, [])
+        out[mid] = [
+            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            for r in reversed(rows)
+        ]
+    return out
+
+
+def fetch_reserves_monthly(
+    history_monthly: MetricHistoryClient,
+    *,
+    months: int = 13,
+) -> dict[str, list[SeriesPointV6]]:
+    """Pull `months` rows of gross + net (BPM6) reserves from
+    `metric_history_monthly` for the F2 §02 two-line chart (USD bn).
+
+    Multi-series sibling of `fetch_macro_cpi_series`; returns a dict keyed by
+    metric_id with chronological (oldest-first) SeriesPointV6 lists.
+
+    AGENTS.md landmine #1: reads metric_history_monthly, NOT tb_* tables.
+    AGENTS.md landmine #6: uses the _monthly-suffixed metric IDs.
+    AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
+    """
+    grouped = history_monthly.get_history_window(
+        _RESERVES_MONTHLY_METRIC_IDS,
+        limit=months * len(_RESERVES_MONTHLY_METRIC_IDS),
+        table="metric_history_monthly",
+    )
+    out: dict[str, list[SeriesPointV6]] = {}
+    for mid in _RESERVES_MONTHLY_METRIC_IDS:
+        rows = grouped.get(mid, [])
+        out[mid] = [
+            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            for r in reversed(rows)
+        ]
+    return out
+
+
+def fetch_yield_ladder_monthly(
+    history_monthly: MetricHistoryClient,
+    *,
+    months: int = 2,
+) -> dict[str, list[SeriesPointV6]]:
+    """Pull `months` month-ends of the 8 govt yield tenors from
+    `metric_history_monthly` for the F5 §tbond yield-ladder chart (yield %).
+
+    Multi-series sibling of `fetch_macro_cpi_series`; returns a dict keyed by
+    tenor metric_id with chronological (oldest-first) SeriesPointV6 lists. The
+    SPA's yieldLadder config pivots these into a category (tenor) x-axis with
+    one line per month-end.
+
+    AGENTS.md landmine #1: reads metric_history_monthly, NOT tb_* tables.
+    AGENTS.md landmine #6: uses the _monthly-suffixed metric IDs.
+    AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
+    """
+    grouped = history_monthly.get_history_window(
+        _YIELD_LADDER_MONTHLY_METRIC_IDS,
+        limit=months * len(_YIELD_LADDER_MONTHLY_METRIC_IDS),
+        table="metric_history_monthly",
+    )
+    out: dict[str, list[SeriesPointV6]] = {}
+    for mid in _YIELD_LADDER_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
             SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
