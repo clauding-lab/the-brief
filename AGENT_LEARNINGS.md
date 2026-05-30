@@ -37,6 +37,40 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-05-29 — v1.5.1 | v1.4.0 publish broken for 2 days — code-schema and DB-schema must ship together
+
+**Trigger:** user noticed Thursday 2026-05-28's brief was on the site but "almost nothing" rendered — masthead + Today's Call only, no sections below. Asked for a check before approving a Friday retry.
+
+**What went wrong:** TWO independent v1.4.0 (PR #95, 2026-05-27 14:28 UTC) regressions stacked, blocking every publish for 48 hours:
+
+1. **Missing migration for the new `Section.chart_read` field.** v1.4.0 added the `ChartReadV6` Pydantic model and the SPA render component but no `migrations/0004_*.sql` to add the column to the production `sections` table. Thursday's 06:30 BDT auto-fire was the first publish after v1.4.0 — the editor produced 11 sections with `chart_read` populated, the publisher inserted the brief row, then the sections insert blew up with PGRST204 `Could not find the 'chart_read' column of 'sections' in the schema cache`. Brief #118 was left orphaned in Supabase: `status=published` but 0 sections / 0 metrics / 0 news / 0 chart_series. The SPA's `get_latest_brief` still showed it, hence the "almost nothing" rendering.
+
+2. **Editor schema-shape mismatch on `MetricV6.value` and `MetricV6.delta`.** The v1.4.0 banker-grade editor prompt began emitting `metric.value` as raw numbers (e.g., `35.1112` for FX reserves) and at least one `metric.delta` as a structured `{value, direction, window}` dict — where the Pydantic schema required pre-formatted strings (`"$35.11B"` / `"+0.99% WoW"`). Every retry after the chart_read fix produced 34+ Pydantic validation errors before Supabase was even contacted.
+
+Friday 2026-05-29's 06:30 BDT auto-fire separately hit a 3-attempt editor timeout that exactly matched the systemd `TimeoutStartSec=90min` (3 × 1800s) and was SIGTERM'd — that's its own separate failure mode (covered by AGENTS.md landmine #13) but it would have hit both schema errors above on retry.
+
+**Lesson:** Code-schema and DB-schema must ship in the SAME PR. When adding a field to a Pydantic / TypeScript type that flows to Supabase, write the matching SQL migration alongside it — and apply that migration to production before the next scheduled publish (or use a feature flag if the migration is delayed). For schema-shape changes to fields the editor is allowed to populate (numeric `value`, structured `delta`), update the Pydantic coercers in the SAME PR as the prompt change so the publish never sees a half-state.
+
+**Prevention:**
+- Add a CI smoke test that imports the Pydantic schema and exercises it against a representative fixture from `public/fixtures/`. A dry-run publish in CI against a Supabase migration-applied test schema would catch both v1.4.0 failures.
+- When changing the editor prompt, write a corresponding test that feeds a synthetic editor output (with the new shape — numeric value, structured delta, etc.) through the Pydantic validator. The test should pass before the prompt PR merges.
+- For any new field introduced on the data path (Pydantic → publisher → Supabase), the PR checklist requires either (a) a migration file and a verified production apply, or (b) explicit field nullability + a documented backfill plan.
+- For schema migrations specifically: every PR that adds a column should include the migration file AND a 1-line "production-applied: yes/no" note in the PR description. CI can lint this.
+
+**Hotfix:**
+- PR #99 (2026-05-29 09:24 BDT): `migrations/0004_section_chart_read.sql` adding `chart_read jsonb` column + `NOTIFY pgrst 'reload schema'`. Applied to production via Supabase MCP `apply_migration`.
+- PR #100 / v1.5.1 (2026-05-29 10:16 BDT): two `field_validator(mode='before')` coercers on `MetricV6` — `value` and `delta_pct` stringify numerics via `:.10g` (precision preserved); `delta` renders the editor's `{value, direction, window}` dict as banker-style `"+0.99% WoW"` / `"−0.99% WoW"` (Unicode minus, pretty-cased window). Strings and None still pass through unchanged.
+- Thursday's #118 manually re-fired (became #119, brief_date 2026-05-28) at 10:39 BDT — 11 sections, 5 chart series, notifier sent 8 emails. Orphaned #118 row deleted.
+- Friday's weekly_wrap manually re-fired (#120, brief_date 2026-05-29) at 11:01 BDT — 11 sections, 5 chart series, notifier sent 8 emails. Subscribers received both emails within ~25 min of each other.
+
+**Side effects worth flagging:**
+- Manual re-fires auto-increment `issue_no` from `max + 1`; they do NOT overwrite an existing issue based on `brief_date`. Thursday's content shipped as #119 (not #118) and required a manual DELETE of the orphan. If a future retry follows this pattern, expect the same two-step (publish + orphan cleanup).
+- Subscribers got two emails ~25 min apart. For future double-retries, consider adding `--no-notify` on the first retry and firing the notifier manually after both publishes are confirmed.
+
+**Cross-references:** AGENTS.md landmines #7 (`source_as_of` migration gap — same pattern as #1 above), #13 (Anthropic morning latency — separate cause for Friday's initial failure). Migrations 0004. PRs #99, #100. CHANGELOG entry [1.5.1]. Auto-memory keys `project_brief_publish_v6_failures.md`.
+
+---
+
 ## 2026-05-27 — v1.4.0 | Banker-Grade Read shipped via 5-PR phased rollout
 
 **Trigger:** session-resume brainstorm asked "what more can we develop to attract the banker audience feeding their info, insight, and analytical needs." Bottleneck identified as DEPTH (not acquisition/retention); depth flavor as INTERPRETATION (not history alone / peer / desk). Five phases shipped over the same session via subagent-driven-development: Phase 0.5 (preview infra), Phase 1 (history_anchors compute), Phase 2 (6 new validators + sub-editor checks + Master.md vocabulary tiers), Phase 3 (editor prompt rewrite + macro builder reading 8 monthly metrics from metric_history_monthly + CPI 24-month chart), Phase 4 (ChartRead SPA render).
