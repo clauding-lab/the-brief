@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-05-30 — Saturday publish refused on a stale weekly_wrap lens; Opus 4.8/xhigh bump validated
+
+**Trigger:** Manual fire of a missing Saturday (2026-05-30) brief, mid Opus 4.8/xhigh model bump (PR #102). The editor refused 3× — "today_lens is weekly_wrap, but this isn't Friday."
+
+**What went wrong:** `score_lens` (`brief/builders/lens.py`) sets `weekly_wrap` only on Fridays, but its quiet-day fallback returned `previous_lens` verbatim. A quiet Saturday (markets closed → all sections score ~0) inherited Friday's `weekly_wrap`; the standard `editor_v6` prompt — which since v1.4.0 explicitly forbids emitting a weekly-wrap — refused the entire brief. This was the **first Saturday since that v1.4.0 guard shipped (05-27)**, so the bug sat latent for days. After the lens fix the editor passed, but `subeditor_v6` then failed 3× with an opaque `Claude CLI exited 1` (empty stderr) — which *looked* like it could be the Opus 4.8/xhigh bump but was **not**: an identical 3rd run succeeded (issue #121 published, 8 emails sent). It was a transient Anthropic API failure.
+
+**Lesson:** (1) A mode value valid only on some days must never be carried forward by a "reuse yesterday" fallback onto a day whose consumer rejects it. (2) Don't blame your most-recent change for a failure until you've isolated it — a coincident transient API error mimicked a model regression; a plain retry told them apart.
+
+**Prevention:** lens fix + regression test `test_quiet_day_never_inherits_weekly_wrap_on_non_friday`; `max_client` now surfaces the CLI's **stdout** on non-zero exit (PR #104) so `exited 1` is never opaque again; retry transient subprocess failures before deep-diving (see `feedback_editor_v6_transient_retry`).
+
+**Hotfix:** PR #103 (lens guard), PR #104 (stdout-on-error). Model bump (PR #102, Opus 4.8/xhigh) validated end-to-end — editor ~6 min, sub-editor ~8 min, both well under the 30-min per-call timeout; editor was actually *faster* than the old 4.6/high.
+
+**Cross-references:** AGENTS.md "Anthropic model selection" note (now `opus-4-8`/`xhigh`); global `~/.claude/AGENT_LEARNINGS.md`; auto-memory `reference_brief_opus48_lens_dataage`.
+
 ## 2026-05-29 — v1.5.1 | v1.4.0 publish broken for 2 days — code-schema and DB-schema must ship together
 
 **Trigger:** user noticed Thursday 2026-05-28's brief was on the site but "almost nothing" rendered — masthead + Today's Call only, no sections below. Asked for a check before approving a Friday retry.
