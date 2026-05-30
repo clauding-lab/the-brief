@@ -69,6 +69,26 @@ def test_quiet_day_no_previous_falls_back_to_alpha():
     assert lens == "alpha"
 
 
+def test_quiet_day_never_inherits_weekly_wrap_on_non_friday():
+    """Quiet Saturday after Friday's wrap must NOT carry weekly_wrap forward.
+
+    Regression: weekly_wrap is Friday-only, but the quiet-day fallback used to
+    return previous_lens verbatim. On a quiet Saturday (markets closed) it
+    inherited Friday's "weekly_wrap", which the standard editor prompt forbids —
+    making the editor refuse the whole brief. The fallback must route to a normal
+    section lens instead.
+    """
+    today = date(2026, 5, 30)  # Saturday
+    sections = [
+        _section("alpha", [{"label": "X", "value": "1", "delta_sigma": 0.0}], days_since_refresh=20),
+        _section("banking", [{"label": "Y", "value": "2", "delta_sigma": 0.0}], days_since_refresh=20),
+    ]
+    lens, breakdown = score_lens(sections, today=today, previous_lens="weekly_wrap")
+    assert lens != "weekly_wrap"
+    assert lens == "alpha"  # alphabetically first → normal section lens
+    assert breakdown["fallback"] == "quiet_day_alpha"
+
+
 def test_no_sections_returns_default_lens_fallback():
     """Empty sections list → default lens slug + no_sections fallback marker."""
     today = date(2026, 5, 4)  # Monday
