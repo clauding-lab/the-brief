@@ -329,7 +329,8 @@ _CHART_FETCHERS_BY_SLUG: dict[str, str] = {
     "fx": "fx_flows",
     "dse": "dsex",
     "iran": "brent",
-    "tbond": "yield_curve",
+    # tbond moved to the metric_history_monthly yield-ladder branch (F5);
+    # fetch_yield_curve is retained (unit-tested) but no longer slug-dispatched.
 }
 
 
@@ -383,6 +384,32 @@ def _stamp_chart_series(
             except Exception:  # noqa: BLE001 — graceful degradation
                 logger.warning(
                     "v6: remit series fetch failed for slug=remit",
+                    exc_info=True,
+                )
+            continue
+
+        # F2 — §02 Policy & Rates reserves two-line (metric_history_monthly)
+        if section.slug == "bb":
+            try:
+                series_by_id = chart_series_fetcher.fetch_reserves_monthly(history_monthly_client)
+                section.series = [pt for pts in series_by_id.values() for pt in pts]
+            except Exception:  # noqa: BLE001 — graceful degradation
+                logger.warning(
+                    "v6: reserves series fetch failed for slug=bb",
+                    exc_info=True,
+                )
+            continue
+
+        # F5 — §tbond full yield ladder, last 2 months (metric_history_monthly).
+        # Replaces the daily fetch_yield_curve path (tbond removed from the
+        # _CHART_FETCHERS_BY_SLUG HTTP map below).
+        if section.slug == "tbond":
+            try:
+                series_by_id = chart_series_fetcher.fetch_yield_ladder_monthly(history_monthly_client)
+                section.series = [pt for pts in series_by_id.values() for pt in pts]
+            except Exception:  # noqa: BLE001 — graceful degradation
+                logger.warning(
+                    "v6: yield-ladder series fetch failed for slug=tbond",
                     exc_info=True,
                 )
             continue
