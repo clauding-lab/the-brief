@@ -85,7 +85,12 @@ def score_lens(
             best_slug = slug
 
     if best_score < _QUIET_DAY_THRESHOLD:
-        if previous_lens:
+        # "weekly_wrap" is a Friday-only lens (set at the top of this function).
+        # On a quiet non-Friday (e.g. Saturday, markets closed) the previous brief
+        # is often Friday's wrap — inheriting it would feed today_lens="weekly_wrap"
+        # to the *standard* editor prompt, which explicitly forbids emitting a
+        # weekly-wrap and so refuses the entire brief. Never carry it forward here.
+        if previous_lens and previous_lens != "weekly_wrap":
             breakdown["fallback"] = "quiet_day"
             return previous_lens, breakdown
         breakdown["fallback"] = "quiet_day_alpha"
