@@ -40,6 +40,17 @@ def test_run_max_rejects_bad_returncode():
             run_max(prompt="hi", timeout_s=60)
 
 
+def test_run_max_surfaces_cli_stdout_on_nonzero_exit():
+    # In --output-format json mode the CLI writes its error payload to stdout
+    # and exits non-zero with empty stderr; that payload must reach the error.
+    err_payload = '{"type":"result","is_error":true,"subtype":"error_max_turns"}'
+    with patch("brief.claude.max_client.subprocess.run",
+               return_value=_fake_completed(err_payload, returncode=1)):
+        with pytest.raises(MaxCallError) as ei:
+            run_max(prompt="hi", timeout_s=60)
+    assert "error_max_turns" in str(ei.value)
+
+
 def test_run_max_rejects_non_json_outer():
     with patch("brief.claude.max_client.subprocess.run",
                return_value=_fake_completed("not json")):
