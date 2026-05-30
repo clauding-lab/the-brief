@@ -283,7 +283,7 @@ class TestRunMaxFenceStripping:
 # Model + effort defaults
 # ---------------------------------------------------------------------------
 
-def test_run_max_defaults_to_opus_4_6():
+def test_run_max_defaults_to_opus_4_8():
     fake_completed = _fake_completed(json.dumps({
         "result": "{}", "total_cost_usd": 0.0,
         "usage": {"input_tokens": 1, "output_tokens": 1},
@@ -293,10 +293,10 @@ def test_run_max_defaults_to_opus_4_6():
     args = mock_run.call_args.args[0]
     assert "--model" in args
     idx = args.index("--model")
-    assert args[idx + 1] == "claude-opus-4-6"
+    assert args[idx + 1] == "claude-opus-4-8"
 
 
-def test_run_max_defaults_to_high_effort():
+def test_run_max_defaults_to_xhigh_effort():
     fake_completed = _fake_completed(json.dumps({
         "result": "{}", "total_cost_usd": 0.0,
         "usage": {"input_tokens": 1, "output_tokens": 1},
@@ -306,8 +306,10 @@ def test_run_max_defaults_to_high_effort():
     args = mock_run.call_args.args[0]
     assert "--effort" in args
     idx = args.index("--effort")
-    assert args[idx + 1] == "high"
+    assert args[idx + 1] == "xhigh"
     # Legacy --thinking-budget flag must never appear (CLI v2.1.119 rejects it).
+    # On Opus 4.7+, --effort drives adaptive thinking; there is no separate
+    # thinking flag, so xhigh effort already means "thinking on".
     assert "--thinking-budget" not in args
 
 
