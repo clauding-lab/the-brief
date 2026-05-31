@@ -1,4 +1,4 @@
-# The Brief
+<img src="assets/hero.svg" alt="The Brief — daily macro & markets read for Bangladesh banking professionals" width="100%">
 
 **Daily macro & markets read for Bangladesh banking professionals.**
 

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" font-family="'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace">
+  <rect width="1200" height="340" fill="#EDE7DD"/>
+
+  <!-- masthead double-rule -->
+  <rect x="64" y="56" width="1072" height="2" fill="#2B0E12"/>
+  <rect x="64" y="62" width="1072" height="1" fill="#2B0E12" opacity="0.45"/>
+
+  <!-- eyebrow -->
+  <text x="64" y="92" font-size="13" letter-spacing="3" fill="#7A5C5F">DAILY MACRO &amp; MARKETS · BANGLADESH BANKING</text>
+  <!-- title -->
+  <text x="62" y="178" font-size="66" font-weight="700" letter-spacing="-1" fill="#2B0E12">The Brief</text>
+  <!-- tagline -->
+  <text x="64" y="222" font-size="20" fill="#4A1F24">The numbers, the news, and a banker’s read — every morning.</text>
+
+  <!-- footer rule + row -->
+  <rect x="64" y="268" width="1072" height="1" fill="#2B0E12" opacity="0.28"/>
+  <text x="64" y="298" font-size="14" fill="#7A5C5F">thebrief.clauding-lab.com</text>
+  <text x="1136" y="298" text-anchor="end" font-size="12" letter-spacing="1" fill="#7A5C5F">MON–FRI + SUN · 06:30 BDT</text>
+</svg>
