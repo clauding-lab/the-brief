@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import type { Section as SectionType } from "@/types/brief";
+import type { Section as SectionType, Mover } from "@/types/brief";
 import { Hair } from "./Hair";
 import { Mark } from "./Mark";
 import { BankerRead } from "./BankerRead";
@@ -32,6 +32,7 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
     analysis,
     freshness,
     chart_read,
+    movers,
   } = section;
 
   // SPA-side sequential numbering (1, 2, 3, …) — falls back to backend ord
@@ -244,6 +245,43 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
           </div>
         </>
       )}
+
+      {movers && movers.length > 0 && (() => {
+        const gainers = movers
+          .filter((m) => m.return_pct > 0)
+          .sort((a, b) => b.return_pct - a.return_pct);
+        const losers = movers
+          .filter((m) => m.return_pct < 0)
+          .sort((a, b) => a.return_pct - b.return_pct);
+        const fmtRet = (v: number) =>
+          `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`;
+        const col = (heading: string, rows: Mover[], tone: string) => (
+          <div className="tb-movers-col">
+            <span className={`tb-movers-colhd ${tone}`}>{heading}</span>
+            {rows.map((m) => (
+              <div className="tb-mover-row" key={m.ticker}>
+                <span className="tb-mover-tk">
+                  {m.ticker}
+                  <span className="tb-mover-px">{`৳${m.price}`}</span>
+                </span>
+                <span className={`tb-mover-rt ${tone}`}>{fmtRet(m.return_pct)}</span>
+              </div>
+            ))}
+          </div>
+        );
+        return (
+          <div className="tb-movers">
+            <div className="tb-movers-head">
+              <span>DS30 · Movers</span>
+              <span>1-Month</span>
+            </div>
+            <div className="tb-movers-grid">
+              {col("Gainers", gainers, "tone-bull")}
+              {col("Losers", losers, "tone-bear")}
+            </div>
+          </div>
+        );
+      })()}
 
       {banker_read && <BankerRead read={banker_read} hero={isHero} />}
 

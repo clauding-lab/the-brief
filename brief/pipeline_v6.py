@@ -443,6 +443,19 @@ def _stamp_chart_series(
                 )
                 section.series = series
                 section.notes = notes
+                # F4 — DS30 movers (separate structured field; None when the
+                # freshness gate hides it or data is unavailable).
+                try:
+                    section.movers = chart_series_fetcher.fetch_dse_movers(
+                        http=http,
+                        supabase_url=supabase_url,
+                        service_key=service_key,
+                        today=today,
+                    )
+                except Exception:  # noqa: BLE001 — graceful degradation
+                    logger.warning(
+                        "v6: dse-movers fetch failed for slug=dse", exc_info=True
+                    )
             else:
                 series = fn(
                     http=http,

@@ -86,6 +86,12 @@ export interface ChartRead {
   implication: string;   // ≤25 words, desk word OR action verb OR time anchor
 }
 
+export interface Mover {
+  ticker: string;
+  price: number;
+  return_pct: number;
+}
+
 export interface Section {
   id?: string;
   slug: string;
@@ -105,6 +111,7 @@ export interface Section {
   series: SeriesPoint[];
   notes: SeriesNote[];
   chart_read?: ChartRead | null;
+  movers?: Mover[] | null;
 }
 
 export interface BriefPayload {

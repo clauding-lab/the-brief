@@ -599,6 +599,32 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   gap: 24px 28px;
 }
 
+/* ─── DS30 MOVERS ──────────────────────────────────────── */
+.tb-movers { padding-top: 22px; }
+.tb-movers-head {
+  display: flex; justify-content: space-between;
+  font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3);
+  border-bottom: 1px solid var(--rule); padding-bottom: 8px; margin-bottom: 10px;
+}
+.tb-movers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 36px; }
+.tb-movers-col { min-width: 0; }
+.tb-movers-colhd {
+  display: block; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  font-weight: 600; margin-bottom: 6px;
+}
+.tb-movers-colhd.tone-bull { color: var(--bull); }
+.tb-movers-colhd.tone-bear { color: var(--bear); }
+.tb-mover-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px solid var(--rule-faint);
+}
+.tb-mover-row:last-child { border-bottom: none; }
+.tb-mover-tk { font-size: 13px; letter-spacing: 0.02em; }
+.tb-mover-px { color: var(--ink-3); font-size: 11px; margin-left: 8px; font-variant-numeric: tabular-nums; }
+.tb-mover-rt { font-size: 14px; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.tb-mover-rt.tone-bull { color: var(--bull); }
+.tb-mover-rt.tone-bear { color: var(--bear); }
+
 /* ─── BANKER'S READ ────────────────────────────────────── */
 .tb-banker { padding-top: 28px; display: grid; grid-template-columns: 0.4fr 1fr; gap: 36px; }
 .tb-banker-runway { display: flex; flex-direction: column; gap: 10px; }
@@ -876,6 +902,7 @@ body.tb-diff .tb-section .tb-kpi-row.is-held-over {
   .tb-section-grid, .tb-section-grid.no-chart { grid-template-columns: 1fr; gap: 24px; }
   .tb-news-rail { grid-template-columns: 1fr; gap: 20px; }
   .tb-news-rail.is-headlines { grid-template-columns: repeat(2, 1fr); }
+  .tb-movers-grid { grid-template-columns: 1fr; gap: 18px; }
   .tb-summary-pills { flex-direction: column; }
   .tb-summary-pill { border-right: 0; border-bottom: 1px solid var(--rule-soft); padding: 10px 0; }
   .tb-summary-pill:last-child { border-bottom: 0; }
