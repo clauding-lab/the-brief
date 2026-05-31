@@ -21,6 +21,7 @@ when the series array is empty.
 """
 from __future__ import annotations
 
+import calendar
 import logging
 import urllib.parse
 from datetime import date as date_t
@@ -28,7 +29,7 @@ from datetime import timedelta
 from typing import Any
 
 from brief.history import HttpClient, MetricHistoryClient
-from brief.v6_schema import SeriesNoteV6, SeriesPointV6
+from brief.v6_schema import MoverRowV6, SeriesNoteV6, SeriesPointV6
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,11 @@ _YIELD_LADDER_MONTHLY_METRIC_IDS: tuple[str, ...] = (
 
 _BRENT_METRIC_ID: str = "brent_crude_usd_barrel"
 _DSEX_METRIC_ID: str = "dsex"
+
+# F4 — DS30 blue-chip movers (per-ticker dse_close_*, computed at publish time).
+_DSE_CLOSE_PREFIX: str = "dse_close_"
+_DSE_MOVERS_PER_SIDE: int = 5
+STALE_LAG_DAYS: int = 4  # per-ticker data must lag the dsex index by <= this many days
 
 # Yield curve canonical keys — metric_id → "yield_<tenor>" matching
 # lib/chartConfigs.ts tenorMap. Five tenors live in metric_history:
@@ -224,6 +230,129 @@ def fetch_dsex(
             continue
         series.append(SeriesPointV6(key="dsex", ts=ts, value=close))
     return series, []
+
+
+def _minus_one_calendar_month(d: date_t) -> date_t:
+    """Date one calendar month earlier, clamping day to the target month's length."""
+    year: int = d.year - 1 if d.month == 1 else d.year
+    month: int = 12 if d.month == 1 else d.month - 1
+    last_day: int = calendar.monthrange(year, month)[1]
+    return date_t(year, month, min(d.day, last_day))
+
+
+def _latest_as_of(
+    http: HttpClient, supabase_url: str, metric_filter: str, *, service_key: str
+) -> date_t | None:
+    """Most recent `as_of` for a metric_id filter (e.g. 'eq.dsex'), or None."""
+    q: str = urllib.parse.urlencode(
+        {"metric_id": metric_filter, "select": "as_of", "order": "as_of.desc", "limit": "1"}
+    )
+    rows: list[dict[str, Any]] = _safe_get(
+        http, f"{supabase_url.rstrip('/')}/rest/v1/metric_history?{q}", service_key=service_key
+    )
+    raw: Any = rows[0].get("as_of") if rows else None
+    if not isinstance(raw, str):
+        return None
+    try:
+        return date_t.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def fetch_dse_movers(
+    *,
+    http: HttpClient,
+    supabase_url: str,
+    service_key: str,
+    today: date_t,
+) -> list[MoverRowV6] | None:
+    """DS30 1-month movers: up to 5 gainers (return>0, desc) + 5 losers (<0, asc),
+    each {ticker, price, return_pct}, computed from `dse_close_*` in metric_history.
+
+    Returns None when per-ticker data is stale vs the live DSEX index (freshness
+    gate) or unavailable — the SPA then renders nothing, so F4 ships dark until
+    EconDelta writes dse_close_* daily. Calendar-month return; the prior anchor
+    is the most recent close at/before (latest_as_of - 1 month).
+
+    AGENTS.md landmine #14: bounded queries (latest-date slice + a small prior
+    window), never an unbounded dse_close_* pull (30 tickers x history > 1000).
+
+    `today` is accepted for dispatch-signature parity with the other fetchers but
+    unused — the calendar-month anchor is derived from the DB's latest `dse_close_*`
+    date, not wall-clock today.
+    """
+    data_latest: date_t | None = _latest_as_of(
+        http, supabase_url, f"like.{_DSE_CLOSE_PREFIX}*", service_key=service_key
+    )
+    idx_latest: date_t | None = _latest_as_of(
+        http, supabase_url, f"eq.{_DSEX_METRIC_ID}", service_key=service_key
+    )
+    if data_latest is None or idx_latest is None:
+        return None
+    if (idx_latest - data_latest).days > STALE_LAG_DAYS:  # freshness gate
+        return None
+
+    cur_q: str = urllib.parse.urlencode(
+        {
+            "metric_id": f"like.{_DSE_CLOSE_PREFIX}*",
+            "as_of": f"eq.{data_latest.isoformat()}",
+            "select": "metric_id,value",
+            "limit": "100",  # landmine #14: 30 DS30 tickers → ≤30 rows; 100 headroom, never truncates
+        }
+    )
+    latest_by_ticker: dict[str, float] = {}
+    for row in _safe_get(
+        http, f"{supabase_url.rstrip('/')}/rest/v1/metric_history?{cur_q}", service_key=service_key
+    ):
+        mid: Any = row.get("metric_id")
+        val: float | None = _coerce_float(row.get("value"))
+        if isinstance(mid, str) and val is not None:
+            latest_by_ticker[mid] = val
+    if not latest_by_ticker:
+        return None
+
+    target: date_t = _minus_one_calendar_month(data_latest)
+    window_lo: date_t = target - timedelta(days=15)
+    prior_q: str = urllib.parse.urlencode(
+        [
+            ("metric_id", f"like.{_DSE_CLOSE_PREFIX}*"),
+            ("as_of", f"gte.{window_lo.isoformat()}"),
+            ("as_of", f"lte.{target.isoformat()}"),
+            ("select", "metric_id,as_of,value"),
+            ("order", "as_of.desc"),
+            # landmine #14: ≈300 rows expected in the 15-day window; 500 headroom.
+            # desc order means each ticker's most-recent-≤-target is among the newest
+            # rows, so correctness holds even at the cap.
+            ("limit", "500"),
+        ]
+    )
+    prior_by_ticker: dict[str, float] = {}
+    for row in _safe_get(
+        http, f"{supabase_url.rstrip('/')}/rest/v1/metric_history?{prior_q}", service_key=service_key
+    ):
+        mid = row.get("metric_id")
+        val = _coerce_float(row.get("value"))
+        if isinstance(mid, str) and val is not None and mid not in prior_by_ticker:
+            prior_by_ticker[mid] = val  # desc order → first seen is most recent <= target
+
+    movers: list[MoverRowV6] = []
+    for mid, latest_price in latest_by_ticker.items():
+        prior_price: float | None = prior_by_ticker.get(mid)
+        if prior_price is None or prior_price == 0:
+            continue
+        ret: float = round((latest_price / prior_price - 1) * 100, 2)
+        movers.append(
+            MoverRowV6(ticker=mid[len(_DSE_CLOSE_PREFIX):], price=latest_price, return_pct=ret)
+        )
+
+    gainers: list[MoverRowV6] = sorted(
+        [m for m in movers if m.return_pct > 0], key=lambda m: (-m.return_pct, m.ticker)
+    )[:_DSE_MOVERS_PER_SIDE]
+    losers: list[MoverRowV6] = sorted(
+        [m for m in movers if m.return_pct < 0], key=lambda m: (m.return_pct, m.ticker)
+    )[:_DSE_MOVERS_PER_SIDE]
+    result: list[MoverRowV6] = gainers + losers
+    return result or None
 
 
 def fetch_brent(

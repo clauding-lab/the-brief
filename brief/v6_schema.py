@@ -137,6 +137,13 @@ class NewsItemV6(_Lenient):
     held_from: Optional[date_t] = None
 
 
+class MoverRowV6(_Lenient):
+    """F4 — one DS30 blue-chip mover: ticker, latest close (taka), 1-month return %."""
+    ticker: str = Field(min_length=1)
+    price: float
+    return_pct: float
+
+
 class SeriesPointV6(_Lenient):
     key: Optional[str] = None
     ts: str  # YYYY-MM-DD
@@ -190,6 +197,7 @@ class SectionV6(_Strict):
     summary_pills: list[SummaryPillV6] = Field(default_factory=list, max_length=6)
     analysis: Optional[str] = None
     chart_read: Optional[ChartReadV6] = None
+    movers: Optional[list[MoverRowV6]] = None
     metrics: list[MetricV6] = Field(default_factory=list)
     news: list[NewsItemV6] = Field(default_factory=list)
     series: list[SeriesPointV6] = Field(default_factory=list)

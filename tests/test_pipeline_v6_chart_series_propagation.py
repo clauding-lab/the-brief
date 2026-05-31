@@ -815,3 +815,86 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
         assert kw["supabase_url"] == SUPABASE_URL
         assert kw["service_key"] == SERVICE_KEY
         assert kw["today"] == TODAY
+
+
+# ─── F4 — DS30 movers stamping ─────────────────────────────────────────
+
+
+def test_stamp_chart_series_stamps_dse_movers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dse section gets `movers` stamped from `fetch_dse_movers`, alongside
+    the existing dsex chart series (the two are independent fields)."""
+    from brief.v6_schema import MoverRowV6
+
+    mover = MoverRowV6(ticker="FINEFOODS", price=577.0, return_pct=16.57)
+    dsex_series: list[SeriesPointV6] = [SeriesPointV6(key="dsex", ts="2026-05-01", value=5210.0)]
+
+    monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: (dsex_series, []))
+    monkeypatch.setattr(chart_series_fetcher, "fetch_dse_movers", lambda **_k: [mover])
+    # Isolate every other branch so only the dse section is under test.
+    monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
+
+    def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
+        return {}
+
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fx_balance_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
+
+    final_brief: BriefPayloadV6 = _full_brief()
+    pipeline_v6._stamp_chart_series(
+        final_brief,
+        today=TODAY,
+        http=_http([]),
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+    )
+    by_slug: dict[str, SectionV6] = {s.slug: s for s in final_brief.sections}
+    assert by_slug["dse"].movers == [mover]
+    # The chart series is stamped independently of the movers field.
+    assert by_slug["dse"].series == dsex_series
+
+
+def test_stamp_chart_series_dse_movers_failure_is_isolated(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A `fetch_dse_movers` exception is swallowed (warning logged) without
+    killing the dse chart series; `movers` is left None."""
+    dsex_series: list[SeriesPointV6] = [SeriesPointV6(key="dsex", ts="2026-05-01", value=5210.0)]
+
+    def _raise(**_k: Any) -> list[Any]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: (dsex_series, []))
+    monkeypatch.setattr(chart_series_fetcher, "fetch_dse_movers", _raise)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
+
+    def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
+        return {}
+
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fx_balance_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
+
+    final_brief: BriefPayloadV6 = _full_brief()
+    with caplog.at_level(logging.WARNING, logger="brief.pipeline_v6"):
+        # Must NOT raise — the movers failure is isolated in its own try/except.
+        pipeline_v6._stamp_chart_series(
+            final_brief,
+            today=TODAY,
+            http=_http([]),
+            supabase_url=SUPABASE_URL,
+            service_key=SERVICE_KEY,
+        )
+    by_slug: dict[str, SectionV6] = {s.slug: s for s in final_brief.sections}
+    # Chart series survives the movers failure (failure isolated).
+    assert by_slug["dse"].series == dsex_series
+    assert by_slug["dse"].movers is None
+    messages = " ".join(r.getMessage().lower() for r in caplog.records)
+    assert "movers" in messages, f"expected a warning mentioning movers; got {messages!r}"
