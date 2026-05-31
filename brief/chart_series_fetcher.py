@@ -44,6 +44,13 @@ _FX_METRIC_IDS: tuple[str, ...] = (
 # F6 — §08 remittance 12-month chart (metric_history_monthly, USD mn).
 _REMIT_MONTHLY_METRIC_IDS: tuple[str, ...] = ("remittance_usd_mn_monthly",)
 
+# F3 — §fx external flow balance (metric_history_monthly, USD mn → bn in SPA).
+_FX_BALANCE_MONTHLY_METRIC_IDS: tuple[str, ...] = (
+    "exports_usd_mn_monthly",
+    "imports_usd_mn_monthly",
+    "remittance_usd_mn_monthly",
+)
+
 # F2 — §02 Policy & Rates reserves two-line chart (metric_history_monthly, USD bn).
 _RESERVES_MONTHLY_METRIC_IDS: tuple[str, ...] = (
     "gross_reserves_usd_bn_monthly",
@@ -298,6 +305,37 @@ def fetch_remit_monthly(
     )
     out: dict[str, list[SeriesPointV6]] = {}
     for mid in _REMIT_MONTHLY_METRIC_IDS:
+        rows = grouped.get(mid, [])
+        out[mid] = [
+            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            for r in reversed(rows)
+        ]
+    return out
+
+
+def fetch_fx_balance_monthly(
+    history_monthly: MetricHistoryClient,
+    *,
+    months: int = 24,
+) -> dict[str, list[SeriesPointV6]]:
+    """Pull `months` of exports / imports / remittance from `metric_history_monthly`
+    for the F3 §fx External Flow Balance chart (USD mn; SPA converts to bn).
+
+    Multi-series sibling of `fetch_macro_cpi_series`; dict keyed by metric_id,
+    chronological (oldest-first). The net basic balance is computed in the SPA
+    config, not here.
+
+    AGENTS.md landmine #1: reads metric_history_monthly, NOT tb_* tables.
+    AGENTS.md landmine #6: uses the _monthly-suffixed metric IDs.
+    AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
+    """
+    grouped = history_monthly.get_history_window(
+        _FX_BALANCE_MONTHLY_METRIC_IDS,
+        limit=months * len(_FX_BALANCE_MONTHLY_METRIC_IDS),
+        table="metric_history_monthly",
+    )
+    out: dict[str, list[SeriesPointV6]] = {}
+    for mid in _FX_BALANCE_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
             SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
