@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-05-31 — PR #107 | Chart re-point deployed after the daily publish → live chart blank until next publish
+
+**Trigger:** After merging + deploying F3 (§fx External Flow Balance — a chart *re-point*) to `main` + Hetzner at ~13:00 BDT, the live production fx chart rendered **blank**, even though the Vercel branch preview (with a fixture) rendered perfectly at 1440 and 390 with 0 console errors.
+
+**What went wrong:** The SPA reads each section's chart `series` from the **published brief** (`get_latest_brief` RPC, `app/page.tsx:24`), NOT live from `metric_history`. Today's brief was published at 06:56 BDT by the OLD pipeline, so its fx section still carried the old daily keys (`monthly_export` / `monthly_import` / `monthly_remittance`, 90 daily points — verified via the RPC). The new `fxBalanceConfig` guards on `hasAnyData(ctx.series, ["exports_usd_mn_monthly", …])` → the new monthly keys weren't in the published data → `emptyLineConfig()` → blank. The preview looked fine because its fixture already had the new monthly keys. Because F3 (like F5/tbond) is a REPLACEMENT chart, the user-visible result is blank-vs-old-chart (a regression), not blank-vs-empty-slot.
+
+**Lesson:** A chart re-point or new monthly chart only renders after a fresh pipeline publish stamps the new series into the brief. Deploying it *after* the day's 06:30 publish leaves the live chart blank until the next scheduled publish — and the Vercel preview is NOT sufficient proof, because its fixture carries the new keys.
+
+**Prevention:** At deploy time for any chart re-point / new chart: (a) deploy BEFORE the day's 06:30 BDT publish so the first fire carries the new series, OR (b) plan a manual `python -m brief.cli run --publish` on Hetzner (regenerates the FULL editorial brief — Anthropic token cost + editor_v6 hang risk, so it's Adnan's call), OR (c) explicitly flag the "blank until next publish" window to Adnan and let him choose. ALWAYS smoke-check the LIVE prod chart after a re-point deploy, not just the Vercel preview. `brief.timer` fires Mon–Fri + Sun 06:30 BDT (Saturday skipped).
+
+**Hotfix:** None applied — Adnan chose to wait for the Mon 06:30 BDT auto-publish, which self-heals (the new pipeline stamps the monthly fx series). F3 code itself is correct and verified end-to-end.
+
+**Cross-references:** AGENTS.md landmine #17; auto-memory `project_chart_repoint_publish_gap`; relates to `feedback_preview_before_prod` and `feedback_chartjs_register_and_preview`. (Kept project-scoped — tied to The Brief's publish-then-read architecture — not promoted to the global rulebook.)
+
 ## 2026-05-30 — Saturday publish refused on a stale weekly_wrap lens; Opus 4.8/xhigh bump validated
 
 **Trigger:** Manual fire of a missing Saturday (2026-05-30) brief, mid Opus 4.8/xhigh model bump (PR #102). The editor refused 3× — "today_lens is weekly_wrap, but this isn't Friday."

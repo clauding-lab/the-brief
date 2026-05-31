@@ -122,6 +122,8 @@ These are shape rules that govern HOW code/configs/data are named, structured, a
 
 16. **Diverging area charts with an overlay line must stack inflows manually, NOT via `scales.y.stacked`.** A config like `fxBalanceConfig` in `lib/chartConfigs.ts` that stacks positive inflow areas under a net-balance overlay line must use **manual cumulative dataset values + `fill:'-1'`** to band the areas, not Chart.js `scales.y.stacked`. Turning on `y.stacked` folds the negative outflow areas and the overlay line into the stack, so the bands render wrong — caught in the F3 brainstorm mockup, where inflows showed ~$4bn instead of ~$7bn.
 
+17. **Chart series render from the PUBLISHED brief, not live `metric_history` — a chart re-point deployed AFTER the day's 06:30 publish shows BLANK until the next publish.** The SPA reads each section's `series` from `get_latest_brief` (`app/page.tsx`); a config that newly reads different metric_ids (e.g. F3 `fxBalanceConfig`, F5 `yieldLadderConfig`) finds the OLD keys in the already-published brief, fails its `hasAnyData` guard, and renders empty. The Vercel preview uses a fixture with the NEW keys, so it looks fine even when prod is blank — ALWAYS verify the LIVE prod chart after a re-point deploy. Mitigate by deploying before the 06:30 BDT fire, planning a manual `brief.cli run --publish`, or flagging the blank-until-next-publish window. `brief.timer`: Mon–Fri + Sun 06:30 BDT (Saturday skipped). See AGENT_LEARNINGS.md 2026-05-31.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
