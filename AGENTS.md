@@ -120,6 +120,8 @@ These are shape rules that govern HOW code/configs/data are named, structured, a
 
 15. **`.tb-analysis` is a `display: grid; grid-template-columns: 140px 1fr` container.** Bare children become grid items in alternating columns — a `<p>` placed directly inside would scatter across the label/body columns and render broken. When reusing `.tb-analysis` (e.g., the new ChartRead block in v1.4.0), wrap children in the canonical `<span className="label">EYEBROW</span>` + `<div className="body"><p>...</p>...</div>` structure. The pattern is already in use for the regular Analysis block at the bottom of each `app/components/Section.tsx` — copy that shape.
 
+16. **Diverging area charts with an overlay line must stack inflows manually, NOT via `scales.y.stacked`.** A config like `fxBalanceConfig` in `lib/chartConfigs.ts` that stacks positive inflow areas under a net-balance overlay line must use **manual cumulative dataset values + `fill:'-1'`** to band the areas, not Chart.js `scales.y.stacked`. Turning on `y.stacked` folds the negative outflow areas and the overlay line into the stack, so the bands render wrong — caught in the F3 brainstorm mockup, where inflows showed ~$4bn instead of ~$7bn.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.

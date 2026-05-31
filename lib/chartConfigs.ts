@@ -457,6 +457,125 @@ function fxFlowsConfig(ctx: BuildContext): ChartConfiguration<"bar"> {
 }
 
 /**
+ * fxBalance — F3. External Flow Balance for §fx (FIG.01). Diverging area +
+ * bold net-balance line, 24-month, USD bn, read from metric_history_monthly.
+ * Inflows (exports + remittance) stack UP via manual cumulative values
+ * (remittance dataset = exports+remittance, fill:"-1"); imports drawn as a
+ * negative area; net = exports+remittance-imports is the hero line.
+ *
+ * AGENTS.md landmine: do NOT use scales.y.stacked here — it folds the negative
+ * imports area + the overlay net line into the stack and renders wrong. Stack
+ * inflows manually (caught in the F3 brainstorm mockup: inflows showed ~$4bn
+ * instead of ~$7bn under y.stacked). TimeScale already registered in
+ * BriefChart.tsx (landmine #2).
+ *
+ * Area fills: the brief's fill convention is a low-alpha variant of the line's
+ * hue (see brentConfig/lngConfig → palette.accentSoft, an oklch-with-alpha CSS
+ * var). There is no `rgba`/`withAlpha` util in this codebase, and the bull/bear/
+ * ink2 tokens are solid (opaque) inks — drawn as overlapping areas they'd
+ * occlude each other and the hero net line. So the three diverging areas use a
+ * native color-mix() soft tint derived from the SAME --bull/--bear/--ink-2
+ * tokens (≈18%, mirroring accentSoft's ~12%); borders stay the solid ink so
+ * each band keeps a crisp edge, and the net line stays solid palette.ink.
+ */
+function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
+  const EXP = "exports_usd_mn_monthly";
+  const IMP = "imports_usd_mn_monthly";
+  const REM = "remittance_usd_mn_monthly";
+  if (!hasAnyData(ctx.series, [EXP, IMP, REM])) return emptyLineConfig();
+
+  const palette = buildPalette();
+  // Low-alpha tint of a solid ink, reusing the same hue (mirrors accentSoft).
+  const AREA_ALPHA = 18; // mirrors accentSoft (~12%), nudged up for diverging-area legibility
+  const soft = (ink: string): string => `color-mix(in oklch, ${ink} ${AREA_ALPHA}%, transparent)`;
+
+  // mn → bn, aligned by ts.
+  const toBn = (key: string): XYPoint[] =>
+    toPoints(ctx.series[key]).map((p) => ({ x: p.x, y: p.y == null ? null : p.y / 1000 }));
+  const exp = toBn(EXP);
+  const imp = toBn(IMP);
+  const rem = toBn(REM);
+  const remByTs = new Map(rem.map((p) => [p.x, p.y]));
+  const impByTs = new Map(imp.map((p) => [p.x, p.y]));
+  // A missing month in any component yields null (no fabricated 0 / fake zero-crossing).
+  // spanGaps (from baseLineOptions) bridges the LINE across it, but no false value is plotted.
+  const inflowTop: XYPoint[] = exp.map((p) => {
+    const r = remByTs.get(p.x);
+    return { x: p.x, y: p.y == null || r == null ? null : p.y + r };
+  });
+  const net: XYPoint[] = exp.map((p) => {
+    const r = remByTs.get(p.x);
+    const m = impByTs.get(p.x);
+    return { x: p.x, y: p.y == null || r == null || m == null ? null : p.y + r - m };
+  });
+  const impNeg: XYPoint[] = imp.map((p) => ({ x: p.x, y: p.y == null ? null : -Math.abs(p.y) }));
+
+  const datasets: ChartDataset<"line", XYPoint[]>[] = [
+    {
+      label: "Exports",
+      data: exp,
+      backgroundColor: soft(palette.bull),
+      borderColor: palette.bull,
+      borderWidth: 0.8,
+      fill: "origin",
+      pointRadius: 0,
+      tension: 0.3,
+    },
+    {
+      label: "Remittance",
+      data: inflowTop,
+      backgroundColor: soft(palette.ink2),
+      borderColor: palette.ink2,
+      borderWidth: 0.8,
+      fill: "-1",
+      pointRadius: 0,
+      tension: 0.3,
+    },
+    {
+      label: "Imports",
+      data: impNeg,
+      backgroundColor: soft(palette.bear),
+      borderColor: palette.bear,
+      borderWidth: 0.8,
+      fill: "origin",
+      pointRadius: 0,
+      tension: 0.3,
+    },
+    {
+      label: "Net basic balance",
+      data: net,
+      borderColor: palette.ink,
+      borderWidth: 2.6,
+      fill: false,
+      pointRadius: 0,
+      tension: 0.25,
+      order: 0,
+    },
+  ];
+
+  const baseOpts = baseLineOptions({
+    legend: true,
+    yTicks: { callback: (v: number) => (v < 0 ? "-$" : "$") + r2str(Math.abs(v)) },
+  });
+
+  return {
+    type: "line",
+    data: { datasets },
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: {
+          ...baseOpts.scales.x,
+          time: { unit: "month" as const, tooltipFormat: "MMM yyyy" },
+          ticks: { ...baseOpts.scales.x.ticks, maxTicksLimit: 9 },
+        },
+      },
+    },
+  } as unknown as ChartConfiguration<"line">;
+}
+
+/**
  * dsex — single-line DSEX index with event markers above the data area.
  * Events sourced from `ctx.notes` filtered to series_key === 'dsex'.
  */
@@ -1091,6 +1210,7 @@ type AnyChartConfig =
 
 export const chartConfigs = {
   fxFlows: fxFlowsConfig,
+  fxBalance: fxBalanceConfig,
   dsex: dsexConfig,
   brent: brentConfig,
   yieldCurve: yieldCurveConfig,
@@ -1109,7 +1229,7 @@ export type ChartConfigBuilder = (ctx: BuildContext) => AnyChartConfig;
 // Section.tsx (Phase E.3) will look up by section.slug.
 export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
   bb: "reserves",
-  fx: "fxFlows",
+  fx: "fxBalance",
   dse: "dsex",
   iran: "brent",
   tbond: "yieldLadder",
@@ -1137,8 +1257,8 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
   },
   fx: {
     fig: "01",
-    title: "FX Flows",
-    subtitle: "Monthly · export · remittance · import (USD mn)",
+    title: "External Flow Balance",
+    subtitle: "24-month · inflows vs imports · net basic balance · USD bn",
   },
   dse: {
     fig: "02",

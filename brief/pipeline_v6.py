@@ -326,9 +326,10 @@ def _stamp_freshness(final_brief: BriefPayloadV6, raw_sections: list[dict[str, A
 # correspond to function names on the `chart_series_fetcher` module — we look
 # them up dynamically so test monkeypatching just works.
 _CHART_FETCHERS_BY_SLUG: dict[str, str] = {
-    "fx": "fx_flows",
     "dse": "dsex",
     "iran": "brent",
+    # fx moved to the metric_history_monthly External Flow Balance branch (F3);
+    # fetch_fx_flows is retained (unit-tested) but no longer slug-dispatched.
     # tbond moved to the metric_history_monthly yield-ladder branch (F5);
     # fetch_yield_curve is retained (unit-tested) but no longer slug-dispatched.
 }
@@ -410,6 +411,19 @@ def _stamp_chart_series(
             except Exception:  # noqa: BLE001 — graceful degradation
                 logger.warning(
                     "v6: yield-ladder series fetch failed for slug=tbond",
+                    exc_info=True,
+                )
+            continue
+
+        # F3 — §fx External Flow Balance, last 24 months (metric_history_monthly).
+        # Replaces the daily fetch_fx_flows path (fx removed from the HTTP map below).
+        if section.slug == "fx":
+            try:
+                series_by_id = chart_series_fetcher.fetch_fx_balance_monthly(history_monthly_client)
+                section.series = [pt for pts in series_by_id.values() for pt in pts]
+            except Exception:  # noqa: BLE001 — graceful degradation
+                logger.warning(
+                    "v6: fx-balance series fetch failed for slug=fx",
                     exc_info=True,
                 )
             continue
