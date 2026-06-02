@@ -11,20 +11,21 @@ export const longView: LongViewData | null = {
   lead: "Workers' remittances accelerated through May 2026 — both the single month and the eleven-month fiscal-year tally landed well above a year ago.",
   blocks: [
     {
-      kind: "stat",
-      value: "19.09",
-      unit: "%",
-      label: "REMITTANCE GROWTH · FY2025-26, JUL–MAY YoY",
-      body: "Inflows reached $32,756.78M in the first eleven months of FY2025-26, against $27,506.86M a year earlier — roughly $5.25bn more.",
-      tone: "bull",
+      kind: "bar-chart",
+      eyebrow: "FY CUMULATIVE REMITTANCES · JUL–MAY · +19.09% YoY",
+      unit: "US$ million",
+      items: [
+        { label: "FY2024-25", value: 27506.86, display: "27,506.86" },
+        { label: "FY2025-26", value: 32756.78, display: "32,756.78", tone: "bull" },
+      ],
     },
     {
-      kind: "bullet-list",
-      eyebrow: "THE MONTH & THE CLOSING WEEK",
-      items: [
-        { text: "**May 2026: $3,425.03M** — up 15.34% on May 2025's $2,969.46M.", tone: "bull" },
-        { text: "**24–31 May: $448.97M** arrived in the month's final week.", tone: "neu" },
-      ],
+      kind: "stat",
+      value: "15.34",
+      unit: "%",
+      label: "MAY 2026 REMITTANCE GROWTH · YoY",
+      body: "$3,425.03M in May 2026 against $2,969.46M a year earlier; the month's closing week (24–31 May) added $448.97M.",
+      tone: "bull",
     },
   ],
   banker_read:
