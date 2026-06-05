@@ -5,12 +5,21 @@ export function formatBriefDate(s?: string): string {
   if (!s) return "Mon · 04 May 2026";
   const d = new Date(s);
   if (isNaN(d.getTime())) return s;
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
-  return `${days[d.getDay()]} · ${String(d.getDate()).padStart(2, "0")} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  // Force Asia/Dhaka on both server (UTC) and client (BDT) so the date can't
+  // differ across the hydration boundary for near-midnight-UTC timestamps
+  // (React #418). Same policy as formatNewsMeta/formatLongViewEyebrow (da8c968).
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Dhaka",
+    })
+      .formatToParts(d)
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.weekday} · ${parts.day} ${parts.month} ${parts.year}`;
 }
 
 export function formatNewsMeta(n: NewsItem): string {
