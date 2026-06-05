@@ -126,6 +126,16 @@ These are shape rules that govern HOW code/configs/data are named, structured, a
 
 18. **A new `SectionV6` JSONB field ships WITH its migration in the same PR, and the migration is applied to prod BEFORE the code publishes — an agent CANNOT apply the DDL itself.** Adding a section field (e.g. `chart_read`, F4 `movers`) means a Pydantic model + a `migrations/000N_*.sql` (`ALTER TABLE public.sections ADD COLUMN IF NOT EXISTS <col> jsonb; COMMENT …; NOTIFY pgrst, 'reload schema';`) + leaving the field OUT of the publisher's child-table `exclude` set. There is **no programmatic DDL path** (no `psql`, no Supabase CLI, no service-role key locally, no `DATABASE_URL` on Hetzner; PostgREST can't run DDL) — hand Adnan the SQL for the Supabase SQL editor (`https://supabase.com/dashboard/project/<ref>/sql/new`), then verify the column with an anon SELECT (`/rest/v1/sections?select=<col>&limit=1` → HTTP 200) before merge/deploy. Skipping/mis-ordering the migration orphans the next brief with PGRST204 (Brief #118, `chart_read`). See AGENT_LEARNINGS.md 2026-05-29.
 
+## 19. Library/framework API calls → Context7 first
+
+Before writing or editing code that calls a third-party library or framework API,
+query **Context7** for current, version-pinned docs — do NOT rely on training-cutoff memory.
+
+- **Flow:** `resolve-library-id` (name → `/org/project` ID) → `query-docs` (PIN the version this repo ships, e.g. `/vercel/next.js/v16.2.4`).
+- **Applies to:** `next` 16 (App Router, `app/`), `react` / `react-dom` 19, `@supabase/supabase-js` 2, `chart.js` 4 + `chartjs-adapter-date-fns` 3, `date-fns` 4 (SPA side); `anthropic` (Python SDK, `brief/claude/`) and `pydantic` 2 (pipeline side).
+- **Skip for:** business/domain logic, general programming concepts, or libraries Context7 does not index.
+- **Query specifically:** library + version + exact task (e.g. `chart.js 4 register CategoryScale for a bar chart` or `@supabase/supabase-js 2 select with in.() filter and limit`), never one-word topics like "auth".
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
