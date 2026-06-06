@@ -6,28 +6,89 @@ import type { LongViewData } from "@/types/brief";
 // before merging to main. See docs/longview-workflow.md for the full recipe.
 
 export const longView: LongViewData | null = {
-  posted_at: "2026-06-02T04:30:10Z",
-  title: "Remittances climb 19% over eleven months of FY26",
-  lead: "Workers' remittances accelerated through May 2026 — both the single month and the eleven-month fiscal-year tally landed well above a year ago.",
+  posted_at: "2026-06-06T04:55:11Z",
+  title: "Seven banks' 2025 profits rest on deferred provisioning",
+  lead: "Auditor-assessed accounts put seven listed banks in loss for 2025 once provisioning against their non-performing loans is fully recognised — each against a net profit reported on its published statements. The actual positions run from a Tk 620 cr loss at the smallest to Tk 84,508 cr at the largest.",
   blocks: [
     {
-      kind: "bar-chart",
-      eyebrow: "FY CUMULATIVE REMITTANCES · JUL–MAY · +19.09% YoY",
-      unit: "US$ million",
-      items: [
-        { label: "FY2024-25", value: 27506.86, display: "27,506.86" },
-        { label: "FY2025-26", value: 32756.78, display: "32,756.78", tone: "bull" },
+      kind: "comparison",
+      before_label: "Reported",
+      after_label: "Actual",
+      rows: [
+        {
+          title: "Islami Bank",
+          before: "Tk 136 cr",
+          after: "−Tk 84,508 cr",
+          description: "Largest Shariah-compliant bank; the widest gap of the seven.",
+          tone: "bear",
+        },
+        {
+          title: "Rupali Bank",
+          before: "Tk 6.81 cr",
+          after: "−Tk 14,000 cr",
+          description: "The only state-owned commercial bank on the list.",
+          tone: "bear",
+        },
+        {
+          title: "Al-Arafah Islami Bank",
+          before: "Tk 85.43 cr",
+          after: "−Tk 5,306 cr",
+          description: "Reported profit reverses to a multi-thousand-crore provisioned loss.",
+          tone: "bear",
+        },
+        {
+          title: "Standard Bank",
+          before: "Tk 80 cr",
+          after: "−Tk 5,200 cr",
+          description: "Private commercial bank; book profit turns negative under full provisioning.",
+          tone: "bear",
+        },
+        {
+          title: "One Bank",
+          before: "Tk 29.75 cr",
+          after: "−Tk 3,340 cr",
+          description: "Profit inverts once NPL provisioning is fully recognised.",
+          tone: "bear",
+        },
+        {
+          title: "UCB",
+          before: "Tk 23.82 cr",
+          after: "−Tk 3,278 cr",
+          description: "United Commercial Bank — among the larger private lenders shown.",
+          tone: "bear",
+        },
+        {
+          title: "NRBC Bank",
+          before: "Tk 13.27 cr",
+          after: "−Tk 620 cr",
+          description: "The smallest provisioned loss of the seven.",
+          tone: "bear",
+        },
       ],
     },
     {
-      kind: "stat",
-      value: "15.34",
-      unit: "%",
-      label: "MAY 2026 REMITTANCE GROWTH · YoY",
-      body: "$3,425.03M in May 2026 against $2,969.46M a year earlier; the month's closing week (24–31 May) added $448.97M.",
-      tone: "bull",
+      kind: "bullet-list",
+      eyebrow: "THE DEFERRAL FACILITY",
+      items: [
+        {
+          text: "**Provision deferral.** The seven use Bangladesh Bank's deferral facility to postpone provisioning against their non-performing loans, holding booked provisions below the level those loans imply.",
+          tone: "warn",
+        },
+        {
+          text: "**Paper profit.** With provisions deferred, each reports a net profit on its published accounts while the fully-provisioned position sits in loss.",
+          tone: "bear",
+        },
+        {
+          text: "**No dividend.** None can pay a cash dividend out of earnings that exist only before provisioning.",
+          tone: "warn",
+        },
+        {
+          text: "**Z-category.** Consecutive years without a dividend move a listed bank into the bourse's 'Z' category, its lowest trading tier.",
+          tone: "bear",
+        },
+      ],
     },
   ],
   banker_read:
-    "Sustained double-digit remittance growth is the quiet support under the taka and Bangladesh Bank's reserve position, and it feeds low-cost deposit growth for banks with strong NRB and remittance-channel franchises. At $32.8bn over eleven months and still accelerating, the inflow is doing more for system liquidity and the FX market right now than any single policy lever. Treasury desks should plan for continued remittance-driven dollar supply through the June fiscal-year close; ALCO can read the deposit-side tailwind as more structural than seasonal while it holds. The line to watch is the June print — whether the 15%-plus monthly pace sustains or eases as flows normalise.",
+    "The divergence is a provisioning-recognition story, not a trading surprise: the deferral facility lets these names carry booked provisions below what their non-performing loan books require, so the published profit and the fully-provisioned result describe different banks. For equity desks, it caps the reliability of headline earnings across the seven — the dividend block, and the resulting move toward the bourse's 'Z' category, reads cleaner than the profit line. For credit and counterparty risk, the number that matters is the provision shortfall behind the loss column, which is where capital is exposed as the deferral unwinds; interbank lines and large-exposure limits to these names should be set against the actual position, not the reported one. The line to watch over the next several quarters is BB's timeline for withdrawing the facility and how much of each shortfall converts into a direct capital call — the banks carrying the widest gaps relative to their capital base face the sharpest adjustment.",
 };
