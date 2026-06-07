@@ -44,6 +44,7 @@ _FX_METRIC_IDS: tuple[str, ...] = (
 
 # F6 — §08 remittance 12-month chart (metric_history_monthly, USD mn).
 _REMIT_MONTHLY_METRIC_IDS: tuple[str, ...] = ("remittance_usd_mn_monthly",)
+_FISCAL_MONTHLY_METRIC_IDS: tuple[str, ...] = ("nbr_revenue_monthly_cr",)
 
 # F3 — §fx external flow balance (metric_history_monthly, USD mn → bn in SPA).
 _FX_BALANCE_MONTHLY_METRIC_IDS: tuple[str, ...] = (
@@ -434,6 +435,37 @@ def fetch_remit_monthly(
     )
     out: dict[str, list[SeriesPointV6]] = {}
     for mid in _REMIT_MONTHLY_METRIC_IDS:
+        rows = grouped.get(mid, [])
+        out[mid] = [
+            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            for r in reversed(rows)
+        ]
+    return out
+
+
+def fetch_fiscal_monthly(
+    history_monthly: MetricHistoryClient,
+    *,
+    months: int = 30,
+) -> dict[str, list[SeriesPointV6]]:
+    """Pull `months` rows of monthly NBR tax revenue from `metric_history_monthly`
+    for the F7b §fiscal chart (single-month figures, BDT crore).
+
+    Single-series sibling of `fetch_remit_monthly`; returns a dict keyed by
+    metric_id with chronological (oldest-first) SeriesPointV6 lists. months=30
+    covers the ~28 backfilled months (Jul'23..Oct'25) with headroom.
+
+    AGENTS.md landmine #1: reads metric_history_monthly, NOT tb_* tables.
+    AGENTS.md landmine #6: uses the _monthly/_cr-suffixed EconDelta metric ID.
+    AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
+    """
+    grouped = history_monthly.get_history_window(
+        _FISCAL_MONTHLY_METRIC_IDS,
+        limit=months * len(_FISCAL_MONTHLY_METRIC_IDS),
+        table="metric_history_monthly",
+    )
+    out: dict[str, list[SeriesPointV6]] = {}
+    for mid in _FISCAL_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
             SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)

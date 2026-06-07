@@ -1072,6 +1072,60 @@ function remitFlowConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 }
 
 /**
+ * fiscalNbr — F7b. ~28-month monthly NBR tax-revenue line (BDT crore) for
+ * §fiscal. Reads nbr_revenue_monthly_cr from section.series. Single-series,
+ * newspaper-thin (mirrors remitFlow). Y-axis = BDT crore, X-axis = monthly
+ * TimeScale (already registered in BriefChart.tsx per AGENTS.md landmine #2).
+ *
+ * NB: the §fiscal headline cards ("NBR collected YTD") come from a different
+ * external pipeline (fiscal_*_trn, YTD); this chart plots EconDelta's
+ * single-MONTH figures, so its scale/latest differ by design — the subtitle
+ * flags the monthly basis.
+ */
+function fiscalNbrConfig(ctx: BuildContext): ChartConfiguration<"line"> {
+  const KEY = "nbr_revenue_monthly_cr";
+
+  if (!hasAnyData(ctx.series, [KEY])) {
+    return emptyLineConfig();
+  }
+
+  const palette = buildPalette();
+
+  const datasets: ChartDataset<"line", XYPoint[]>[] = [
+    {
+      label: "NBR revenue (monthly)",
+      data: toPoints(ctx.series[KEY]),
+      borderColor: palette.ink,
+      borderWidth: 1.8,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+  ];
+
+  const baseOpts = baseLineOptions({
+    legend: false,
+    yTicks: { callback: (v: number) => Number(v).toLocaleString() },
+  });
+
+  return {
+    type: "line",
+    data: { datasets },
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: {
+          ...baseOpts.scales.x,
+          time: { unit: "month" as const, tooltipFormat: "MMM yyyy" },
+          ticks: { ...baseOpts.scales.x.ticks, maxTicksLimit: 8 },
+        },
+      },
+    },
+  } as unknown as ChartConfiguration<"line">;
+}
+
+/**
  * reserves — F2. 13-month gross + net (BPM6) foreign-exchange reserves
  * two-line (USD bn) for §02 Policy & Rates (slug `bb`).
  *
@@ -1219,6 +1273,7 @@ export const chartConfigs = {
   cpiTrend: cpiTrendConfig,
   remitFlow: remitFlowConfig,
   reserves: reservesConfig,
+  fiscalNbr: fiscalNbrConfig,
 } as const;
 
 export type ChartConfigKey = keyof typeof chartConfigs;
@@ -1236,6 +1291,7 @@ export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
   comm: "lng",
   macro: "cpiTrend",
   remit: "remitFlow",
+  fiscal: "fiscalNbr",
 };
 
 // Per-chart card-head metadata — mirrors EconDelta /macro's FIG.NN + title
@@ -1289,6 +1345,11 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
     fig: "07",
     title: "Remittance Inflow",
     subtitle: "12-month · monthly · USD mn",
+  },
+  fiscal: {
+    fig: "09",
+    title: "NBR Tax Revenue",
+    subtitle: "Monthly · BDT crore",
   },
 };
 

@@ -414,8 +414,9 @@ def test_stamp_chart_series_populates_chartable_sections(
     """All chartable slugs get series; the chartless ones stay empty.
 
     HTTP-dispatched: dse/iran. Monthly-archive branches: fx (F3 External Flow
-    Balance), bb (F2 reserves), tbond (F5 yield ladder), macro (CPI), remit (F6).
-    Chartless: headlines, banking, fiscal, comm (comm de-charted post-LNG-drop).
+    Balance), bb (F2 reserves), tbond (F5 yield ladder), macro (CPI), remit (F6),
+    fiscal (F7b NBR).
+    Chartless: headlines, banking, comm (comm de-charted post-LNG-drop).
     """
     dsex_series: list[SeriesPointV6] = [SeriesPointV6(key="dsex", ts="2026-05-01", value=5210.0)]
     dsex_notes: list[SeriesNoteV6] = []
@@ -425,6 +426,7 @@ def test_stamp_chart_series_populates_chartable_sections(
     ladder_pt = SeriesPointV6(key="yield_5y_monthly", ts="2026-04-01", value=10.75)
     macro_pt = SeriesPointV6(key="cpi_12m_avg_monthly", ts="2026-04-01", value=9.5)
     remit_pt = SeriesPointV6(key="remittance_usd_mn_monthly", ts="2026-03-01", value=3755.1)
+    fiscal_pt = SeriesPointV6(key="nbr_revenue_monthly_cr", ts="2025-03-01", value=32245.0)
 
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: (dsex_series, dsex_notes))
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: brent_series)
@@ -442,6 +444,9 @@ def test_stamp_chart_series_populates_chartable_sections(
     )
     monkeypatch.setattr(
         chart_series_fetcher, "fetch_remit_monthly", lambda *_a, **_k: {remit_pt.key: [remit_pt]}
+    )
+    monkeypatch.setattr(
+        chart_series_fetcher, "fetch_fiscal_monthly", lambda *_a, **_k: {fiscal_pt.key: [fiscal_pt]}
     )
 
     final_brief: BriefPayloadV6 = _full_brief()
@@ -463,9 +468,10 @@ def test_stamp_chart_series_populates_chartable_sections(
     assert by_slug["tbond"].series == [ladder_pt]
     assert by_slug["macro"].series == [macro_pt]
     assert by_slug["remit"].series == [remit_pt]
+    assert by_slug["fiscal"].series == [fiscal_pt]
 
     # Chartless: empty
-    for slug in ("headlines", "banking", "fiscal", "comm"):
+    for slug in ("headlines", "banking", "comm"):
         assert by_slug[slug].series == [], f"{slug} should have empty series"
         assert by_slug[slug].notes == [], f"{slug} should have empty notes"
 
@@ -494,6 +500,7 @@ def test_stamp_chart_series_handles_fetcher_exception_gracefully(
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fiscal_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
 
     final_brief: BriefPayloadV6 = _full_brief()
@@ -522,9 +529,9 @@ def test_stamp_chart_series_handles_monthly_branch_exception_gracefully(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """If the fx (External Flow Balance), bb (reserves) or tbond (yield-ladder)
-    monthly fetchers raise, the pipeline leaves those series empty, logs a
-    warning, and does not crash."""
+    """If the fx (External Flow Balance), bb (reserves), tbond (yield-ladder),
+    or fiscal (F7b NBR) monthly fetchers raise, the pipeline leaves those series
+    empty, logs a warning, and does not crash."""
 
     def _raise(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
         raise RuntimeError("simulated monthly-archive blip")
@@ -535,7 +542,8 @@ def test_stamp_chart_series_handles_monthly_branch_exception_gracefully(
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_balance_monthly", _raise)
     monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _raise)
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _raise)
-    # Isolate the other branches so only fx/bb/tbond failures are under test.
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fiscal_monthly", _raise)
+    # Isolate the other branches so only fx/bb/tbond/fiscal failures are under test.
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: ([], []))
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
     monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
@@ -557,10 +565,12 @@ def test_stamp_chart_series_handles_monthly_branch_exception_gracefully(
     assert by_slug["fx"].series == [], "fx left empty after fx-balance fetcher exception"
     assert by_slug["bb"].series == [], "bb left empty after reserves fetcher exception"
     assert by_slug["tbond"].series == [], "tbond left empty after yield-ladder fetcher exception"
+    assert by_slug["fiscal"].series == [], "fiscal left empty after fiscal fetcher exception"
     messages = " ".join(r.getMessage().lower() for r in caplog.records)
     assert "fx" in messages, f"expected a warning mentioning fx; got {messages!r}"
     assert "bb" in messages, f"expected a warning mentioning bb; got {messages!r}"
     assert "tbond" in messages, f"expected a warning mentioning tbond; got {messages!r}"
+    assert "fiscal" in messages, f"expected a warning mentioning fiscal; got {messages!r}"
 
 
 def test_stamp_chart_series_skips_when_section_absent(
@@ -595,13 +605,14 @@ def test_stamp_chart_series_skips_when_section_absent(
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _ok_ladder)
     monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _ok_reserves)
 
-    # Brief with only banking + fiscal — none of the chartable slugs
-    # (bb is now chartable via the F2 reserves branch, so it can't stand in here).
+    # Brief with only banking + headlines — none of the chartable slugs
+    # (bb is chartable via the F2 reserves branch and fiscal via the F7b NBR
+    # branch, so neither can stand in here).
     minimal_brief: BriefPayloadV6 = BriefPayloadV6(
         brief=BriefV6(issue_no=1, volume=1, brief_date=TODAY),
         sections=[
             _make_section("banking", 4, "banking"),
-            _make_section("fiscal", 8, "policy"),
+            _make_section("headlines", 2, "overview"),
         ],
     )
     pipeline_v6._stamp_chart_series(
@@ -799,6 +810,7 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fiscal_monthly", _empty_dict)
 
     final_brief: BriefPayloadV6 = _full_brief()
     http: HttpClient = _http([])
@@ -843,6 +855,7 @@ def test_stamp_chart_series_stamps_dse_movers(
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fiscal_monthly", _empty_dict)
 
     final_brief: BriefPayloadV6 = _full_brief()
     pipeline_v6._stamp_chart_series(
@@ -881,6 +894,7 @@ def test_stamp_chart_series_dse_movers_failure_is_isolated(
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fiscal_monthly", _empty_dict)
 
     final_brief: BriefPayloadV6 = _full_brief()
     with caplog.at_level(logging.WARNING, logger="brief.pipeline_v6"):
