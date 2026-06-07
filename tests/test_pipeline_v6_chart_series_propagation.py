@@ -414,8 +414,9 @@ def test_stamp_chart_series_populates_chartable_sections(
     """All chartable slugs get series; the chartless ones stay empty.
 
     HTTP-dispatched: dse/iran. Monthly-archive branches: fx (F3 External Flow
-    Balance), bb (F2 reserves), tbond (F5 yield ladder), macro (CPI), remit (F6).
-    Chartless: headlines, banking, fiscal, comm (comm de-charted post-LNG-drop).
+    Balance), bb (F2 reserves), tbond (F5 yield ladder), macro (CPI), remit (F6),
+    fiscal (F7b NBR).
+    Chartless: headlines, banking, comm (comm de-charted post-LNG-drop).
     """
     dsex_series: list[SeriesPointV6] = [SeriesPointV6(key="dsex", ts="2026-05-01", value=5210.0)]
     dsex_notes: list[SeriesNoteV6] = []
@@ -425,6 +426,7 @@ def test_stamp_chart_series_populates_chartable_sections(
     ladder_pt = SeriesPointV6(key="yield_5y_monthly", ts="2026-04-01", value=10.75)
     macro_pt = SeriesPointV6(key="cpi_12m_avg_monthly", ts="2026-04-01", value=9.5)
     remit_pt = SeriesPointV6(key="remittance_usd_mn_monthly", ts="2026-03-01", value=3755.1)
+    fiscal_pt = SeriesPointV6(key="nbr_revenue_monthly_cr", ts="2025-03-01", value=32245.0)
 
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: (dsex_series, dsex_notes))
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: brent_series)
@@ -442,6 +444,9 @@ def test_stamp_chart_series_populates_chartable_sections(
     )
     monkeypatch.setattr(
         chart_series_fetcher, "fetch_remit_monthly", lambda *_a, **_k: {remit_pt.key: [remit_pt]}
+    )
+    monkeypatch.setattr(
+        chart_series_fetcher, "fetch_fiscal_monthly", lambda *_a, **_k: {fiscal_pt.key: [fiscal_pt]}
     )
 
     final_brief: BriefPayloadV6 = _full_brief()
@@ -463,9 +468,10 @@ def test_stamp_chart_series_populates_chartable_sections(
     assert by_slug["tbond"].series == [ladder_pt]
     assert by_slug["macro"].series == [macro_pt]
     assert by_slug["remit"].series == [remit_pt]
+    assert by_slug["fiscal"].series == [fiscal_pt]
 
     # Chartless: empty
-    for slug in ("headlines", "banking", "fiscal", "comm"):
+    for slug in ("headlines", "banking", "comm"):
         assert by_slug[slug].series == [], f"{slug} should have empty series"
         assert by_slug[slug].notes == [], f"{slug} should have empty notes"
 
@@ -494,6 +500,7 @@ def test_stamp_chart_series_handles_fetcher_exception_gracefully(
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_fiscal_monthly", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
 
     final_brief: BriefPayloadV6 = _full_brief()

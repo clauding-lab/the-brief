@@ -428,6 +428,18 @@ def _stamp_chart_series(
                 )
             continue
 
+        # F7b — §fiscal NBR monthly tax-revenue line (metric_history_monthly).
+        if section.slug == "fiscal":
+            try:
+                series_by_id = chart_series_fetcher.fetch_fiscal_monthly(history_monthly_client)
+                section.series = [pt for pts in series_by_id.values() for pt in pts]
+            except Exception:  # noqa: BLE001 — graceful degradation
+                logger.warning(
+                    "v6: fiscal series fetch failed for slug=fiscal",
+                    exc_info=True,
+                )
+            continue
+
         fn_suffix: str | None = _CHART_FETCHERS_BY_SLUG.get(section.slug)
         if fn_suffix is None:
             continue
