@@ -37,6 +37,22 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-06-07 — PR #113 (chart) + this PR (caption) | F7b NBR chart shipped, but its chart_read named the wrong metric (stale editor chart-list)
+
+**Trigger:** F7b added the §Fiscal section's first chart (NBR monthly tax revenue, FIG.09). After a manual publish the chart rendered perfectly — but its `chart_read.signal` read "LATEST: GOVT BANK BORROW YTD 1.25" (the section's *borrow* headline), not the NBR series it plots.
+
+**What went wrong:** Two things. (1) The editor prompt (`brief/claude/prompts/editor_v6.txt:68` + `editor_v6_friday.txt:69`) hard-ENUMERATES the chart-bearing sections — "dse, iran/brent, tbond/yieldCurve, fx/fxFlows, macro/cpiTrend" — and the list was STALE: it never gained `fiscal` (nor `bb`/`remit`). With §fiscal absent, the editor didn't know the chart plots NBR and anchored chart_read on the section's headline (govt bank borrow). (2) Data-lineage trap: §Fiscal's headline CARDS (`fiscal_*_trn` YTD) come from a separate external MoF/IMED/BB pipeline, while the new CHART plots EconDelta's `nbr_revenue_monthly_cr` (monthly, BDT crore) — two different metrics in one section, so "describe the chart" must name which series.
+
+**Lesson:** Adding a chart to a NEW section is not just `SECTION_TO_CHART` + a builder — the editor prompt's chart-bearing-sections enumeration must also gain the section + its charted metric, or the LLM `chart_read` mislabels (especially when the section's headline metric differs from the charted series).
+
+**Prevention:** When wiring a chart for a section whose chart metric ≠ its headline metric, add `<slug>/<configKey> (charts <metric_id> — <what it is>)` to the chart-read list in BOTH `editor_v6.txt` and `editor_v6_friday.txt`, naming the series so `chart_read.signal` describes the chart, not the headline. The enumeration is also currently missing `bb`/`remit` — refresh it when next touching the prompt. (Worth an AGENTS landmine.)
+
+**Hotfix:** PR #113 shipped the chart (correct). This PR adds `fiscal/fiscalNbr` + an NB to both editor prompts; it applies at the next scheduled publish (no off-cycle re-publish — verify the live chart_read then).
+
+**Cross-references:** §Fiscal data lineage (cards = external `fiscal_*_trn`; chart = EconDelta `nbr_revenue_monthly_cr`); upstream backfill = econdelta auto-memory `project_econdelta_fiscal_backfill`; the 2026-05-31 PR #107 entry (landmine #17).
+
+**Aside — an SSH-dropped manual publish looks stuck but succeeds:** the F7b manual `brief.cli run --publish --no-notify` over `ssh hetzner` had its connection drop ~22s in (right after the editor-stage log line); the captured output FROZE and looked hung/failed, but the remote pipeline kept running and published issue 130 ~22 min later. Verify a long manual publish via the DB (`briefs.issue_no` / `published_at` jumped), NOT the frozen SSH output. `--no-notify` correctly suppressed the subscriber email.
+
 ## 2026-05-31 — PR #107 | Chart re-point deployed after the daily publish → live chart blank until next publish
 
 **Trigger:** After merging + deploying F3 (§fx External Flow Balance — a chart *re-point*) to `main` + Hetzner at ~13:00 BDT, the live production fx chart rendered **blank**, even though the Vercel branch preview (with a fixture) rendered perfectly at 1440 and 390 with 0 console errors.
