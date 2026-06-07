@@ -136,6 +136,18 @@ query **Context7** for current, version-pinned docs — do NOT rely on training-
 - **Skip for:** business/domain logic, general programming concepts, or libraries Context7 does not index.
 - **Query specifically:** library + version + exact task (e.g. `chart.js 4 register CategoryScale for a bar chart` or `@supabase/supabase-js 2 select with in.() filter and limit`), never one-word topics like "auth".
 
+## 20. Editor voice and Sub-Editor enforcement move in LOCKSTEP
+
+The editorial register is **The Economist / FT leader desk** — measured, declarative, a strong view in a calm voice, with four calibration dials (accessible/Abdaal-Sinek, clear-mechanism/Dalio, strategically-irreverent/Welch-Kiyosaki) layered on that base (PR #114). It is set in `brief/claude/prompts/editor_v6.txt` + `editor_v6_friday.txt` AND policed by `subeditor_v6.txt` (§7 voice-sanity, §12 slop blocklist).
+
+- **Change one, change the other.** Retune the Editor's voice without the Sub-Editor and the Sub-Editor flattens it back out on its revise pass. §7 now explicitly tells it NOT to flatten earned vividness; §12's blocklist (delve/myriad/robust/amid/moreover…) is LLM-slop and stays.
+- **The guardrail:** irreverence must not drift to salesy/motivational/guru ("if it could appear on a LinkedIn post, delete it"); the measured Economist base wins every tie. The banker-grade specificity contract, abbreviation tiers, history-facts-verbatim, and char limits are unchanged — register is texture, not discipline.
+- **Verify a real render before merging a voice change** — prompt text alone won't show drift. See landmine 21 for the no-prod dry-run.
+
+## 21. Merging to `main` does NOT deploy — `brief.service` has no `git pull`
+
+`brief.service` `ExecStart=…/.venv/bin/python -m brief.cli run --publish` runs whatever is checked out on Hetzner `/home/adnan/the-brief`. A GitHub merge changes nothing on the box. After any merge that must reach a scheduled brief, **`cd /home/adnan/the-brief && git pull --ff-only origin main` on the VPS before the next `brief.timer` fire** (Mon–Fri + Sun 06:30 BDT; Saturday skipped), then confirm `git rev-parse --short HEAD` == the merge commit. To preview output WITHOUT touching prod: `brief.cli run --publish --dry-run --write-fixture <path>` (no Supabase write, no email) rendered from a throwaway `git worktree` on the feature branch, then read the JSON. See AGENT_LEARNINGS.md 2026-06-07.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.

@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-06-07 — PR #114 | Economist/FT voice retune shipped — two shipping-mechanics traps caught
+
+**Trigger:** Retuning the Desk Editor + Sub-Editor voice to an Economist/FT four-dial register, then shipping it before the next scheduled send. The voice change itself was clean (verified via a no-prod dry-run render); two *non-voice* traps surfaced during the ship.
+
+**What went wrong:** (1) **Merge ≠ deploy.** After merging #114 to `main`, the new prompts were NOT live — `brief.service` `ExecStart` is just `python -m brief.cli run --publish` with no `git pull`, and Hetzner's checkout sat 1 commit behind. A scheduled run would have shipped the old voice. (2) **Wrong "redundant commit" call during a `main` sync.** Syncing the diverged local `main`, I judged two unpushed commits redundant by reading the LOCAL working-tree `AGENTS.md` (which of course still contained them) and dropped both via `git rebase --onto origin/main c043082 main`. One (`855449c`/#18) was genuinely on origin; the other (`c043082`/Context7 #19 rail) was NOT — it existed only locally. I briefly dropped real work.
+
+**Lesson:** (1) On The Brief a GitHub merge deploys nothing — the box must `git pull` before the timer fires. (2) Never judge a local commit "already upstream" by reading the local file; verify against `origin/main` directly.
+
+**Prevention:** (1) After any merge that must reach a scheduled brief, `git pull --ff-only origin main` on Hetzner and confirm `HEAD` == merge commit (now AGENTS.md landmine 21). (2) Before dropping "redundant" local commits, run `git cherry -v origin/main main` (commits with an equivalent already upstream are marked `-`) or `git grep <content> origin/main -- <file>` — never a read of the local working tree.
+
+**Hotfix:** (1) Pulled Hetzner to `8a4be52`, verified the new prompts on the box. (2) `git cherry-pick c043082` restored the Context7 rail (now `d92eb9c`; `main` ahead 1, unpushed — Adnan's call to push).
+
+**Cross-references:** AGENTS.md landmines 20 (Editor↔Sub-Editor voice lockstep) + 21 (merge ≠ deploy); auto-memory `project_brief_editor_voice_register`; source preference `feedback_communication_tone_economist_ft` (econdelta memory dir).
+
 ## 2026-06-07 — PR #113 (chart) + this PR (caption) | F7b NBR chart shipped, but its chart_read named the wrong metric (stale editor chart-list)
 
 **Trigger:** F7b added the §Fiscal section's first chart (NBR monthly tax revenue, FIG.09). After a manual publish the chart rendered perfectly — but its `chart_read.signal` read "LATEST: GOVT BANK BORROW YTD 1.25" (the section's *borrow* headline), not the NBR series it plots.
