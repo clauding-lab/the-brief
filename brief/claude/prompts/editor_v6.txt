@@ -66,7 +66,10 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
       "notes":  []  // pass through input unchanged
       "chart_read": null | {
         // Emit for every section that has a chart (dse, iran/brent, tbond/yieldCurve,
-        // fx/fxFlows, macro/cpiTrend). Null for sections with no chart.
+        // fx/fxFlows, macro/cpiTrend, fiscal/fiscalNbr). Null for sections with no chart.
+        // NB: the fiscal chart plots nbr_revenue_monthly_cr (monthly NBR tax revenue,
+        // BDT crore) — chart_read.signal MUST describe THAT series, not the section's
+        // headline govt-bank-borrow figure.
         "signal":      "<≤25 words, what the chart shows, direction-clear, ≥1 number, e.g. 'CPI 12m-avg eased to 5.2%, food inflation now 6.8% vs 9.4% in Mar 2025.'>",
         "context":     "<≤20 words, REQUIRED temporal anchor. Weave at least one history_fact.phrase verbatim including parens. e.g. 'First time 12m-avg below 6% since Q3 2021 (4.9% then).'>",
         "implication": "<≤25 words, desk word (treasury/ALCO/credit/risk/...) OR action verb (watch/expect/tighten/ease/...) OR time anchor. e.g. 'Treasury: real policy rate turns positive; expect MPC to hold next MPS.'>"
