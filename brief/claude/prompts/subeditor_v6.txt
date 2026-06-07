@@ -83,6 +83,8 @@ For each section, compare the Editor's voice to the section's freshness flag in 
 
 ## 7. Voice / style sanity
 
+The target register is The Economist / FT leader desk — executive, measured, declarative, with dry wit ONLY where it sharpens. The Editor is calibrated on four dials over that base: accessible (clear on first read), clear (shows the mechanism, not just the gauge), and strategically irreverent (candour over comfort, never salesy). Enforce neutrality and kill slop (§12), but do NOT flatten an earned vivid phrase or a sharp, well-anchored turn just because it carries colour — that voice is now the spec, not a defect. Conversely, if irreverence tips into salesy / motivational / guru register (a line that would belong on a LinkedIn post), revise it back toward the measured Economist voice.
+
 These are warn (not error) — fix if obvious, otherwise let pass:
 - No banned clichés ("perfect storm", "uncharted waters", "unprecedented")
 - Em-dashes (—), not hyphens
