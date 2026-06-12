@@ -2,7 +2,7 @@
 Description=Run The Brief daily at 06:30 BDT (00:30 UTC)
 
 [Timer]
-OnCalendar=Mon..Fri,Sun 00:30:00 UTC
+OnCalendar=Mon..Sun 00:30:00 UTC
 Persistent=true
 Unit=brief.service
 

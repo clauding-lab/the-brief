@@ -57,10 +57,10 @@ On Friday, the cadence shifts — Friday issues are **weekly wraps**: a 5-day sy
 | Wed | 06:30 BDT | Daily | data-driven |
 | Thu | 06:30 BDT | Daily | data-driven |
 | Fri | 06:30 BDT | **Weekly wrap** | 5-day synthesis |
-| Sat | — | (no brief) | Weekend rest |
+| Sat | 06:30 BDT | Daily | data-driven |
 | Sun | 06:30 BDT | Daily | data-driven |
 
-Brief.timer on Hetzner runs `Mon..Fri,Sun 00:30 UTC`. Saturday is the only excluded day, matching the local weekend rhythm.
+Brief.timer on Hetzner runs `Mon..Sun 00:30 UTC` — every day, Saturday included.
 
 ## How it works
 
@@ -137,8 +137,8 @@ the-brief/
 │   └── history.py                # PostgREST history client
 ├── lib/                          # Shared SPA helpers (format, fallback, supabase client)
 ├── deploy/                       # systemd unit, env example, install/uninstall scripts
-│   ├── brief.service             # The Mon–Fri+Sun timer-driven oneshot unit
-│   ├── brief.timer               # OnCalendar=Mon..Fri,Sun 00:30 UTC
+│   ├── brief.service             # The daily (Mon–Sun) timer-driven oneshot unit
+│   ├── brief.timer               # OnCalendar=Mon..Sun 00:30 UTC
 │   └── brief.env.example         # Required env vars
 ├── docs/                         # Design docs, plans, ops notes
 │   └── superpowers/specs/        # Per-feature design specs
@@ -205,7 +205,7 @@ npm run lint
 
 | Where | Runs | Cadence | Files |
 |---|---|---|---|
-| **Hetzner** (`clauding-lab`) | `brief.service` — Python pipeline | Mon-Fri + Sun · 00:30 UTC | `/etc/systemd/system/brief.{service,timer}`, `/etc/brief.env` |
+| **Hetzner** (`clauding-lab`) | `brief.service` — Python pipeline | Daily · 00:30 UTC | `/etc/systemd/system/brief.{service,timer}`, `/etc/brief.env` |
 | **Vercel** | Next.js SPA | continuous deploy from `main` | `app/`, `lib/`, `public/` |
 | **Supabase** | Postgres + RPC | continuous | `migrations/`, RPC `get_latest_brief` |
 | **ExonVPS** | EconDelta scrapers (upstream) | daily ~05:30 BDT | separate repo |
