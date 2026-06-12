@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.0] — 2026-06-12
+
+### Added
+- **Long View: side-by-side stat + chart pairing.** When a `bar-chart` block directly follows a `stat` block, the Long View now renders them as a single paired card — the stat on the left (~60%), the compact bar-chart on the right (~40%) — instead of two stacked full-width blocks. The chart's SVG auto-scales into the narrower column, reading as a glanceable companion to the headline number; below 700px the pair stacks vertically. No schema change: pairing is driven purely by block order in `content/long-view.ts` (a `bar-chart` after a `stat`), keeping layout out of the pin data per the Long View contract. New `.tb-longview-pair` style in `app/globals.css`; grouping pass in `app/components/LongView.tsx`.
+
+---
+
 ## [1.5.1] — 2026-05-29
 
 ### Fixed

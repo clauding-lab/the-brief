@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Block, LongViewData } from "@/types/brief";
 import { Hair } from "./Hair";
 import { formatLongViewEyebrow } from "@/lib/format";
@@ -42,6 +42,30 @@ function renderBlock(block: Block, index: number) {
   }
 }
 
+// Group a `stat` immediately followed by a `bar-chart` into a side-by-side
+// pair (v1.6.0): stat left, compact chart right. All other blocks render
+// full-width in sequence. Pairing is driven purely by block order — no
+// layout fields in the pin data, per the Long View contract.
+function renderBlocks(blocks: Block[]): ReactNode[] {
+  const out: ReactNode[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const next = blocks[i + 1];
+    if (block.kind === "stat" && next && next.kind === "bar-chart") {
+      out.push(
+        <div className="tb-longview-pair" key={`pair-${i}`}>
+          {renderBlock(block, i)}
+          {renderBlock(next, i + 1)}
+        </div>
+      );
+      i++;
+    } else {
+      out.push(renderBlock(block, i));
+    }
+  }
+  return out;
+}
+
 export function LongView({ data }: LongViewProps) {
   const [stale, setStale] = useState(false);
 
@@ -78,7 +102,7 @@ export function LongView({ data }: LongViewProps) {
       <p className="tb-longview-lead">{data.lead}</p>
 
       <div className="tb-longview-blocks">
-        {data.blocks.map((block, i) => renderBlock(block, i))}
+        {renderBlocks(data.blocks)}
       </div>
 
       <Hair style={{ marginTop: 28, marginBottom: 16 }} />
