@@ -11,6 +11,17 @@ export const longView: LongViewData | null = {
   lead: "Bangladesh's first budget under the elected government totals Tk 9.38 lakh crore — 13.7% of GDP, up 19% after two flat years — with a Tk 6.95 lakh crore revenue target and a 3.6%-of-GDP deficit, half financed externally. It pairs a deep tax-and-process reform layer with revenue, financing and delivery assumptions well above recent run-rates.",
   blocks: [
     {
+      kind: "bar-chart",
+      eyebrow: "BUDGET SIZE · +19% AFTER TWO FLAT YEARS",
+      unit: "Tk lakh cr",
+      items: [
+        { label: "FY24", value: 7.62, display: "7.62" },
+        { label: "FY25", value: 7.97, display: "7.97" },
+        { label: "FY26", value: 7.9, display: "7.90" },
+        { label: "FY27", value: 9.38, display: "9.38", tone: "warn" },
+      ],
+    },
+    {
       kind: "comparison",
       before_label: "Target",
       after_label: "Reality",
