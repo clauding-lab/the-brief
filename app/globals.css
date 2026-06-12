@@ -1266,6 +1266,28 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   font-style: italic;
 }
 
+/* --- Stat + bar-chart side-by-side pair (v1.6.0) --- */
+.tb-longview-pair {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 28px;
+  align-items: center;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  padding: 24px 28px;
+}
+.tb-longview-pair > .tb-longview-stat {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+@media (max-width: 700px) {
+  .tb-longview-pair {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
 /* --- Banker read takeaway (kept from v1.1.0, mono explicit) --- */
 .tb-longview-takeaway {
   padding: 12px 0;
