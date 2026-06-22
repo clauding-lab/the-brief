@@ -509,7 +509,10 @@ def _call_with_retries(
 ) -> dict[str, Any]:
     """Run Claude max with exponential backoff. Returns parsed JSON or raises."""
     body = prompt_template + "\n\nINPUT JSON:\n" + json.dumps(input_obj, default=str, indent=2)
-    delays = [5, 15, 45]
+    # Longer exponential-ish backoff so a transient Anthropic "529 Overloaded" spell at the
+    # 04:00–06:00 BDT publish window (AGENTS.md landmine #13) gets ridden out instead of
+    # burning all attempts in <1 min. Caps at the last value if attempts exceeds the list.
+    delays = [15, 45, 120, 300]
     last_err: Exception | None = None
 
     for i in range(attempts):
@@ -522,7 +525,7 @@ def _call_with_retries(
             last_err = e
             logger.warning("%s attempt %d/%d failed: %s", label, i + 1, attempts, e)
             if i < attempts - 1:
-                time.sleep(delays[i])
+                time.sleep(delays[min(i, len(delays) - 1)])
     raise V6PublishError(f"{label}: failed after {attempts} attempts: {last_err}")
 
 
@@ -606,8 +609,14 @@ def run_publish(
     # ── Call 2: Sub-editor ─────────────────────────────────────────
     subeditor_prompt = _pipeline._load_prompt("subeditor_v6.txt")
     subeditor_input = {"editor_output": editor_brief.model_dump(mode="json"), "raw_data": editor_input}
+    # 2026-06-22 (issue 144): the sub-editor lost the whole edition to an Anthropic 529
+    # "Overloaded" spell — 3 quick retries couldn't outlast it. The sub-editor is a fast
+    # pass/fail self-review, so give it more attempts on a tighter per-call timeout: 5 × 600s
+    # + the longer backoff above (~8 min) still fits under brief.service's 90-min TimeoutStartSec
+    # once the editor's ~9-min draft is accounted for.
     review_raw = _call_with_retries(
-        label="subeditor_v6", prompt_template=subeditor_prompt, input_obj=subeditor_input, timeout_s=1800,
+        label="subeditor_v6", prompt_template=subeditor_prompt, input_obj=subeditor_input,
+        timeout_s=600, attempts=5,
     )
     try:
         review = SubeditorReview.model_validate(review_raw)
