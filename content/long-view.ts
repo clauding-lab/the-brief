@@ -6,85 +6,86 @@ import type { LongViewData } from "@/types/brief";
 // before merging to main. See docs/longview-workflow.md for the full recipe.
 
 export const longView: LongViewData | null = {
-  posted_at: "2026-06-12T14:39:24Z",
-  title: "Bangladesh's FY27 budget, read as a credit file",
-  lead: "Bangladesh's first budget under the elected government totals Tk 9.38 lakh crore — 13.7% of GDP, up 19% after two flat years — with a Tk 6.95 lakh crore revenue target and a 3.6%-of-GDP deficit, half financed externally. It pairs a deep tax-and-process reform layer with revenue, financing and delivery assumptions well above recent run-rates.",
+  posted_at: "2026-06-23T09:32:00Z",
+  title: "The Core Banking Software Running Bangladesh's Banks",
+  lead: "Bangladesh's banks run a fragmented mix of core banking systems — no single platform holds more than 16% of the install base, foreign vendors dominate the market structure, yet a homegrown system, Bank Ultimus, leads on sheer adoption. The split runs along bank size and budget: global platforms at the large private and Islamic banks, local systems at the cost-sensitive rest.",
   blocks: [
     {
-      kind: "comparison",
-      before_label: "Target",
-      after_label: "Reality",
-      rows: [
-        {
-          title: "NBR revenue growth",
-          before: "~+40% needed",
-          after: "9–12% run-rate",
-          description: "FY27's revenue leap against NBR's historical pace.",
-          tone: "bear",
-        },
-        {
-          title: "External financing",
-          before: "+Tk 1.16 lakh cr",
-          after: "−Tk 7,677 cr",
-          description: "Assumed net inflow versus the actual 9-month FY26 net outflow.",
-          tone: "bear",
-        },
-        {
-          title: "ADP delivery",
-          before: "Tk 3.00 lakh cr",
-          after: "40.7% used",
-          description: "FY26 development spend executed through April.",
-          tone: "bear",
-        },
-        {
-          title: "Budget execution",
-          before: "Tk 7.97 lakh cr",
-          after: "Tk 6.31 lakh cr",
-          description: "FY25's headline budget versus what was actually spent.",
-          tone: "bear",
-        },
+      kind: "bar-chart",
+      eyebrow: "CBS INSTALL BASE · SHARE OF BANKS USING",
+      unit: "% of banks",
+      items: [
+        { label: "Bank Ultimus", value: 16, display: "16%", tone: "bull" },
+        { label: "Temenos T24", value: 14, display: "14%" },
+        { label: "Oracle FLEXCUBE", value: 13, display: "13%" },
+        { label: "Flora Bank", value: 13, display: "13%" },
+        { label: "Finacle", value: 7, display: "7%" },
+        { label: "Ababil", value: 5, display: "5%" },
+        { label: "Misys/Finastra", value: 5, display: "5%" },
+        { label: "iStelar", value: 5, display: "5%" },
+        { label: "Others", value: 17, display: "17%" },
       ],
     },
     {
-      kind: "stat",
-      value: "−2.64",
-      unit: "%",
-      label: "BANKING-SECTOR CAR · END-2025",
-      body: "System capital is negative. Yet the budget's boldest bets — a Tk 60,000 cr subsidised-credit push and doubled consumer-loan limits — run through this balance sheet, with gross NPLs at 32.26% (end-March 2026) and a recapitalisation need near Tk 40,000 cr.",
-      tone: "bear",
-    },
-    {
-      kind: "bar-chart",
-      eyebrow: "BUDGET SIZE · +19% AFTER TWO FLAT YEARS",
-      unit: "Tk lakh cr",
-      items: [
-        { label: "FY24", value: 7.62, display: "7.62" },
-        { label: "FY25", value: 7.97, display: "7.97" },
-        { label: "FY26", value: 7.9, display: "7.90" },
-        { label: "FY27", value: 9.38, display: "9.38", tone: "warn" },
+      kind: "comparison",
+      before_label: "Global",
+      after_label: "Bank Ultimus",
+      rows: [
+        {
+          title: "Global popularity",
+          before: "★★★★★",
+          after: "★★★",
+          description: "Temenos, FLEXCUBE and Finacle are global standards; Ultimus is Bangladesh-only.",
+          tone: "bear",
+        },
+        {
+          title: "Local support",
+          before: "★★★",
+          after: "★★★★★",
+          description: "Homegrown vendor — on-the-ground support and faster turnaround.",
+          tone: "bull",
+        },
+        {
+          title: "Cost",
+          before: "High",
+          after: "Lower",
+          description: "Lower licence and implementation cost than the global platforms.",
+          tone: "bull",
+        },
+        {
+          title: "Islamic banking",
+          before: "★★★★",
+          after: "★★★★",
+          description: "T24 & FLEXCUBE rate ★★★★, Finacle ★★★; Ultimus matches the top tier.",
+          tone: "neu",
+        },
+        {
+          title: "Large-bank suitability",
+          before: "★★★★★",
+          after: "★★★★",
+          description: "Globals scale to the biggest books; Ultimus sits just behind.",
+          tone: "neu",
+        },
+        {
+          title: "Small / medium-bank fit",
+          before: "★★★",
+          after: "★★★★★",
+          description: "Ultimus is the best fit for cost-sensitive mid-size banks.",
+          tone: "bull",
+        },
       ],
     },
     {
       kind: "bullet-list",
-      eyebrow: "THE REFORM LAYER · AND HOW TO LEND",
+      eyebrow: "MARKET STRUCTURE · BY ORIGIN",
       items: [
-        {
-          text: "**The zero-cost reforms matter most.** Appeal deposits cut from 10% to 1–3% (unfreezing disputed working capital), withholding tax made adjustable with refunds, 48-hour company registration with deemed approval, and repatriation up to Tk 100 cr without prior Bangladesh Bank sign-off.",
-          tone: "bull",
-        },
-        {
-          text: "**Cheapest SME money of the cycle.** The Tk 60,000 cr stimulus at a 6% interest subsidy puts effective rates below half of market; SME turnover is tax-free to Tk 50 lakh (Tk 70 lakh for women). The subsidy sets the price — underwriting decides whether it builds the economy or the FY29 NPL vintage.",
-        },
-        {
-          text: "**Three dates decide the year.** July — can BB hold 10% while running a Tk 60,000 cr subsidised-credit package? September — the Q1 NBR run-rate (~Tk 50,000 cr a month needed against ~Tk 31,500 cr this year). October — external disbursements against the Tk 1.16 lakh cr assumption.",
-          tone: "warn",
-        },
-        {
-          text: "**The pragmatic read.** Back the reform layer, not the headline numbers; lend into the stimulus with FY29 underwriting, not FY27 optimism; re-test the frame against actuals, not announcements.",
-        },
+        { text: "**Foreign solutions — 46%.** The single largest category; global vendors still dominate the market structure.", tone: "neu" },
+        { text: "**Local solutions — 36%.** Homegrown platforms, led by Bank Ultimus and Flora Bank.", tone: "bull" },
+        { text: "**Joint-venture — 11%.** Foreign cores localised through Bangladeshi partners.", tone: "neu" },
+        { text: "**In-house developed — 7%.** Banks running their own builds.", tone: "neu" },
       ],
     },
   ],
   banker_read:
-    "The budget reads better as a reform programme than as an arithmetic. For credit and ALCO desks, the operative fact is that its boldest demand-side bets — the Tk 60,000 cr subsidised-credit push, doubled consumer-loan limits, a near-doubled development programme — run through a banking system at negative aggregate capital (CAR −2.64%) and 32.26% gross NPLs, so the subsidy sets loan pricing but underwriting discipline, not the rate, decides whether this becomes growth or the FY29 NPL vintage. The financing math is the live risk: external inflows assumed at Tk 1.16 lakh crore ran net-negative through nine months of FY26, and any shortfall converts directly into government bank-borrowing that crowds the 6.5% private-credit envelope. The reform layer, by contrast, is real and low-cost — unfrozen appeal deposits, adjustable withholding, faster registration, easier repatriation — and is where the durable value sits. Watch three dates: July's BB policy statement (can it hold 10% alongside subsidised credit?), September's Q1 NBR run-rate (~Tk 50,000 cr a month needed against ~Tk 31,500 cr actual), and October's external disbursements — miss the last and banks fund the gap.",
+    "For a bank scoping a core-banking RFP or a digital-transformation budget, the choice is now a segmentation decision, not a prestige one. Tier-1 and Islamic banks pay up for Temenos, FLEXCUBE or Finacle's scale, ATM/mobile integration and global support — but a locally-built platform topping the install base signals that for mid-size, cost-sensitive banks, local support, Bangladesh Bank compliance and lower total cost of ownership increasingly outweigh the global brand. The fragmentation — the leader at just 16%, a 17% long tail — also means vendor lock-in is weaker than it looks: useful leverage on price and SLAs at renewal, and it leaves open whether Bank Ultimus's share keeps climbing as digital-banking feature parity narrows.",
 };
