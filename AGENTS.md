@@ -148,6 +148,10 @@ The editorial register is **The Economist / FT leader desk** — measured, decla
 
 `brief.service` `ExecStart=…/.venv/bin/python -m brief.cli run --publish` runs whatever is checked out on Hetzner `/home/adnan/the-brief`. A GitHub merge changes nothing on the box. After any merge that must reach a scheduled brief, **`cd /home/adnan/the-brief && git pull --ff-only origin main` on the VPS before the next `brief.timer` fire** (Mon–Fri + Sun 06:30 BDT; Saturday skipped), then confirm `git rev-parse --short HEAD` == the merge commit. To preview output WITHOUT touching prod: `brief.cli run --publish --dry-run --write-fixture <path>` (no Supabase write, no email) rendered from a throwaway `git worktree` on the feature branch, then read the JSON. See AGENT_LEARNINGS.md 2026-06-07.
 
+## 22. `publish_brief` is NOT atomic — the `pipeline_v6.py` docstring's "atomic Supabase write" claim is false
+
+Verified 2026-07-04 (adversarially confirmed): `v6_publisher.py` writes the `briefs` row with `status='published'` (schema default) BEFORE its sections/metrics/news land, over separate non-transactional PostgREST POSTs — a mid-loop failure (child-POST 4xx/5xx, systemd `TimeoutStartSec` SIGTERM, OOM-kill) leaves a served half-brief. This is the orphaned-brief-#118 mechanism (AGENT_LEARNINGS 2026-05-29) and it is STILL LIVE: `test_publish_brief_atomic_flow` asserts call order only, and the sole error test fails on the initial DELETE (the safe case). Until the two-phase fix ships (insert as `draft`, flip to `published` last, plus a partial-failure regression test — specced in `docs/handoff/2026-07-04-review-fixes.md` item 4), treat any publisher edit as touching a live hole, and do not trust the docstring. The full 2026-07-04 ecosystem-review fix plan lives at `docs/handoff/2026-07-04-review-fixes.md` — read it before starting fix work in this repo.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
@@ -168,7 +172,7 @@ Do not, without explicit user sign-off:
 - Skip hooks (`--no-verify`, `--no-gpg-sign`, etc.).
 - Touch `vercel.json` or `.github/workflows/` without explaining the change in the PR description.
 - Touch `migrations/` SQL files without confirming the migration target environment (local vs production Supabase).
-- Touch `brief/claude/*.py` prompt content — these are the editor and sub-editor mega-prompts; tweaks change the voice of every brief.
+- Touch `brief/claude/prompts/*.txt` prompt content (editor_v6, editor_v6_friday, subeditor_v6 — the mega-prompts; the old `brief/claude/*.py` wording predated the prompts moving to `.txt` files); tweaks change the voice of every brief.
 
 For everything else, see `VISION.md` for what auto-merges vs needs sign-off.
 
