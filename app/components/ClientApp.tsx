@@ -228,6 +228,7 @@ export function ClientApp(props: ClientAppProps) {
           source={data._source}
           sections={data.sections}
           displayOrdBySlug={displayOrdBySlug}
+          fetchedAt={data._fetchedAt}
         />
         <SnapshotStrip section={snapshotSection} />
         <SecNav
