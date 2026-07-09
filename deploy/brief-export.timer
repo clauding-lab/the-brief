@@ -1,8 +1,12 @@
 [Unit]
-Description=Weekly Brief export — Saturdays 08:00 BDT (02:00 UTC), after the 06:30 publish
+Description=Weekly Brief export — Saturdays 09:30 BDT (03:30 UTC), clear of the publish window
 
 [Timer]
-OnCalendar=Sat 02:00:00 UTC
+# 03:30 UTC, not 02:00: the 06:30 BDT publish can run until ~08:00 BDT under the
+# documented Anthropic-529 retry worst case. fetch_table's keyset pagination is
+# already immune to the publisher's DELETE/re-INSERT mid-export, but starting after
+# the window closes is belt-and-braces separation.
+OnCalendar=Sat 03:30:00 UTC
 Persistent=true
 Unit=brief-export.service
 

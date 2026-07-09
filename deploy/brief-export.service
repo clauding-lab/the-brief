@@ -3,6 +3,11 @@
 # this snapshots the full editorial dataset to /home/adnan/brief-exports weekly.
 # Fired by brief-export.timer; failures ping Discord via brief-alert@ (5a).
 #
+# NO ExecStartPre self-deploy here — intentional (review NOTE). brief.service's
+# daily 06:30 pull keeps this same checkout fresh; a Saturday export can never be
+# more than a day behind main, and one self-deploying unit per checkout avoids
+# two units racing a git pull.
+#
 # Install: deploy/install.sh (also creates the export dir — ReadWritePaths
 # requires it to exist before the unit starts).
 

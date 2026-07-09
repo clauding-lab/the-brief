@@ -35,6 +35,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import urllib.parse
 from datetime import date as date_t
 from datetime import datetime, timezone
@@ -86,23 +87,29 @@ def fetch_table(
     table: str,
     page_size: int = PAGE_SIZE,
 ) -> list[dict]:
-    """Fetch EVERY row of `table` via deterministic offset pagination.
+    """Fetch EVERY row of `table` via KEYSET pagination (`id=gt.<last>` + `order=id.asc`).
 
-    Ordered by `id.asc` so pages are stable across the run. Raises ExportError
-    on any non-200 or non-list page — a partial table must never be written as
-    if complete.
+    Keyset, not offset (review MEDIUM): the Saturday publish can run until ~08:00 BDT
+    under the documented 529-retry worst case, and the publisher's DELETE/re-INSERT
+    (two-phase publish) between paged GETs shifts offsets — offset pagination then
+    silently skips rows. Keyset asks each page for ids strictly greater than the last
+    id seen, so concurrent deletes/inserts cannot renumber what remains; every
+    surviving row is visited exactly once.
+
+    Raises ExportError on any non-200/non-list page or a row missing `id` — a partial
+    table must never be treated as complete.
     """
     rows: list[dict] = []
-    offset = 0
+    last_id: str | None = None
     while True:
-        q = urllib.parse.urlencode(
-            {
-                "select": "*",
-                "order": "id.asc",
-                "limit": str(page_size),
-                "offset": str(offset),
-            }
-        )
+        params: list[tuple[str, str]] = [
+            ("select", "*"),
+            ("order", "id.asc"),
+            ("limit", str(page_size)),
+        ]
+        if last_id is not None:
+            params.append(("id", f"gt.{last_id}"))
+        q = urllib.parse.urlencode(params)
         url = f"{supabase_url}/rest/v1/{table}?{q}"
         status, body = http.get(
             url,
@@ -114,13 +121,18 @@ def fetch_table(
         )
         if status != 200 or not isinstance(body, list):
             raise ExportError(
-                f"fetch {table} page offset={offset} failed: HTTP {status} "
+                f"fetch {table} page after id={last_id!r} failed: HTTP {status} "
                 f"(body type {type(body).__name__})"
             )
         rows.extend(body)
         if len(body) < page_size:
             return rows
-        offset += page_size
+        last = body[-1].get("id")
+        if last is None:
+            raise ExportError(
+                f"{table} row missing 'id' — keyset pagination impossible"
+            )
+        last_id = str(last)
 
 
 def _prune_old_exports(out_root: Path, keep: int) -> list[str]:
@@ -150,6 +162,14 @@ def run_export(
 ) -> Path:
     """Export all TABLES to `<out_root>/<today>/`, write a manifest, prune old runs.
 
+    All-or-nothing is ENFORCED via a staging dir (review MEDIUM — the same idiom as
+    the publisher's draft→published flip): every table + the manifest is written to
+    a `.staging-*` dir (whose name never matches the dated regex, so pruning ignores
+    it), ALL guards run (including refuse-0-briefs), and only on full success is the
+    staging dir atomically renamed to `<YYYY-MM-DD>`. A mid-loop failure therefore
+    leaves NO partial dated dir, and a phantom empty backup can never occupy a
+    retention slot. On any failure the staging dir is removed before re-raising.
+
     Returns the dated export directory. Raises ExportError on any failure.
     """
     supabase_url, service_key = _config()
@@ -157,36 +177,56 @@ def run_export(
     today = today or datetime.now(timezone.utc).date()
 
     out_root = Path(out_root)
+    out_root.mkdir(parents=True, exist_ok=True)
     dest = out_root / today.isoformat()
-    dest.mkdir(parents=True, exist_ok=True)
 
-    counts: dict[str, int] = {}
-    for table in TABLES:
-        rows = fetch_table(
-            http, supabase_url=supabase_url, service_key=service_key, table=table
-        )
-        path = dest / f"{table}.json"
-        try:
-            with open(path, "w", encoding="utf-8") as fh:
-                json.dump(rows, fh, ensure_ascii=False, indent=1, default=str)
-        except OSError as e:
-            raise ExportError(f"write {path} failed: {e}") from e
-        counts[table] = len(rows)
-        logger.info("export: %s → %d rows", table, len(rows))
+    # Clear leftover staging dirs from crashed runs (SIGKILL etc.) — by definition
+    # garbage: a successful run always renames its staging dir away.
+    for stale in out_root.glob(".staging-*"):
+        if stale.is_dir():
+            shutil.rmtree(stale, ignore_errors=True)
+            logger.info("export: removed stale staging dir %s", stale.name)
 
-    manifest = {
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "export_date": today.isoformat(),
-        "tables": counts,
-        "total_rows": sum(counts.values()),
-    }
-    with open(dest / "manifest.json", "w", encoding="utf-8") as fh:
-        json.dump(manifest, fh, indent=2)
+    staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=out_root))
+    try:
+        counts: dict[str, int] = {}
+        for table in TABLES:
+            rows = fetch_table(
+                http, supabase_url=supabase_url, service_key=service_key, table=table
+            )
+            path = staging / f"{table}.json"
+            try:
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(rows, fh, ensure_ascii=False, indent=1, default=str)
+            except OSError as e:
+                raise ExportError(f"write {path} failed: {e}") from e
+            counts[table] = len(rows)
+            logger.info("export: %s → %d rows", table, len(rows))
 
-    if counts.get("briefs", 0) == 0:
-        # Zero briefs means the export read NOTHING real — treat as failure so the
-        # OnFailure alert fires rather than silently archiving an empty dataset.
-        raise ExportError("export fetched 0 briefs rows — refusing to call this a backup")
+        if counts.get("briefs", 0) == 0:
+            # Zero briefs means the export read NOTHING real — fail (OnFailure alert
+            # fires) rather than promote an empty dataset into a retention slot.
+            raise ExportError(
+                "export fetched 0 briefs rows — refusing to call this a backup"
+            )
+
+        manifest = {
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "export_date": today.isoformat(),
+            "tables": counts,
+            "total_rows": sum(counts.values()),
+        }
+        with open(staging / "manifest.json", "w", encoding="utf-8") as fh:
+            json.dump(manifest, fh, indent=2)
+
+        # Atomic promote — the ONLY step that makes this export visible/dated.
+        # A same-day rerun replaces its earlier successful export.
+        if dest.exists():
+            shutil.rmtree(dest)
+        os.rename(staging, dest)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
 
     _prune_old_exports(out_root, keep)
     logger.info(
