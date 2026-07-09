@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-07-09 — publish path | Non-atomic publish could serve a half-written brief (#118 mechanism, now fixed)
+
+**Trigger:** 2026-07-04 ecosystem review (handoff item 4). `v6_publisher.publish_brief` wrote the `briefs` row with `status='published'` (schema default) BEFORE its sections/metrics/news/chart_series landed, over separate non-transactional PostgREST POSTs. A mid-loop failure (child-POST 4xx/5xx, systemd `TimeoutStartSec` SIGTERM, OOM-kill) left a row the SPA served as an empty/partial brief — the orphaned-brief-#118 mechanism (see 2026-05-29 entry). Verified still live: `test_publish_brief_atomic_flow` asserted call ORDER only, and the sole error test failed on the initial DELETE (the safe case). No test covered briefs-INSERT-ok + a later child POST failing.
+
+**What went wrong:** publish and durability were coupled to the same write. Visibility (`status='published'`) was granted at the very first row insert, so any later failure exposed a partial brief. PostgREST cannot span a DB transaction across these POSTs, so "insert everything then it's visible" was never actually atomic.
+
+**Lesson:** when a multi-row write can't be one DB transaction, gate reader visibility on a SINGLE final flip. Write everything invisibly first (a `draft`), then make it visible with one last status update. Confirmed the reader gate first: `get_latest_brief` is `... where status = 'published' ...` (introspected via SQL editor), so a `draft` is genuinely invisible.
+
+**Prevention:** Two-phase publish — INSERT the brief as `status='draft'`, POST all children, then `PATCH status='published'` as the LAST call. A failure anywhere before the flip raises, leaving a draft (invisible) that the next publish's DELETE clears. Regression test `test_publish_brief_stays_draft_when_child_post_fails` asserts a child-POST failure raises AND never flips to published; `test_publish_brief_atomic_flow` now asserts DELETE → draft-INSERT → children → published-PATCH-last order.
+
+**Hotfix:** `brief/v6_publisher.py::publish_brief` rewritten two-phase (this PR). No migration needed — `briefs.status` already NOT NULL default `'published'` with no CHECK, accepts `'draft'`; `get_latest_brief` already filters published.
+
+**Cross-references:** AGENTS.md landmine 22 (updated: hole now closed), landmine 18 (#118 orphan); 2026-05-29 v1.5.1 entry (original #118); handoff `docs/handoff/2026-07-04-review-fixes.md` item 4.
+
 ## 2026-06-07 — PR #114 | Economist/FT voice retune shipped — two shipping-mechanics traps caught
 
 **Trigger:** Retuning the Desk Editor + Sub-Editor voice to an Economist/FT four-dial register, then shipping it before the next scheduled send. The voice change itself was clean (verified via a no-prod dry-run render); two *non-voice* traps surfaced during the ship.
