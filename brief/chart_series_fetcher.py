@@ -78,6 +78,13 @@ _DSEX_METRIC_ID: str = "dsex"
 _DSE_CLOSE_PREFIX: str = "dse_close_"
 _DSE_MOVERS_PER_SIDE: int = 5
 STALE_LAG_DAYS: int = 4  # per-ticker data must lag the dsex index by <= this many days
+# AND the per-ticker close date must be within this many days of wall-clock `today`.
+# The relative gate above only compares the two feeds against EACH OTHER, so when the
+# index AND per-ticker feeds die in lockstep (both equally stale) it still passes —
+# 24-day-old movers then render as current (the 2026-07-04 review P1). A week covers a
+# normal DSE weekend (Fri–Sat) plus a public holiday; beyond it, the movers are no
+# longer "today's" and the block is suppressed.
+ABSOLUTE_STALE_DAYS: int = 7
 
 # Yield curve canonical keys — metric_id → "yield_<tenor>" matching
 # lib/chartConfigs.ts tenorMap. Five tenors live in metric_history:
@@ -278,9 +285,9 @@ def fetch_dse_movers(
     AGENTS.md landmine #14: bounded queries (latest-date slice + a small prior
     window), never an unbounded dse_close_* pull (30 tickers x history > 1000).
 
-    `today` is accepted for dispatch-signature parity with the other fetchers but
-    unused — the calendar-month anchor is derived from the DB's latest `dse_close_*`
-    date, not wall-clock today.
+    `today` gates the ABSOLUTE freshness check below — per-ticker data must be within
+    ABSOLUTE_STALE_DAYS of wall-clock today. The calendar-month RETURN anchor is still
+    derived from the DB's latest `dse_close_*` date, not from `today`.
     """
     data_latest: date_t | None = _latest_as_of(
         http, supabase_url, f"like.{_DSE_CLOSE_PREFIX}*", service_key=service_key
@@ -290,7 +297,12 @@ def fetch_dse_movers(
     )
     if data_latest is None or idx_latest is None:
         return None
-    if (idx_latest - data_latest).days > STALE_LAG_DAYS:  # freshness gate
+    if (idx_latest - data_latest).days > STALE_LAG_DAYS:  # relative gate: tickers vs index
+        return None
+    # Absolute-age gate — catches the case the relative gate misses: index + tickers
+    # dead together (equally stale) still passes above, so old movers would show as
+    # current. Suppress when the per-ticker close is > ABSOLUTE_STALE_DAYS behind today.
+    if (today - data_latest).days > ABSOLUTE_STALE_DAYS:
         return None
 
     cur_q: str = urllib.parse.urlencode(
