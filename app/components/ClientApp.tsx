@@ -52,9 +52,14 @@ export function ClientApp(props: ClientAppProps) {
   const [diffMode, setDiffMode] = useState<boolean>(false);
   const [printMode, setPrintMode] = useState<boolean>(false);
 
-  // Read localStorage diff + URL print=1 after mount (avoid SSR hydration mismatch)
+  // Read localStorage diff + URL print=1 after mount (avoid SSR hydration mismatch).
+  // Reading client-only state (localStorage) post-mount and syncing it into React
+  // state is the deliberate SSR-safe pattern here — server can't see localStorage,
+  // so doing it in a lazy initializer would cause a hydration mismatch. The
+  // react-hooks/set-state-in-effect rule is a false positive for this case.
   useEffect(() => {
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate post-mount localStorage read; see comment above
       setDiffMode(localStorage.getItem("thebrief.diffMode") === "1");
     } catch {
       // ignore
