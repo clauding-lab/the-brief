@@ -6,7 +6,7 @@ Daily Bangladesh-economy banking-style brief for senior banking professionals at
 
 | File | What it covers |
 |---|---|
-| [`AGENTS.md`](./AGENTS.md) | Build / test / release commands, repo structure, **22 numbered landmines**. Required before any code change. |
+| [`AGENTS.md`](./AGENTS.md) | Build / test / release commands, repo structure, **24 numbered landmines**. Required before any code change. |
 | [`VISION.md`](./VISION.md) | What auto-merges vs needs sign-off. Required before opening a PR that changes user-visible behavior. |
 | [`AGENT_LEARNINGS.md`](./AGENT_LEARNINGS.md) | Past incidents and the rules that came out of them. Read when something feels load-bearing. |
 | [`Master.md`](./Master.md) | Voice, audience, copy conventions. Read before generating prose, headlines, or Long View text. |
