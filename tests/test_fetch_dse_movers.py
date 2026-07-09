@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from datetime import date
 
-from brief.chart_series_fetcher import STALE_LAG_DAYS, fetch_dse_movers
+from brief.chart_series_fetcher import (
+    ABSOLUTE_STALE_DAYS,
+    STALE_LAG_DAYS,
+    fetch_dse_movers,
+)
 from brief.v6_schema import MoverRowV6
 
 
@@ -110,6 +114,51 @@ def test_calendar_month_clamps_to_short_february():
     )
     out = fetch_dse_movers(http=http, supabase_url="https://x", service_key="k", today=date(2026, 4, 1))
     assert out is not None and out[0].ticker == "FINEFOODS" and out[0].return_pct == 20.0
+
+
+def test_absolute_age_gate_suppresses_when_both_feeds_dead_together():
+    """The relative gate misses the case where the index AND per-ticker feeds die
+    in lockstep: both equally stale → (idx_latest - data_latest) stays small → passes.
+    The absolute gate must still suppress when the data is far behind wall-clock today.
+
+    Regression for the 2026-07-04 review: 24-day-old movers rendered as current.
+    """
+    # Both feeds frozen on the same old date (relative lag = 0, passes STALE_LAG_DAYS)
+    http = _FakeHttp(
+        idx_latest="2026-05-07", data_latest="2026-05-07",
+        current=_curr({"FINEFOODS": 577.0}),
+        prior=_prior([("FINEFOODS", "2026-04-07", 495.0)]),
+    )
+    assert ABSOLUTE_STALE_DAYS == 7
+    # today is 24 days past the frozen data → suppressed despite relative lag = 0
+    assert fetch_dse_movers(
+        http=http, supabase_url="https://x", service_key="k", today=date(2026, 5, 31)
+    ) is None
+
+
+def test_absolute_age_gate_passes_at_boundary():
+    # (today - data_latest) == ABSOLUTE_STALE_DAYS (7 days) must PASS (strict >).
+    http = _FakeHttp(
+        idx_latest="2026-05-24", data_latest="2026-05-24",
+        current=_curr({"FINEFOODS": 577.0}),
+        prior=_prior([("FINEFOODS", "2026-04-23", 495.0)]),
+    )
+    assert fetch_dse_movers(
+        http=http, supabase_url="https://x", service_key="k", today=date(2026, 5, 31)
+    ) is not None
+
+
+def test_absolute_age_gate_fails_one_past_boundary():
+    # (today - data_latest) == ABSOLUTE_STALE_DAYS + 1 (8 days) must FAIL, even with
+    # the index fresh-in-lockstep so the relative gate would pass.
+    http = _FakeHttp(
+        idx_latest="2026-05-23", data_latest="2026-05-23",
+        current=_curr({"FINEFOODS": 577.0}),
+        prior=_prior([("FINEFOODS", "2026-04-23", 495.0)]),
+    )
+    assert fetch_dse_movers(
+        http=http, supabase_url="https://x", service_key="k", today=date(2026, 5, 31)
+    ) is None
 
 
 def test_prior_window_uses_most_recent_on_or_before_target():
