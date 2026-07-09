@@ -14,6 +14,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from brief.v6_schema import BriefPayloadV6
@@ -166,17 +167,41 @@ def fetch_metric_history(metric_id: str, days: int = 90) -> list[dict[str, Any]]
 def publish_brief(payload: BriefPayloadV6) -> str:
     """Idempotently publish a validated V6 brief. Returns the new brief.id (UUID).
 
-    Flow:
+    Two-phase, near-atomic (landmine 22):
       1. DELETE FROM briefs WHERE issue_no = N  (cascades to sections/metrics/news/charts)
-      2. INSERT brief row, get uuid
+      2. INSERT brief row as status='draft', get uuid
       3. For each section: INSERT, get uuid, INSERT children
+      4. PATCH status='published' as the LAST call — the ONLY write that makes the
+         brief visible to the SPA (get_latest_brief filters WHERE status='published').
+
+    A failure anywhere in steps 2-3 raises before the step-4 flip, so the
+    half-written brief stays a draft (invisible) and the next publish's DELETE
+    clears it. This closes the #118 served-half-brief hole. It is not a true DB
+    transaction — PostgREST can't span one — but the SPA never sees a partial
+    brief because visibility is gated on the single final status flip.
     """
     issue_no = payload.brief.issue_no
     logger.info("v6_publisher: deleting existing rows for issue_no=%d", issue_no)
     _request("DELETE", f"/briefs?issue_no=eq.{issue_no}")
 
+    # Sweep stale drafts left by FAILED publishes of OTHER issues (review follow-up
+    # on the two-phase fix): the issue-scoped DELETE above only clears THIS issue_no,
+    # so a draft of issue N abandoned by a crashed run would linger forever once the
+    # next fire is N+1. Publishes are daily, so any draft older than 2 days is
+    # garbage by definition. Best-effort — a sweep failure must never block today's
+    # publish. Z-suffixed UTC stamp (isoformat's "+00:00" would decode as a space in
+    # the query string).
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        _request("DELETE", f"/briefs?status=eq.draft&created_at=lt.{cutoff}")
+    except PublishError as e:
+        logger.warning("v6_publisher: stale-draft sweep failed (non-fatal): %s", e)
+
     brief_row = payload.brief.model_dump(mode="json")
-    # status is set by the schema default; published_at is set by db default if absent
+    # Insert as `draft` so get_latest_brief (WHERE status='published') can't serve a
+    # half-written brief while its children land over separate non-transactional POSTs.
+    # Override the schema default ('published'); published_at is db-defaulted at insert.
+    brief_row["status"] = "draft"
     inserted_briefs = _request(
         "POST",
         "/briefs",
@@ -186,7 +211,7 @@ def publish_brief(payload: BriefPayloadV6) -> str:
     if not inserted_briefs:
         raise PublishError("INSERT briefs returned empty response")
     brief_id = inserted_briefs[0]["id"]
-    logger.info("v6_publisher: brief inserted id=%s issue_no=%d", brief_id, issue_no)
+    logger.info("v6_publisher: brief inserted (draft) id=%s issue_no=%d", brief_id, issue_no)
 
     for section in payload.sections:
         section_row = section.model_dump(
@@ -241,8 +266,14 @@ def publish_brief(payload: BriefPayloadV6) -> str:
             ]
             _request("POST", "/chart_notes", body=note_rows)
 
+    # ── Phase 2: atomic flip ───────────────────────────────────────────
+    # Every section + child row is now committed. This single PATCH is the ONLY
+    # write that makes the brief visible to get_latest_brief. Any failure above
+    # raised before reaching here, leaving the row a draft the next DELETE clears.
+    _request("PATCH", f"/briefs?id=eq.{brief_id}", body={"status": "published"})
+
     logger.info(
-        "v6_publisher: published issue %d with %d sections",
+        "v6_publisher: published issue %d with %d sections (draft→published flip complete)",
         issue_no,
         len(payload.sections),
     )

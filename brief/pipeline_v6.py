@@ -33,6 +33,7 @@ from brief.v6_publisher import (
     publish_brief,
 )
 from brief.v6_schema import BriefPayloadV6, SubeditorReview
+from brief.claude import validators as _validators
 
 logger = logging.getLogger(__name__)
 
@@ -529,6 +530,142 @@ def _call_with_retries(
     raise V6PublishError(f"{label}: failed after {attempts} attempts: {last_err}")
 
 
+def _run_subeditor(
+    subeditor_prompt: str, subeditor_input: dict[str, Any]
+) -> SubeditorReview:
+    """Run the sub-editor self-review and parse its verdict, retrying ONCE on a
+    malformed SubeditorReview, then HOLDING — never auto-passing.
+
+    Two retry layers, different failure modes:
+      - `_call_with_retries` (attempts=5) rides out transient Anthropic failures
+        (529 "Overloaded" spells at the 04:00-06:00 BDT window; AGENTS.md #13, #120).
+        2026-06-22 (issue 144): the sub-editor lost a whole edition to a 529 spell
+        that 3 quick retries couldn't outlast — hence 5 x 600s + the longer backoff,
+        which still fits under brief.service's 90-min TimeoutStartSec after the
+        editor's ~9-min draft.
+      - THIS loop re-runs the whole sub-editor when it returns well-formed JSON that
+        is NOT a valid SubeditorReview. Previously such output silently became
+        `verdict="pass"` and shipped an UNREVIEWED brief. Now: one retry, then a
+        hold (raise) so yesterday's brief stays live rather than an unreviewed one
+        going out. (2026-07-09 review, item 7 — never auto-pass.)
+    """
+    last_err: Exception | None = None
+    for attempt in range(2):  # initial attempt + exactly one retry
+        review_raw = _call_with_retries(
+            label="subeditor_v6",
+            prompt_template=subeditor_prompt,
+            input_obj=subeditor_input,
+            timeout_s=600,
+            attempts=5,
+        )
+        try:
+            return SubeditorReview.model_validate(review_raw)
+        except Exception as e:  # noqa: BLE001 — any parse/validation failure retries then holds
+            last_err = e
+            logger.warning(
+                "v6: sub-editor returned a malformed SubeditorReview "
+                "(attempt %d/2): %s",
+                attempt + 1,
+                e,
+            )
+    raise V6PublishError(
+        "sub-editor returned a malformed review twice — holding the publish "
+        "(never auto-pass an unreviewed brief; yesterday's brief stays live). "
+        f"Last error: {last_err}"
+    )
+
+
+def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
+    """Deterministic post-editor prose backstop (issue 156 review, item 7).
+
+    `brief/claude/validators.py` holds hard, testable versions of the checks the
+    sub-editor polices non-deterministically (slop blocklist, chart_read caps +
+    temporal anchor, Tier-2 first-use expansion). Those validators were imported
+    by NOTHING in the publish path. This wires them over the FINAL brief's prose
+    and LOGS every violation.
+
+    Deliberately **log-only (downgrade+log), not hard-fail**: a deterministic
+    false-positive must never hold the 06:30 publish, and this is a P2 backstop to
+    the sub-editor's LLM gate, not a replacement. It surfaces the exact signal
+    (banal language, uncapped/anchorless chart_reads, bare Tier-2 abbreviations)
+    in journalctl / the dry-run render so drift is visible. Escalating a specific
+    check to hard-fail is a follow-up once the logs establish its precision.
+
+    Returns the total violation count (also emitted in the summary log line).
+    """
+    violations = 0
+
+    def _flag(where: str, reason: str) -> None:
+        nonlocal violations
+        violations += 1
+        logger.warning("v6 gate: %s — %s", where, reason)
+
+    def _check_banal(where: str, text: str | None) -> None:
+        if not text:
+            return
+        res = _validators.validate_no_banal_language(text)
+        if not res.ok:
+            _flag(where, res.reason)
+
+    _check_banal("brief.todays_call", final_brief.brief.todays_call)
+
+    for s in final_brief.sections:
+        prose_bits: list[str] = []
+
+        if s.verdict:
+            _check_banal(f"{s.slug}.verdict", s.verdict)
+            prose_bits.append(s.verdict)
+
+        if s.banker_read is not None:
+            _check_banal(f"{s.slug}.banker_read.verdict", s.banker_read.verdict)
+            prose_bits.append(s.banker_read.verdict)
+            prose_bits.extend(s.banker_read.watch)
+            prose_bits.extend(s.banker_read.risk)
+
+        if s.analysis:
+            _check_banal(f"{s.slug}.analysis", s.analysis)
+            prose_bits.append(s.analysis)
+
+        if s.chart_read is not None:
+            cr = s.chart_read.model_dump(mode="json")
+            for check_name, fn in (
+                ("temporal_anchor", _validators.validate_chart_read_temporal_anchor),
+                ("length", _validators.validate_chart_read_length),
+                ("implication_quality", _validators.validate_chart_read_implication_quality),
+            ):
+                res = fn(cr)
+                if not res.ok:
+                    _flag(f"{s.slug}.chart_read.{check_name}", res.reason)
+            _check_banal(f"{s.slug}.chart_read.signal", s.chart_read.signal)
+            _check_banal(f"{s.slug}.chart_read.context", s.chart_read.context)
+            _check_banal(f"{s.slug}.chart_read.implication", s.chart_read.implication)
+            prose_bits.extend(
+                [s.chart_read.signal, s.chart_read.context, s.chart_read.implication]
+            )
+
+        # §13 abbreviation policy — per-section concatenated prose (item 9 asked to
+        # move the bare-Tier-2 check into the deterministic gate).
+        section_text = " ".join(b for b in prose_bits if b)
+        if section_text.strip():
+            res = _validators.validate_abbreviation_policy(
+                section_text,
+                tier1_set=_validators.TIER1_ABBREVS,
+                tier2_expansions=_validators.TIER2_ABBREVS_AND_EXPANSIONS,
+            )
+            if not res.ok:
+                _flag(f"{s.slug}.abbreviation", res.reason)
+
+    if violations:
+        logger.warning(
+            "v6 gate: %d deterministic prose violation(s) — see warnings above "
+            "(log-only, publish NOT blocked)",
+            violations,
+        )
+    else:
+        logger.info("v6 gate: deterministic prose checks clean")
+    return violations
+
+
 def run_publish(
     sections: list[SectionData],
     today: date_t,
@@ -607,22 +744,10 @@ def run_publish(
     )
 
     # ── Call 2: Sub-editor ─────────────────────────────────────────
+    # Retry-once-then-hold; NEVER auto-pass a malformed review (see _run_subeditor).
     subeditor_prompt = _pipeline._load_prompt("subeditor_v6.txt")
     subeditor_input = {"editor_output": editor_brief.model_dump(mode="json"), "raw_data": editor_input}
-    # 2026-06-22 (issue 144): the sub-editor lost the whole edition to an Anthropic 529
-    # "Overloaded" spell — 3 quick retries couldn't outlast it. The sub-editor is a fast
-    # pass/fail self-review, so give it more attempts on a tighter per-call timeout: 5 × 600s
-    # + the longer backoff above (~8 min) still fits under brief.service's 90-min TimeoutStartSec
-    # once the editor's ~9-min draft is accounted for.
-    review_raw = _call_with_retries(
-        label="subeditor_v6", prompt_template=subeditor_prompt, input_obj=subeditor_input,
-        timeout_s=600, attempts=5,
-    )
-    try:
-        review = SubeditorReview.model_validate(review_raw)
-    except Exception as e:
-        logger.warning("v6: subeditor output failed schema validation, passing editor output: %s", e)
-        review = SubeditorReview(verdict="pass")
+    review = _run_subeditor(subeditor_prompt, subeditor_input)
 
     if review.verdict == "fail":
         msgs = [f"  · [{i.severity}] {i.section}.{i.field}: {i.problem}" for i in review.issues]
@@ -688,6 +813,21 @@ def run_publish(
         logger.info(
             "v6: stripped cover_metric — every hero (%s) metric is unchanged from previous brief",
             hero_section.slug,
+        )
+
+    # Deterministic post-editor prose gate (issue 156 review, item 7). Log-only —
+    # runs in dry-run too, so the no-prod fixture render (landmine 21) shows the signal.
+    # The try/except makes "log-only" STRUCTURAL, not incidental: without it the gate
+    # could only not crash because validators.py's never-raise contract and the V6
+    # schema invariants happen to hold — if either regresses, a cosmetic backstop
+    # would hard-block the 06:30 fire. A gate crash is logged and publish proceeds.
+    try:
+        _run_deterministic_gate(final_brief)
+    except Exception:  # noqa: BLE001 — the log-only gate must never block a publish
+        logger.warning(
+            "v6 gate: deterministic gate crashed — continuing, publish NOT blocked "
+            "(log-only backstop by design)",
+            exc_info=True,
         )
 
     if dry_run:
