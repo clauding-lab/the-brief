@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Brief export — Saturdays 08:00 BDT (02:00 UTC), after the 06:30 publish
+
+[Timer]
+OnCalendar=Sat 02:00:00 UTC
+Persistent=true
+Unit=brief-export.service
+
+[Install]
+WantedBy=timers.target
