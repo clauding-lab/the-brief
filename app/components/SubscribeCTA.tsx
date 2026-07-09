@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Hair } from "./Hair";
-import { getBrowserSupabase } from "@/lib/supabase";
 
 interface SubscribeCTAProps {
   volume?: number | null;
@@ -15,24 +14,45 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
   const [name, setName] = useState("");
   const [org, setOrg] = useState("");
   const [email, setEmail] = useState("");
+  // Honeypot: hidden from humans, tempting to bots. Real users leave it empty.
+  const [companyWebsite, setCompanyWebsite] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    if (!trimmedName || !trimmedEmail) {
       setErr("Name and email required.");
+      return;
+    }
+    // Lightweight client-side format check for fast feedback; the server route at
+    // /api/subscribe is the authoritative validator (+ rate limit + honeypot).
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setErr("Enter a valid email address.");
       return;
     }
     setSubmitting(true);
     setErr(null);
     try {
-      const sb = getBrowserSupabase();
-      const { error } = await sb
-        .from("subscribers")
-        .insert([{ name: name.trim(), organisation: org.trim(), email: email.trim() }]);
-      if (error) throw error;
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmedName,
+          organisation: org.trim(),
+          email: trimmedEmail,
+          company_website: companyWebsite,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Could not subscribe. Try again.");
+      }
       setDone(true);
       setName("");
       setOrg("");
@@ -126,6 +146,30 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
                 required
               />
             </label>
+            {/* Honeypot — visually hidden, off-screen, skipped by AT and tab order.
+                Real users never see or fill it; bots that auto-fill get silently dropped. */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: "-9999px",
+                width: 1,
+                height: 1,
+                overflow: "hidden",
+              }}
+            >
+              <label>
+                Company website
+                <input
+                  type="text"
+                  name="company_website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={companyWebsite}
+                  onChange={(e) => setCompanyWebsite(e.target.value)}
+                />
+              </label>
+            </div>
             <div
               style={{
                 display: "flex",
