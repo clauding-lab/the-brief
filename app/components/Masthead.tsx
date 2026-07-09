@@ -10,14 +10,26 @@ interface MastheadProps {
   source?: DataSource;
   sections: Section[];
   displayOrdBySlug?: Map<string, number>;
+  /** Epoch ms of the last data fetch; formatted to Asia/Dhaka for the Live stamp. */
+  fetchedAt?: number;
 }
 
-export function Masthead({ brief, source, sections, displayOrdBySlug }: MastheadProps) {
+export function Masthead({ brief, source, sections, displayOrdBySlug, fetchedAt }: MastheadProps) {
   const dateLabel = formatBriefDate(brief?.brief_date);
   const issueNo = brief?.issue_no ?? 87;
   const vol = brief?.volume ?? 1;
   const readMin = brief?.read_minutes ?? 15;
   const sourceLabel = source === "live" ? "Live" : source === "cache" ? "Cached" : "Static";
+  // Real fetch time in BDT (Asia/Dhaka), mirroring StatusBar — replaces the old
+  // hardcoded "14:02 BST". Drops to just the source label when no fetch time exists
+  // (e.g. the static fallback), so we never show a fabricated clock.
+  const fetchedTime = fetchedAt
+    ? new Date(fetchedAt).toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Dhaka",
+      })
+    : null;
 
   // 4 most "newsworthy" — first 4 from headlines section
   const headlines = (sections.find((s) => s.slug === "headlines")?.news || []).slice(0, 12);
@@ -34,7 +46,7 @@ export function Masthead({ brief, source, sections, displayOrdBySlug }: Masthead
         </div>
         <div className="tb-live">
           <span className="pulse" />
-          <span>{sourceLabel} · 14:02 BST</span>
+          <span>{sourceLabel}{fetchedTime ? ` · ${fetchedTime} BDT` : ""}</span>
         </div>
       </div>
 

@@ -37,6 +37,18 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-07-09 — SPA | Masthead showed a hardcoded fake clock ("14:02 BST"), wrong TZ everywhere
+
+**Trigger:** 2026-07-04 ecosystem review (handoff item 2). The masthead's Live indicator rendered a literal `14:02 BST` string next to the pulsing dot — a fabricated, frozen clock that never reflected reality and used the wrong timezone label (BST = British Summer Time; the product is Asia/Dhaka, BDT). `SubscribeCTA` compounded it with "7am BST" / "7am sharp" in three places (wrong time AND wrong TZ; publish is 06:30 BDT).
+
+**What went wrong:** a placeholder from a design mockup shipped as if it were live data. `StatusBar.tsx` already had the correct implementation (inline Asia/Dhaka formatting of `_fetchedAt`), but the masthead didn't reuse it — and `_fetchedAt` lived on the `BriefPayload` root, un-plumbed into Masthead's props. A fake timestamp next to a "Live" dot is a credibility leak on a product whose whole pitch is timely, accurate data.
+
+**Lesson:** never ship a hardcoded time/number as if it were live; if a real value exists elsewhere (here `_fetchedAt` in StatusBar), plumb it rather than fake it. And label the timezone the product actually runs in — BDT, not BST.
+
+**Prevention:** Masthead now takes a `fetchedAt` prop (plumbed from `ClientApp` → `data._fetchedAt`) and formats it Asia/Dhaka like StatusBar, dropping to just the source label when no fetch time exists (never a fabricated clock). SubscribeCTA copy fixed to "06:30 BDT" ×3. Housekeeping PR also corrected AGENTS.md landmines 17/21 ("Saturday skipped" → 7 days/week post-#116) — same family of stale-time drift.
+
+**Cross-references:** `app/components/Masthead.tsx`, `StatusBar.tsx` (reference impl), `SubscribeCTA.tsx`; handoff `docs/handoff/2026-07-04-review-fixes.md` item 2; Master.md ("06:30 BDT", never "early morning").
+
 ## 2026-06-07 — PR #114 | Economist/FT voice retune shipped — two shipping-mechanics traps caught
 
 **Trigger:** Retuning the Desk Editor + Sub-Editor voice to an Economist/FT four-dial register, then shipping it before the next scheduled send. The voice change itself was clean (verified via a no-prod dry-run render); two *non-voice* traps surfaced during the ship.

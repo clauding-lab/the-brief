@@ -15,8 +15,15 @@ from . import BuilderContext
 
 _log = logging.getLogger(__name__)
 
+# Column 0 is BOTH the metric id AND the metric_history fallback key used on
+# non-trading days (`ctx.history.get_latest(mid)`). The DSEX tile's fallback was
+# pinned to the LEGACY `dse_dsex_close` series (frozen at 5,257 / 2026-04-21)
+# while the chart already reads the LIVE `dsex` series — so on any stale day the
+# tile showed a dead number under a live chart. Repointed to `dsex` (landmine #6;
+# same live-vs-legacy split as landmine #1). Landmine #17: a re-point only shows
+# on prod after the next 06:30 BDT publish — verify PROD, not just preview.
 _SPEC = (
-    ("dse_dsex_close",       "DSEX close",       "dsex",              "index"),
+    ("dsex",                 "DSEX close",       "dsex",              "index"),
     ("dse_dsex_change_pct",  "DSEX %Δ",          "dsex_change_pct",   "%"),
     ("dse_ds30",             "DS30",             "ds30",              "index"),
     ("dse_dses",             "DSES",             "dses",              "index"),
