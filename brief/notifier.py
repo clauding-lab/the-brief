@@ -56,6 +56,11 @@ class NotifyResult:
     skipped_count: int         # rows skipped client-side (e.g. missing email)
     message_id: str | None     # Brevo's message-id from the 2xx response
     error: str | None          # short error tag if anything failed; None on success
+    # How many subscribers the send ATTEMPTED (len of the fetched list). Lets the
+    # caller tell "sent=0 because the list is empty" (fine) from "sent=0 with a
+    # real audience" (total delivery failure — alert-worthy, item 5d). Defaults
+    # to 0 on early-return paths where the list was never fetched.
+    attempted_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -456,4 +461,5 @@ def notify(brief_id: str) -> NotifyResult:
         skipped_count=0,
         message_id=message_id,
         error=error,
+        attempted_count=len(subscribers),
     )
