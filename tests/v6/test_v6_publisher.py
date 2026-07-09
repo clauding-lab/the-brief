@@ -124,8 +124,8 @@ def _capture_urlopen(captured_calls, *, fail_on=None):  # type: ignore[no-untype
 
 
 def test_publish_brief_atomic_flow() -> None:
-    """Two-phase (landmine 22): DELETE → POST brief AS DRAFT → children →
-    PATCH status='published' as the LAST call."""
+    """Two-phase (landmine 22): DELETE issue → sweep stale drafts → POST brief AS
+    DRAFT → children → PATCH status='published' as the LAST call."""
     payload = _minimal_payload(issue_no=89)
     captured_calls: list[tuple[str, str, object | None]] = []
 
@@ -135,12 +135,15 @@ def test_publish_brief_atomic_flow() -> None:
     assert brief_id == "brief-uuid-1"
 
     methods = [c[0] for c in captured_calls]
-    assert methods[0] == "DELETE"  # idempotency: delete first
+    assert methods[0] == "DELETE"  # idempotency: delete this issue first
     assert "/briefs?issue_no=eq.89" in captured_calls[0][1]
-    assert methods[1] == "POST"  # then insert brief
+    assert methods[1] == "DELETE"  # then sweep stale drafts of OTHER issues
+    assert "status=eq.draft" in captured_calls[1][1]
+    assert "created_at=lt." in captured_calls[1][1]
+    assert methods[2] == "POST"  # then insert brief
 
     # The brief is inserted as a DRAFT — invisible to get_latest_brief until the flip
-    inserted_brief = captured_calls[1][2]
+    inserted_brief = captured_calls[2][2]
     assert inserted_brief["issue_no"] == 89  # type: ignore[index]
     assert inserted_brief["todays_call"] == "Test brief."  # type: ignore[index]
     assert inserted_brief["status"] == "draft"  # type: ignore[index]
@@ -152,6 +155,22 @@ def test_publish_brief_atomic_flow() -> None:
     assert last_body == {"status": "published"}  # type: ignore[comparison-overlap]
     # Exactly one flip, and no earlier call published anything
     assert sum(1 for c in captured_calls if c[0] == "PATCH") == 1
+
+
+def test_publish_brief_sweep_failure_is_non_fatal() -> None:
+    """The stale-draft sweep is best-effort: if its DELETE fails, today's publish
+    must proceed normally (review LOW follow-up on the two-phase fix)."""
+    payload = _minimal_payload(issue_no=91)
+    captured_calls: list[tuple[str, str, object | None]] = []
+
+    side = _capture_urlopen(captured_calls, fail_on=("DELETE", "status=eq.draft"))
+    with patch("urllib.request.urlopen", side_effect=side):
+        brief_id = publish_brief(payload)  # must NOT raise
+
+    assert brief_id == "brief-uuid-1"
+    # Flip still happened — the publish completed despite the failed sweep
+    assert captured_calls[-1][0] == "PATCH"
+    assert captured_calls[-1][2] == {"status": "published"}
 
 
 def test_publish_brief_stays_draft_when_child_post_fails() -> None:

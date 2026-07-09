@@ -14,6 +14,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from brief.v6_schema import BriefPayloadV6
@@ -182,6 +183,19 @@ def publish_brief(payload: BriefPayloadV6) -> str:
     issue_no = payload.brief.issue_no
     logger.info("v6_publisher: deleting existing rows for issue_no=%d", issue_no)
     _request("DELETE", f"/briefs?issue_no=eq.{issue_no}")
+
+    # Sweep stale drafts left by FAILED publishes of OTHER issues (review follow-up
+    # on the two-phase fix): the issue-scoped DELETE above only clears THIS issue_no,
+    # so a draft of issue N abandoned by a crashed run would linger forever once the
+    # next fire is N+1. Publishes are daily, so any draft older than 2 days is
+    # garbage by definition. Best-effort — a sweep failure must never block today's
+    # publish. Z-suffixed UTC stamp (isoformat's "+00:00" would decode as a space in
+    # the query string).
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        _request("DELETE", f"/briefs?status=eq.draft&created_at=lt.{cutoff}")
+    except PublishError as e:
+        logger.warning("v6_publisher: stale-draft sweep failed (non-fatal): %s", e)
 
     brief_row = payload.brief.model_dump(mode="json")
     # Insert as `draft` so get_latest_brief (WHERE status='published') can't serve a
