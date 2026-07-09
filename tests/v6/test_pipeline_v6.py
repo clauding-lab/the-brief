@@ -223,6 +223,31 @@ def test_deterministic_gate_flags_banal_and_bad_chart_read() -> None:
     assert n >= 4
 
 
+def test_deterministic_gate_crash_never_blocks_publish(
+    _stub_supabase_reads: object, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Log-only is STRUCTURAL: even if a validator regresses its never-raise
+    contract and the gate itself crashes, the publish must proceed (fresh-context
+    review MEDIUM). The crash is logged at WARNING with the traceback."""
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub, \
+         patch(
+             "brief.pipeline_v6._validators.validate_no_banal_language",
+             side_effect=RuntimeError("validator regressed its never-raise contract"),
+         ):
+        mock_run.side_effect = [_max_result(_editor_output()), _max_result(review)]
+        with caplog.at_level("WARNING", logger="brief.pipeline_v6"):
+            brief_id = run_publish([], today=date(2026, 5, 5), scraped_headlines=[])
+
+    assert brief_id == "brief-id-89"          # publish went through
+    mock_pub.assert_called_once()             # despite the gate crashing
+    assert any(
+        "deterministic gate crashed" in r.message for r in caplog.records
+    ), "gate crash must be logged, not silently swallowed"
+
+
 def test_deterministic_gate_clean_brief_zero_violations() -> None:
     from brief.pipeline_v6 import _run_deterministic_gate
 

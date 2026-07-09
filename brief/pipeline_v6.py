@@ -817,7 +817,18 @@ def run_publish(
 
     # Deterministic post-editor prose gate (issue 156 review, item 7). Log-only —
     # runs in dry-run too, so the no-prod fixture render (landmine 21) shows the signal.
-    _run_deterministic_gate(final_brief)
+    # The try/except makes "log-only" STRUCTURAL, not incidental: without it the gate
+    # could only not crash because validators.py's never-raise contract and the V6
+    # schema invariants happen to hold — if either regresses, a cosmetic backstop
+    # would hard-block the 06:30 fire. A gate crash is logged and publish proceeds.
+    try:
+        _run_deterministic_gate(final_brief)
+    except Exception:  # noqa: BLE001 — the log-only gate must never block a publish
+        logger.warning(
+            "v6 gate: deterministic gate crashed — continuing, publish NOT blocked "
+            "(log-only backstop by design)",
+            exc_info=True,
+        )
 
     if dry_run:
         logger.info("v6: dry_run=True, skipping Supabase publish")
