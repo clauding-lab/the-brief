@@ -17,6 +17,22 @@
 
 Nothing to do. Timer fires every day at 06:30 BDT (Mon–Sun since PR #116). Discord pings on every run.
 
+Each fire self-deploys first: a fail-closed guard (`deploy/brief_guard.sh`)
+refuses to publish unless the checkout is on `main` (a held publish + Discord
+alert beats silently publishing feature-branch code; readers keep yesterday's
+complete brief), then `ExecStartPre` runs `git pull --ff-only origin main`
+(best-effort, 120s cap) so a merged PR reaches the next scheduled brief without
+a manual pull (AGENTS.md landmine 21), then the guard runs again to log the
+post-pull branch + commit that actually runs. If GitHub is unreachable the
+publish still runs on the current checkout. A non-fast-forwardable checkout
+(local divergence) is skipped silently — if `git rev-parse --short HEAD` lags
+origin/main, resolve the divergence manually.
+
+**Self-deploy caveat:** a merged PR is pulled and run UNATTENDED at the next
+fire. Any PR needing manual steps — Supabase DDL (landmine 18), new deps in
+`requirements.txt` (`pip install` into the venv), new `/etc/brief.env` vars —
+must have those steps applied BEFORE merge, not after.
+
 ## Failure alerts (OnFailure → Discord)
 
 `brief.service` carries `OnFailure=brief-alert@%n.service`. Any hard failure — non-zero

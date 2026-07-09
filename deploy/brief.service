@@ -15,6 +15,29 @@ Group=adnan
 WorkingDirectory=/home/adnan/the-brief
 EnvironmentFile=/etc/brief.env
 
+# Self-deploy before every fire (kills AGENTS.md landmine 21 — merging to main
+# deployed nothing; the box ran whatever was checked out).
+#
+# Three ExecStartPre steps, in order:
+#   1. GUARD (fail-closed, NO '-' prefix): brief_guard.sh refuses any checkout that
+#      is not `main` (feature branch / detached HEAD) — `git pull origin main` merges
+#      into WHATEVER is checked out, so without this a stray checkout would silently
+#      publish untested code. A held publish beats publishing wrong code to bankers:
+#      readers keep yesterday's complete brief (PR #125 semantics) and the failure
+#      fires the OnFailure Discord alert above.
+#   2. PULL (best-effort, '-' prefix): if GitHub is unreachable or the pull can't
+#      fast-forward, the publish still runs on the current checkout — a stale brief
+#      beats no brief. --ff-only never rewrites or merges local state. timeout 120
+#      caps a network-blackholed pull so it can't eat the 90-min start budget
+#      (TimeoutStartSec covers ExecStartPre too).
+#   3. GUARD again: re-verifies main and logs the POST-pull branch + short HEAD, so
+#      the journal records exactly which commit this fire ran.
+# Safe as a single service (unlike econdelta's 16-unit cascade). Repo writes are
+# allowed via ReadWritePaths.
+ExecStartPre=/home/adnan/the-brief/deploy/brief_guard.sh
+ExecStartPre=-/usr/bin/timeout 120 /usr/bin/git -C /home/adnan/the-brief pull --ff-only origin main
+ExecStartPre=/home/adnan/the-brief/deploy/brief_guard.sh
+
 ExecStart=/home/adnan/the-brief/.venv/bin/python -m brief.cli run --publish
 
 # Resource limits — V6 publish does 2 Claude calls (editor + subeditor),
