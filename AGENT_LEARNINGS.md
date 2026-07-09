@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-07-09 — pipeline | Sub-editor auto-pass shipped unreviewed briefs; validators.py was dead code
+
+**Trigger:** 2026-07-04 ecosystem review (handoff item 7). Two findings in the publish path: (1) `pipeline_v6.run_publish` handled a malformed `SubeditorReview` by logging a warning and setting `review = SubeditorReview(verdict="pass")` — so a sub-editor call that returned well-formed JSON in the wrong shape published the editor's draft UNREVIEWED, with no test covering it. (2) `brief/claude/validators.py` (704 lines of hard, testable slop/abbreviation/chart-read checks) was imported by NOTHING in the publish path — the deterministic backstop existed but never ran.
+
+**What went wrong:** (1) the failure handler chose availability over correctness — "couldn't parse the review, ship anyway". A self-review that silently degrades to "pass" is worse than no review: it looks reviewed. (2) writing a validator library and never wiring it is the same as not writing it; the sub-editor's LLM checks had no deterministic partner. Note the interaction with #120: `_call_with_retries` already retries the sub-editor 5× on *transient API* failures — but a well-formed-yet-invalid `SubeditorReview` returns successfully from that layer, so the auto-pass sat *after* the retry, untouched by #120.
+
+**Lesson:** (1) a review gate must never fail OPEN — malformed review → retry once, then HOLD (yesterday's brief stays live), never auto-pass. (2) a deterministic validator is only a gate if something calls it every publish.
+
+**Prevention:** (1) `_run_subeditor` wraps the call in a retry-once loop; two malformed reviews raise `V6PublishError` (exit 4). Tests `test_subeditor_malformed_twice_holds_never_auto_pass` and `test_subeditor_malformed_once_then_valid_passes`. (2) `_run_deterministic_gate` runs validators.py over the final brief prose (todays_call, banker_read, analysis, chart_read) every publish — **log-only** for now (a deterministic false-positive must not hold the 06:30 fire; escalate specific checks to hard-fail once the logs prove precision). Tests `test_deterministic_gate_flags_banal_and_bad_chart_read` + `..._clean_brief_zero_violations`.
+
+**Hotfix:** `brief/pipeline_v6.py` — `_run_subeditor` (retry-once-then-hold) + `_run_deterministic_gate` (log-only), wired into `run_publish` (this PR).
+
+**Cross-references:** AGENTS.md landmine 20 (editor↔sub-editor lockstep), #13/#120 (transient Anthropic retries — orthogonal layer); handoff `docs/handoff/2026-07-04-review-fixes.md` items 7 + 9; B2 sub-editor prompt proposals (items 8-9) are sign-off-gated and shipped separately.
+
 ## 2026-07-09 — publish path | Non-atomic publish could serve a half-written brief (#118 mechanism, now fixed)
 
 **Trigger:** 2026-07-04 ecosystem review (handoff item 4). `v6_publisher.publish_brief` wrote the `briefs` row with `status='published'` (schema default) BEFORE its sections/metrics/news/chart_series landed, over separate non-transactional PostgREST POSTs. A mid-loop failure (child-POST 4xx/5xx, systemd `TimeoutStartSec` SIGTERM, OOM-kill) left a row the SPA served as an empty/partial brief — the orphaned-brief-#118 mechanism (see 2026-05-29 entry). Verified still live: `test_publish_brief_atomic_flow` asserted call ORDER only, and the sole error test failed on the initial DELETE (the safe case). No test covered briefs-INSERT-ok + a later child POST failing.
