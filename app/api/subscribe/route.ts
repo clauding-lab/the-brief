@@ -128,7 +128,11 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const name = sanitizeField(fieldStr(fields, "name"));
-  const email = fieldStr(fields, "email");
+  // Email goes through sanitizeField too (review LOW): EMAIL_RE's [^\s@] rejects
+  // whitespace but NOT non-whitespace control bytes (0x00-0x08, 0x0e-0x1f, 0x7f),
+  // which could otherwise enter the stored value. Sanitizing maps them to spaces,
+  // which the regex then rejects — a control-byte email fails validation cleanly.
+  const email = sanitizeField(fieldStr(fields, "email"));
   const organisation = sanitizeField(fieldStr(fields, "organisation"));
 
   if (!name || name.length > MAX_NAME) {
@@ -169,8 +173,10 @@ export async function POST(req: Request): Promise<NextResponse> {
     .insert([{ name, email, organisation: organisation || null }]);
 
   if (error) {
-    // Log server-side; never leak DB internals to the client.
-    console.error("subscribe route: insert failed:", error.message);
+    // Log the error CODE only, never the message (review LOW): a unique-violation
+    // message embeds the subscriber's email — PII in Vercel logs on a product that
+    // pitches "we don't track". The code (e.g. 23505) is enough to diagnose.
+    console.error("subscribe route: insert failed, code:", error.code ?? "unknown");
     return json({ ok: false, error: "Could not subscribe. Please try again." }, 502);
   }
 
