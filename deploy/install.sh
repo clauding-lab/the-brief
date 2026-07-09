@@ -34,8 +34,10 @@ echo "[install] logrotate"
 install -m 644 "$REPO/deploy/logrotate.conf" /etc/logrotate.d/brief
 
 echo "[install] systemd units"
-install -m 644 "$REPO/deploy/brief.service" "$SYSD/brief.service"
-install -m 644 "$REPO/deploy/brief.timer"   "$SYSD/brief.timer"
+install -m 644 "$REPO/deploy/brief.service"        "$SYSD/brief.service"
+install -m 644 "$REPO/deploy/brief.timer"          "$SYSD/brief.timer"
+install -m 644 "$REPO/deploy/brief-alert@.service" "$SYSD/brief-alert@.service"
+chmod +x "$REPO/deploy/brief_alert.sh"
 chmod 640 "$ETC"; chown root:adnan "$ETC"
 
 systemctl daemon-reload
