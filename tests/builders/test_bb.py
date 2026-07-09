@@ -8,79 +8,212 @@ from brief.builders.bb import build
 from brief.econdelta import EconDeltaSnapshot
 from brief.history import HistoryRow
 
+# ── Verified-live ground truth (probed 2026-07-09, Supabase metric_history) ──
+# These are the values the builder MUST resolve to from live data.
+_LIVE_REPO = 10.0
+_LIVE_SDF = 7.5     # BB cut twice; 8.5 is the RETIRED hardcode — must never resurface
+_LIVE_SLF = 11.5
+_LIVE_RESERVES = 34.5478
+
+TODAY = date(2026, 7, 9)
+
 
 def _snap(**overrides):
     data = {
-        "gross_reserves_usd_bn": 34.1166,
-        "reserves_date": "2026-04-14",
+        "gross_reserves_usd_bn": _LIVE_RESERVES,
+        "reserves_date": "2026-07-09",
     }
     data.update(overrides)
     return EconDeltaSnapshot(
-        updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 7, 9, tzinfo=timezone.utc),
         sources_status={"bb_forex": {"status": "ok", "age_hours": 0.1}},
         data=data,
     )
 
 
-def test_bb_fresh_with_reserves_and_event_rates():
-    history = MagicMock()
-    history.get_latest.return_value = HistoryRow(
-        "bb_gross_reserves", date(2026, 4, 13), 33.80, "BB"
-    )
-    ctx = BuilderContext(
-        snapshot=_snap(),
-        history=history,
-        today=date(2026, 4, 21),
-    )
-    s = build(ctx)
-    assert s.id == "bb"
-    assert s.freshness in ("fresh", "warning")
-    ids = {m.id for m in s.metrics}
-    assert {"bb_policy_rate", "bb_sdf", "bb_gross_reserves"}.issubset(ids)
-    reserves = next(m for m in s.metrics if m.id == "bb_gross_reserves")
-    assert reserves.value == 34.1166
-    assert reserves.delta is not None
-    assert reserves.delta.direction == "up"
-    assert reserves.delta.window == "wow"
-    # Historical persistence moved upstream to EconDelta — the bb builder
-    # no longer writes to history. See econdelta/docs/data-contract.md.
-    history.upsert_many.assert_not_called()
+class _FakeHistory:
+    """Controllable metric_history double keyed by metric_id.
+
+    `latest` maps metric_id -> HistoryRow | None (what get_latest returns).
+    Unlike a bare MagicMock this distinguishes the live reserves id from the
+    dead one, so tests can prove the builder reads the right id. It also has
+    NO get_history_window method on purpose: if build() ever calls it, tests
+    crash loudly (that call would break the pipeline's single-batched-call
+    invariant — see test_build_issues_no_get_history_window_call).
+    """
+
+    def __init__(self, latest: dict | None = None):
+        self._latest = latest or {}
+        self.upsert_many = MagicMock()
+
+    def get_latest(self, metric_id, *, table="metric_history"):
+        return self._latest.get(metric_id)
 
 
-def test_bb_handles_missing_reserves():
-    ctx = BuilderContext(
-        snapshot=_snap(gross_reserves_usd_bn=None),
-        history=None,
-        today=date(2026, 4, 21),
-    )
+def _live_rate_rows(as_of=date(2026, 7, 9)):
+    return {
+        "policy_rate_repo": HistoryRow("policy_rate_repo", as_of, _LIVE_REPO, "BB"),
+        "policy_rate_sdf": HistoryRow("policy_rate_sdf", as_of, _LIVE_SDF, "BB"),
+        "policy_rate_slf": HistoryRow("policy_rate_slf", as_of, _LIVE_SLF, "BB"),
+    }
+
+
+def _m(section, mid):
+    return next(m for m in section.metrics if m.id == mid)
+
+
+# ── Corridor: live reads ─────────────────────────────────────────────────────
+
+def test_corridor_reads_live_rates_not_hardcoded():
+    """Repo/SDF/SLF come from metric_history; SDF resolves to the live 7.5, not
+    the retired 8.5 hardcode. FAILS if anyone re-hardcodes SDF=8.5 or stops
+    reading policy_rate_sdf — the mock feeds 7.5, so a hardcode returns 8.5."""
+    hist = _FakeHistory(latest=_live_rate_rows())
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
     s = build(ctx)
-    reserves = next((m for m in s.metrics if m.id == "bb_gross_reserves"), None)
-    assert reserves is not None
-    assert reserves.value is None
+
+    assert _m(s, "bb_policy_rate").value == 10.0
+    assert _m(s, "bb_sdf").value == 7.5            # regression guard: NOT 8.5
+    assert _m(s, "bb_slf").value == 11.5
+    for mid in ("bb_policy_rate", "bb_sdf", "bb_slf"):
+        m = _m(s, mid)
+        assert m.stale is False                    # sourced live → not stale
+        assert m.cadence == "event"
+        assert m.source == "BB"
+    # the retired 8.5 value must not appear anywhere in the corridor
+    assert all(m.value != 8.5 for m in s.metrics)
+    # event-cadence rates keep the section fresh
+    assert s.freshness == "fresh"
+
+
+# ── Corridor: honest degradation ─────────────────────────────────────────────
+
+def test_single_missing_rate_falls_back_and_marks_stale():
+    """A per-rate metric_history gap must not blank the corridor: the missing
+    rate falls back to the last-known constant AND is marked stale=True, while
+    the rates that DID resolve stay live and non-stale."""
+    rows = _live_rate_rows()
+    rows["policy_rate_sdf"] = None   # SDF row missing from history
+    hist = _FakeHistory(latest=rows)
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    sdf = _m(s, "bb_sdf")
+    assert sdf.value == 7.5            # fallback constant == live-correct value
+    assert sdf.stale is True           # honest degradation flag
+    assert _m(s, "bb_policy_rate").stale is False   # others resolved live
+    assert _m(s, "bb_slf").stale is False
+
+
+def test_corridor_degrades_when_history_unavailable():
+    """metric_history outage (history=None) must never blank the corridor: all
+    three rates fall back to last-known constants and are marked stale=True.
+    The SDF fallback constant is the live-correct 7.5 — never the retired 8.5."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=TODAY)
+    s = build(ctx)
+
+    assert _m(s, "bb_policy_rate").value == 10.0
+    assert _m(s, "bb_sdf").value == 7.5     # fallback must NOT be 8.5
+    assert _m(s, "bb_slf").value == 11.5
+    for mid in ("bb_policy_rate", "bb_sdf", "bb_slf"):
+        assert _m(s, mid).stale is True
+        assert _m(s, mid).cadence == "event"
+    assert all(m.value != 8.5 for m in s.metrics)
+
+
+# ── Reserves ─────────────────────────────────────────────────────────────────
+
+def test_reserves_uses_snapshot_value_and_never_fakes_delta():
+    """Reserves reads the live snapshot value and emits NO WoW delta — the
+    daily-restamped id would only yield a fabricated ~0 delta, so the builder
+    drops it rather than lie. FAILS if a fake/zero delta is reintroduced."""
+    hist = _FakeHistory(latest=_live_rate_rows())
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    res = _m(s, "bb_gross_reserves")
+    assert res.value == _LIVE_RESERVES
+    assert res.stale is False
+    assert res.delta is None                 # no fabricated delta
+    assert res.cadence == "weekly"
+
+
+def test_reserves_fallback_reads_live_id_not_dead_id():
+    """When the snapshot lacks reserves, the builder backfills from the LIVE
+    metric_history id `gross_reserves_usd_bn` and marks it stale — it must NOT
+    read the dead `bb_gross_reserves` id (no writer since 2026-03-01). The dead
+    id is wired to return a distinct value; if the builder read it, the metric
+    value would be that value instead of the live 34.20."""
+    hist = _FakeHistory(latest={
+        **_live_rate_rows(),
+        "gross_reserves_usd_bn": HistoryRow(
+            "gross_reserves_usd_bn", date(2026, 7, 8), 34.20, "BB"
+        ),
+        "bb_gross_reserves": HistoryRow(
+            "bb_gross_reserves", date(2026, 3, 1), 34.1166, "BB"
+        ),
+    })
+    ctx = BuilderContext(snapshot=_snap(gross_reserves_usd_bn=None), history=hist, today=TODAY)
+    s = build(ctx)
+
+    res = _m(s, "bb_gross_reserves")
+    assert res.value == 34.20            # live id, NOT the dead-id 34.1166
+    assert res.value != 34.1166          # regression guard: dead id must not be read
+    assert res.stale is True             # sourced from history → stale
+    assert res.as_of == date(2026, 7, 8)
+    assert res.delta is None             # stale fallback → no delta
+
+
+def test_reserves_missing_everywhere_is_unavailable_not_crash():
+    """No snapshot reserves and no history → reserves value is None and the
+    section degrades gracefully (never crashes, never fabricates)."""
+    ctx = BuilderContext(snapshot=_snap(gross_reserves_usd_bn=None), history=None, today=TODAY)
+    s = build(ctx)
+    res = next((m for m in s.metrics if m.id == "bb_gross_reserves"), None)
+    assert res is not None
+    assert res.value is None
+    assert res.delta is None
     assert s.freshness in ("unavailable", "warning", "stale")
 
 
-def test_bb_falls_back_to_today_on_malformed_reserves_date():
-    ctx = BuilderContext(
-        snapshot=_snap(reserves_date="2026-04-XX"),
-        history=None,
-        today=date(2026, 4, 21),
-    )
+def test_reserves_malformed_date_falls_back_to_today():
+    ctx = BuilderContext(snapshot=_snap(reserves_date="2026-07-XX"), history=None, today=TODAY)
     s = build(ctx)
-    reserves = next(m for m in s.metrics if m.id == "bb_gross_reserves")
-    assert reserves.as_of == date(2026, 4, 21)  # fell back to today
+    res = _m(s, "bb_gross_reserves")
+    assert res.as_of == TODAY
 
 
-def test_bb_reserves_delta_handles_bad_prev_value():
-    history = MagicMock()
-    history.get_latest.return_value = HistoryRow(
-        "bb_gross_reserves", date(2026, 4, 13), "not-a-number", "BB"
-    )
-    ctx = BuilderContext(
-        snapshot=_snap(),
-        history=history,
-        today=date(2026, 4, 21),
-    )
+# ── Structural invariants ────────────────────────────────────────────────────
+
+def test_section_emits_expected_metric_ids():
+    """The four canonical BB metric ids must stay stable — cadence.py's
+    fx_reserves_rule keys on `bb_gross_reserves`, and the corridor ids feed the
+    SPA and risk rules. Renaming any of them breaks systemic-risk wiring."""
+    hist = _FakeHistory(latest=_live_rate_rows())
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
     s = build(ctx)
-    reserves = next(m for m in s.metrics if m.id == "bb_gross_reserves")
-    assert reserves.delta is None  # bad prev value → no delta
+    ids = {m.id for m in s.metrics}
+    assert {"bb_policy_rate", "bb_sdf", "bb_slf", "bb_gross_reserves"}.issubset(ids)
+    assert s.id == "bb"
+
+
+def test_bb_does_not_write_to_history():
+    """Historical persistence moved upstream to EconDelta — the bb builder must
+    never call upsert_many (see econdelta/docs/data-contract.md)."""
+    hist = _FakeHistory(latest=_live_rate_rows())
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    build(ctx)
+    hist.upsert_many.assert_not_called()
+
+
+def test_build_issues_no_get_history_window_call():
+    """The builder must NOT call get_history_window during build. The pipeline
+    issues exactly ONE batched window call in _enrich_metric_history; a second
+    call here breaks test_gather_enriches_metric_history_values' assert_called_once.
+    This invariant is WHY the reserves WoW delta is dropped, not computed."""
+    from brief.history import MetricHistoryClient
+    hist = MagicMock(spec=MetricHistoryClient)
+    hist.get_latest.return_value = None
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    build(ctx)
+    hist.get_history_window.assert_not_called()
