@@ -42,7 +42,7 @@ install -m 644 "$REPO/deploy/brief.timer"          "$SYSD/brief.timer"
 install -m 644 "$REPO/deploy/brief-alert@.service" "$SYSD/brief-alert@.service"
 install -m 644 "$REPO/deploy/brief-export.service" "$SYSD/brief-export.service"
 install -m 644 "$REPO/deploy/brief-export.timer"   "$SYSD/brief-export.timer"
-chmod +x "$REPO/deploy/brief_alert.sh"
+chmod +x "$REPO/deploy/brief_alert.sh" "$REPO/deploy/brief_guard.sh"
 chmod 640 "$ETC"; chown root:adnan "$ETC"
 
 systemctl daemon-reload
