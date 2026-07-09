@@ -15,7 +15,22 @@
 
 ## Daily operation (after install)
 
-Nothing to do. Timer fires Sun–Fri at 06:30 BDT automatically. Discord pings on every run.
+Nothing to do. Timer fires every day at 06:30 BDT (Mon–Sun since PR #116). Discord pings on every run.
+
+## Failure alerts (OnFailure → Discord)
+
+`brief.service` carries `OnFailure=brief-alert@%n.service`. Any hard failure — non-zero
+exit (including the sub-editor's exit 4), a `TimeoutStartSec` SIGTERM, an OOM-kill —
+fires `deploy/brief_alert.sh`, which posts the failed unit name, host, BDT timestamp,
+and a journal tail to Discord.
+
+- Webhook: set `DISCORD_ALERT_WEBHOOK_URL` in `/etc/brief.env` (falls back to
+  `DISCORD_PREVIEW_WEBHOOK_URL`; if neither is set the alert logs to stderr and no-ops).
+- Journal tail in the alert needs `adnan` in the `systemd-journal` group:
+  `sudo usermod -aG systemd-journal adnan` (optional — without it the alert still
+  fires, minus the log excerpt).
+- Test end-to-end without touching a real publish:
+  `sudo systemctl start brief-alert@brief.service.service` → a ping should land.
 
 ## Common failures
 

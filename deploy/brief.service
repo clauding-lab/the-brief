@@ -3,6 +3,10 @@ Description=The Brief — daily Bangladesh economy digest (V6 publish to Supabas
 Documentation=https://github.com/clauding-lab/the-brief
 After=network-online.target
 Wants=network-online.target
+# Any hard failure of this unit (non-zero exit incl. the sub-editor's exit 4,
+# TimeoutStartSec SIGTERM, OOM-kill) fires a Discord ping via the templated alert
+# unit — %n expands to "brief.service". See deploy/brief-alert@.service.
+OnFailure=brief-alert@%n.service
 
 [Service]
 Type=oneshot
