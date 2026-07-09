@@ -84,19 +84,25 @@ def test_fetch_previous_brief_none() -> None:
         assert fetch_previous_brief() is None
 
 
-def test_publish_brief_atomic_flow() -> None:
-    """publish_brief should: DELETE by issue_no → POST brief → POST sections → POST children."""
-    payload = _minimal_payload(issue_no=89)
-    captured_calls: list[tuple[str, str, object | None]] = []
+def _capture_urlopen(captured_calls, *, fail_on=None):  # type: ignore[no-untyped-def]
+    """Build a urlopen side_effect that records (method, url, body) per call and
+    routes canned PostgREST replies. `fail_on=(method, url_substr)` raises a 500
+    HTTPError on the matching call (to exercise partial-failure paths)."""
+    import urllib.error
 
-    def _capture(req, *args, **kwargs):  # type: ignore[no-untyped-def]
+    def _side(req, *args, **kwargs):  # type: ignore[no-untyped-def]
         url = req.full_url
         method = req.get_method()
         body = json.loads(req.data.decode()) if req.data else None
         captured_calls.append((method, url, body))
 
-        # DELETE returns nothing; POST briefs/sections returns single row with id;
-        # POST metrics/news returns nothing (we don't request representation)
+        if fail_on is not None and method == fail_on[0] and fail_on[1] in url:
+            raise urllib.error.HTTPError(
+                url=url, code=500, msg="Internal Server Error",
+                hdrs=None,  # type: ignore[arg-type]
+                fp=io.BytesIO(b'{"message":"child insert failed"}'),
+            )
+
         class _Resp:
             def __enter__(self):
                 if method == "DELETE":
@@ -106,6 +112,7 @@ def test_publish_brief_atomic_flow() -> None:
                     return _fake_response([{"id": "brief-uuid-1", **row}])
                 if "/sections" in url and method == "POST":
                     return _fake_response([{"id": "section-uuid-1", **body}])
+                # PATCH flip, metric/news POSTs → 204-style empty
                 return _fake_response(None)
 
             def __exit__(self, *a, **k):
@@ -113,23 +120,88 @@ def test_publish_brief_atomic_flow() -> None:
 
         return _Resp()
 
-    with patch("urllib.request.urlopen", side_effect=_capture):
+    return _side
+
+
+def test_publish_brief_atomic_flow() -> None:
+    """Two-phase (landmine 22): DELETE issue → sweep stale drafts → POST brief AS
+    DRAFT → children → PATCH status='published' as the LAST call."""
+    payload = _minimal_payload(issue_no=89)
+    captured_calls: list[tuple[str, str, object | None]] = []
+
+    with patch("urllib.request.urlopen", side_effect=_capture_urlopen(captured_calls)):
         brief_id = publish_brief(payload)
 
     assert brief_id == "brief-uuid-1"
 
     methods = [c[0] for c in captured_calls]
-    assert methods[0] == "DELETE"  # idempotency: delete first
-    assert methods[1] == "POST"  # then insert brief
+    assert methods[0] == "DELETE"  # idempotency: delete this issue first
     assert "/briefs?issue_no=eq.89" in captured_calls[0][1]
+    assert methods[1] == "DELETE"  # then sweep stale drafts of OTHER issues
+    assert "status=eq.draft" in captured_calls[1][1]
+    assert "created_at=lt." in captured_calls[1][1]
+    assert methods[2] == "POST"  # then insert brief
 
-    inserted_brief = captured_calls[1][2]
+    # The brief is inserted as a DRAFT — invisible to get_latest_brief until the flip
+    inserted_brief = captured_calls[2][2]
     assert inserted_brief["issue_no"] == 89  # type: ignore[index]
     assert inserted_brief["todays_call"] == "Test brief."  # type: ignore[index]
+    assert inserted_brief["status"] == "draft"  # type: ignore[index]
+
+    # The LAST call is the atomic flip to published (the only visibility-granting write)
+    last_method, last_url, last_body = captured_calls[-1]
+    assert last_method == "PATCH"
+    assert "/briefs?id=eq.brief-uuid-1" in last_url
+    assert last_body == {"status": "published"}  # type: ignore[comparison-overlap]
+    # Exactly one flip, and no earlier call published anything
+    assert sum(1 for c in captured_calls if c[0] == "PATCH") == 1
+
+
+def test_publish_brief_sweep_failure_is_non_fatal() -> None:
+    """The stale-draft sweep is best-effort: if its DELETE fails, today's publish
+    must proceed normally (review LOW follow-up on the two-phase fix)."""
+    payload = _minimal_payload(issue_no=91)
+    captured_calls: list[tuple[str, str, object | None]] = []
+
+    side = _capture_urlopen(captured_calls, fail_on=("DELETE", "status=eq.draft"))
+    with patch("urllib.request.urlopen", side_effect=side):
+        brief_id = publish_brief(payload)  # must NOT raise
+
+    assert brief_id == "brief-uuid-1"
+    # Flip still happened — the publish completed despite the failed sweep
+    assert captured_calls[-1][0] == "PATCH"
+    assert captured_calls[-1][2] == {"status": "published"}
+
+
+def test_publish_brief_stays_draft_when_child_post_fails() -> None:
+    """Regression (landmine 22 / #118): if a child POST fails AFTER the brief row
+    is inserted, publish_brief must raise AND never flip status to 'published' —
+    the half-written brief stays a draft, invisible to get_latest_brief."""
+    payload = _minimal_payload(issue_no=90)
+    captured_calls: list[tuple[str, str, object | None]] = []
+
+    # Fail on the metrics child POST (after DELETE, briefs INSERT, sections INSERT)
+    side = _capture_urlopen(captured_calls, fail_on=("POST", "/metrics"))
+    with patch("urllib.request.urlopen", side_effect=side):
+        with pytest.raises(PublishError, match="HTTP 500"):
+            publish_brief(payload)
+
+    # The brief row WAS inserted, but as a draft
+    brief_posts = [c for c in captured_calls if c[0] == "POST" and "/briefs" in c[1]]
+    assert brief_posts, "brief row should have been inserted before the child failure"
+    assert brief_posts[0][2]["status"] == "draft"  # type: ignore[index]
+    # Critically: the status flip NEVER happened → no published half-brief
+    assert not any(c[0] == "PATCH" for c in captured_calls), (
+        "partial failure must not flip the brief to published"
+    )
 
 
 def test_publish_brief_propagates_http_error() -> None:
-    """A 500 from Supabase should raise PublishError, not silently succeed."""
+    """A 500 from Supabase should raise PublishError, not silently succeed.
+
+    side_effect raises on EVERY call, so the FIRST call (DELETE) fails — the safe
+    case where nothing is written. (Partial-failure-after-insert is covered by
+    test_publish_brief_stays_draft_when_child_post_fails.)"""
     import urllib.error
 
     payload = _minimal_payload()

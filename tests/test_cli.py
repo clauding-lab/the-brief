@@ -107,3 +107,88 @@ def test_write_fixture_creates_valid_json_on_dry_run(tmp_path: Path):
     content = json.loads(fixture_path.read_text())
     assert "brief" in content, "Fixture JSON missing 'brief' key"
     assert "sections" in content, "Fixture JSON missing 'sections' key"
+
+
+# ── Item 5d — notifier fail-loud ─────────────────────────────────────────────
+
+
+def _run_publish_with_notify(notify_result=None, notify_raises=None):
+    """Drive cli._run_v6_publish through a successful publish with a mocked
+    notifier, returning (exit_code, mock_alert)."""
+    from datetime import date as _date
+
+    from brief.pipeline import PipelineConfig
+
+    cfg = PipelineConfig(today=_date(2026, 7, 9), enable_headlines=False)
+
+    with patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish", return_value="brief-id-1"), \
+         patch("brief.notifier.notify") as mock_notify, \
+         patch("brief.alerts.send_discord_alert") as mock_alert:
+        if notify_raises is not None:
+            mock_notify.side_effect = notify_raises
+        else:
+            mock_notify.return_value = notify_result
+        rc = cli._run_v6_publish(
+            cfg, _date(2026, 7, 9), dry_run=False, notify_enabled=True,
+        )
+    return rc, mock_alert
+
+
+def test_notifier_zero_sent_with_audience_alerts_but_exit_0(caplog):
+    """sent=0 with attempted>0 = total delivery failure: Discord alert + error log,
+    but exit stays 0 (the published brief is canonical; email is the amplifier)."""
+    from brief.notifier import NotifyResult
+
+    result = NotifyResult(sent_count=0, skipped_count=0, message_id=None,
+                          error="brevo_http_500", attempted_count=8)
+    with caplog.at_level("ERROR", logger="brief.cli"):
+        rc, mock_alert = _run_publish_with_notify(notify_result=result)
+
+    assert rc == 0
+    mock_alert.assert_called_once()
+    msg = mock_alert.call_args.args[0]
+    assert "delivered to NOBODY" in msg
+    assert "attempted=8" in msg
+    assert any("DELIVERED TO NOBODY" in r.message for r in caplog.records)
+
+
+def test_notifier_success_does_not_alert():
+    from brief.notifier import NotifyResult
+
+    result = NotifyResult(sent_count=8, skipped_count=0, message_id="m-1",
+                          error=None, attempted_count=8)
+    rc, mock_alert = _run_publish_with_notify(notify_result=result)
+    assert rc == 0
+    mock_alert.assert_not_called()
+
+
+def test_notifier_empty_subscriber_list_is_not_an_incident():
+    """sent=0 because the list is genuinely empty ("no_subscribers") is a fine
+    state — no alert."""
+    from brief.notifier import NotifyResult
+
+    result = NotifyResult(sent_count=0, skipped_count=0, message_id=None,
+                          error="no_subscribers", attempted_count=0)
+    rc, mock_alert = _run_publish_with_notify(notify_result=result)
+    assert rc == 0
+    mock_alert.assert_not_called()
+
+
+def test_notifier_prefetch_failure_alerts():
+    """sent=0 with an error BEFORE the audience could be counted (fetch/auth
+    failures, attempted=0) must still alert."""
+    from brief.notifier import NotifyResult
+
+    result = NotifyResult(sent_count=0, skipped_count=0, message_id=None,
+                          error="fetch_subs: boom", attempted_count=0)
+    rc, mock_alert = _run_publish_with_notify(notify_result=result)
+    assert rc == 0
+    mock_alert.assert_called_once()
+
+
+def test_notifier_crash_alerts_and_exit_0():
+    rc, mock_alert = _run_publish_with_notify(notify_raises=RuntimeError("kaboom"))
+    assert rc == 0
+    mock_alert.assert_called_once()
+    assert "CRASHED" in mock_alert.call_args.args[0]

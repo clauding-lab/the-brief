@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Non-source trees that ESLint should never parse. The Python venv and the
+    // docs/ tree carry vendored / generated JS that produced 32 spurious lint
+    // errors and made `npm run lint` exit 1 (unusable as a gate).
+    ".venv/**",
+    "docs/**",
   ]),
 ]);
 
