@@ -67,6 +67,56 @@ of row counts. Retention: newest 12 runs (~3 months); older dirs pruned.
   archive with it. For true off-box durability, periodically copy it down from
   the Mac: `rsync -a adnan@135.181.43.68:/home/adnan/brief-exports/ ~/Backups/brief-exports/`.
 
+## Off-box heartbeat (ExonVPS, 07:30 BDT cron)
+
+`deploy/heartbeat.py` runs on **ExonVPS** (`adnan-local@103.187.23.22`) — deliberately
+off the Hetzner box that publishes, so a dead box can't kill its own watchdog. One
+cron, two checks, one Discord alert on breach:
+
+1. **The Brief published today** — today's `brief_date` (computed in **Asia/Dhaka**,
+   not UTC: before 06:00 BDT the UTC date is still yesterday) is the latest
+   `status=published` row in `briefs`. 7 days/week (PR #116) — no Saturday exclusion.
+2. **EconDelta sentinel alive** — an `ok` `run_logs` row with
+   `source=freshness_sentinel` finished within 26 h (its timer fires 13:30 BDT).
+
+Reads Supabase with the **anon key only** (both tables anon-readable, verified
+2026-07-09 — never put the service key on this box). Exit codes: `0` healthy ·
+`1` breach (alert delivered) · `2` heartbeat failure (Supabase unreachable, or
+alert undeliverable).
+
+### ExonVPS install (manual, as adnan-local)
+
+```bash
+# 1. This repo is not cloned on ExonVPS — copy the one file:
+scp deploy/heartbeat.py adnan-local@103.187.23.22:/home/adnan-local/brief-heartbeat.py
+
+# 2. Env file (template: deploy/brief-heartbeat.env.example; ANON key only):
+sudo tee /etc/brief-heartbeat.env >/dev/null <<'ENV'
+SUPABASE_URL=https://ssbliukchgibjcjohibi.supabase.co
+SUPABASE_ANON_KEY=<anon key>
+DISCORD_ALERT_WEBHOOK_URL=<same webhook as the Hetzner alert kit>
+ENV
+sudo chmod 640 /etc/brief-heartbeat.env && sudo chown root:adnan-local /etc/brief-heartbeat.env
+
+# 3. Manual test (expect exit 0 + an "ok" line; exit 1 + a Discord ping on breach):
+python3 /home/adnan-local/brief-heartbeat.py --env-file /etc/brief-heartbeat.env; echo "exit=$?"
+
+# 4. Cron at 07:30 BDT daily. Crontab runs in the SYSTEM timezone — check
+#    `timedatectl` first. System TZ = UTC → 01:30; system TZ = Asia/Dhaka → 07:30.
+crontab -e
+30 1 * * * python3 /home/adnan-local/brief-heartbeat.py >> /home/adnan-local/brief-heartbeat.log 2>&1
+```
+
+**Install-order caveat:** EconDelta's `freshness_sentinel` (econdelta PR #80) must
+have written its FIRST ok `run_logs` row before this cron goes live (its timer
+fires 13:30 BDT), or the first heartbeat will — correctly — alert
+"no ok freshness_sentinel row". Install after 13:30 BDT, or expect one advisory alert.
+
+**Last-turtle limitation, honestly:** nothing watches this watchdog. If the
+heartbeat itself breaks (box down, cron removed, env deleted) the only signals are
+`brief-heartbeat.log` going quiet and cron's discarded mail. It exits non-zero and
+logs loudly on its own failures — but something has to be the last turtle.
+
 ## Common failures
 
 | Symptom | Fix |
