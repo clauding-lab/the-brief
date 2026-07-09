@@ -48,6 +48,25 @@ and a journal tail to Discord.
 - Test end-to-end without touching a real publish:
   `sudo systemctl start brief-alert@brief.service.service` → a ping should land.
 
+## Weekly export (brief-export.timer)
+
+Supabase is the ONLY copy of every issue and the LLM prose is unreproducible.
+`brief-export.timer` fires Saturdays 09:30 BDT (03:30 UTC — clear of the publish
+window, which can stretch to ~08:00 BDT under 529 retries) and dumps `briefs` +
+all child tables (`sections`, `metrics`, `news`, `chart_series`, `chart_notes`)
+as dated JSON to `/home/adnan/brief-exports/<YYYY-MM-DD>/` with a `manifest.json`
+of row counts. Retention: newest 12 runs (~3 months); older dirs pruned.
+
+- Failures alert via `OnFailure=brief-alert@%n.service` (same Discord path).
+- No self-deploy `ExecStartPre` of its own — intentional: `brief.service`'s daily
+  pull keeps the shared checkout fresh, and one self-deploying unit per checkout
+  avoids two units racing a git pull.
+- Manual run: `sudo systemctl start brief-export.service`, then check
+  `cat /home/adnan/brief-exports/$(date +%F)/manifest.json`.
+- The export dir lives OUTSIDE the repo checkout so a repo wipe can't take the
+  archive with it. For true off-box durability, periodically copy it down from
+  the Mac: `rsync -a adnan@135.181.43.68:/home/adnan/brief-exports/ ~/Backups/brief-exports/`.
+
 ## Common failures
 
 | Symptom | Fix |

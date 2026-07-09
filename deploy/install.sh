@@ -33,16 +33,23 @@ sudo -u adnan mkdir -p "$REPO/artifacts" "$REPO/logs"
 echo "[install] logrotate"
 install -m 644 "$REPO/deploy/logrotate.conf" /etc/logrotate.d/brief
 
+echo "[install] export dir (ReadWritePaths needs it to exist before unit start)"
+sudo -u adnan mkdir -p /home/adnan/brief-exports
+
 echo "[install] systemd units"
 install -m 644 "$REPO/deploy/brief.service"        "$SYSD/brief.service"
 install -m 644 "$REPO/deploy/brief.timer"          "$SYSD/brief.timer"
 install -m 644 "$REPO/deploy/brief-alert@.service" "$SYSD/brief-alert@.service"
+install -m 644 "$REPO/deploy/brief-export.service" "$SYSD/brief-export.service"
+install -m 644 "$REPO/deploy/brief-export.timer"   "$SYSD/brief-export.timer"
 chmod +x "$REPO/deploy/brief_alert.sh" "$REPO/deploy/brief_guard.sh"
 chmod 640 "$ETC"; chown root:adnan "$ETC"
 
 systemctl daemon-reload
 systemctl enable brief.timer
 systemctl start brief.timer
+systemctl enable brief-export.timer
+systemctl start brief-export.timer
 
 echo "[install] done. Next scheduled run:"
 systemctl list-timers brief.timer --no-pager

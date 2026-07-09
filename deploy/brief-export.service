@@ -1,0 +1,46 @@
+# Weekly off-box export of briefs + child tables (item 5e).
+# Supabase is the ONLY copy of every issue and the LLM prose is unreproducible —
+# this snapshots the full editorial dataset to /home/adnan/brief-exports weekly.
+# Fired by brief-export.timer; failures ping Discord via brief-alert@ (5a).
+#
+# NO ExecStartPre self-deploy here — intentional (review NOTE). brief.service's
+# daily 06:30 pull keeps this same checkout fresh; a Saturday export can never be
+# more than a day behind main, and one self-deploying unit per checkout avoids
+# two units racing a git pull.
+#
+# Install: deploy/install.sh (also creates the export dir — ReadWritePaths
+# requires it to exist before the unit starts).
+
+[Unit]
+Description=The Brief — weekly Supabase export (briefs + child tables)
+Documentation=https://github.com/clauding-lab/the-brief
+After=network-online.target
+Wants=network-online.target
+OnFailure=brief-alert@%n.service
+
+[Service]
+Type=oneshot
+User=adnan
+Group=adnan
+WorkingDirectory=/home/adnan/the-brief
+EnvironmentFile=/etc/brief.env
+
+ExecStart=/home/adnan/the-brief/.venv/bin/python -m brief.export --out /home/adnan/brief-exports --keep 12
+
+# ~19k rows / a few MB of JSON — modest by design.
+MemoryMax=300M
+CPUQuota=50%
+TasksMax=64
+TimeoutStartSec=10min
+
+# Hardening — mirrors brief.service; the export dir must be writable.
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/adnan/brief-exports
+
+SyslogIdentifier=brief-export
+
+[Install]
+WantedBy=multi-user.target

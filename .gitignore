@@ -43,3 +43,6 @@ yarn-debug.log*
 
 # Superpowers brainstorm companion (local mockups/state)
 .superpowers/
+
+# brief.export default local output (prod uses /home/adnan/brief-exports)
+exports/
