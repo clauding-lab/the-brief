@@ -53,7 +53,7 @@ Section title, id, and `source="BB"` / `source_url` are unchanged.
 ### (a) Omit-on-missing — no fallback constant
 Item 12's corridor falls back to a hardcoded constant (`_FALLBACK_SDF_PCT` etc.) with `stale=True` when a row is missing — justified because Policy/SDF/SLF are *standing* rates that persist between decisions. **Call money is the opposite: a fast daily rate.** A hardcoded fallback would misrepresent where money trades *today*. So:
 
-> If `call_money_rate` is absent or non-numeric, the builder emits **no** `bb_call_money` metric — §02 gracefully renders its original 4 tiles. Same for each tenor point (`bb_call_money_7d` / `_14d`): present-and-numeric → included; otherwise silently skipped. **No fabricated numbers, ever.**
+> If `call_money_rate` is absent or non-numeric, the builder emits **no** `bb_call_money` metric — §02 gracefully renders its original 4 tiles. The tenor points (`bb_call_money_7d` / `_14d`) are emitted **only when the overnight tile is present** (and each still needs its own live row): the money-market feed is **atomic around the overnight rate**. This keeps the section coherent (no orphan tenor without its headline) *and* **structurally guarantees the tenor points are never tiles** — with the overnight present, the tile-eligible core is 5 (Policy / SDF / SLF / Call Money / Reserves), so any tenor lands at list index ≥ 5, outside `slice(0, 5)`. **No fabricated numbers, ever.**
 
 ### (b) Ship builder-only now — editor-prompt nudge deferred
 The **tile is a guaranteed win** — it renders from the section data regardless of what the LLM editor does. The **prose liquidity line** depends on the editor choosing to write about the new metrics. Rather than speculatively editing the §02 editor prompt now (a sign-off + LOCKSTEP + dry-run-render item per the 2026-07-04 handoff §B2), we:
@@ -81,7 +81,7 @@ The editor picks one brief-wide `cover_metric`; a 14-day call-money tenor will n
 
 1. **Tile present:** with a `metric_history` double returning `call_money_rate=9.56`, `bb.build` emits a `bb_call_money` metric — value 9.56, label "Overnight Call Money", unit "%", `source="BB"`, within the first 5 metrics (renders as a tile).
 2. **Tenor context present, non-tile:** `bb_call_money_7d` / `bb_call_money_14d` present with live values at **list `.index() >= 5`** (0-based — i.e. outside `slice(0, 5)`, so never a tile). Assert on list position, not just membership.
-3. **Omit-on-missing:** history double lacking `call_money_rate` → **no** `bb_call_money` metric; §02 emits its original 4 metrics; no exception. Same per-tenor.
+3. **Omit-on-missing + atomic feed:** history lacking `call_money_rate` → **no** `bb_call_money` metric **and no tenor metrics even if** `call_money_rate_7d` / `_14d` rows exist; §02 emits its original 4 metrics; no exception. (This is the structural guarantee that a tenor point can never occupy a tile slot.)
 4. **No second window call:** reuse the existing single-batched-call invariant — the builder issues no `get_history_window` of its own (the `_FakeHistory` double without `get_history_window` must not crash on `bb.build`; enrichment happens later in the pipeline).
 5. **Corridor + reserves untouched:** item-12 assertions (SDF 7.5 live, reserves from `gross_reserves_usd_bn`, `bb_gross_reserves` id preserved) still pass — regression guard that ordering/insertion didn't disturb them.
 
@@ -103,7 +103,7 @@ Full gate: `.venv/bin/pytest -q` → exit 0 (item-12 baseline: 626 passed); `bb.
 - **Content:** overnight call money (tile) + 7d/14d tenor (prose signal). CRR, SLR, interbank repo **dropped** (no signal / no baseline).
 - **(a) Omit-on-missing**, no fallback constant — diverges from item 12; justified by the metric being a fast daily rate.
 - **(b) Builder-only now**, §02 editor-prompt nudge deferred to a separate sign-off PR gated on render evidence.
-- **Order:** rates+reserves first (5 tiles), tenor context last — protects Reserves' tile slot.
+- **Order:** rates+reserves first (5 tiles), tenor context last — protects Reserves' tile slot. Tenor emitted **only alongside the overnight tile** (atomic feed) — structurally guarantees tenor is never a tile.
 - Tenor rides as plain metrics (positions 6–7), not `extras` (dead) or `history_facts` (historical-only).
 
 ---
