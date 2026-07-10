@@ -66,9 +66,9 @@ The **tile is a guaranteed win** — it renders from the section data regardless
 
 ## 4. Enrichment & freshness (no new fetch)
 
-- **Sparkline for free.** `brief/pipeline.py:117` collects `all_ids = {every metric id across all sections}` and issues **one** batched `get_history_window` call (line 121), attaching `history_values` to each metric. `bb_call_money` (and the tenor points) join that existing call automatically → the tile gets its sparkline with **no second window call**. Landmine 23 (single-batched-window contract) is respected — the builder itself issues zero history calls.
+- **No new fetch; no sparkline (matches the corridor).** `brief/pipeline.py:117` collects `all_ids = {every metric id across all sections}` and issues **one** batched `get_history_window` call (line 121). The builder itself issues **zero** history calls, so landmine 23 (single-batched-window contract) holds. Correction (found in final review): enrichment matches rows by `m.id`, but `bb_call_money`'s history lives under the *source* id `call_money_rate` with no id-aliasing — so, exactly like the existing corridor tiles (`bb_policy_rate` vs `policy_rate_repo`), the tile receives **no** `history_values` and renders **no sparkline**. It shows the value (9.56%) without a trend line. This is how every §02 tile already behaves — not a regression, and the level is the whole signal.
 - **`extras` and `history_facts` are the wrong channels for the tenor curve.** `SectionData.extras` is never serialized into the editor input (`_to_v6_raw`, `pipeline_v6.py:61` omits it). `history_facts` is strictly for *historical* anchors (`brief/history_anchors.py`: `kind` is a fixed Literal — `since_lower` / `vs_period` / `extreme_in_window` …; the editor inlines the phrase verbatim). A *current* cross-sectional term structure fits neither without abusing an abstraction. So the tenor points ride as plain section **metrics** — `_to_v6_raw` serializes `s.metrics` in full (not sliced to 5), so positions 6–7 reach the editor as prose inputs while never rendering as tiles.
-- **Freshness.** Each metric carries its real `as_of`; `section_freshness(metrics, today)` decides §02's badge as today. No stale-flag gymnastics — omit-on-missing already covers the failure case. Cadence is `daily`, like the daily-restamped corridor rates (landmine 24 territory: a daily `as_of` is a restamp, not a decision date — but call money genuinely *is* a daily rate, so this is the honest cadence, not a workaround).
+- **Freshness — fresh-or-omit for the invisible tenor** (decided in final review). `section_freshness` is the worst freshness across *all* section metrics. Because the tenor points are editor-only (never tiles), a present-but-stale tenor would otherwise drag §02's *visible* badge to warning/stale while every tile reads fresh. So the builder emits a tenor **only when it is fresh** — `metric_freshness(tenor, today) == "fresh"`; a non-fresh tenor is dropped, keeping the invisible context always fresh-or-absent and stale term-structure out of the editor's hands. The overnight **tile** is deliberately NOT gated this way: it is visible and material, so a stale overnight still renders (with its real `as_of`) and legitimately affects the badge. Cadence is `daily` (call money genuinely *is* a daily rate — the honest cadence, not a landmine-24 restamp workaround).
 
 ### Mis-feature risk (assessed, accepted without a prompt rule)
 The editor picks one brief-wide `cover_metric`; a 14-day call-money tenor will not out-rank DSEX / reserves / policy for the Cover, and within §02 the clear labels ("Overnight Call Money" vs "Call Money · 14-day") keep the prose sane. No `is_held_over`-style guard is needed (daily metrics never count as held anyway). If the dry-run render disproves this, it folds into the deferred §02 prompt nudge (3b).
@@ -84,8 +84,10 @@ The editor picks one brief-wide `cover_metric`; a 14-day call-money tenor will n
 3. **Omit-on-missing + atomic feed:** history lacking `call_money_rate` → **no** `bb_call_money` metric **and no tenor metrics even if** `call_money_rate_7d` / `_14d` rows exist; §02 emits its original 4 metrics; no exception. (This is the structural guarantee that a tenor point can never occupy a tile slot.)
 4. **No second window call:** reuse the existing single-batched-call invariant — the builder issues no `get_history_window` of its own (the `_FakeHistory` double without `get_history_window` must not crash on `bb.build`; enrichment happens later in the pipeline).
 5. **Corridor + reserves untouched:** item-12 assertions (SDF 7.5 live, reserves from `gross_reserves_usd_bn`, `bb_gross_reserves` id preserved) still pass — regression guard that ordering/insertion didn't disturb them.
+6. **Fresh-or-omit tenor:** a present-but-stale tenor (`as_of` ≥ 3 trading days back) is omitted and §02's badge stays `fresh`; a **warning**-level tenor (`as_of` 2 trading days back) is **also** omitted — locks the `== "fresh"` guard against a future loosening to `!= "stale"`. A fresh tenor is kept.
+7. **Non-numeric omit:** a present-but-non-numeric `call_money_rate` (e.g. `value=None`) emits no `bb_call_money` — the omit path covers non-numeric, not only missing.
 
-Full gate: `.venv/bin/pytest -q` → exit 0 (item-12 baseline: 626 passed); `bb.py` stays 100% covered.
+Full gate: `.venv/bin/pytest -o addopts="" -q` → exit 0 (633 passed; item-12 baseline 626 + 7 new); `bb.py` stays 100% covered. (The repo's default pytest `addopts` appends a coverage report that suppresses the "N passed" summary line — strip `addopts` to see the explicit count.)
 
 ---
 
@@ -104,12 +106,13 @@ Full gate: `.venv/bin/pytest -q` → exit 0 (item-12 baseline: 626 passed); `bb.
 - **(a) Omit-on-missing**, no fallback constant — diverges from item 12; justified by the metric being a fast daily rate.
 - **(b) Builder-only now**, §02 editor-prompt nudge deferred to a separate sign-off PR gated on render evidence.
 - **Order:** rates+reserves first (5 tiles), tenor context last — protects Reserves' tile slot. Tenor emitted **only alongside the overnight tile** (atomic feed) — structurally guarantees tenor is never a tile.
-- Tenor rides as plain metrics (positions 6–7), not `extras` (dead) or `history_facts` (historical-only).
+- **(c) Fresh-or-omit tenor** (final-review decision, chosen by Adnan): a non-fresh tenor is dropped so an invisible context metric can never drag §02's visible freshness badge; the overnight tile is exempt (visible + material → shows-and-flags).
+- Tenor rides as plain metrics (positions 6–7), not `extras` (dead) or `history_facts` (historical-only). The tiles carry **no sparkline** (id ≠ source id — see §4).
 
 ---
 
 ## 8. Rollback / out of scope / cross-references
 
 - **Rollback:** pre-merge → drop the branch. Post-merge → omit-on-missing means the worst case is a missing tile, never a wrong number; revert the squash commit if needed.
-- **Out of scope:** the §02 editor-prompt nudge (deferred sign-off PR, item 3b); any SPA/CSS change; a call-money DoD delta (would need a week-ago prior → blocked by the single-window contract, same as item 12's reserves delta — the sparkline carries the trend instead).
+- **Out of scope:** the §02 editor-prompt nudge (deferred sign-off PR, item 3b); any SPA/CSS change; a call-money DoD delta (would need a week-ago prior → blocked by the single-window contract, same as item 12's reserves delta). Note the tile carries no sparkline (§4), so the level is the whole visible signal — a delta/trend would need a separate design.
 - **Cross-reference for item 13:** `call_money_rate_7d` / `_14d` (and `bb_call_money`) have **no `metric_definitions` rows**, so `v_metric_freshness` cannot bless them. When item 13 swaps §02's freshness to the view, it must seed definition rows for the metrics this item introduces — noted here so item 13 inherits the list.
