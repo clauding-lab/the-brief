@@ -24,6 +24,13 @@ _FALLBACK_SLF_PCT = 11.5
 
 _BB_URL = "https://www.bb.org.bd/"
 
+# Call-money tenor points fed to the editor as prose context (never tiles).
+# (id, metric_history id, label)
+_CALL_MONEY_TENORS = (
+    ("bb_call_money_7d", "call_money_rate_7d", "Call Money · 7-day"),
+    ("bb_call_money_14d", "call_money_rate_14d", "Call Money · 14-day"),
+)
+
 
 def _rate_metric(
     ctx: BuilderContext,
@@ -160,6 +167,18 @@ def build(ctx: BuilderContext) -> SectionData:
         stale=is_stale,
     )
     metrics.append(reserves_metric)
+
+    # Tenor curve (7d/14d) — prose context for the term premium. Emitted ONLY
+    # alongside the overnight tile (atomic feed): with the overnight present the
+    # tile-eligible core is 5, so these land at index >= 5 and never render as
+    # tiles. Each still requires its own live row (omit-on-missing).
+    if call_money is not None:
+        for metric_id, history_id, label in _CALL_MONEY_TENORS:
+            tenor = _money_market_metric(
+                ctx, metric_id=metric_id, history_id=history_id, label=label
+            )
+            if tenor is not None:
+                metrics.append(tenor)
 
     # The builder never writes history: EconDelta's aggregate_latest.py upserts
     # every numeric snapshot value (incl. gross_reserves_usd_bn) to metric_history

@@ -260,3 +260,40 @@ def test_call_money_omitted_when_missing_no_fallback():
     assert {m.id for m in s.metrics} == {
         "bb_policy_rate", "bb_sdf", "bb_slf", "bb_gross_reserves",
     }
+
+
+def test_tenor_points_present_but_never_tiles():
+    """7d/14d call-money tenor feed the editor as prose context: present in the
+    metric list at index >= 5, so slice(0,5) never renders them as tiles. The
+    full order is asserted to lock the tile row (corridor + overnight + reserves)."""
+    hist = _FakeHistory(latest={**_live_rate_rows(), **_live_money_market_rows()})
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    assert _m(s, "bb_call_money_7d").value == 9.41
+    assert _m(s, "bb_call_money_7d").label == "Call Money · 7-day"
+    assert _m(s, "bb_call_money_14d").value == 11.19
+    ids = [m.id for m in s.metrics]
+    assert ids.index("bb_call_money_7d") >= 5
+    assert ids.index("bb_call_money_14d") >= 5
+    assert ids == [
+        "bb_policy_rate", "bb_sdf", "bb_slf", "bb_call_money",
+        "bb_gross_reserves", "bb_call_money_7d", "bb_call_money_14d",
+    ]
+
+
+def test_tenor_omitted_when_overnight_missing():
+    """The money-market feed is atomic: no overnight row → NO tenor metrics
+    either, even when 7d/14d rows exist. Guarantees a tenor point can never land
+    in the 5-tile slice."""
+    rows = {**_live_rate_rows(), **_live_money_market_rows()}
+    del rows["call_money_rate"]           # overnight gone; 7d/14d still present
+    hist = _FakeHistory(latest=rows)
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    ids = {m.id for m in s.metrics}
+    assert "bb_call_money" not in ids
+    assert "bb_call_money_7d" not in ids
+    assert "bb_call_money_14d" not in ids
+    assert ids == {"bb_policy_rate", "bb_sdf", "bb_slf", "bb_gross_reserves"}
