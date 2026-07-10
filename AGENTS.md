@@ -162,6 +162,17 @@ The editorial register is **The Economist / FT leader desk** — measured, decla
 
 EconDelta re-upserts the standing BB policy corridor to `metric_history` every day, so `policy_rate_repo` / `policy_rate_sdf` / `policy_rate_slf` rows always carry `as_of` = the run date, not the MPC decision date. Read them for the VALUE via `history.get_latest`, keep `cadence="event"` (freshness stays "fresh" for a standing rate), and never present that `as_of` as "the rate changed on this date." `brief/builders/bb.py` reads these live (repo/sdf/slf = 10.0/7.5/11.5 as of 2026-07-10; the retired hardcoded 8.5 SDF is gone). Live reserves id is `gross_reserves_usd_bn` (fresh daily); the legacy `bb_gross_reserves` id has had **no writer since 2026-03-01** — do not read it (extends landmine #6's live-vs-legacy map). When a corridor read fails (history unreachable / row missing), `bb.py` falls back to a module last-known constant marked `stale=True` — never blank, never a fallback mislabelled as live.
 
+## 25. §-builder metric order is load-bearing — the 5-tile cap
+
+`app/components/Section.tsx` renders `metrics.slice(0, 5)` — only a section's
+FIRST 5 metrics become KPI tiles. When adding a metric to any builder,
+tile-eligible metrics MUST precede prose-feed/context metrics in the list, or a
+`slice(0,5)` silently DROPS a real tile (e.g. §02 Reserves) and promotes a
+context metric into the tile row. In `bb.py` the order is
+`[Policy, SDF, SLF, Call Money, Reserves]` (tiles) then the call-money tenor
+points (context); the tenor feed is emitted ONLY when the overnight tile is
+present, so a tenor point can never occupy a tile slot. (B3 item 11, 2026-07-10.)
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
