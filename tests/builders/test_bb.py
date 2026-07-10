@@ -334,3 +334,26 @@ def test_call_money_omitted_when_value_non_numeric():
     ctx = BuilderContext(snapshot=_snap(), history=_FakeHistory(latest=rows), today=TODAY)
     s = build(ctx)
     assert all(m.id != "bb_call_money" for m in s.metrics)
+
+
+def test_warning_level_tenor_also_omitted():
+    """The tenor guard is `== "fresh"`, so a WARNING-level tenor (aging but not
+    yet stale) is ALSO omitted — locking the intent against a future loosening to
+    `!= "stale"`. TODAY is Thu 2026-07-09; as_of Tue 2026-07-07 is 2 BD trading
+    days back → `metric_freshness` returns "warning" (verified in brief.cadence).
+    A `!= "stale"` guard would KEEP this tenor and fail this test."""
+    rows = {
+        **_live_rate_rows(),
+        "call_money_rate": HistoryRow("call_money_rate", TODAY, 9.56, "BB"),
+        "call_money_rate_7d": HistoryRow("call_money_rate_7d", TODAY, 9.41, "BB"),
+        "call_money_rate_14d": HistoryRow(
+            "call_money_rate_14d", date(2026, 7, 7), 11.19, "BB"
+        ),  # 2 trading days back → warning
+    }
+    ctx = BuilderContext(snapshot=_snap(), history=_FakeHistory(latest=rows), today=TODAY)
+    s = build(ctx)
+
+    ids = {m.id for m in s.metrics}
+    assert "bb_call_money" in ids           # overnight tile kept
+    assert "bb_call_money_7d" in ids        # fresh tenor kept
+    assert "bb_call_money_14d" not in ids   # warning-level tenor omitted (guard is == "fresh")
