@@ -66,6 +66,38 @@ def _rate_metric(
     )
 
 
+def _money_market_metric(
+    ctx: BuilderContext,
+    *,
+    metric_id: str,
+    history_id: str,
+    label: str,
+) -> Metric | None:
+    """Read one money-market rate live from metric_history, or return None.
+
+    Money-market rates are fast daily prints with no meaningful "last-known
+    standing value", so a missing/non-numeric row OMITS the metric rather than
+    falling back to a constant (which would misrepresent where money trades
+    today). Contrast _rate_metric, whose standing corridor rates DO fall back.
+    Reads only via get_latest — never get_history_window (landmine 23).
+    """
+    if ctx.history is None:
+        return None
+    row = ctx.history.get_latest(history_id)
+    if row is None or not isinstance(row.value, (int, float)):
+        return None
+    return Metric(
+        id=metric_id,
+        label=label,
+        value=float(row.value),
+        unit="%",
+        as_of=row.as_of,
+        source="BB",
+        source_url=_BB_URL,
+        cadence="daily",
+    )
+
+
 def build(ctx: BuilderContext) -> SectionData:
     metrics: list[Metric] = [
         _rate_metric(ctx, metric_id="bb_policy_rate", history_id="policy_rate_repo",
@@ -75,6 +107,19 @@ def build(ctx: BuilderContext) -> SectionData:
         _rate_metric(ctx, metric_id="bb_slf", history_id="policy_rate_slf",
                      label="SLF", fallback=_FALLBACK_SLF_PCT),
     ]
+
+    # Overnight call money — where banks actually lend each other cash, read
+    # live. Tile #4, grouped with the corridor and ahead of Reserves. Omitted
+    # (never faked) when the row is missing — a fast daily rate has no standing
+    # fallback value.
+    call_money = _money_market_metric(
+        ctx,
+        metric_id="bb_call_money",
+        history_id="call_money_rate",
+        label="Overnight Call Money",
+    )
+    if call_money is not None:
+        metrics.append(call_money)
 
     reserves_val = ctx.snapshot.get("gross_reserves_usd_bn")
     reserves_as_of_str = ctx.snapshot.get("reserves_date")

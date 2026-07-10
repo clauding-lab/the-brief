@@ -58,6 +58,15 @@ def _live_rate_rows(as_of=date(2026, 7, 9)):
     }
 
 
+def _live_money_market_rows(as_of=date(2026, 7, 9)):
+    """Fresh money-market rows (probed 2026-07-10, Supabase metric_history)."""
+    return {
+        "call_money_rate": HistoryRow("call_money_rate", as_of, 9.56, "BB"),
+        "call_money_rate_7d": HistoryRow("call_money_rate_7d", as_of, 9.41, "BB"),
+        "call_money_rate_14d": HistoryRow("call_money_rate_14d", as_of, 11.19, "BB"),
+    }
+
+
 def _m(section, mid):
     return next(m for m in section.metrics if m.id == mid)
 
@@ -217,3 +226,37 @@ def test_build_issues_no_get_history_window_call():
     ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
     build(ctx)
     hist.get_history_window.assert_not_called()
+
+
+def test_overnight_call_money_tile_present_and_live():
+    """§02 surfaces the overnight call-money rate as a tile-eligible metric read
+    live from metric_history. FAILS if bb_call_money is dropped or hardcoded."""
+    hist = _FakeHistory(latest={**_live_rate_rows(), **_live_money_market_rows()})
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    cm = _m(s, "bb_call_money")
+    assert cm.value == 9.56
+    assert cm.label == "Overnight Call Money"
+    assert cm.unit == "%"
+    assert cm.source == "BB"
+    assert cm.cadence == "daily"
+    assert cm.stale is False
+    ids = [m.id for m in s.metrics]
+    # tile-eligible: within the first 5 metrics (Section.tsx renders slice(0,5))
+    assert ids.index("bb_call_money") < 5
+    # grouped with the corridor, ahead of reserves
+    assert ids.index("bb_call_money") < ids.index("bb_gross_reserves")
+
+
+def test_call_money_omitted_when_missing_no_fallback():
+    """Missing call_money_rate → NO bb_call_money metric (no fake fallback for a
+    fast daily rate); §02 keeps exactly its 4 canonical metrics; no crash."""
+    hist = _FakeHistory(latest=_live_rate_rows())  # no call-money rows
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    assert all(m.id != "bb_call_money" for m in s.metrics)
+    assert {m.id for m in s.metrics} == {
+        "bb_policy_rate", "bb_sdf", "bb_slf", "bb_gross_reserves",
+    }
