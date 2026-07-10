@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from brief.cadence import section_freshness
+from brief.cadence import metric_freshness, section_freshness
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -177,7 +177,11 @@ def build(ctx: BuilderContext) -> SectionData:
             tenor = _money_market_metric(
                 ctx, metric_id=metric_id, history_id=history_id, label=label
             )
-            if tenor is not None:
+            # Emit a tenor only when it is fresh: an invisible context metric must
+            # never drag §02's visible freshness badge, and stale term-structure
+            # must not reach the editor. (The overnight tile is NOT gated this way
+            # — it is visible/material and should render-and-flag if it goes stale.)
+            if tenor is not None and metric_freshness(tenor, today=ctx.today) == "fresh":
                 metrics.append(tenor)
 
     # The builder never writes history: EconDelta's aggregate_latest.py upserts

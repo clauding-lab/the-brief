@@ -297,3 +297,40 @@ def test_tenor_omitted_when_overnight_missing():
     assert "bb_call_money_7d" not in ids
     assert "bb_call_money_14d" not in ids
     assert ids == {"bb_policy_rate", "bb_sdf", "bb_slf", "bb_gross_reserves"}
+
+
+def test_stale_tenor_point_omitted_only_fresh_kept():
+    """A present-but-stale tenor is omitted so an invisible context metric can
+    never drag §02's visible freshness badge (and stale term-structure never
+    reaches the editor). The overnight tile and a fresh tenor stay; the section
+    badge stays fresh. TODAY is 2026-07-09; as_of 2026-07-01 is >2 trading days
+    stale under the daily rule."""
+    rows = {
+        **_live_rate_rows(),
+        "call_money_rate": HistoryRow("call_money_rate", TODAY, 9.56, "BB"),
+        "call_money_rate_7d": HistoryRow("call_money_rate_7d", TODAY, 9.41, "BB"),
+        "call_money_rate_14d": HistoryRow(
+            "call_money_rate_14d", date(2026, 7, 1), 11.19, "BB"
+        ),  # stale
+    }
+    ctx = BuilderContext(snapshot=_snap(), history=_FakeHistory(latest=rows), today=TODAY)
+    s = build(ctx)
+
+    ids = {m.id for m in s.metrics}
+    assert "bb_call_money" in ids           # overnight tile kept
+    assert "bb_call_money_7d" in ids        # fresh tenor kept
+    assert "bb_call_money_14d" not in ids   # stale tenor omitted
+    assert s.freshness == "fresh"           # no invisible metric drags the badge
+
+
+def test_call_money_omitted_when_value_non_numeric():
+    """Omit-on-missing also fires on a present-but-non-numeric row (EconDelta may
+    write a null): no bb_call_money metric, no fabrication, no crash. Covers the
+    isinstance branch the missing-row test short-circuits past."""
+    rows = {
+        **_live_rate_rows(),
+        "call_money_rate": HistoryRow("call_money_rate", TODAY, None, "BB"),
+    }
+    ctx = BuilderContext(snapshot=_snap(), history=_FakeHistory(latest=rows), today=TODAY)
+    s = build(ctx)
+    assert all(m.id != "bb_call_money" for m in s.metrics)
