@@ -58,6 +58,15 @@ def _live_rate_rows(as_of=date(2026, 7, 9)):
     }
 
 
+def _live_money_market_rows(as_of=date(2026, 7, 9)):
+    """Fresh money-market rows (probed 2026-07-10, Supabase metric_history)."""
+    return {
+        "call_money_rate": HistoryRow("call_money_rate", as_of, 9.56, "BB"),
+        "call_money_rate_7d": HistoryRow("call_money_rate_7d", as_of, 9.41, "BB"),
+        "call_money_rate_14d": HistoryRow("call_money_rate_14d", as_of, 11.19, "BB"),
+    }
+
+
 def _m(section, mid):
     return next(m for m in section.metrics if m.id == mid)
 
@@ -217,3 +226,134 @@ def test_build_issues_no_get_history_window_call():
     ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
     build(ctx)
     hist.get_history_window.assert_not_called()
+
+
+def test_overnight_call_money_tile_present_and_live():
+    """§02 surfaces the overnight call-money rate as a tile-eligible metric read
+    live from metric_history. FAILS if bb_call_money is dropped or hardcoded."""
+    hist = _FakeHistory(latest={**_live_rate_rows(), **_live_money_market_rows()})
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    cm = _m(s, "bb_call_money")
+    assert cm.value == 9.56
+    assert cm.label == "Overnight Call Money"
+    assert cm.unit == "%"
+    assert cm.source == "BB"
+    assert cm.cadence == "daily"
+    assert cm.stale is False
+    ids = [m.id for m in s.metrics]
+    # tile-eligible: within the first 5 metrics (Section.tsx renders slice(0,5))
+    assert ids.index("bb_call_money") < 5
+    # grouped with the corridor, ahead of reserves
+    assert ids.index("bb_call_money") < ids.index("bb_gross_reserves")
+
+
+def test_call_money_omitted_when_missing_no_fallback():
+    """Missing call_money_rate → NO bb_call_money metric (no fake fallback for a
+    fast daily rate); §02 keeps exactly its 4 canonical metrics; no crash."""
+    hist = _FakeHistory(latest=_live_rate_rows())  # no call-money rows
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    assert all(m.id != "bb_call_money" for m in s.metrics)
+    assert {m.id for m in s.metrics} == {
+        "bb_policy_rate", "bb_sdf", "bb_slf", "bb_gross_reserves",
+    }
+
+
+def test_tenor_points_present_but_never_tiles():
+    """7d/14d call-money tenor feed the editor as prose context: present in the
+    metric list at index >= 5, so slice(0,5) never renders them as tiles. The
+    full order is asserted to lock the tile row (corridor + overnight + reserves)."""
+    hist = _FakeHistory(latest={**_live_rate_rows(), **_live_money_market_rows()})
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    assert _m(s, "bb_call_money_7d").value == 9.41
+    assert _m(s, "bb_call_money_7d").label == "Call Money · 7-day"
+    assert _m(s, "bb_call_money_14d").value == 11.19
+    ids = [m.id for m in s.metrics]
+    assert ids.index("bb_call_money_7d") >= 5
+    assert ids.index("bb_call_money_14d") >= 5
+    assert ids == [
+        "bb_policy_rate", "bb_sdf", "bb_slf", "bb_call_money",
+        "bb_gross_reserves", "bb_call_money_7d", "bb_call_money_14d",
+    ]
+
+
+def test_tenor_omitted_when_overnight_missing():
+    """The money-market feed is atomic: no overnight row → NO tenor metrics
+    either, even when 7d/14d rows exist. Guarantees a tenor point can never land
+    in the 5-tile slice."""
+    rows = {**_live_rate_rows(), **_live_money_market_rows()}
+    del rows["call_money_rate"]           # overnight gone; 7d/14d still present
+    hist = _FakeHistory(latest=rows)
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    ids = {m.id for m in s.metrics}
+    assert "bb_call_money" not in ids
+    assert "bb_call_money_7d" not in ids
+    assert "bb_call_money_14d" not in ids
+    assert ids == {"bb_policy_rate", "bb_sdf", "bb_slf", "bb_gross_reserves"}
+
+
+def test_stale_tenor_point_omitted_only_fresh_kept():
+    """A present-but-stale tenor is omitted so an invisible context metric can
+    never drag §02's visible freshness badge (and stale term-structure never
+    reaches the editor). The overnight tile and a fresh tenor stay; the section
+    badge stays fresh. TODAY is 2026-07-09; as_of 2026-07-01 is >2 trading days
+    stale under the daily rule."""
+    rows = {
+        **_live_rate_rows(),
+        "call_money_rate": HistoryRow("call_money_rate", TODAY, 9.56, "BB"),
+        "call_money_rate_7d": HistoryRow("call_money_rate_7d", TODAY, 9.41, "BB"),
+        "call_money_rate_14d": HistoryRow(
+            "call_money_rate_14d", date(2026, 7, 1), 11.19, "BB"
+        ),  # stale
+    }
+    ctx = BuilderContext(snapshot=_snap(), history=_FakeHistory(latest=rows), today=TODAY)
+    s = build(ctx)
+
+    ids = {m.id for m in s.metrics}
+    assert "bb_call_money" in ids           # overnight tile kept
+    assert "bb_call_money_7d" in ids        # fresh tenor kept
+    assert "bb_call_money_14d" not in ids   # stale tenor omitted
+    assert s.freshness == "fresh"           # no invisible metric drags the badge
+
+
+def test_call_money_omitted_when_value_non_numeric():
+    """Omit-on-missing also fires on a present-but-non-numeric row (EconDelta may
+    write a null): no bb_call_money metric, no fabrication, no crash. Covers the
+    isinstance branch the missing-row test short-circuits past."""
+    rows = {
+        **_live_rate_rows(),
+        "call_money_rate": HistoryRow("call_money_rate", TODAY, None, "BB"),
+    }
+    ctx = BuilderContext(snapshot=_snap(), history=_FakeHistory(latest=rows), today=TODAY)
+    s = build(ctx)
+    assert all(m.id != "bb_call_money" for m in s.metrics)
+
+
+def test_warning_level_tenor_also_omitted():
+    """The tenor guard is `== "fresh"`, so a WARNING-level tenor (aging but not
+    yet stale) is ALSO omitted — locking the intent against a future loosening to
+    `!= "stale"`. TODAY is Thu 2026-07-09; as_of Tue 2026-07-07 is 2 BD trading
+    days back → `metric_freshness` returns "warning" (verified in brief.cadence).
+    A `!= "stale"` guard would KEEP this tenor and fail this test."""
+    rows = {
+        **_live_rate_rows(),
+        "call_money_rate": HistoryRow("call_money_rate", TODAY, 9.56, "BB"),
+        "call_money_rate_7d": HistoryRow("call_money_rate_7d", TODAY, 9.41, "BB"),
+        "call_money_rate_14d": HistoryRow(
+            "call_money_rate_14d", date(2026, 7, 7), 11.19, "BB"
+        ),  # 2 trading days back → warning
+    }
+    ctx = BuilderContext(snapshot=_snap(), history=_FakeHistory(latest=rows), today=TODAY)
+    s = build(ctx)
+
+    ids = {m.id for m in s.metrics}
+    assert "bb_call_money" in ids           # overnight tile kept
+    assert "bb_call_money_7d" in ids        # fresh tenor kept
+    assert "bb_call_money_14d" not in ids   # warning-level tenor omitted (guard is == "fresh")

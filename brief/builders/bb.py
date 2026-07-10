@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from brief.cadence import section_freshness
+from brief.cadence import metric_freshness, section_freshness
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -23,6 +23,13 @@ _FALLBACK_SDF_PCT = 7.5
 _FALLBACK_SLF_PCT = 11.5
 
 _BB_URL = "https://www.bb.org.bd/"
+
+# Call-money tenor points fed to the editor as prose context (never tiles).
+# (id, metric_history id, label)
+_CALL_MONEY_TENORS = (
+    ("bb_call_money_7d", "call_money_rate_7d", "Call Money · 7-day"),
+    ("bb_call_money_14d", "call_money_rate_14d", "Call Money · 14-day"),
+)
 
 
 def _rate_metric(
@@ -66,6 +73,38 @@ def _rate_metric(
     )
 
 
+def _money_market_metric(
+    ctx: BuilderContext,
+    *,
+    metric_id: str,
+    history_id: str,
+    label: str,
+) -> Metric | None:
+    """Read one money-market rate live from metric_history, or return None.
+
+    Money-market rates are fast daily prints with no meaningful "last-known
+    standing value", so a missing/non-numeric row OMITS the metric rather than
+    falling back to a constant (which would misrepresent where money trades
+    today). Contrast _rate_metric, whose standing corridor rates DO fall back.
+    Reads only via get_latest — never get_history_window (landmine 23).
+    """
+    if ctx.history is None:
+        return None
+    row = ctx.history.get_latest(history_id)
+    if row is None or not isinstance(row.value, (int, float)):
+        return None
+    return Metric(
+        id=metric_id,
+        label=label,
+        value=float(row.value),
+        unit="%",
+        as_of=row.as_of,
+        source="BB",
+        source_url=_BB_URL,
+        cadence="daily",
+    )
+
+
 def build(ctx: BuilderContext) -> SectionData:
     metrics: list[Metric] = [
         _rate_metric(ctx, metric_id="bb_policy_rate", history_id="policy_rate_repo",
@@ -75,6 +114,19 @@ def build(ctx: BuilderContext) -> SectionData:
         _rate_metric(ctx, metric_id="bb_slf", history_id="policy_rate_slf",
                      label="SLF", fallback=_FALLBACK_SLF_PCT),
     ]
+
+    # Overnight call money — where banks actually lend each other cash, read
+    # live. Tile #4, grouped with the corridor and ahead of Reserves. Omitted
+    # (never faked) when the row is missing — a fast daily rate has no standing
+    # fallback value.
+    call_money = _money_market_metric(
+        ctx,
+        metric_id="bb_call_money",
+        history_id="call_money_rate",
+        label="Overnight Call Money",
+    )
+    if call_money is not None:
+        metrics.append(call_money)
 
     reserves_val = ctx.snapshot.get("gross_reserves_usd_bn")
     reserves_as_of_str = ctx.snapshot.get("reserves_date")
@@ -115,6 +167,22 @@ def build(ctx: BuilderContext) -> SectionData:
         stale=is_stale,
     )
     metrics.append(reserves_metric)
+
+    # Tenor curve (7d/14d) — prose context for the term premium. Emitted ONLY
+    # alongside the overnight tile (atomic feed): with the overnight present the
+    # tile-eligible core is 5, so these land at index >= 5 and never render as
+    # tiles. Each still requires its own live row (omit-on-missing).
+    if call_money is not None:
+        for metric_id, history_id, label in _CALL_MONEY_TENORS:
+            tenor = _money_market_metric(
+                ctx, metric_id=metric_id, history_id=history_id, label=label
+            )
+            # Emit a tenor only when it is fresh: an invisible context metric must
+            # never drag §02's visible freshness badge, and stale term-structure
+            # must not reach the editor. (The overnight tile is NOT gated this way
+            # — it is visible/material and should render-and-flag if it goes stale.)
+            if tenor is not None and metric_freshness(tenor, today=ctx.today) == "fresh":
+                metrics.append(tenor)
 
     # The builder never writes history: EconDelta's aggregate_latest.py upserts
     # every numeric snapshot value (incl. gross_reserves_usd_bn) to metric_history

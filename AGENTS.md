@@ -154,6 +154,25 @@ The editorial register is **The Economist / FT leader desk** — measured, decla
 
 **When editing the publisher:** never move the `status='published'` PATCH earlier, never insert the brief row as `published`, and never grant visibility before every child row is written. If `get_latest_brief` is ever changed to stop filtering `status='published'`, this guarantee breaks — the two must stay in lockstep. Regression tests `test_publish_brief_stays_draft_when_child_post_fails` and `test_publish_brief_atomic_flow` (`tests/v6/test_v6_publisher.py`) enforce the order + never-publish-on-partial-failure. Note: `pipeline_v6.py`'s module docstring still says "atomic Supabase write" loosely — the real mechanism is this two-phase flip. The 2026-07-04 ecosystem-review fix plan is at `docs/handoff/2026-07-04-review-fixes.md`.
 
+## 23. Builders read history through the pipeline's SINGLE batched `get_history_window` call — never add a second
+
+`brief/pipeline.gather()` enriches every metric's sparkline via ONE `_enrich_metric_history` call that issues exactly one `MetricHistoryClient.get_history_window(...)`, and `tests/test_pipeline_integration.py::test_gather_enriches_metric_history_values` asserts `get_history_window.assert_called_once()`. A section builder that adds its OWN `get_history_window` call (e.g. to compute a week-ago prior for a WoW delta) makes it two → that test fails. If a builder needs a prior/trend value, use the sparkline already attached downstream (`Metric.history_values`) or a single `get_latest` — do NOT open a second window fetch from inside a builder. (B3 item 12, 2026-07-10: this constraint forced the `bb` reserves WoW delta to be dropped rather than computed from an honest week-ago prior.)
+
+## 24. Live corridor/reserves ids: `policy_rate_*` are daily-restamped (`as_of` ≠ decision date); reserves is `gross_reserves_usd_bn`, NOT `bb_gross_reserves`
+
+EconDelta re-upserts the standing BB policy corridor to `metric_history` every day, so `policy_rate_repo` / `policy_rate_sdf` / `policy_rate_slf` rows always carry `as_of` = the run date, not the MPC decision date. Read them for the VALUE via `history.get_latest`, keep `cadence="event"` (freshness stays "fresh" for a standing rate), and never present that `as_of` as "the rate changed on this date." `brief/builders/bb.py` reads these live (repo/sdf/slf = 10.0/7.5/11.5 as of 2026-07-10; the retired hardcoded 8.5 SDF is gone). Live reserves id is `gross_reserves_usd_bn` (fresh daily); the legacy `bb_gross_reserves` id has had **no writer since 2026-03-01** — do not read it (extends landmine #6's live-vs-legacy map). When a corridor read fails (history unreachable / row missing), `bb.py` falls back to a module last-known constant marked `stale=True` — never blank, never a fallback mislabelled as live.
+
+## 25. §-builder metric order is load-bearing — the 5-tile cap
+
+`app/components/Section.tsx` renders `metrics.slice(0, 5)` — only a section's
+FIRST 5 metrics become KPI tiles. When adding a metric to any builder,
+tile-eligible metrics MUST precede prose-feed/context metrics in the list, or a
+`slice(0,5)` silently DROPS a real tile (e.g. §02 Reserves) and promotes a
+context metric into the tile row. In `bb.py` the order is
+`[Policy, SDF, SLF, Call Money, Reserves]` (tiles) then the call-money tenor
+points (context); the tenor feed is emitted ONLY when the overnight tile is
+present, so a tenor point can never occupy a tile slot. (B3 item 11, 2026-07-10.)
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
