@@ -500,6 +500,34 @@ def _resolve_supabase_config() -> tuple[str, str] | None:
     return url, key
 
 
+# Raw text of the most recent LLM response per label, kept ONLY so a downstream
+# schema failure can dump the evidence to disk (issue 181, 2026-07-31: three
+# publishes died on "schema validation failed" and the raw output was discarded
+# every time, so four runs produced zero diagnostic signal). Deliberately a
+# module-level stash rather than a change to _call_with_retries' return type —
+# six tests patch that function and rely on it returning the parsed dict.
+_LAST_RAW: dict[str, str] = {}
+
+
+def _dump_raw_on_failure(label: str) -> str | None:
+    """Write the last raw response for *label* to logs/. Returns the path, or
+    None when there is nothing stashed (e.g. under a patched _call_with_retries)
+    or the write itself fails — diagnostics must never mask the real error."""
+    raw = _LAST_RAW.get(label)
+    if not raw:
+        return None
+    try:
+        log_dir = Path(__file__).resolve().parents[1] / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        path = log_dir / f"{label}_raw_{stamp}.txt"
+        path.write_text(raw)
+        return str(path)
+    except Exception:  # noqa: BLE001 — never let the dumper eclipse the failure
+        logger.exception("%s: could not write raw-output dump", label)
+        return None
+
+
 def _call_with_retries(
     *,
     label: str,
@@ -519,6 +547,14 @@ def _call_with_retries(
     for i in range(attempts):
         try:
             result = run_max(prompt=body, timeout_s=timeout_s)
+            _LAST_RAW[label] = result.raw_text or ""
+            if result.num_turns > 1:
+                logger.warning(
+                    "%s: response spans %d assistant turns (raw_len=%d, output_tokens=%s) "
+                    "— output was probably cut off and only the final turn is visible",
+                    label, result.num_turns, len(result.raw_text or ""),
+                    result.tokens.get("output"),
+                )
             if result.parsed is None:
                 raise V6PublishError(f"{label}: result.parsed is None (raw: {result.raw_text[:200]!r})")
             return result.parsed  # type: ignore[no-any-return]
@@ -568,9 +604,11 @@ def _run_subeditor(
                 attempt + 1,
                 e,
             )
+    dump = _dump_raw_on_failure("subeditor_v6")
     raise V6PublishError(
         "sub-editor returned a malformed review twice — holding the publish "
         "(never auto-pass an unreviewed brief; yesterday's brief stays live). "
+        f"Raw output saved to {dump or 'nowhere — nothing stashed'}. "
         f"Last error: {last_err}"
     )
 
@@ -731,7 +769,12 @@ def run_publish(
     try:
         editor_brief = BriefPayloadV6.model_validate(editor_raw)
     except Exception as e:
-        raise V6PublishError(f"editor_v6 output failed schema validation: {e}") from e
+        dump = _dump_raw_on_failure("editor_v6")
+        keys = list(editor_raw.keys()) if isinstance(editor_raw, dict) else type(editor_raw).__name__
+        raise V6PublishError(
+            f"editor_v6 output failed schema validation (top-level keys={keys}; "
+            f"raw output saved to {dump or 'nowhere — nothing stashed'}): {e}"
+        ) from e
 
     # Force lens onto the brief — the LLM should set it but we guarantee it
     editor_brief.brief.lens = today_lens
