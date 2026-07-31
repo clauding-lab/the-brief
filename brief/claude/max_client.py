@@ -6,12 +6,28 @@ No Anthropic API calls. Auth is via the OS user's ~/.claude/.credentials.json
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# Per-response output ceiling handed to the CLI via CLAUDE_CODE_MAX_OUTPUT_TOKENS.
+#
+# Why this exists (issue 181, 2026-07-31): the Friday weekly wrap outgrew the
+# CLI's default ceiling. The editor was cut off mid-JSON, continued the payload
+# in a SECOND assistant message, and `--output-format json` reports only the
+# FINAL message in `result` — so the pipeline received the tail of the brief
+# (6 of 11 sections under a `sections_continued` key) and rejected it as a
+# schema violation. Three consecutive publishes died this way with no signal,
+# because the raw text was discarded. Raising the ceiling keeps the whole brief
+# inside one message; `_dump_raw_on_failure` in pipeline_v6 preserves the
+# evidence if it ever happens again.
+DEFAULT_MAX_OUTPUT_TOKENS = 64_000
 
 # Matches an opening fence (```json, ```JSON, ```, etc.) and a closing ```.
 # The language tag is optional and case-insensitive.  re.DOTALL lets '.' match
@@ -90,6 +106,7 @@ class MaxCallResult:
     total_cost_usd: float | None
     duration_s: float = 0.0
     tokens: dict[str, int] = field(default_factory=lambda: {"input": 0, "output": 0})
+    num_turns: int = 0   # >1 means the CLI needed extra assistant turns; see below
 
 
 def run_max(
@@ -100,6 +117,7 @@ def run_max(
     claude_binary: str | None = None,
     effort: str = "xhigh",
     via_stdin: bool | None = None,
+    max_output_tokens: int | None = None,
 ) -> MaxCallResult:
     """Invoke the Claude Max CLI, return parsed result.
 
@@ -118,6 +136,17 @@ def run_max(
         claude_binary = os.environ.get("CLAUDE_BINARY", "claude")
     if via_stdin is None:
         via_stdin = len(prompt) > 64_000
+    if max_output_tokens is None:
+        try:
+            max_output_tokens = int(
+                os.environ.get("BRIEF_MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS)
+            )
+        except ValueError:
+            logger.warning(
+                "BRIEF_MAX_OUTPUT_TOKENS=%r is not an integer — falling back to %d",
+                os.environ.get("BRIEF_MAX_OUTPUT_TOKENS"), DEFAULT_MAX_OUTPUT_TOKENS,
+            )
+            max_output_tokens = DEFAULT_MAX_OUTPUT_TOKENS
 
     argv = [claude_binary, "-p"]
     if not via_stdin:
@@ -153,6 +182,10 @@ def run_max(
             text=True,
             timeout=timeout_s,
             check=False,
+            env={
+                **os.environ,
+                "CLAUDE_CODE_MAX_OUTPUT_TOKENS": str(max_output_tokens),
+            },
         )
     except subprocess.TimeoutExpired as e:
         raise MaxCallError(f"Claude CLI timed out after {timeout_s}s") from e
@@ -193,6 +226,20 @@ def run_max(
             parsed = None
 
     _duration = time.monotonic() - _t0
+    _num_turns = int(outer.get("num_turns") or 0)
+    if parsed is None and _num_turns > 1:
+        # The single strongest signal of the issue-181 failure: the CLI needed
+        # more than one assistant turn, which means the first turn was cut off
+        # and `result` holds only the continuation. Say so loudly — the caller
+        # otherwise sees a shapeless "schema validation failed".
+        logger.error(
+            "run_max: response spans %d turns and did not parse — the model was "
+            "very likely CUT OFF mid-output and `result` holds only the final "
+            "turn (raw_len=%d, output_tokens=%s, max_output_tokens=%d). Raise "
+            "BRIEF_MAX_OUTPUT_TOKENS or shorten the requested payload.",
+            _num_turns, len(raw_text),
+            (outer.get("usage") or {}).get("output_tokens"), max_output_tokens,
+        )
     _usage = outer.get("usage") or {}
     _tokens = {
         "input": int(_usage.get("input_tokens") or 0),
@@ -206,4 +253,5 @@ def run_max(
         total_cost_usd=outer.get("total_cost_usd"),
         duration_s=_duration,
         tokens=_tokens,
+        num_turns=_num_turns,
     )
