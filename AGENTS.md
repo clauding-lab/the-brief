@@ -173,6 +173,18 @@ context metric into the tile row. In `bb.py` the order is
 points (context); the tenor feed is emitted ONLY when the overnight tile is
 present, so a tenor point can never occupy a tile slot. (B3 item 11, 2026-07-10.)
 
+## 26. A cut-off Claude response continues in a NEW assistant message — read the STREAM, and never trust `num_turns` or `result` to tell you it happened
+
+`run_max` calls the CLI with `--output-format stream-json --verbose` and stitches every `type: "assistant"` text block in arrival order (`_parse_cli_stdout` in `brief/claude/max_client.py`). This is load-bearing, not a style choice:
+
+- **`--output-format json` loses data.** Its single `result` field holds only the FINAL assistant message. When the editor's payload crosses the model's per-response output cap it is cut mid-JSON and continues in a new message, so `result` is the *tail of the brief*. Do not switch back to `json` to "simplify".
+- **64,000 output tokens is a HARD cap on `claude-opus-4-8`, not a default.** `CLAUDE_CODE_MAX_OUTPUT_TOKENS=128000` comes back 64,000. Raising the value buys nothing; there is no headroom to purchase. (v1.6.0 shipped a pin that set the value to what it already was.)
+- **`num_turns` is NOT a truncation signal.** A cut-off-and-continued response is still ONE turn. Key cut-off detection on the number of assistant messages (`MaxCallResult.assistant_messages`).
+- **Never gate a truncation alarm on `parsed is None`.** `_extract_json_object`'s preamble fallback will happily extract the first balanced `{…}` out of a tail — a lone section object — so parsing *appears* to succeed while the brief is gone. The rescue path masks the failure; the alarm must fire on the structural signal regardless of parse outcome.
+- The `_dump_raw_on_failure` stash in `pipeline_v6.py` writes the STITCHED text to `logs/<label>_raw_<stamp>.txt` on any parse/schema failure. Keep it — it is the only reason issue #183 was diagnosed in twenty minutes rather than four hours.
+
+Cost of getting this wrong: 5 failed publishes across 2026-07-31 (#181, three runs) and 2026-08-02 (#183, two runs), one merged no-op fix, and a silent alarm. See AGENT_LEARNINGS.md 2026-08-02.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.

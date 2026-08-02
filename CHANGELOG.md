@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.1] — 2026-08-02
+
+### Fixed
+- **The editor's brief is no longer thrown away when it outgrows one response.** When the payload crosses the model's per-response output cap, the editor is cut off mid-JSON and continues in a NEW assistant message. `--output-format json` reports only the FINAL message in `result`, so the pipeline received the *tail* of the brief; `_extract_json_object` then salvaged the first balanced object out of that tail — a lone section — and Pydantic rejected it with 18 `extra_forbidden` errors. `run_max` now reads `--output-format stream-json --verbose` and stitches every assistant text block in arrival order, reconstructing the payload byte-for-byte. Five publishes died this way: #181 (three runs, 2026-07-31) and #183 (two runs, 2026-08-02).
+- **The cut-off alarm now actually fires.** The v1.6.0 alarm was gated on `parsed is None and num_turns > 1`. Both halves were wrong: the preamble fallback rescues a fragment so `parsed` is not None, and a cut-off-and-continued response is still ONE turn so `num_turns` stays 1. It stayed silent through two further production failures. Detection now keys on `MaxCallResult.assistant_messages` and fires whether or not the stitched payload parsed.
+
+### Changed
+- **`DEFAULT_MAX_OUTPUT_TOKENS` documented as a no-op against the current model.** 64,000 is the hard per-response cap on `claude-opus-4-8` — requesting 128,000 returns 64,000 — so v1.6.0's pin set the value to what it already was and bought no headroom. The constant stays (it is still what the CLI is told, and becomes meaningful again if a future model raises the cap) but is no longer presented as the fix.
+- `MaxCallResult` gains `assistant_messages`; `num_turns` is still surfaced but is no longer load-bearing.
+
+### Tests
+- 19 new tests in `tests/claude/test_max_client_stream_stitching.py`: multi-message stitching (including the exact #183 tail-fragment signature), duplicate-event de-duplication, `thinking`-block exclusion, non-JSON noise tolerance, usage/cost from the result event, alarm-fires-when-parsed and alarm-fires-at-num_turns-1, and backward compatibility with the single-object `json` payload shape.
+- Verified against the real CLI with a forced-truncation probe (`CLAUDE_CODE_MAX_OUTPUT_TOKENS=1200`): 3 assistant messages, stitched output parsed clean.
+- Full suite green: 663 passed.
+
+### Followup
+- New `AGENTS.md` landmine #26 and an `AGENT_LEARNINGS.md` entry for 2026-08-02.
+
+---
+
 ## [1.6.0] — 2026-06-12
 
 ### Added

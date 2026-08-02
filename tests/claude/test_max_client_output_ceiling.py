@@ -8,7 +8,14 @@ three publishes in a row.
 
 These tests pin the two guards that came out of it:
   1. run_max always hands the CLI an explicit CLAUDE_CODE_MAX_OUTPUT_TOKENS.
-  2. run_max reports num_turns, so a multi-turn (= cut off) response is visible.
+  2. run_max reports num_turns.
+
+UPDATE (issue 183, 2026-08-02): guard 2 turned out to be the WRONG signal. A
+response that is cut off and continued is still ONE turn — `num_turns` stays 1 —
+so the "CUT OFF" alarm keyed on `num_turns > 1` never fired in production, even
+while the failure recurred. Cut-off detection now keys on the number of assistant
+messages in the stream; see `test_max_client_stream_stitching.py`. `num_turns` is
+still surfaced (it is a real CLI field) but is no longer load-bearing.
 """
 import json
 from unittest.mock import MagicMock, patch
@@ -110,9 +117,9 @@ class TestNumTurnsVisibility:
         # Assert
         assert r.num_turns == 0
 
-    def test_multi_turn_unparseable_response_is_logged_as_truncation(self, caplog):
-        # Arrange — this is the exact issue-181 signature: tail-only JSON that
-        # parses to something, or not at all, after a multi-turn generation.
+    def test_unparseable_response_is_logged_as_an_error(self, caplog):
+        # Arrange — a response that yields no JSON at all must never fail
+        # silently, whatever the turn count says.
         with patch("brief.claude.max_client.subprocess.run",
                    return_value=_fake_completed(
                        _outer("no json here at all", num_turns=2))):
@@ -120,4 +127,15 @@ class TestNumTurnsVisibility:
                 r = run_max(prompt="hi")
         # Assert
         assert r.parsed is None
-        assert "CUT OFF" in caplog.text
+        assert "did not parse" in caplog.text
+
+    def test_num_turns_is_not_treated_as_a_cutoff_signal(self):
+        # Arrange — num_turns > 1 on a perfectly parseable single-message
+        # response must NOT be reported as a cut-off. The issue-181 alarm
+        # conflated the two; the real signal is assistant_messages.
+        with patch("brief.claude.max_client.subprocess.run",
+                   return_value=_fake_completed(_outer('{"a":1}', num_turns=3))):
+            r = run_max(prompt="hi")
+        # Assert
+        assert r.parsed == {"a": 1}
+        assert r.assistant_messages == 1
