@@ -37,6 +37,29 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-02 — v1.6.1 | The editor was never misbehaving: we read one message of a multi-message answer, and the alarm we built for it could not fire
+
+**Trigger:** `brief.service` failed at 06:44 BDT on a normal Sunday daily (issue #183), then again on a manual re-fire at 07:48 BDT. Identical signature to the three failures of 2026-07-31 (issue #181), which the v1.6.0 hotfix was supposed to have closed.
+
+**What went wrong:** three compounding mistakes, only the first of which was known.
+
+1. **The read.** When the editor's payload crosses the model's per-response output cap it is cut off mid-JSON and continues in a NEW assistant message. `--output-format json` reports only the FINAL message in `result`, so the pipeline received the tail of the brief. `_extract_json_object` (`brief/claude/max_client.py`) then "rescued" the first balanced `{…}` in that tail — a lone section object — and Pydantic rejected it with 18 `extra_forbidden` errors. The editor's work was correct and complete every single time; six good sections were binned on 2026-08-02 alone.
+
+2. **The 2026-07-31 fix did nothing.** It pinned `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to 64,000 on the belief that the default was lower and the ceiling was tunable. It is not: 64,000 is the model's hard per-response cap on `claude-opus-4-8` (asking for 128,000 returns 64,000). The change set the value to what it already was. **It was merged to `main` on the strength of an untested assumption, and the probe that disproved it took two minutes to run — after the merge.**
+
+3. **The alarm built to catch a recurrence could not fire.** It was gated on `parsed is None and num_turns > 1`. Both halves were wrong. `parsed` is not None, because the preamble fallback successfully extracts a fragment — the rescue path masks the failure it was meant to reveal. And `num_turns` stays **1**: a cut-off-and-continued response is one turn, not several. The alarm was silent through two more production failures while the exact condition it named was occurring.
+
+**Lesson:** when a fix rests on a claim about someone else's system ("the default is lower", "the ceiling is configurable"), probe the claim before merging, not after — and never gate a diagnostic on the success of a rescue path, because the rescue is what hides the problem.
+
+**Prevention:**
+- `run_max` now reads `--output-format stream-json` and stitches every assistant text block in arrival order, which reconstructs the payload byte-for-byte; length stops being a failure mode. Verified against a forced-truncation probe (`CLAUDE_CODE_MAX_OUTPUT_TOKENS=1200`, 3 assistant messages, stitched output parsed clean).
+- The cut-off alarm now keys on **assistant-message count**, fires whether or not the payload parsed, and is tested for both traps above (`tests/claude/test_max_client_stream_stitching.py`).
+- The raw-output dump from v1.6.0 is the one thing that worked — it turned a four-hour blind diagnosis into a twenty-minute one. Keep it.
+
+**Hotfix:** PR #141 — stream-json stitching + corrected alarm + 19 tests. The v1.6.0 token pin is left in place (documented as a no-op against the current model, meaningful again if a future model raises the cap).
+
+**Cross-references:** AGENTS.md landmine #26; supersedes the diagnosis in the v1.6.0 entry for issue #181.
+
 ## 2026-07-09 — pipeline | Sub-editor auto-pass shipped unreviewed briefs; validators.py was dead code
 
 **Trigger:** 2026-07-04 ecosystem review (handoff item 7). Two findings in the publish path: (1) `pipeline_v6.run_publish` handled a malformed `SubeditorReview` by logging a warning and setting `review = SubeditorReview(verdict="pass")` — so a sub-editor call that returned well-formed JSON in the wrong shape published the editor's draft UNREVIEWED, with no test covering it. (2) `brief/claude/validators.py` (704 lines of hard, testable slop/abbreviation/chart-read checks) was imported by NOTHING in the publish path — the deterministic backstop existed but never ran.

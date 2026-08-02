@@ -19,14 +19,17 @@ logger = logging.getLogger(__name__)
 # Per-response output ceiling handed to the CLI via CLAUDE_CODE_MAX_OUTPUT_TOKENS.
 #
 # Why this exists (issue 181, 2026-07-31): the Friday weekly wrap outgrew the
-# CLI's default ceiling. The editor was cut off mid-JSON, continued the payload
-# in a SECOND assistant message, and `--output-format json` reports only the
-# FINAL message in `result` — so the pipeline received the tail of the brief
-# (6 of 11 sections under a `sections_continued` key) and rejected it as a
-# schema violation. Three consecutive publishes died this way with no signal,
-# because the raw text was discarded. Raising the ceiling keeps the whole brief
-# inside one message; `_dump_raw_on_failure` in pipeline_v6 preserves the
-# evidence if it ever happens again.
+# CLI's default ceiling. The editor was cut off mid-JSON and continued the
+# payload in a SECOND assistant message, while `--output-format json` reports
+# only the FINAL message in `result` — so the pipeline received the tail of the
+# brief and rejected it as a schema violation.
+#
+# NOTE (issue 183, 2026-08-02): 64_000 is the model's HARD per-response cap on
+# claude-opus-4-8, not a tunable default — probing with 128_000 comes back 64_000.
+# Pinning this value buys no headroom and never did; the actual fix is stitching
+# every assistant message back together (see `_collect_stream_messages`). The
+# constant stays because it is still the number the CLI is told, and because a
+# future model with a larger cap makes it meaningful again.
 DEFAULT_MAX_OUTPUT_TOKENS = 64_000
 
 # Matches an opening fence (```json, ```JSON, ```, etc.) and a closing ```.
@@ -36,6 +39,10 @@ _FENCE_RE = re.compile(
     r"^```[a-zA-Z]*\n(.*?)\n```$",
     re.DOTALL,
 )
+
+
+class MaxCallError(RuntimeError):
+    """Raised when the CLI fails, times out, or returns non-JSON."""
 
 
 def _strip_markdown_fences(text: str) -> str:
@@ -94,8 +101,100 @@ def _extract_json_object(text: str) -> str | None:
     return None
 
 
-class MaxCallError(RuntimeError):
-    """Raised when the CLI fails, times out, or returns non-JSON."""
+def _collect_stream_messages(stdout: str) -> tuple[list[str], dict[str, Any]] | None:
+    """Parse `--output-format stream-json` NDJSON into (assistant_texts, result_event).
+
+    The CLI emits one JSON object per line. Assistant turns arrive as
+    ``{"type": "assistant", "message": {"id": ..., "content": [{"type": "text",
+    "text": ...}, ...]}}`` and the run ends with a single
+    ``{"type": "result", "result": ..., "usage": ..., "num_turns": ...}``.
+
+    When a response hits the per-response token cap the model is cut off and
+    CONTINUES in a new assistant message — the text blocks concatenate back into
+    the original payload byte-for-byte (verified against a forced-truncation
+    probe, 2026-08-02). Returning them in order lets the caller stitch.
+
+    Messages are de-duplicated by ``message.id`` so a re-emitted event cannot
+    double-insert a chunk. ``thinking`` blocks are skipped — they are not part of
+    the answer. Lines that are not JSON are ignored (the CLI occasionally prints
+    non-protocol noise on stdout).
+
+    Returns None only if stdout carries neither an assistant nor a result event —
+    i.e. it is not a stream payload at all and the caller should fall back to
+    single-object parsing. Assistant text with no result event (a stream cut
+    short) still returns what was captured rather than discarding it.
+    """
+    texts: list[str] = []
+    seen_ids: set[str] = set()
+    result_event: dict[str, Any] | None = None
+
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+
+        etype = event.get("type")
+        if etype == "result":
+            result_event = event
+        elif etype == "assistant":
+            message = event.get("message") or {}
+            msg_id = message.get("id")
+            if msg_id is not None:
+                if msg_id in seen_ids:
+                    continue
+                seen_ids.add(msg_id)
+            for block in message.get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    texts.append(block.get("text") or "")
+
+    if result_event is None:
+        if not texts:
+            return None
+        logger.warning(
+            "run_max: stream ended with %d assistant message(s) but no result "
+            "event — usage and cost will be unavailable.", len(texts),
+        )
+        return texts, {}
+    return texts, result_event
+
+
+def _parse_cli_stdout(stdout: str) -> tuple[str, dict[str, Any], int]:
+    """Return (raw_text, result_event, assistant_message_count) from CLI stdout.
+
+    Handles both output shapes:
+      * `--output-format stream-json` — NDJSON; assistant messages are stitched
+        in arrival order so a cut-off response is reassembled whole.
+      * `--output-format json` — a single result object whose `result` field
+        holds only the FINAL assistant message. Kept as a fallback so callers
+        (and fixtures) built against the older shape still work.
+    """
+    stream = _collect_stream_messages(stdout)
+    if stream is not None:
+        texts, result_event = stream
+        if texts:
+            return "".join(texts), result_event, len(texts)
+        # No assistant text captured (e.g. an error result): fall back to the
+        # result field so the caller still sees whatever the CLI reported.
+        fallback = result_event.get("result", "")
+        return (fallback if isinstance(fallback, str) else ""), result_event, 0
+
+    try:
+        outer = json.loads(stdout)
+    except json.JSONDecodeError as e:
+        raise MaxCallError(f"Claude CLI stdout is not JSON: {e}") from e
+    if not isinstance(outer, dict):
+        raise MaxCallError("Claude CLI stdout is not a JSON object")
+
+    raw_text = outer.get("result", "")
+    if not isinstance(raw_text, str):
+        raise MaxCallError("Claude CLI returned non-string result field")
+    return raw_text, outer, 1 if raw_text else 0
 
 
 @dataclass(frozen=True)
@@ -106,7 +205,8 @@ class MaxCallResult:
     total_cost_usd: float | None
     duration_s: float = 0.0
     tokens: dict[str, int] = field(default_factory=lambda: {"input": 0, "output": 0})
-    num_turns: int = 0   # >1 means the CLI needed extra assistant turns; see below
+    num_turns: int = 0   # CLI-reported turn count; NOT a cut-off signal (see below)
+    assistant_messages: int = 0  # >1 means the response was cut off and stitched
 
 
 def run_max(
@@ -153,7 +253,13 @@ def run_max(
         argv.append(prompt)
     argv += [
         "--model", model,
-        "--output-format", "json",
+        # stream-json (NDJSON), NOT json: the single-object `json` shape reports
+        # only the FINAL assistant message in `result`, so a response cut off at
+        # the token cap loses everything written before the cut (issue 181/183).
+        # The stream emits every assistant message; `_parse_cli_stdout` stitches
+        # them. --verbose is mandatory for stream-json under --print.
+        "--output-format", "stream-json",
+        "--verbose",
         "--no-session-persistence",
         "--tools", "",
         # Without --strict-mcp-config the CLI loads any user-installed MCP
@@ -193,22 +299,15 @@ def run_max(
         raise MaxCallError(f"Claude CLI binary not found: {claude_binary}") from e
 
     if cp.returncode != 0:
-        # In --output-format json mode the CLI writes its error payload to
-        # STDOUT (stderr is frequently empty) and exits non-zero. Surface BOTH
-        # so a failure is diagnosable instead of an opaque "exited 1".
+        # The CLI writes its error payload to STDOUT (stderr is frequently
+        # empty) and exits non-zero. Surface BOTH so a failure is diagnosable
+        # instead of an opaque "exited 1".
         raise MaxCallError(
             f"Claude CLI exited {cp.returncode}: "
             f"stderr={cp.stderr.strip()[:500]!r} stdout={cp.stdout.strip()[:1200]!r}"
         )
 
-    try:
-        outer = json.loads(cp.stdout)
-    except json.JSONDecodeError as e:
-        raise MaxCallError(f"Claude CLI stdout is not JSON: {e}") from e
-
-    raw_text = outer.get("result", "")
-    if not isinstance(raw_text, str):
-        raise MaxCallError("Claude CLI returned non-string result field")
+    raw_text, outer, _assistant_messages = _parse_cli_stdout(cp.stdout)
 
     parsed: Any | None
     try:
@@ -227,18 +326,32 @@ def run_max(
 
     _duration = time.monotonic() - _t0
     _num_turns = int(outer.get("num_turns") or 0)
-    if parsed is None and _num_turns > 1:
-        # The single strongest signal of the issue-181 failure: the CLI needed
-        # more than one assistant turn, which means the first turn was cut off
-        # and `result` holds only the continuation. Say so loudly — the caller
-        # otherwise sees a shapeless "schema validation failed".
-        logger.error(
-            "run_max: response spans %d turns and did not parse — the model was "
-            "very likely CUT OFF mid-output and `result` holds only the final "
-            "turn (raw_len=%d, output_tokens=%s, max_output_tokens=%d). Raise "
-            "BRIEF_MAX_OUTPUT_TOKENS or shorten the requested payload.",
-            _num_turns, len(raw_text),
+    if _assistant_messages > 1:
+        # The response hit the per-response cap and continued in a new assistant
+        # message. We stitched it — this is recovery, not failure — but it must
+        # be visible: it says the payload is at the model's hard ceiling, and the
+        # next growth spurt lands somewhere with no stitching to save it.
+        #
+        # Do NOT gate this on `parsed is None` (the issue-181 alarm did, and the
+        # preamble fallback salvaged a fragment so it never fired) and do NOT
+        # gate it on `num_turns` — a cut-off-and-continued response is still
+        # ONE turn, so num_turns stays 1. Assistant-message count is the signal.
+        level = logging.ERROR if parsed is None else logging.WARNING
+        logger.log(
+            level,
+            "run_max: response was CUT OFF and continued across %d assistant "
+            "messages — stitched into %d chars (parsed=%s, output_tokens=%s, "
+            "max_output_tokens=%d). The payload is at the model's hard "
+            "per-response ceiling; shorten it or split the call.",
+            _assistant_messages, len(raw_text), parsed is not None,
             (outer.get("usage") or {}).get("output_tokens"), max_output_tokens,
+        )
+    elif parsed is None:
+        logger.error(
+            "run_max: response did not parse as JSON (raw_len=%d, "
+            "assistant_messages=%d, output_tokens=%s).",
+            len(raw_text), _assistant_messages,
+            (outer.get("usage") or {}).get("output_tokens"),
         )
     _usage = outer.get("usage") or {}
     _tokens = {
@@ -254,4 +367,5 @@ def run_max(
         duration_s=_duration,
         tokens=_tokens,
         num_turns=_num_turns,
+        assistant_messages=_assistant_messages,
     )

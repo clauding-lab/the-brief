@@ -548,11 +548,18 @@ def _call_with_retries(
         try:
             result = run_max(prompt=body, timeout_s=timeout_s)
             _LAST_RAW[label] = result.raw_text or ""
-            if result.num_turns > 1:
+            if result.assistant_messages > 1:
+                # Recovered, not lost: run_max stitched the continuation messages
+                # back together. Still worth saying loudly — it means the payload
+                # is at the model's hard per-response ceiling (issue 183).
+                # `num_turns` is NOT this signal: a cut-off-and-continued
+                # response is still one turn, which is why the issue-181 warning
+                # here never fired.
                 logger.warning(
-                    "%s: response spans %d assistant turns (raw_len=%d, output_tokens=%s) "
-                    "— output was probably cut off and only the final turn is visible",
-                    label, result.num_turns, len(result.raw_text or ""),
+                    "%s: response was CUT OFF and continued across %d assistant "
+                    "messages — stitched into %d chars (output_tokens=%s). The "
+                    "payload is at the per-response ceiling.",
+                    label, result.assistant_messages, len(result.raw_text or ""),
                     result.tokens.get("output"),
                 )
             if result.parsed is None:
