@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.5] — 2026-08-03
+
+### Removed
+- **`vintage.next_print` — it was unreachable by construction.** v1.6.4 shipped a next-print hint (`as_of` + a per-cadence interval). A vintage only exists once a metric is past its cadence's **fresh threshold**, and every fresh threshold is *longer* than that cadence's publication interval — monthly 35 vs 30, weekly 7 vs 7, quarterly 95 vs 91, daily 1 trading day vs 1 — so `as_of + interval` had **always already passed** by the time anything asked for it. It could not have been right for any metric, on any day. Caught by running the merged code against production, where REER rendered as *"As of 2026-03-01 · next print **Mar 2026**"* — a next print in the same month as the as-of.
+- Rolling it forward to the next *future* period was considered and rejected as the worse fix. REER has never been collected by anyone; any date offered would be an invented schedule, and this module's entire value is that its output can be trusted. "Overdue" is already in `note` — a fact rather than a forecast.
+- `stamp_vintages` no longer writes `next_print` at all. The field stays on the published metric and in the SPA footer: `mark_held_overs` reads a real publication date and is the only thing entitled to write it, so blanking it here would clobber that path the day the catalog is fixed.
+
+### Tests
+- The v1.6.4 test asserted `next_print == "Mar 2026" or next_print == "Apr 2026"` — an either/or that **accepted the broken answer**. Replaced with a test that the field does not exist, carrying the threshold-vs-interval proof in its docstring, plus one that stamping leaves a catalog-set `next_print` untouched.
+- Full suite green: **702 passed**.
+
+---
+
 ## [1.6.4] — 2026-08-03
 
 ### Added

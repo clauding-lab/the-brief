@@ -91,7 +91,6 @@ def test_a_monthly_vintage_names_the_month_not_the_day() -> None:
     v = metric_vintage(_m(as_of=date(2026, 3, 1)), today=TODAY)
     assert v is not None
     assert v.label == "Mar 2026"
-    assert v.next_print == "Mar 2026" or v.next_print == "Apr 2026"
 
 
 def test_a_quarterly_vintage_names_the_quarter() -> None:
@@ -100,7 +99,20 @@ def test_a_quarterly_vintage_names_the_quarter() -> None:
     )
     assert v is not None
     assert v.label == "Q1 2026"
-    assert v.next_print == "Q2 2026"
+
+
+def test_a_vintage_offers_no_next_print_date() -> None:
+    """v1.6.4 shipped one; it was unreachable by construction. A vintage only
+    exists once a metric is past its cadence's FRESH threshold, and every fresh
+    threshold is longer than that cadence's publication interval (monthly 35 vs
+    30, weekly 7 vs 7, quarterly 95 vs 91), so `as_of + interval` has always
+    already passed. It rendered live as "As of 2026-03-01 · next print Mar 2026".
+
+    Rolling it forward to the next future period was the worse fix: REER has
+    never been collected by anyone, so any date offered would be invented."""
+    v = metric_vintage(_m(), today=TODAY)
+    assert v is not None
+    assert not hasattr(v, "next_print")
 
 
 def test_a_daily_vintage_names_the_exact_day() -> None:
@@ -136,7 +148,6 @@ def test_an_event_metric_whose_writer_stopped_says_last_confirmed() -> None:
     assert v is not None
     assert "last confirmed" in v.note
     assert "print" not in v.note
-    assert v.next_print == ""  # an MPC has no schedule to promise
 
 
 def test_a_fallback_sourced_event_metric_is_vintaged_even_when_stamped_today() -> None:
@@ -158,8 +169,7 @@ def test_vintage_payload_is_none_for_a_fresh_metric() -> None:
 def test_vintage_payload_carries_what_the_prompt_documents() -> None:
     p = vintage_payload(_m(), today=TODAY)
     assert p is not None
-    assert set(p) == {"as_of", "age_days", "freshness", "period_label",
-                      "note", "next_print"}
+    assert set(p) == {"as_of", "age_days", "freshness", "period_label", "note"}
     assert p["as_of"] == "2026-03-01"
     assert p["period_label"] == "Mar 2026"
 
@@ -199,7 +209,6 @@ def test_an_old_metric_gets_its_as_of_stamped_onto_the_published_row() -> None:
 
     assert n == 1
     assert pub.sections[0].metrics[0].held_from == date(2026, 3, 1)
-    assert pub.sections[0].metrics[0].next_print
 
 
 def test_a_fresh_metric_is_not_stamped() -> None:
@@ -219,6 +228,19 @@ def test_stamping_never_overwrites_mark_held_overs() -> None:
     stamp_vintages(pub, [_v5_macro([_m()])], today=TODAY)
 
     assert already.held_from == date(2026, 1, 15)
+
+
+def test_stamping_leaves_next_print_alone() -> None:
+    """This function has no honest value for `next_print`, and blanking it would
+    clobber `mark_held_overs` the day the catalog is fixed — that path reads a
+    real publication date and is the only thing entitled to write the field."""
+    untouched = _PubMetric("REER")
+    untouched.next_print = "Sep 2026"
+    pub = _PubBrief([_PubSection("macro", [untouched])])
+    stamp_vintages(pub, [_v5_macro([_m()])], today=TODAY)
+
+    assert untouched.held_from == date(2026, 3, 1)
+    assert untouched.next_print == "Sep 2026"
 
 
 def test_a_metric_that_moved_but_is_still_old_is_stamped() -> None:

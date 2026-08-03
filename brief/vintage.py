@@ -31,11 +31,31 @@ What counts as a vintage
 Anything past its cadence's FRESH threshold — i.e. `warning` or `stale` in
 `brief.cadence`. A fresh metric gets none; saying "as of today" on today's
 number is noise, and noise is how a real staleness signal gets ignored.
+
+Why there is no "next print"
+----------------------------
+v1.6.4 carried a `next_print` hint (as_of + a per-cadence interval). It was
+removed in v1.6.5 because it is **unreachable by construction**: a vintage only
+exists once a metric is past its cadence's fresh threshold, and every fresh
+threshold is LONGER than that cadence's publication interval —
+
+    monthly    vintage at >35d, interval 30d
+    weekly     vintage at  >7d, interval  7d
+    quarterly  vintage at >95d, interval 91d
+    daily      vintage at  >1 trading day, interval 1d
+
+— so `as_of + interval` has always already passed by the time anything asks. It
+rendered live as *"As of 2026-03-01 · next print Mar 2026"*: a next print in the
+same month as the as-of. Rolling it forward to the next future period was
+rejected as the worse fix — REER has never been collected by anyone, so any
+date offered would be an invented schedule, and the whole value of this module
+is that its output can be trusted. "Overdue" is in `note`; that is the honest
+version, and it is a fact rather than a forecast.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from typing import TYPE_CHECKING
 
 from brief.cadence import metric_freshness
@@ -44,28 +64,15 @@ from brief.schema import Metric, SectionData
 if TYPE_CHECKING:  # pragma: no cover — annotation only
     from brief.v6_schema import BriefPayloadV6
 
-# Days added to a metric's as_of to guess when the source next publishes.
-# Deliberately coarse — this is a "roughly when to look again" hint for the
-# reader, not a release calendar. `event` is absent on purpose: a policy
-# corridor has no schedule, it moves when the MPC decides.
-#
-# Keys track `CadenceKind` in brief/schema.py. A cadence added there but not
-# here simply gets no next-print hint, which is the safe direction.
-_NEXT_PRINT_DAYS: dict[str, int] = {
-    "daily": 1,
-    "weekly": 7,
-    "monthly": 30,
-    "quarterly": 91,
-}
-
-
 @dataclass(frozen=True)
 class Vintage:
     """How old one printed number is, and how to say so.
 
     `label` is the reader-facing period ("Mar 2026", "Q1 2026"). `note` is the
-    fuller phrase handed to the editor. `next_print` is when the source is next
-    expected to speak, or "" when there is no schedule to promise.
+    fuller phrase handed to the editor.
+
+    There is deliberately no `next_print`. v1.6.4 shipped one and it could never
+    have been right — see the module note below.
     """
 
     as_of: date
@@ -74,7 +81,6 @@ class Vintage:
     cadence: str
     label: str
     note: str
-    next_print: str
 
 
 def _period_label(as_of: date, cadence: str) -> str:
@@ -90,18 +96,6 @@ def _period_label(as_of: date, cadence: str) -> str:
         return as_of.strftime("%b %Y")
     # daily / weekly / event / anything unknown: the exact day is the period.
     return as_of.strftime("%-d %b %Y")
-
-
-def _next_print_label(as_of: date, cadence: str) -> str:
-    days = _NEXT_PRINT_DAYS.get(cadence)
-    if not days:
-        return ""
-    nxt = as_of + timedelta(days=days)
-    if cadence == "quarterly":
-        return f"Q{(nxt.month - 1) // 3 + 1} {nxt.year}"
-    if cadence == "monthly":
-        return nxt.strftime("%b %Y")
-    return nxt.strftime("%-d %b %Y")
 
 
 def _note(label: str, age_days: int, cadence: str, freshness: str) -> str:
@@ -149,7 +143,6 @@ def metric_vintage(metric: Metric, *, today: date | None = None) -> Vintage | No
         cadence=cadence,
         label=label,
         note=_note(label, age_days, cadence, freshness),
-        next_print=_next_print_label(metric.as_of, cadence),
     )
 
 
@@ -164,7 +157,6 @@ def vintage_payload(metric: Metric, *, today: date | None = None) -> dict | None
         "freshness": v.freshness,
         "period_label": v.label,
         "note": v.note,
-        "next_print": v.next_print,
     }
 
 
@@ -174,9 +166,14 @@ def stamp_vintages(
     *,
     today: date | None = None,
 ) -> int:
-    """Stamp `held_from` / `next_print` onto every published metric that is old.
+    """Stamp `held_from` onto every published metric that is old.
 
     Returns the number of metrics stamped.
+
+    `next_print` is deliberately left alone. This function has no honest value
+    for it (see the module note), and blanking it would clobber `mark_held_overs`
+    on the day the catalog is fixed — that path reads a real publication date
+    and is the only thing entitled to write the field.
 
     Runs AFTER `mark_held_overs` and never overwrites it: a metric the catalog
     could explain keeps the catalog's answer. Everything else gets its vintage
@@ -216,6 +213,5 @@ def stamp_vintages(
             if v is None:
                 continue
             pub.held_from = v.as_of
-            pub.next_print = v.next_print or None
             stamped += 1
     return stamped
