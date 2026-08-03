@@ -201,6 +201,18 @@ Three macro metrics still read it **on purpose**: REER (in no table, ever), CPI 
 
 Live ids confirmed against production 2026-08-03: `food_inflation`, `non_food_inflation`, `private_sector_credit_yoy_pct`, `policy_rate_repo`, `general_inflation`, `gross_reserves_usd_bn`, `monthly_import`.
 
+## 28. `mark_held_overs` reads two columns that do not exist — a shipped feature can be dead for months and look fine
+
+`mark_held_overs` keys on `(section_slug, label)` from `metric_definitions` and reads `last_print_date`. Production's `metric_definitions` has **79 rows and 18 columns, and neither `section_slug` nor `last_print_date` is one of them.** Every lookup has missed since v1.2.0. Measured 2026-08-03: **0** of the last 1000 published metric rows carry `held_from`, **0** carry `next_print`. The "As of …" footer in `Section.tsx`, its `tb-held-footer` CSS, the `is-held-over` render branch and the `anySignal` diff-mode gate have all been live, correct, and unreachable the entire time.
+
+Nothing surfaced it because a no-op that writes nothing looks identical to a no-op that had nothing to write: no exception, no log line, no failing test — the tests fed it a stub catalog that *did* have the columns. The footer's absence read as "no metric is held over today," which was plausible every single day.
+
+Rules:
+- **A pipeline stage that consults the catalog must be verified against the PRODUCTION table, not a fixture.** `select=*&limit=1` on the real table and read the keys back. A fixture proves your code works on the schema you imagined.
+- **Prefer the metric's own fields over a catalog join.** `brief/vintage.py` computes the vintage from `as_of` + `cadence`, which the builder already set. Nothing to migrate, nothing to drift.
+- **When a feature's whole output is "sometimes nothing", assert it produces something.** `stamp_vintages` returns a count and `pipeline_v6` logs `vintaged_metrics=%d` for exactly this reason: a run where that number is 0 across all sections is now visible in the journal.
+- `stamp_vintages` runs after `mark_held_overs` and never overwrites it — if the catalog is ever fixed, the catalog's real last-print date wins over `as_of`, which only approximates it.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.

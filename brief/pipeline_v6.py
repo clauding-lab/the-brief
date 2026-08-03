@@ -33,6 +33,7 @@ from brief.v6_publisher import (
     publish_brief,
 )
 from brief.v6_schema import BriefPayloadV6, SubeditorReview
+from brief.vintage import stamp_vintages, vintage_payload
 from brief.claude import validators as _validators
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,9 @@ class V6PublishError(RuntimeError):
     """Raised when the publish flow fails (Claude error, validation error, write error)."""
 
 
-def _to_v6_raw(sections: list[SectionData]) -> list[dict[str, Any]]:
+def _to_v6_raw(
+    sections: list[SectionData], *, today: date_t | None = None
+) -> list[dict[str, Any]]:
     """Convert V5 SectionData → JSON shape the editor prompt expects.
 
     V5 doesn't carry verdict/verdict_tone fields directly; the editor derives
@@ -65,12 +68,28 @@ def _to_v6_raw(sections: list[SectionData]) -> list[dict[str, Any]]:
 
     v1.4.0: also serialises SectionData.history_facts so the editor can weave
     pre-formatted historical anchor phrases verbatim into prose (spec §3.2).
+
+    v1.6.4: stamps `vintage` on every metric that is past its cadence's fresh
+    threshold. `as_of` already reached the editor inside the metric dump, but a
+    bare date carries no threshold, so the editor had no way to know 2026-03-01
+    was five months stale — which is how #184 paired a March REER with that
+    day's spot rate in one clause. The section-level `freshness` flag did not
+    help there: it is worst-of, so it says a section contains something old
+    without saying WHICH metric, and it says nothing at all when the stale
+    number is borrowed into a different section's prose.
     """
     out: list[dict[str, Any]] = []
     for s in sections:
         if s.id not in V5_TO_V6:
             continue
         slug, ord_v6, group = V5_TO_V6[s.id]
+        metrics_raw: list[dict[str, Any]] = []
+        for m in s.metrics:
+            dumped = m.model_dump(mode="json")
+            # None on a fresh metric — an "as of today" on today's number is
+            # noise, and noise is how a real staleness signal gets ignored.
+            dumped["vintage"] = vintage_payload(m, today=today)
+            metrics_raw.append(dumped)
         out.append(
             {
                 "slug": slug,
@@ -82,7 +101,7 @@ def _to_v6_raw(sections: list[SectionData]) -> list[dict[str, Any]]:
                 "kicker": s.kicker,
                 "tldr": s.tldr,
                 "pull": s.pull,
-                "metrics": [m.model_dump(mode="json") for m in s.metrics],
+                "metrics": metrics_raw,
                 "news": [n.model_dump(mode="json") for n in s.news],
                 "history_facts": [
                     {
@@ -120,7 +139,7 @@ def _build_editor_input(
     from brief.builders.diff import _index_previous_metrics
 
     next_issue = fetch_max_issue_no() + 1
-    raw_sections = _to_v6_raw(sections)
+    raw_sections = _to_v6_raw(sections, today=today)
 
     # Index prev brief metrics by (slug, label) → prev_value_text. Used as the
     # magnitude fallback when V5 metrics carry no Delta object (see
@@ -818,6 +837,13 @@ def run_publish(
     # ── Post-LLM: deterministic diff + held-over stamping ──────────
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
+    # Vintage stamping runs LAST of the three and never overwrites
+    # mark_held_overs, so a metric the catalog can explain keeps the catalog's
+    # answer. In practice the catalog explains none of them — it has no
+    # `section_slug` or `last_print_date` column in production — which is why
+    # the "held from" footer had never rendered before this ran. See
+    # brief/vintage.py.
+    vintaged = stamp_vintages(final_brief, sections, today=today)
     _stamp_freshness(final_brief, editor_input["sections_raw"])
 
     # Phase E.2 — chart series enricher. Skip silently when supabase env is
@@ -839,10 +865,12 @@ def run_publish(
         )
 
     logger.info(
-        "v6: stamp_changed + mark_held_overs + stamp_freshness + stamp_chart_series done; "
-        "changed_news=%d, held_metrics=%d, unavailable_sections=%d, chart_sections=%d",
+        "v6: stamp_changed + mark_held_overs + stamp_vintages + stamp_freshness + "
+        "stamp_chart_series done; changed_news=%d, held_metrics=%d, vintaged_metrics=%d, "
+        "unavailable_sections=%d, chart_sections=%d",
         sum(1 for s in final_brief.sections for n in s.news if n.changed),
         sum(1 for s in final_brief.sections for m in s.metrics if m.held_from),
+        vintaged,
         sum(1 for s in final_brief.sections if s.freshness == "unavailable"),
         sum(1 for s in final_brief.sections if s.series),
     )

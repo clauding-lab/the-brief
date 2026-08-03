@@ -1,0 +1,221 @@
+"""Per-metric vintage: how old a printed number actually is, in plain words.
+
+Why this exists
+---------------
+Issue #184 printed *"REER at 102.78 keeping the taka dear as the peg eases to
+123.82"* — a **March** index and **that day's** spot rate, in one clause, with
+nothing anywhere recording that the two were five months apart. A reader takes
+both for current, because nothing in the sentence says otherwise.
+
+The Brief already computed freshness, but only per SECTION, and only as a badge
+colour. Two gaps followed:
+
+1. **The editor never saw which individual numbers were old.** `as_of` reached
+   it inside the metric dump, but no threshold came with it, so "2026-03-01"
+   was just a string. It sometimes wrote "Mar print" and sometimes didn't —
+   there was no rule, and a metric borrowed into another section's prose (the
+   REER clause above) lost even that.
+2. **The render never printed a vintage.** `Section.tsx` has had a "held from"
+   footer since v1.2.0, but the only thing that ever populated `held_from` was
+   `mark_held_overs`, which reads `section_slug` and `last_print_date` from the
+   `metric_definitions` catalog — **neither column exists in production**. It
+   has been a no-op for its whole life: 0 of the last 1000 published metric
+   rows carry `held_from`. The footer has never once rendered.
+
+`metric_vintage` closes both: one deterministic answer to "how old is this
+number", stamped into the editor's input BEFORE the prose is written and onto
+the published metric AFTER, so the two cannot disagree.
+
+What counts as a vintage
+------------------------
+Anything past its cadence's FRESH threshold — i.e. `warning` or `stale` in
+`brief.cadence`. A fresh metric gets none; saying "as of today" on today's
+number is noise, and noise is how a real staleness signal gets ignored.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, timedelta
+from typing import TYPE_CHECKING
+
+from brief.cadence import metric_freshness
+from brief.schema import Metric, SectionData
+
+if TYPE_CHECKING:  # pragma: no cover — annotation only
+    from brief.v6_schema import BriefPayloadV6
+
+# Days added to a metric's as_of to guess when the source next publishes.
+# Deliberately coarse — this is a "roughly when to look again" hint for the
+# reader, not a release calendar. `event` is absent on purpose: a policy
+# corridor has no schedule, it moves when the MPC decides.
+#
+# Keys track `CadenceKind` in brief/schema.py. A cadence added there but not
+# here simply gets no next-print hint, which is the safe direction.
+_NEXT_PRINT_DAYS: dict[str, int] = {
+    "daily": 1,
+    "weekly": 7,
+    "monthly": 30,
+    "quarterly": 91,
+}
+
+
+@dataclass(frozen=True)
+class Vintage:
+    """How old one printed number is, and how to say so.
+
+    `label` is the reader-facing period ("Mar 2026", "Q1 2026"). `note` is the
+    fuller phrase handed to the editor. `next_print` is when the source is next
+    expected to speak, or "" when there is no schedule to promise.
+    """
+
+    as_of: date
+    age_days: int
+    freshness: str  # "warning" | "stale"
+    cadence: str
+    label: str
+    note: str
+    next_print: str
+
+
+def _period_label(as_of: date, cadence: str) -> str:
+    """Name the period at the precision the cadence actually carries.
+
+    A monthly series has no meaningful day-of-month — `as_of` is whichever day
+    the period got stamped to — so printing "1 Mar 2026" for it invents
+    precision the number does not have.
+    """
+    if cadence == "quarterly":
+        return f"Q{(as_of.month - 1) // 3 + 1} {as_of.year}"
+    if cadence == "monthly":
+        return as_of.strftime("%b %Y")
+    # daily / weekly / event / anything unknown: the exact day is the period.
+    return as_of.strftime("%-d %b %Y")
+
+
+def _next_print_label(as_of: date, cadence: str) -> str:
+    days = _NEXT_PRINT_DAYS.get(cadence)
+    if not days:
+        return ""
+    nxt = as_of + timedelta(days=days)
+    if cadence == "quarterly":
+        return f"Q{(nxt.month - 1) // 3 + 1} {nxt.year}"
+    if cadence == "monthly":
+        return nxt.strftime("%b %Y")
+    return nxt.strftime("%-d %b %Y")
+
+
+def _note(label: str, age_days: int, cadence: str, freshness: str) -> str:
+    """The phrase the editor reads. Written to be usable in prose as-is."""
+    if cadence == "event":
+        # A standing value's as_of is a daily RESTAMP date, not a decision date
+        # (AGENTS.md landmine 24). "Last confirmed" is the only honest reading:
+        # the number may well still be in force, but nobody has said so lately.
+        return (
+            f"last confirmed {label}, {age_days} days ago — the writer has "
+            "stopped restamping it; do not present it as confirmed-current"
+        )
+    plural = "day" if age_days == 1 else "days"
+    if freshness == "stale":
+        return (
+            f"{label} print, {age_days} {plural} old — overdue; name the period "
+            "in any sentence that uses this number"
+        )
+    return f"{label} print, {age_days} {plural} old — name the period if you pair it with a current number"
+
+
+def metric_vintage(metric: Metric, *, today: date | None = None) -> Vintage | None:
+    """Return the vintage of `metric`, or None if it is fresh or has no value.
+
+    Never raises. A metric whose cadence the freshness table does not know
+    returns None rather than a guess — an invented vintage is worse than none,
+    because the whole point of the field is that it can be trusted.
+    """
+    freshness = metric_freshness(metric, today=today)
+    if freshness not in ("warning", "stale"):
+        return None
+
+    if today is None:
+        from brief.cadence import now_bdt
+
+        today = now_bdt().date()
+
+    age_days = (today - metric.as_of).days
+    cadence = str(metric.cadence)
+    label = _period_label(metric.as_of, cadence)
+    return Vintage(
+        as_of=metric.as_of,
+        age_days=age_days,
+        freshness=freshness,
+        cadence=cadence,
+        label=label,
+        note=_note(label, age_days, cadence, freshness),
+        next_print=_next_print_label(metric.as_of, cadence),
+    )
+
+
+def vintage_payload(metric: Metric, *, today: date | None = None) -> dict | None:
+    """`metric_vintage` as the JSON dict stamped into the editor's input."""
+    v = metric_vintage(metric, today=today)
+    if v is None:
+        return None
+    return {
+        "as_of": v.as_of.isoformat(),
+        "age_days": v.age_days,
+        "freshness": v.freshness,
+        "period_label": v.label,
+        "note": v.note,
+        "next_print": v.next_print,
+    }
+
+
+def stamp_vintages(
+    current: "BriefPayloadV6",
+    sections: list[SectionData],
+    *,
+    today: date | None = None,
+) -> int:
+    """Stamp `held_from` / `next_print` onto every published metric that is old.
+
+    Returns the number of metrics stamped.
+
+    Runs AFTER `mark_held_overs` and never overwrites it: a metric the catalog
+    could explain keeps the catalog's answer. Everything else gets its vintage
+    from the number's own `as_of`, which the builder set and which needs no
+    catalog to be true.
+
+    This is what makes the footer real. `mark_held_overs` has been the only
+    writer of `held_from` since v1.2.0, and it reads `section_slug` and
+    `last_print_date` off `metric_definitions` — **neither column exists in
+    production**, so every lookup missed and 0 of the last 1000 published metric
+    rows carried a vintage. The footer, the CSS class and the render branch have
+    all been live and unreachable the whole time.
+
+    Matching is by (section slug, metric label), the same key `stamp_changed`
+    and `mark_held_overs` already use — the editor passes labels through
+    verbatim, which is why that key works.
+    """
+    # Imported lazily: pipeline_v6 imports this module, so a module-level
+    # import of its slug map would close a cycle.
+    from brief.pipeline_v6 import V5_TO_V6
+
+    by_key: dict[tuple[str, str], Metric] = {}
+    for s in sections:
+        slug = V5_TO_V6[s.id][0] if s.id in V5_TO_V6 else s.id
+        for m in s.metrics:
+            by_key[(slug, m.label)] = m
+
+    stamped = 0
+    for section in current.sections:
+        for pub in section.metrics:
+            if pub.held_from is not None:
+                continue
+            src = by_key.get((section.slug, pub.label))
+            if src is None:
+                continue
+            v = metric_vintage(src, today=today)
+            if v is None:
+                continue
+            pub.held_from = v.as_of
+            pub.next_print = v.next_print or None
+            stamped += 1
+    return stamped

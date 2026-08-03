@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.4] — 2026-08-03
+
+### Added
+- **Per-metric vintages.** Every number now carries its own age, computed from its own `as_of` and cadence — no catalog lookup, nothing to migrate. Anything past its cadence's *fresh* threshold gets a period label ("Mar 2026", "Q1 2026"), an age in days, and a next-print hint. A fresh metric gets nothing: "as of today" on today's number is noise, and noise is how a real staleness signal gets ignored.
+- **The editor is told which numbers are old, before it writes.** `as_of` already reached it inside the metric dump, but a bare date carries no threshold — nothing said 2026-03-01 was five months back. Issue #184 printed *"REER at 102.78 keeping the taka dear as the peg eases to 123.82"*: a March index and that day's spot rate in one clause. The section-level `freshness` badge could not have prevented it — it is worst-of, so it says a section *contains* something old without saying which metric, and it says nothing at all when a stale number is borrowed into another section's prose. The prompt now carries a hard rule against pairing a vintaged number with a current one without naming the vintage.
+- **The vintage is stamped onto the published metric too**, so the footer and the prose cannot contradict each other.
+
+### Fixed
+- **The "held from" footer has never rendered once.** Shipped in v1.2.0; its only writer, `mark_held_overs`, reads `section_slug` and `last_print_date` off `metric_definitions`, and **production has neither column** (79 rows, 18 columns, verified 2026-08-03). Every lookup missed: **0** of the last 1000 published metric rows carry `held_from`, 0 carry `next_print`. The footer, its CSS and its render branch have been live and unreachable for months, and nothing surfaced it — a no-op that writes nothing looks exactly like a no-op with nothing to write. `stamp_vintages` now populates the field from the metric's own `as_of`, runs *after* `mark_held_overs`, and never overwrites it.
+- The footer reads **"As of 01 Mar 2026"**, not "Held from" — a monthly index published in March is not being *held*, it is simply March's number.
+- The footer no longer hides when `changed` is true. A number can move *and* still be five months old — the first issue after a source repoint is exactly that case, and that is precisely when the reader needs the date.
+- `formatVintageDate` pins the date to Asia/Dhaka. A bare ISO date parses as UTC midnight, which renders as the previous day anywhere behind UTC — the same hydration mismatch (React #418) already fixed for news dates.
+- `pipeline_v6` now logs `vintaged_metrics=%d`, so a run that stamps nothing is visible in the journal instead of looking like a quiet day.
+
+### Known limits
+- Vintages are computed from `as_of`, which for `event`-cadence metrics is a daily *restamp* date, not a decision date (landmine 24). Those are worded "last confirmed …" and carry no next-print, because an MPC has no schedule to promise.
+- A next-print hint is a coarse cadence-plus-N guess, not a release calendar. No BB/BBS publication schedule is wired in.
+- `mark_held_overs` remains broken; this release routes around it rather than fixing the catalog. Fixing it means a migration adding `section_slug` and `last_print_date` to `metric_definitions` and a writer for them.
+
+### Tests
+- `tests/test_vintage.py` — 22 new: when a vintage exists at all (fresh → none, warning band → yes, `value=None` → none, unknown cadence → none rather than a guess); period labels at the precision the cadence carries (a monthly series has no meaningful day-of-month); event-cadence wording and its empty next-print; the literal #184 REER case at the age it actually had; the editor payload's exact keys; and stamping — including that it never overwrites `mark_held_overs`, that a moved-but-old metric is still stamped, that an editor-invented label gets no vintage, and that a vintage cannot leak across sections sharing a label.
+- Full suite green: **700 passed**.
+
+---
+
 ## [1.6.3] — 2026-08-03
 
 ### Fixed
