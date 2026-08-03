@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.6] — 2026-08-03
+
+### Removed
+- **Three metrics that had never once had a value.** `fiscal_nbr_target_trn` ("NBR full-year target"), `fiscal_adp_pct` ("ADP utilisation") and `remit_yoy_pct` ("YoY %") were wired into shipping sections and have **zero rows in `metric_history` and `metric_history_monthly`** — not stale, never written, by any scraper in either repo. They rendered as permanently blank tiles.
+- The blank tile was the harmless half. `value is None` scores "unavailable", and `section_freshness` promotes that to **"warming_up"** for the five `SECTIONS_WITHOUT_LEGACY_BACKFILL` sections — so **Fiscal** and **Remittance** told readers data was accumulating and would arrive shortly, indefinitely, for ids with nothing behind them. Both sections now read **"fresh"**, which is what their live metrics had been all along.
+- The real loss is the NBR target: "NBR collected YTD 3.61 trn" wants "against an X trn target" beside it, and that is the half a desk acts on. It is a published budget figure, so the fix is to source it — deliberately **not** to hardcode a constant, which is how the policy corridor came to print a superseded 10.0% for weeks (landmine 24).
+
+### Changed
+- **The LNG tile now reads a series someone still writes.** `comm_lng_jkm` was last written **2026-04-20** and has no scraper in either repo; it had been printing 15.00 USD/MMBtu for **105 days**. The comm builder now reads `lng_price_usd_mmbtu`, which EconDelta's World Bank Pink Sheet scraper writes monthly (12.83, 30 Jun 2026 — 34 days old).
+- **Relabelled "LNG JKM" → "LNG (Japan)", source → "World Bank Pink Sheet", cadence weekly → monthly.** These are *different series*: the Pink Sheet's "Liquefied natural gas, Japan" is Japan's monthly average **import** price, contract-weighted; JKM is a spot cargo marker. Carrying the old label over the new value would print one market's price under another market's name, and this brief's readers price LNG for a living. The cadence change matters too — a monthly series judged on a weekly clock reads stale within days of every print.
+- This is not a permanent fix and is not claimed as one: the Pink Sheet scraper's download URL is edition-pinned upstream and has silently frozen on a stale edition before. The improvement is that when it stalls, v1.6.4's vintage now dates it on the page instead of letting it go quiet.
+
+### Known limits
+- **A future-dated `as_of` still reads as "fresh"** and gets no vintage — every branch of `metric_freshness` computes `today - as_of` and compares upward, so a negative age lands in the first bucket. EconDelta writes IMF projections dated 2027–2031 into `debt_gdp_ratio`, an actuals id. No Brief builder reads that id, which is the only reason a 2031 forecast has not printed as a current number. Not fixed here: some future stamps are legitimate (the Pink Sheet stamps `as_of` at the reporting month's last day), so the fix is a per-cadence tolerance and a change to freshness semantics across every metric — proposed, not smuggled into this release. Recorded as landmine 29.
+
+### Tests
+- 10 new tests in `tests/builders/test_dead_metrics.py`, including that the dead ids are **not even queried** (a removed metric that still costs a round-trip is half-removed), that a genuinely missing row *still* degrades the section (the removal must not buy a green badge by disabling the signal), and that a frozen Pink Sheet surfaces as old rather than silent.
+- Full suite green: **712 passed**.
+
+---
+
 ## [1.6.5] — 2026-08-03
 
 ### Removed
