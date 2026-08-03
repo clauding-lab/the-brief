@@ -121,13 +121,55 @@ def test_corridor_degrades_when_history_unavailable():
     ctx = BuilderContext(snapshot=_snap(), history=None, today=TODAY)
     s = build(ctx)
 
-    assert _m(s, "bb_policy_rate").value == 10.0
+    assert _m(s, "bb_policy_rate").value == 9.50
     assert _m(s, "bb_sdf").value == 7.5     # fallback must NOT be 8.5
-    assert _m(s, "bb_slf").value == 11.5
+    assert _m(s, "bb_slf").value == 11.00
     for mid in ("bb_policy_rate", "bb_sdf", "bb_slf"):
         assert _m(s, mid).stale is True
         assert _m(s, mid).cadence == "event"
     assert all(m.value != 8.5 for m in s.metrics)
+
+
+def test_fallback_constants_match_the_latest_mpc_decision():
+    """Regression guard for 2026-08-03: BB cut the repo 10.00 -> 9.50 and the
+    SLF 11.50 -> 11.00 on 2026-07-30, and these constants still held the PRE-CUT
+    corridor four days later. A history outage would have printed a corridor
+    that no longer existed. Bump these WITH the decision, not after it."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=TODAY)
+    s = build(ctx)
+
+    # The retired pre-cut corridor must not resurface, the way 8.5 SDF once did.
+    assert _m(s, "bb_policy_rate").value != 10.0
+    assert _m(s, "bb_slf").value != 11.5
+    # A fallback dates from the decision that set it, never from today.
+    assert _m(s, "bb_policy_rate").as_of == date(2026, 7, 30)
+
+
+def test_corridor_fallback_forces_the_section_stale():
+    """The fallback is honest ONLY if the badge says so. Before this, stale=True
+    was decorative: metric_freshness returned "fresh" for every event metric, so
+    a full metric_history outage rendered §02 as fresh while printing three
+    last-known constants."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=TODAY)
+    s = build(ctx)
+
+    assert s.freshness == "stale"
+
+
+def test_corridor_goes_stale_when_econdelta_stops_restamping():
+    """EconDelta re-upserts the corridor daily. If that writer dies the rows
+    stop moving, and The Brief has no evidence the printed rate is still in
+    force — §02 must stop claiming it is fresh. This is the hole the 2026-08-03
+    incident sat in: event cadence returned "fresh" unconditionally."""
+    stale_rows = _live_rate_rows(as_of=date(2026, 5, 1))   # 69 days before TODAY
+    hist = _FakeHistory(latest={**stale_rows, **_live_money_market_rows()})
+    ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
+    s = build(ctx)
+
+    # values still render (never blanked) — only the freshness claim changes
+    assert _m(s, "bb_policy_rate").value == _LIVE_REPO
+    assert _m(s, "bb_policy_rate").stale is False   # it IS a live read, just old
+    assert s.freshness == "stale"
 
 
 # ── Reserves ─────────────────────────────────────────────────────────────────

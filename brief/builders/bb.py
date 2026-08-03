@@ -1,9 +1,12 @@
 """Builder: Policy & Rates (Bangladesh Bank).
 
-Policy/SDF/SLF are event-cadence rates read LIVE from Supabase metric_history
-(EconDelta re-stamps them daily, so their as_of is a restamp date, NOT a
-decision date — cadence stays "event" and freshness stays "fresh"). Reserves
-is weekly from the EconDelta snapshot, with metric_history as the backfill.
+Policy/SDF/SLF are event-cadence rates read LIVE from Supabase metric_history.
+EconDelta re-stamps them daily, so their as_of is a restamp date, NOT a decision
+date — the section must never present it as "the rate changed on this date"
+(AGENTS.md landmine 24). Freshness therefore does not age these off the decision
+date; it checks that the WRITER is still alive (a restamp inside the last week)
+and falls to "stale" when it is not. Reserves is weekly from the EconDelta
+snapshot, with metric_history as the backfill.
 """
 from __future__ import annotations
 
@@ -13,14 +16,21 @@ from brief.cadence import metric_freshness, section_freshness
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
-# Last-known BB policy corridor. Used ONLY when metric_history is unreachable
+# Last-known BB policy corridor, as set by the MPC decision of 2026-07-30 (repo
+# and SLF each cut 50bp; SDF held). Used ONLY when metric_history is unreachable
 # (history client absent) or a given rate row is missing/non-numeric. A metric
-# sourced from these constants is marked stale=True, so an outage never blanks
-# the corridor nor presents a possibly-outdated rate as current. Live values
+# sourced from these constants is marked stale=True, which now forces the
+# section's freshness badge to "stale" (brief/cadence.py) — so an outage never
+# blanks the corridor NOR presents a last-known rate as current. Live values
 # come from metric_history ids policy_rate_repo / policy_rate_sdf / policy_rate_slf.
-_FALLBACK_POLICY_RATE_PCT = 10.0
+#
+# THESE GO OUT OF DATE AT EVERY MPC DECISION. Until 2026-08-03 they still held
+# the pre-cut 10.0/11.5 — four days after BB's first cut in six years. Update
+# them in the same PR that reacts to a corridor move.
+_LAST_MPC_DECISION = date(2026, 7, 30)
+_FALLBACK_POLICY_RATE_PCT = 9.50
 _FALLBACK_SDF_PCT = 7.5
-_FALLBACK_SLF_PCT = 11.5
+_FALLBACK_SLF_PCT = 11.00
 
 _BB_URL = "https://www.bb.org.bd/"
 
@@ -46,7 +56,9 @@ def _rate_metric(
     stale=True when the history client is absent or the rate row is
     missing/non-numeric — a metric_history outage never blanks the corridor
     nor lies about it. cadence stays "event": these are standing rates whose
-    daily-restamped as_of is not a decision date, so freshness reads "fresh".
+    daily-restamped as_of is not a decision date, so freshness reads "fresh"
+    while EconDelta keeps confirming them, and "stale" once it stops (or once
+    the fallback constant is what got printed).
     """
     row = ctx.history.get_latest(history_id) if ctx.history is not None else None
     if row is not None and isinstance(row.value, (int, float)):
@@ -65,7 +77,11 @@ def _rate_metric(
         label=label,
         value=fallback,
         unit="%",
-        as_of=ctx.today,
+        # The constant dates from the MPC decision that set it, not from today.
+        # Freshness does not depend on this (stale=True already forces "stale"),
+        # but stamping today's date on a last-known value would be a lie in the
+        # raw payload the editor and the debug dump both read.
+        as_of=_LAST_MPC_DECISION,
         source="BB",
         source_url=_BB_URL,
         cadence="event",

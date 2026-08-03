@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.2] — 2026-08-03
+
+### Fixed
+- **§02 Policy & Rates could not report staleness — under any circumstance.** `metric_freshness` returned `"fresh"` for every `cadence="event"` metric unconditionally, and the BB policy corridor is the only user of that cadence. When EconDelta's corridor froze at the pre-cut 10.00% repo rate, The Brief printed it for four days (#181–#184) with §02's badge reading **fresh** the entire time. The freshness system was not broken; it was pointed at nothing. Event cadence is now a **writer-liveness check**: EconDelta re-stamps these rows daily, so ≤7 days since the last restamp reads `fresh`, ≤10 days `warning`, beyond that `stale`. A standing rate that has not *moved* in years still reads fresh — only a writer that stops confirming it goes stale.
+- **`Metric.stale` was decorative.** `bb.py` marks a corridor rate `stale=True` when it falls back to a last-known constant, and its docstring promised an outage "never presents a possibly-outdated rate as current" — but nothing read the flag. A total `metric_history` outage rendered §02 as **fresh** while printing three hardcoded constants. `metric_freshness` now honours `stale=True` on event metrics. Scoped to event cadence deliberately: every other builder's fallback carries a real historical `as_of` and already ages correctly.
+- **The corridor fallback constants held the PRE-CUT rates.** BB cut the repo 10.00 → 9.50 and the SLF 11.50 → 11.00 on 2026-07-30, its first cut in six years. `_FALLBACK_POLICY_RATE_PCT` / `_FALLBACK_SLF_PCT` still read 10.0 / 11.5 four days later, so a history outage would have printed a corridor that no longer existed. Now 9.50 / 7.50 / 11.00, pinned to `_LAST_MPC_DECISION = 2026-07-30`, and a fallback metric now carries the decision date as its `as_of` instead of today's.
+
+### Tests
+- 5 new event-cadence tests in `tests/test_cadence.py`: fresh-while-restamping, warning at 9 days, **stale when the writer stops** (the case that returned `"fresh"` before), fallback-stale-even-when-stamped-today, and a guard that the `value=None` → `"unavailable"` check still runs ahead of the event branch.
+- 3 new tests in `tests/builders/test_bb.py`: the fallback constants no longer equal the retired pre-cut corridor (the same shape of guard that keeps the retired 8.5 SDF from resurfacing), a full history outage forces `section.freshness == "stale"`, and a corridor whose rows stopped being restamped goes stale while still rendering its values.
+- Full suite green: **670 passed**.
+
+### Followup
+- `AGENTS.md` landmine #24 rewritten: event cadence is bounded, and the `_FALLBACK_*_PCT` constants are now a documented per-MPC-decision maintenance item.
+- Not covered here: §03 Macro still reads `metric_history_monthly`, which has no live writer (all 8 metrics 155–183 days old). That is a read-path repoint, tracked separately.
+
+---
+
 ## [1.6.1] — 2026-08-02
 
 ### Fixed

@@ -106,10 +106,51 @@ def test_monthly_warning_at_40_days():
     assert metric_freshness(m, today=today) == "warning"
 
 
-def test_event_always_fresh():
+# ── event cadence: a writer-liveness check, NOT a value-age check ────────────
+# Regression guard for the 2026-08-03 incident: the BB policy rate sat at the
+# pre-cut 10.00% for four days after BB cut to 9.50%, and §02's badge read
+# "fresh" the whole time — event metrics could not report staleness under any
+# circumstance. The fix bounds them on the RESTAMP date (EconDelta re-upserts
+# them daily), so a dead writer surfaces while a genuinely-unchanged standing
+# rate still reads fresh.
+
+def test_event_fresh_while_the_writer_keeps_restamping():
+    """A standing rate that has not MOVED in a year is still fresh, as long as
+    EconDelta restamped it recently. Ageing it off the decision date would flag
+    a six-year-old policy rate as stale when it is the rate in force."""
     today = date(2026, 4, 21)
-    m = _m("x", date(2025, 1, 1), "event")
+    m = _m("x", date(2026, 4, 20), "event")   # restamped yesterday
     assert metric_freshness(m, today=today) == "fresh"
+
+
+def test_event_warning_when_restamp_lapses_past_a_week():
+    today = date(2026, 4, 21)
+    m = _m("x", date(2026, 4, 12), "event")   # 9 days since restamp
+    assert metric_freshness(m, today=today) == "warning"
+
+
+def test_event_stale_when_the_writer_stops():
+    """The bug this closes: with no restamp bound, THIS returned "fresh"."""
+    today = date(2026, 4, 21)
+    m = _m("x", date(2025, 1, 1), "event")    # writer dead for over a year
+    assert metric_freshness(m, today=today) == "stale"
+
+
+def test_event_fallback_constant_is_stale_even_when_stamped_today():
+    """bb.py's corridor fallback marks stale=True. Without honouring that flag
+    the restamp check cannot see it — a fallback carries a recent as_of, so it
+    would read "fresh" while printing a last-known constant."""
+    today = date(2026, 4, 21)
+    m = _m("x", today, "event")
+    m.stale = True
+    assert metric_freshness(m, today=today) == "stale"
+
+
+def test_event_none_value_still_unavailable_not_stale():
+    """The value=None check must keep running BEFORE the event branch."""
+    today = date(2026, 4, 21)
+    m = _m("x", date(2025, 1, 1), "event", value=None)
+    assert metric_freshness(m, today=today) == "unavailable"
 
 
 def test_metric_with_none_value_is_unavailable():

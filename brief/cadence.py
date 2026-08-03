@@ -56,6 +56,21 @@ _THRESHOLDS = {
     "quarterly": (95, 120),
 }
 
+# `event` cadence covers STANDING values (the BB policy corridor) that hold
+# between decisions, so their as_of is a daily RESTAMP date, not a decision date
+# (AGENTS.md landmine 24). Ageing them like a periodic series would flag a
+# six-year-old policy rate as stale when it is genuinely the rate in force.
+#
+# But "the as_of means nothing" was read as "never check the as_of", which left
+# event metrics unable to report staleness under ANY circumstance. That is the
+# wrong invariant: a standing value is only trustworthy while its writer keeps
+# CONFIRMING it. If EconDelta stops restamping the corridor, The Brief has no
+# evidence the printed rate is still in force — and used to keep printing it as
+# "fresh" indefinitely. These bounds are a writer-liveness check, not a
+# value-age check: same numbers as `weekly`, because a restamped-daily row that
+# has not moved in over a week means the writer is down.
+_EVENT_RESTAMP_THRESHOLDS = (7, 10)  # (fresh_max, warning_max) days since restamp
+
 
 def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessKind:
     """Freshness per spec §6. Trading-day-aware for daily cadence only."""
@@ -67,7 +82,18 @@ def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessK
         return "unavailable"
 
     if metric.cadence == "event":
-        return "fresh"
+        # Fallback-sourced (history unreachable / row missing): the builder
+        # already knows this value is last-known rather than confirmed, and
+        # stamps as_of=today, so the restamp check below cannot see it.
+        if metric.stale:
+            return "stale"
+        days = (today - metric.as_of).days
+        fresh_max, warn_max = _EVENT_RESTAMP_THRESHOLDS
+        if days <= fresh_max:
+            return "fresh"
+        if days <= warn_max:
+            return "warning"
+        return "stale"
 
     if metric.cadence == "daily":
         gap = trading_days_between(metric.as_of, today)
