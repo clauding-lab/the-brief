@@ -6,7 +6,7 @@ import { BankerRead } from "./BankerRead";
 import { SignatureChart } from "./SignatureChart";
 import { BriefChart } from "./BriefChart";
 import { SECTION_TO_CHART, CHART_CARD_HEADS } from "@/lib/chartConfigs";
-import { formatNewsMeta, cleanMetricValue } from "@/lib/format";
+import { formatNewsMeta, cleanMetricValue, formatVintageDate } from "@/lib/format";
 
 interface SectionProps {
   section: SectionType;
@@ -201,9 +201,14 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
                       )}
                     </div>
                     {m.sub && <div className="tb-kpi-sub">{m.sub}</div>}
-                    {m.held_from && !m.changed && (
+                    {/* Vintage footer. Shown even when `changed` is true: a
+                        number can move and still be five months old — the
+                        first issue after a source repoint is exactly that
+                        case, and that is precisely when the reader needs the
+                        date most. */}
+                    {m.held_from && (
                       <div className="tb-held-footer">
-                        Held from {m.held_from}
+                        As of {formatVintageDate(m.held_from)}
                         {m.next_print ? ` · next print ${m.next_print}` : ""}
                       </div>
                     )}

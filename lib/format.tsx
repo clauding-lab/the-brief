@@ -22,6 +22,24 @@ export function formatBriefDate(s?: string): string {
   return `${parts.weekday} · ${parts.day} ${parts.month} ${parts.year}`;
 }
 
+/** "01 Mar 2026" — the as-of date on a metric that is older than its cadence.
+ *
+ * Forced to Asia/Dhaka like every other date formatter here, so the server (UTC)
+ * and the client (BDT) can't disagree across the hydration boundary. `held_from`
+ * arrives as a bare ISO date, which `new Date()` reads as UTC midnight — in any
+ * timezone behind UTC that would render as the previous day. */
+export function formatVintageDate(s?: string | null): string {
+  if (!s) return "";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Dhaka",
+  });
+}
+
 export function formatNewsMeta(n: NewsItem): string {
   const parts: string[] = [];
   if (n.published_at) {

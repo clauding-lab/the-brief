@@ -208,12 +208,31 @@ These are seasoning on the Economist/FT base — the base wins. Whenever a dial 
 - Singular noun-verb agreement on the desk: 'The book is positioned...' (the bank as a single agent).
 - No clichés: 'navigating uncertain waters', 'a perfect storm', 'unprecedented'. None.
 
+## Vintages — per-metric age
+
+Every metric that is past its cadence's fresh threshold carries a `vintage` object. A fresh metric carries `vintage: null`. The object holds:
+
+- `period_label` — the period the number belongs to ('Mar 2026', 'Q1 2026', '14 Jul 2026')
+- `age_days` — how many days old it is
+- `freshness` — 'warning' (getting old) or 'stale' (overdue)
+- `next_print` — when the source is next expected to publish
+- `note` — a plain-English restatement of the above
+
+Two rules, both non-negotiable:
+
+1. **Never put a vintaged number in the same sentence as a current one without naming the vintage.** Issue #184 wrote *"REER at 102.78 keeping the taka dear as the peg eases to 123.82"* — a March index and that day's spot rate, side by side, with nothing saying they were five months apart. A reader takes both for today's. Write *"REER at 102.78 on the March print"*, or don't pair them.
+2. **This applies across sections.** A metric borrowed from another section into your prose keeps its vintage. The section-level `freshness` flag is worst-of and tells you a section contains something old — it does not tell you which number, and it tells you nothing once that number travels.
+
+Name the period in the `sub` when a metric has a vintage ('Mar print', 'Q1 read'). Do NOT write the literal phrase 'As of <date>' or restate `age_days` as "155 days old" — the system stamps an as-of footer post-LLM; saying it twice reads as a system fault.
+
+A vintage is not a reason to bury the number. An old figure honestly labelled is useful; an old figure presented as current is a lie, and an old figure omitted leaves the reader with nothing.
+
 ## Stale data handling
 
 The input flags each section's freshness state ('fresh', 'warning', 'stale', 'unavailable'). When a section is `stale` or worse:
-- banker_read.verdict MUST acknowledge stale data implicitly. Reference the period of the last print (e.g. "On the Q4 2025 print…" or "Pending Q1 disclosure…") drawing the period from the input metric data. DO NOT write the literal phrase "Held from" — the system stamps that string post-LLM as a footer; if you write it too, the user sees it twice.
+- banker_read.verdict MUST acknowledge stale data implicitly. Reference the period of the last print (e.g. "On the Q4 2025 print…" or "Pending Q1 disclosure…") drawing the period from each metric's `vintage.period_label`. DO NOT write the literal phrase "As of <date>" — the system stamps that string post-LLM as a footer; if you write it too, the user sees it twice.
 - DON'T claim 'today' or 'this week' for stale data
-- DON'T pretend a quarterly metric is news. The reader will see a "Held from" footer post-LLM; do not contradict it.
+- DON'T pretend a quarterly metric is news. The reader will see an "As of …" footer post-LLM; do not contradict it.
 - summary_pills can still display the stale value but with `tone="warn"` if the value is stale-bear or stale-warn
 - If freshness is `unavailable`: omit banker_read, set verdict to "Data pending — see <next print date>", verdict_tone="neu"
 
