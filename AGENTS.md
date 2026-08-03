@@ -213,6 +213,11 @@ Rules:
 - **When a feature's whole output is "sometimes nothing", assert it produces something.** `stamp_vintages` returns a count and `pipeline_v6` logs `vintaged_metrics=%d` for exactly this reason: a run where that number is 0 across all sections is now visible in the journal.
 - `stamp_vintages` runs after `mark_held_overs` and never overwrites it — if the catalog is ever fixed, the catalog's real last-print date wins over `as_of`, which only approximates it.
 
+**It happened again within the hour.** v1.6.4 — the release that fixed the above — shipped a `vintage.next_print` field that was *also* unreachable by construction: a vintage only exists past the cadence's fresh threshold, and every fresh threshold is longer than that cadence's publication interval (monthly 35 vs 30, weekly 7 vs 7, quarterly 95 vs 91), so the computed "next print" was always already in the past. Two lessons, both cheap:
+
+- **Run it against production before calling it done.** Green tests said nothing; one live run printed *"As of 2026-03-01 · next print Mar 2026"* and the bug was obvious in a glance. For any change to what the brief displays, execute the builder against real Supabase rows and read the output as a reader would.
+- **An `or` in an assertion is a smell.** The v1.6.4 test read `assert next_print == "Mar 2026" or next_print == "Apr 2026"` — written that way because the correct answer wasn't obvious, which is exactly the moment to stop and work it out rather than widen the assertion until it passes. It accepted the broken value on the first run.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.

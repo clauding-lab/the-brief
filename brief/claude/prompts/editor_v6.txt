@@ -215,7 +215,6 @@ Every metric that is past its cadence's fresh threshold carries a `vintage` obje
 - `period_label` — the period the number belongs to ('Mar 2026', 'Q1 2026', '14 Jul 2026')
 - `age_days` — how many days old it is
 - `freshness` — 'warning' (getting old) or 'stale' (overdue)
-- `next_print` — when the source is next expected to publish
 - `note` — a plain-English restatement of the above
 
 Two rules, both non-negotiable:
