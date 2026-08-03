@@ -1,7 +1,14 @@
 """Integration tests for the macro section builder — v1.4.0 enrichment.
 
+v1.6.3 split the read-path: five of the eight metrics now come from the live
+`metric_history` table (three directly, two derived), and only the three with no
+live source anywhere still read `metric_history_monthly`. These tests pass
+`history=None`, so they exercise the ARCHIVE half of that split — which is
+exactly what they were written to protect.
+
 Verifies:
-1. Builder reads 8 monthly metrics from metric_history_monthly.
+1. The archive metrics still read metric_history_monthly, and nothing else does
+   when there is no live client.
 2. Builder attaches history_facts when enough history is available.
 3. CPI 24-month series are fetched for the macro section chart.
 4. Builder degrades gracefully when history_monthly client is None.
@@ -70,11 +77,14 @@ def _history_monthly_with_values(value_map: dict[str, float]) -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# Test 1 — macro builder reads 8 monthly metrics from metric_history_monthly
+# Test 1 — the archive metrics still read metric_history_monthly
 # ---------------------------------------------------------------------------
 
-def test_macro_builder_reads_8_monthly_metrics_from_history_monthly():
-    value_map = {mid: 5.0 + i * 0.1 for i, (mid, *_) in enumerate(_MACRO_METRICS)}
+ARCHIVE_IDS = [spec.archive_id for spec in _MACRO_METRICS if spec.archive_id]
+
+
+def test_macro_builder_reads_archive_metrics_from_history_monthly():
+    value_map = {mid: 5.0 + i * 0.1 for i, mid in enumerate(ARCHIVE_IDS)}
     history_monthly = _history_monthly_with_values(value_map)
 
     ctx = BuilderContext(
@@ -89,9 +99,21 @@ def test_macro_builder_reads_8_monthly_metrics_from_history_monthly():
     metric_ids = [m.id for m in section.metrics]
     assert len(metric_ids) == 8
 
-    expected_ids = [mid for mid, *_ in _MACRO_METRICS]
-    for mid in expected_ids:
-        assert mid in metric_ids, f"Expected {mid} in macro section metrics"
+    # Every PUBLISHED id survives the read-path split, sourced or not.
+    for spec in _MACRO_METRICS:
+        assert spec.id in metric_ids, f"Expected {spec.id} in macro section metrics"
+
+    # The archive three carry values; the live five stay None with no live client
+    # rather than silently falling back to the dead table.
+    by_id = {m.id: m for m in section.metrics}
+    for mid in ARCHIVE_IDS:
+        assert by_id[mid].value is not None, f"{mid} should read from the archive"
+    for spec in _MACRO_METRICS:
+        if spec.archive_id is None:
+            assert by_id[spec.id].value is None, (
+                f"{spec.id} has no live client here and must not fall back to "
+                "metric_history_monthly"
+            )
 
     # Verify get_latest was called with correct table kwarg
     for call in history_monthly.get_latest.call_args_list:
@@ -107,11 +129,8 @@ def test_macro_builder_reads_8_monthly_metrics_from_history_monthly():
 
 def test_macro_builder_attaches_history_facts():
     """Builder should attach history_facts when enough monthly history exists."""
-    # Set current value at a historic low so last_lower_than fires
-    value_map = {}
-    for mid, *_ in _MACRO_METRICS:
-        value_map[mid] = 4.5  # current value = 4.5% (a "new low")
-
+    # Current value sits at a historic low (4.5) against 5.5 history, so
+    # last_higher_than fires for every archive metric.
     mock = MagicMock()
 
     def _get_latest(mid, *, table="metric_history_monthly"):

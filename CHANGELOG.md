@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.3] — 2026-08-03
+
+### Fixed
+- **§03 Macro & Inflation was reading a dead table.** All 8 macro metrics were fetched from `metric_history_monthly`, which has **no live writer** — its newest period is 2026-05-01 and the newest ingest of any kind is a 2023 backfill. Every macro number The Brief has printed since was **155–183 days old**, while EconDelta had current readings for most of them sitting in `metric_history` the whole time. Five of the eight are now repointed; each metric declares where its value comes from instead of all eight sharing one hardcoded table.
+  - **Direct repoint (3):** `cpi_p2p_food_monthly` → `food_inflation`, `cpi_p2p_nonfood_monthly` → `non_food_inflation`, `private_credit_growth_yoy_monthly` → `private_sector_credit_yoy_pct`. Published ids are unchanged — only the source moves.
+  - **Derived (2):** Real Policy Rate = `policy_rate_repo` − `general_inflation`; Import Cover = `gross_reserves_usd_bn` ÷ `monthly_import`. Both formulas were confirmed by reproducing the figures issue #184 actually printed (1.29% = 10.00 − 8.71; 5.86 months implies a 5.82bn monthly bill against a collected 5.8), not inferred from the metric names.
+  - A derived figure is dated by its **stalest** input, never its freshest. #184 printed a March REER beside that day's spot rate in a single clause because nothing recorded that the two were months apart.
+
+### Known limits
+- **Three metrics stay old, and this release does not pretend otherwise.** REER appears in no table, ever. CPI 12-month-average is a different published measure from the point-to-point series EconDelta collects, so it cannot be derived from it. M2 YoY needs 13 months of `broad_money` and only 4 exist. Each needs a scraper, not wiring. They keep reading the archive rather than being blanked, because `section_freshness` is worst-of — so their real age keeps §03 honestly labelled **stale**. The section does **not** start claiming to be fresh because five of its eight metrics now are.
+- History facts ("lowest since…") remain archive-only. The live series hold ~4 months restamped across many dates — `food_inflation` is 37 rows carrying 6 distinct values — so anchors computed over them would be counting restamps as observations. Revisit once the live series carry a year of genuine monthly points.
+
+### Tests
+- `tests/builders/test_macro.py` rewritten around the three-way split: live metrics read `metric_history` and only that table, archive metrics still read `metric_history_monthly`, both derivations reproduce their arithmetic, a derived metric is dated by its stalest input, a missing input or a zero denominator yields `None` rather than an invented number, and a raising history client cannot take the section down.
+- The honesty guard is explicit: with the three archive metrics five months old, `section.freshness == "stale"` — while the five repointed metrics on their own compute `fresh`.
+- Full suite green: **678 passed**.
+
+---
+
 ## [1.6.2] — 2026-08-03
 
 ### Fixed

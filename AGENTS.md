@@ -187,6 +187,20 @@ present, so a tenor point can never occupy a tile slot. (B3 item 11, 2026-07-10.
 
 Cost of getting this wrong: 5 failed publishes across 2026-07-31 (#181, three runs) and 2026-08-02 (#183, two runs), one merged no-op fix, and a silent alarm. See AGENT_LEARNINGS.md 2026-08-02.
 
+## 27. `metric_history_monthly` has NO live writer — treat it as an archive, and never date a derived figure by its freshest input
+
+Two rules from the v1.6.3 macro repoint, both of which had already cost real issues.
+
+**(a) `metric_history_monthly` is dead data.** Its newest period is 2026-05-01 (ingested 2026-05-05) and the newest ingest of any kind is a 2023 backfill. It is not `tb_*`-legacy — EconDelta wrote it — but nothing writes it now, so a reader of it prints numbers that only get older. §03 Macro read all 8 of its metrics from this table and shipped 155–183-day-old figures for months without a single freshness signal firing. **Do not point a new metric at it.** `brief/builders/macro.py` now has each metric declare its own source (`live_id` / `derive` / `archive_id`); copy that shape rather than reintroducing one hardcoded table for a whole section.
+
+Three macro metrics still read it **on purpose**: REER (in no table, ever), CPI 12-month-average (a different published measure from the point-to-point series EconDelta collects — not derivable from it), and M2 YoY (needs 13 months of `broad_money`; 4 exist). Each needs a scraper in EconDelta, not a wiring change here. They are left reading the archive rather than blanked because `section_freshness` is worst-of, so their real age keeps §03 labelled `stale` — **that is load-bearing.** Blanking them or dropping them from the section would flip §03 to `fresh` and re-hide the problem. Delete an archive metric only when its live replacement lands.
+
+**(b) A derived metric is only as current as its OLDEST input.** `_derive` in `macro.py` dates its result `min(as_of)` across inputs. Issue #184 printed *"REER at 102.78 keeping the taka dear as the peg eases to 123.82"* — a March index and that day's spot rate in one clause — because nothing anywhere recorded that the two were months apart. Dating a derivation by its freshest input recreates exactly that. A missing input or a `ZeroDivisionError` returns `None`; half a derivation is not a number.
+
+**(c) Live-series history anchors are not yet trustworthy.** EconDelta restamps monthly concepts daily, so a row count is not a history — `food_inflation` is 37 rows carrying 6 distinct values across 3 months. `MIN_DATA_POINTS["monthly"]` is 6 *real periods*, so "lowest since…" computed over the live table would be counting restamps as observations. History facts stay on the archive metrics until the live series carry a year of genuine monthly points. (This also keeps the builder inside landmine #23 — the archive facts run on the separate `history_monthly` client.)
+
+Live ids confirmed against production 2026-08-03: `food_inflation`, `non_food_inflation`, `private_sector_credit_yoy_pct`, `policy_rate_repo`, `general_inflation`, `gross_reserves_usd_bn`, `monthly_import`.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
