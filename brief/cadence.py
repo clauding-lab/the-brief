@@ -21,8 +21,9 @@ _BD_TRADING_WEEKDAYS = {6, 0, 1, 2, 3}
 # "warming_up" instead of "unavailable" — signalling intentional accumulation,
 # not a data error. Expected to resolve after ~7 V4 pipeline runs.
 # ---------------------------------------------------------------------------
+# "dam" was removed in v1.6.8 along with the builder — see landmine #31.
 SECTIONS_WITHOUT_LEGACY_BACKFILL: frozenset[str] = frozenset({
-    "banking", "macro", "dam", "remit", "fiscal"
+    "banking", "macro", "remit", "fiscal"
 })
 
 

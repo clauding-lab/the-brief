@@ -238,12 +238,27 @@ Removing a builder file is the easy part. Four things have to go, and they fail 
 
 1. **`brief/builders/<id>.py`** — delete it. Anything still importing it fails at *collection*, which is loud and fine.
 2. **`SPINE_BUILDER_IDS`** in `brief/builders/__init__.py` — miss this and `gather()` tries to import a module that is gone.
-3. **`V5_TO_V6`** in `brief/pipeline_v6.py` — this is the quiet one. The map is the gate: `_to_v6_raw` drops any `SectionData` whose id it does not know, and forwards any id it does. A stale entry reserves an ord and a group for a section that can no longer be built; a missing entry silently discards a section that still is. `dam` has been in the second state for months — `brief/builders/dam.py` builds nine food metrics every single day and not one of them has ever reached a reader.
+3. **`V5_TO_V6`** in `brief/pipeline_v6.py` — this is the quiet one. The map is the gate: `_to_v6_raw` drops any `SectionData` whose id it does not know, and forwards any id it does. A stale entry reserves an ord and a group for a section that can no longer be built; a missing entry silently discards a section that still is.
 4. **The retired ord.** Leave the number unused; do not renumber the survivors. Ords only have to sort. Reusing a retired slot re-homes some future section into the dead one's position, and nothing will flag it.
 
 Rules:
 - **Moving a tile between sections is not free — check the destination's tile budget first.** The editor prompt caps a section at 5 metrics and *chooses* which to drop. Gold moved into an `fx` that already held 6, so it would have been landing in a section with no room. Two tiles left to make space: EUR/BDT (the one the editor was already discarding) and `fx_monthly_remittance`, which printed 2.82 bn USD while §11 printed the same BB figure as 2820.0 mn USD — one number, twice, under one label.
 - **Carry the disappearance signal with the tile.** `comm`'s badge went "unavailable" when the snapshot stopped carrying `gold_usd_oz`. `fx` computes its badge from spot rates only, deliberately, so Gold had to be added to `badge_metrics` explicitly. Drop that step and Gold could vanish for months under a green badge — which is exactly how LNG survived 105 days.
+
+**Correction (v1.6.8).** The first draft of this landmine said `dam` was "in the second state" — built daily and dropped by the map. That was wrong, and the mistake is instructive enough to leave on the record. `dam` was never in `ALL_BUILDER_IDS`, and `gather()` iterates exactly that tuple, so `brief/builders/dam.py` was never imported and its nine metrics were never built. **Check the registry before the map.** A file in `brief/builders/` is not evidence that anything runs it; the tuple in `__init__.py` is the only thing that decides.
+
+## 31. A dormant builder file is not harmless — it lies to the next reader, and it can leave live entries behind
+
+`brief/builders/dam.py` (DAM Food Prices, nine items) shipped in the original 9-builder batch, was never registered, and sat unimported for months. Deleted in v1.6.8.
+
+The cost was not runtime — there was none. It was that the file existed, looked complete, and made a section that had never once run appear to be part of the product. It cost real diagnostic time twice, including an incorrect finding published to the owner.
+
+Worse, it had left a live entry behind it. `SECTIONS_WITHOUT_LEGACY_BACKFILL` in `brief/cadence.py` still listed `"dam"`. That set promotes an "unavailable" badge to **"warming_up"** — "history is accumulating, expect this shortly" — a promise made on behalf of a section that could not exist and so could never be kept. Nothing anywhere would have reported that.
+
+Rules:
+- **`ls brief/builders/` is not the section list. `ALL_BUILDER_IDS` is.** Before reasoning about what a builder does in production, confirm something actually calls it.
+- **When you delete a builder, grep the id across `brief/` — not just the registry and the map.** Freshness sets, cadence overrides, validator allowlists and chart-series maps all key off section ids and none of them fail loudly on a stale entry. A test now pins that every id in `SECTIONS_WITHOUT_LEGACY_BACKFILL` is a buildable section.
+- **Deleting a reader does not delete the data.** EconDelta still collects these prices; The Brief simply stopped carrying a tile for them. If Food Prices is ever wanted, it comes back as a new builder against live data — not by reviving this file, whose nine ids had been frozen at identical values for 92 days.
 
 ## Communication & timezone
 
