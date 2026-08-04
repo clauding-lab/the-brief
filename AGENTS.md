@@ -82,7 +82,7 @@ These are shape rules that govern HOW code/configs/data are named, structured, a
 
 - **Timestamps:** stored as UTC ISO 8601 in Supabase (`as_of`, `posted_at`, `published_at`, `created_at`). The SPA formats to BDT (`Asia/Dhaka`) at render via `lib/format.tsx`. Never do timezone math in JS where Python could pin it; see landmine #10.
 - **Long View schema:** `content/long-view.ts` exports a `LongViewData` from `types/brief.ts`. Five block kinds are exhaustive: `prose`, `comparison`, `stat`, `bullet-list`, `bar-chart`. The recipe for adding/replacing a pin lives at `docs/longview-workflow.md` — follow it exactly.
-- **Chart series IDs:** `brief/chart_series_fetcher.py` reads from Supabase `metric_history`. Live IDs: `brent_crude_usd_barrel`, `dsex`, `tbond_bond_5y`, `tbond_bond_10y`, `tbill_91d_yield_pct`, `tbill_182d_yield`, `tbill_364d_yield`. `comm_lng_jkm` exists but has no scraper. See landmine #6 for the "legacy vs live" map.
+- **Chart series IDs:** `brief/chart_series_fetcher.py` reads from Supabase `metric_history`. Live IDs: `brent_crude_usd_barrel`, `dsex`, `tbond_bond_5y`, `tbond_bond_10y`, `tbill_91d_yield_pct`, `tbill_182d_yield`, `tbill_364d_yield`. `comm_lng_jkm` exists but has no scraper and is no longer read by anything (v1.6.6 repointed the comm builder to `lng_price_usd_mmbtu`, which EconDelta's World Bank Pink Sheet scraper writes monthly — a Japan *import* price, not the JKM spot marker, hence the different label). See landmine #6 for the "legacy vs live" map.
 - **Section ordering:** sections render in `group_key` order. Group dividers and stale collapsing are in `app/components/ClientApp.tsx`. Each section carries `freshness` and `pills` populated by the pipeline.
 - **Editor / sub-editor split:** the Python pipeline uses two Claude calls per brief — an "editor" mega-prompt that drafts, then a "sub-editor" self-review that returns a `pass | fail` verdict. The editor is in `brief/claude/editor.py`; the sub-editor is in `brief/claude/subeditor.py`. Exit code `4` means the sub-editor failed.
 - **CSS-only / docs-as-separate-PR rule:** typo fixes in prose copy and CSS-only tweaks don't need a version bump or a CHANGELOG entry. Substantial component/pipeline changes do. Master.md, Design.md, and `docs/longview-workflow.md` edits should ship in their own PR to keep diffs clean.
@@ -217,6 +217,18 @@ Rules:
 
 - **Run it against production before calling it done.** Green tests said nothing; one live run printed *"As of 2026-03-01 · next print Mar 2026"* and the bug was obvious in a glance. For any change to what the brief displays, execute the builder against real Supabase rows and read the output as a reader would.
 - **An `or` in an assertion is a smell.** The v1.6.4 test read `assert next_print == "Mar 2026" or next_print == "Apr 2026"` — written that way because the correct answer wasn't obvious, which is exactly the moment to stop and work it out rather than widen the assertion until it passes. It accepted the broken value on the first run.
+
+## 29. A metric wired to an id nobody writes is invisible — and it fakes a "warming up" badge
+
+Three ids shipped inside live sections and had **never had a single row**, in `metric_history` or `metric_history_monthly`, since the tables existed: `fiscal_nbr_target_trn`, `fiscal_adp_pct`, `remit_yoy_pct`. Removed in v1.6.6. A fourth, `comm_lng_jkm`, had 12 rows from a hand-run ingest, died 2026-04-20, and kept printing 15.00 USD/MMBtu for 105 days.
+
+The blank tile was the harmless half. The damage was to the badge: `value is None` scores "unavailable", and `section_freshness` promotes that to **"warming_up"** for the five `SECTIONS_WITHOUT_LEGACY_BACKFILL` sections. So `fiscal` and `remit` told every reader that data was accumulating and would arrive shortly — for ids with nothing behind them, indefinitely. Both read "fresh" once the dead metrics were unwired, which is what their live numbers had been all along.
+
+Rules:
+- **Before adding a metric to a builder, confirm the id has rows.** `metric_history?select=as_of,value&metric_id=eq.<id>&limit=1`. A builder is a *reader*; wiring one up does not cause anything to write.
+- **"warming_up" is a promise with a deadline.** It means "history is accumulating, expect this to resolve in ~7 runs". If a section has worn it for months, the cause is a dead id, not a slow one — go and check rather than assume the backfill is still catching up.
+- **Repoint, don't just re-source.** `comm_lng_jkm` (JKM spot marker) and `lng_price_usd_mmbtu` (Pink Sheet's Japan *import* price) are different numbers. When you move a tile to a new series, the label and `source` move with it, or you have printed one market's price under another market's name.
+- **Related, and NOT yet fixed:** a **future-dated `as_of` reads as "fresh"** and gets no vintage — every branch of `metric_freshness` computes `today - as_of` and compares upward, so a negative age lands in the first bucket. EconDelta writes IMF projections dated 2027–2031 into `debt_gdp_ratio` (an actuals id, ingested 2026-08-02). No Brief builder reads that id today, which is the only reason it has not printed a 2031 forecast as this morning's number. Note that some future stamps are legitimate — the Pink Sheet stamps `as_of` at the reporting month's last day — so the fix is a per-cadence tolerance, not a blanket rejection.
 
 ## Communication & timezone
 
