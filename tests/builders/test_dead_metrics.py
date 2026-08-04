@@ -1,9 +1,14 @@
-"""Tests for v1.6.6: the three never-written metrics, and the LNG repoint.
+"""Tests for v1.6.6: the three never-written metrics.
 
 Three ids were wired into shipping sections and had never had a single row in
 `metric_history` or `metric_history_monthly` — `fiscal_nbr_target_trn`,
-`fiscal_adp_pct`, `remit_yoy_pct`. A fourth, `comm_lng_jkm`, had 12 rows and
-then died on 2026-04-20, and kept printing 15.00 USD/MMBtu for 105 days.
+`fiscal_adp_pct`, `remit_yoy_pct`.
+
+A fourth, `comm_lng_jkm`, had 12 rows and then died on 2026-04-20, and kept
+printing 15.00 USD/MMBtu for 105 days. v1.6.6 repointed it to the live Pink
+Sheet series; v1.6.7 retired the whole Commodities section, so the LNG cases
+that used to live here now have nothing to assert against. What replaced them
+is in test_commodities_retired.py.
 
 The property worth protecting is not "these labels are gone". It is that a
 section's freshness badge means what it says. A None-valued metric scores
@@ -17,7 +22,6 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from brief.builders import BuilderContext
-from brief.builders.comm import build as build_comm
 from brief.builders.fiscal import build as build_fiscal
 from brief.builders.remit import build as build_remit
 from brief.econdelta import EconDeltaSnapshot
@@ -52,7 +56,6 @@ LIVE = {
     "fiscal_nbr_collected_trn": _row("fiscal_nbr_collected_trn", 3.61, AUG3),
     "fiscal_govt_borrow_trn": _row("fiscal_govt_borrow_trn", 0.94, JUN30),
     "remit_monthly_mn": _row("remit_monthly_mn", 2820.0, AUG3),
-    "lng_price_usd_mmbtu": _row("lng_price_usd_mmbtu", 12.83, JUN30),
 }
 
 
@@ -112,49 +115,3 @@ def test_a_genuinely_missing_row_still_degrades_the_section() -> None:
     s = build_remit(_ctx(live={}))
     assert s.metrics[0].value is None
     assert s.freshness == "warming_up"
-
-
-# ── the LNG repoint ──────────────────────────────────────────────────────────
-
-def test_lng_reads_the_live_series_not_the_dead_one() -> None:
-    ctx = _ctx()
-    build_comm(ctx)
-    seen = ctx.history.ids_seen  # type: ignore[union-attr]
-    assert "lng_price_usd_mmbtu" in seen
-    assert "comm_lng_jkm" not in seen
-
-
-def test_lng_is_relabelled_to_the_series_it_now_prints() -> None:
-    """The Pink Sheet's "Liquefied natural gas, Japan" is Japan's monthly average
-    IMPORT price. JKM is a spot cargo marker. They are different numbers, so
-    carrying the old label over the new value would misname the market — and
-    this brief's readers price LNG for a living."""
-    lng = next(m for m in build_comm(_ctx()).metrics if m.id == "lng_price_usd_mmbtu")
-    assert lng.label == "LNG (Japan)"
-    assert "JKM" not in lng.label
-    assert lng.source == "World Bank Pink Sheet"
-    assert lng.value == 12.83
-
-
-def test_lng_cadence_matches_the_pink_sheets_monthly_publication() -> None:
-    """It was `weekly` under JKM. A monthly series judged on a weekly clock reads
-    stale within days of every print — the badge would cry wolf every month."""
-    lng = next(m for m in build_comm(_ctx()).metrics if m.id == "lng_price_usd_mmbtu")
-    assert lng.cadence == "monthly"
-
-
-def test_a_frozen_pink_sheet_still_surfaces_as_old() -> None:
-    """The upstream scraper's download URL is edition-pinned and has silently
-    frozen before. The point of the repoint is not that this source is perfect —
-    it is that when it stalls, the number says so instead of going quiet."""
-    from brief.vintage import metric_vintage
-
-    stale_row = {"lng_price_usd_mmbtu": _row("lng_price_usd_mmbtu", 12.83, date(2026, 1, 31))}
-    lng = next(
-        m for m in build_comm(_ctx(live=stale_row)).metrics
-        if m.id == "lng_price_usd_mmbtu"
-    )
-    v = metric_vintage(lng, today=AUG3)
-    assert v is not None
-    assert v.label == "Jan 2026"
-    assert "overdue" in v.note

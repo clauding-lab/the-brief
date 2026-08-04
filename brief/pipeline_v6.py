@@ -50,7 +50,9 @@ V5_TO_V6: dict[str, tuple[str, int, str]] = {
     "macro":     ("macro",     9, "markets"),
     "iranwar":   ("iran",      10, "policy"),
     "remit":     ("remit",     11, "markets"),
-    "comm":      ("comm",      12, "markets"),
+    # "comm" removed in v1.6.7 — see brief/builders/__init__.py. Ord 12 is left
+    # unused rather than renumbered: ord only has to sort, and reusing a retired
+    # slot would silently re-home a future section into Commodities' place.
 }
 
 
