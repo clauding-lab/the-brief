@@ -22,7 +22,7 @@ def test_builder_smokes(bid, ctx):
         "bb": "bb", "macro": "macro", "fx": "fx", "remit": "remit",
         "dse": "dse", "tbond": "tbond", "iranwar": "iranwar",
         "headlines": "headlines", "exec": "exec",
-        "comm": "comm", "banking": "banking",
+        "banking": "banking",
         "dam": "dam", "fiscal": "fiscal",
     }[bid]
     assert section.freshness in (

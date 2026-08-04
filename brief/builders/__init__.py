@@ -5,10 +5,14 @@ Keep  = useful context; may degrade silently to last-known or unavailable.
 """
 from __future__ import annotations
 
+# v1.6.7 dropped "comm" (Commodities). Its two tiles were Gold and LNG; LNG's
+# only live series is a monthly Pink Sheet print that had been dead 105 days
+# before v1.6.6 repointed it, and Gold now lives in `fx` as a reserve-asset
+# reading. A one-tile section is not a section.
 SPINE_BUILDER_IDS: tuple[str, ...] = (
     "bb", "macro", "fx", "dse", "tbond", "iranwar",
     "headlines", "exec",
-    "fiscal", "remit", "comm",
+    "fiscal", "remit",
 )
 
 KEEP_BUILDER_IDS: tuple[str, ...] = ("banking",)

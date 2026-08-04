@@ -82,7 +82,7 @@ These are shape rules that govern HOW code/configs/data are named, structured, a
 
 - **Timestamps:** stored as UTC ISO 8601 in Supabase (`as_of`, `posted_at`, `published_at`, `created_at`). The SPA formats to BDT (`Asia/Dhaka`) at render via `lib/format.tsx`. Never do timezone math in JS where Python could pin it; see landmine #10.
 - **Long View schema:** `content/long-view.ts` exports a `LongViewData` from `types/brief.ts`. Five block kinds are exhaustive: `prose`, `comparison`, `stat`, `bullet-list`, `bar-chart`. The recipe for adding/replacing a pin lives at `docs/longview-workflow.md` — follow it exactly.
-- **Chart series IDs:** `brief/chart_series_fetcher.py` reads from Supabase `metric_history`. Live IDs: `brent_crude_usd_barrel`, `dsex`, `tbond_bond_5y`, `tbond_bond_10y`, `tbill_91d_yield_pct`, `tbill_182d_yield`, `tbill_364d_yield`. `comm_lng_jkm` exists but has no scraper and is no longer read by anything (v1.6.6 repointed the comm builder to `lng_price_usd_mmbtu`, which EconDelta's World Bank Pink Sheet scraper writes monthly — a Japan *import* price, not the JKM spot marker, hence the different label). See landmine #6 for the "legacy vs live" map.
+- **Chart series IDs:** `brief/chart_series_fetcher.py` reads from Supabase `metric_history`. Live IDs: `brent_crude_usd_barrel`, `dsex`, `tbond_bond_5y`, `tbond_bond_10y`, `tbill_91d_yield_pct`, `tbill_182d_yield`, `tbill_364d_yield`. `comm_lng_jkm` and `lng_price_usd_mmbtu` are both dead to this repo as of v1.6.7: the Commodities section that read them was retired (see landmine #30), so no builder asks for either id. See landmine #6 for the "legacy vs live" map.
 - **Section ordering:** sections render in `group_key` order. Group dividers and stale collapsing are in `app/components/ClientApp.tsx`. Each section carries `freshness` and `pills` populated by the pipeline.
 - **Editor / sub-editor split:** the Python pipeline uses two Claude calls per brief — an "editor" mega-prompt that drafts, then a "sub-editor" self-review that returns a `pass | fail` verdict. The editor is in `brief/claude/editor.py`; the sub-editor is in `brief/claude/subeditor.py`. Exit code `4` means the sub-editor failed.
 - **CSS-only / docs-as-separate-PR rule:** typo fixes in prose copy and CSS-only tweaks don't need a version bump or a CHANGELOG entry. Substantial component/pipeline changes do. Master.md, Design.md, and `docs/longview-workflow.md` edits should ship in their own PR to keep diffs clean.
@@ -229,6 +229,21 @@ Rules:
 - **"warming_up" is a promise with a deadline.** It means "history is accumulating, expect this to resolve in ~7 runs". If a section has worn it for months, the cause is a dead id, not a slow one — go and check rather than assume the backfill is still catching up.
 - **Repoint, don't just re-source.** `comm_lng_jkm` (JKM spot marker) and `lng_price_usd_mmbtu` (Pink Sheet's Japan *import* price) are different numbers. When you move a tile to a new series, the label and `source` move with it, or you have printed one market's price under another market's name.
 - **Related, and NOT yet fixed:** a **future-dated `as_of` reads as "fresh"** and gets no vintage — every branch of `metric_freshness` computes `today - as_of` and compares upward, so a negative age lands in the first bucket. EconDelta writes IMF projections dated 2027–2031 into `debt_gdp_ratio` (an actuals id, ingested 2026-08-02). No Brief builder reads that id today, which is the only reason it has not printed a 2031 forecast as this morning's number. Note that some future stamps are legitimate — the Pink Sheet stamps `as_of` at the reporting month's last day — so the fix is a per-cadence tolerance, not a blanket rejection.
+
+## 30. Retiring a section means four deletions, and the map entry is the one that matters
+
+v1.6.7 removed **Commodities** (`comm`). It had two tiles: LNG, whose only source had frozen for 105 days before v1.6.6 repointed it, and Gold, which moved into `fx` as a reserve asset. A one-tile section is not a section.
+
+Removing a builder file is the easy part. Four things have to go, and they fail differently:
+
+1. **`brief/builders/<id>.py`** — delete it. Anything still importing it fails at *collection*, which is loud and fine.
+2. **`SPINE_BUILDER_IDS`** in `brief/builders/__init__.py` — miss this and `gather()` tries to import a module that is gone.
+3. **`V5_TO_V6`** in `brief/pipeline_v6.py` — this is the quiet one. The map is the gate: `_to_v6_raw` drops any `SectionData` whose id it does not know, and forwards any id it does. A stale entry reserves an ord and a group for a section that can no longer be built; a missing entry silently discards a section that still is. `dam` has been in the second state for months — `brief/builders/dam.py` builds nine food metrics every single day and not one of them has ever reached a reader.
+4. **The retired ord.** Leave the number unused; do not renumber the survivors. Ords only have to sort. Reusing a retired slot re-homes some future section into the dead one's position, and nothing will flag it.
+
+Rules:
+- **Moving a tile between sections is not free — check the destination's tile budget first.** The editor prompt caps a section at 5 metrics and *chooses* which to drop. Gold moved into an `fx` that already held 6, so it would have been landing in a section with no room. Two tiles left to make space: EUR/BDT (the one the editor was already discarding) and `fx_monthly_remittance`, which printed 2.82 bn USD while §11 printed the same BB figure as 2820.0 mn USD — one number, twice, under one label.
+- **Carry the disappearance signal with the tile.** `comm`'s badge went "unavailable" when the snapshot stopped carrying `gold_usd_oz`. `fx` computes its badge from spot rates only, deliberately, so Gold had to be added to `badge_metrics` explicitly. Drop that step and Gold could vanish for months under a green badge — which is exactly how LNG survived 105 days.
 
 ## Communication & timezone
 

@@ -2,11 +2,12 @@ from brief.builders import SPINE_BUILDER_IDS, KEEP_BUILDER_IDS, ALL_BUILDER_IDS
 
 
 def test_spine_ids_post_exclude():
-    """nbr dropped from spine; dam remains excluded. Spine now has 11 sections."""
+    """nbr dropped from spine; dam remains excluded; comm retired in v1.6.7.
+    Spine now has 10 sections."""
     assert SPINE_BUILDER_IDS == (
         "bb", "macro", "fx", "dse", "tbond", "iranwar",
         "headlines", "exec",
-        "fiscal", "remit", "comm",
+        "fiscal", "remit",
     )
 
 

@@ -11,7 +11,7 @@ def _snap():
         sources_status={"bb_forex": {"status": "ok", "age_hours": 0.08}},
         data={
             "usd_bdt_mid": 122.70,
-            "eur_bdt": 144.34,
+            "gold_usd_oz": 3310.5,
         },
     )
 
@@ -33,26 +33,30 @@ class _Row:
 
 
 def test_fx_post_2026_05_03_layout():
-    """USD/BDT spot + 4 cross-section external-balance metrics."""
+    """USD/BDT spot + Gold + 3 cross-section external-balance metrics.
+
+    v1.6.7 reshaped this section: EUR/BDT and the duplicate remittance tile went
+    out, Gold came in from the retired `comm` section, leaving exactly the 5
+    metrics the editor prompt will publish.
+    """
     history = _FakeHistory({
         "gross_reserves_usd_bn": _Row(35.04, date(2026, 4, 15)),
         "monthly_export":        _Row(3.48,  date(2026, 3, 31)),
         "monthly_import":        _Row(6.48,  date(2026, 3, 31)),
-        "monthly_remittance":    _Row(3.755, date(2026, 3, 31)),
     })
     ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 4, 21))
     s = build(ctx)
     assert s.id == "fx"
     by_id = {m.id: m for m in s.metrics}
-    assert {"fx_usd_bdt_mid", "fx_eur_bdt",
-            "fx_gross_reserves", "fx_monthly_exports",
-            "fx_trade_gap", "fx_monthly_remittance"} <= set(by_id)
+    assert set(by_id) == {"fx_usd_bdt_mid", "fx_gold_usd_oz",
+                          "fx_gross_reserves", "fx_monthly_exports",
+                          "fx_trade_gap"}
     assert by_id["fx_usd_bdt_mid"].value == 122.70
+    assert by_id["fx_gold_usd_oz"].value == 3310.5
     assert by_id["fx_gross_reserves"].value == 35.04
     assert by_id["fx_monthly_exports"].value == 3.48
     # Trade gap = exports − imports = 3.48 − 6.48 = −3.0
     assert by_id["fx_trade_gap"].value == -3.0
-    assert by_id["fx_monthly_remittance"].value == 3.755
 
 
 def test_fx_trade_gap_null_when_legs_missing():
@@ -77,16 +81,16 @@ def test_fx_external_metrics_null_when_history_unavailable():
     assert by_id["fx_gross_reserves"].value is None
     assert by_id["fx_monthly_exports"].value is None
     assert by_id["fx_trade_gap"].value is None
-    assert by_id["fx_monthly_remittance"].value is None
-    # Spot rates still pulled from snapshot
+    # Spot rate and Gold still pulled from the snapshot, which needs no history
     assert by_id["fx_usd_bdt_mid"].value == 122.70
+    assert by_id["fx_gold_usd_oz"].value == 3310.5
 
 
 def test_fx_unavailable_when_all_values_none():
     snap = EconDeltaSnapshot(
         updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
         sources_status={"bb_forex": {"status": "error", "age_hours": 72.0}},
-        data={"usd_bdt_mid": None, "eur_bdt": None},
+        data={"usd_bdt_mid": None, "gold_usd_oz": None},
     )
     ctx = BuilderContext(snapshot=snap, history=None, today=date(2026, 4, 21))
     s = build(ctx)

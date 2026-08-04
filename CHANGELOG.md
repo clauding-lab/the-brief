@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.7] — 2026-08-04
+
+### Removed
+- **§12 Commodities is gone.** It carried two tiles. LNG's only live source is a World Bank Pink Sheet series whose download URL is edition-pinned upstream and has frozen silently before — v1.6.6 had just repointed it off `comm_lng_jkm`, which died 2026-04-20 after printing the same 15.00 for 105 days. Gold was the only genuine daily reading in the section, and a one-tile section is not a section. LNG is not re-homed: a monthly Japanese contract-average import price is a commodity-desk number, and this brief is not a commodity desk.
+- `brief/builders/comm.py` deleted; `comm` dropped from `SPINE_BUILDER_IDS` and from `V5_TO_V6`. **Ord 12 is left unused rather than renumbered** — ords only have to sort, and reusing a retired slot would silently re-home whichever future section inherited it.
+- **`fx_monthly_remittance`, a duplicate.** §05 printed it as "2.82 bn USD" while §11 Remittance printed `remit_monthly_mn` as "2820.0 mn USD" — the same Bangladesh Bank figure, twice, in one issue, under one label. The copy went; §11 is the section that exists to report it.
+- **`fx_eur_bdt`.** The editor prompt caps a section at 5 metrics and *chooses* which to drop; EUR/BDT was the one it was already discarding on its own.
+
+### Changed
+- **Gold moved to §05 FX & External**, unchanged in value, unit, source and cadence — it reads the same `gold_usd_oz` key off the same EconDelta snapshot. It is a reserve asset, so it sits with reserves rather than in a card of its own. FX now ships exactly 5 metrics, which is the cap, so every remaining tile publishes instead of competing for a slot.
+- **Gold joins the FX freshness badge.** FX computes its badge from spot rates only — deliberately, so that a 30-day-old reserves print does not drag the whole section into "stale". Gold is stamped with today's date every run and so can never age into stale, but a snapshot that stops carrying `gold_usd_oz` yields `value = None`, which scores "unavailable". Adding it keeps the disappearance visible. `comm`'s badge used to provide that signal, and dropping it silently would have been the regression — it is how LNG survived 105 days.
+
+### Known limits
+- **This does not fix the class of bug that killed the LNG tile.** A frozen series that keeps a fresh timestamp still reads green anywhere it is daily-restamped. That is now the third occurrence in this codebase (policy rate, DAM food prices, gross reserves), and stillness detection is proposed separately, not smuggled into a section removal.
+- **`brief/builders/dam.py` still builds nine food-price metrics every day that no reader ever sees** — `dam` is absent from `V5_TO_V6`, and that map drops what it does not know. Ship-or-delete is a decision, not a cleanup, so it is left for its own change. Recorded as landmine 30.
+
+### Tests
+- 10 new tests in `tests/builders/test_commodities_retired.py`, organised around the three ways a section removal goes half-right: the slug surviving in a map the builder no longer backs, Gold's *value* silently changing during the move, and Gold's disappearance ceasing to be visible. Plus one in `tests/test_pipeline_v6_phase_a_sections.py` pinning that `_to_v6_raw` **drops** a section id the map does not know — which is both why the map entry had to go and why `dam` has never shipped.
+- Full suite green: **716 passed**.
+
+---
+
 ## [1.6.6] — 2026-08-03
 
 ### Removed
