@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.8] — 2026-08-04
+
+### Removed
+- **`brief/builders/dam.py` (DAM Food Prices, nine items) is deleted.** It shipped in the original 9-builder batch, was never registered, and had never run: `gather()` iterates `ALL_BUILDER_IDS`, `dam` was in neither `SPINE_BUILDER_IDS` nor `KEEP_BUILDER_IDS`, so the module was never imported and its nine metrics were never built. Removed at the owner's decision after the alternative — shipping it — was weighed and declined: its nine ids had been frozen at byte-identical values for **92 days**, so publishing the section would have meant putting a three-month-old rice price in front of a bank treasury.
+- **`"dam"` removed from `SECTIONS_WITHOUT_LEGACY_BACKFILL`** in `brief/cadence.py`. This is the part that was live. Membership in that set promotes an "unavailable" badge to **"warming_up"** — "history is accumulating, expect this shortly". It was making that promise on behalf of a section that could not exist, so it could never be kept, and nothing anywhere would have reported it.
+
+### Fixed (documentation)
+- **A wrong finding published in 1.6.7 is corrected.** That release's *Known limits* said `dam` "builds nine food-price metrics every day that no reader ever sees" — built and then discarded by the `V5_TO_V6` map. It was never built. The map was the wrong place to look; the registry tuple decides. The 1.6.7 entry and landmine 30 now carry the correction rather than a silent edit, because "check the registry before the map" is the lesson.
+
+### Known limits
+- **Deleting the reader does not fix the data.** EconDelta still collects these prices and they are still frozen. That is an EconDelta scraper fault and is tracked separately.
+- The upstream cause remains the same class of bug as the policy-rate and gross-reserves incidents: a series that stops moving while its timestamp keeps refreshing reads green everywhere. Stillness detection is the next change.
+
+### Tests
+- 5 new in `tests/builders/test_dam_deleted.py`, including a general-form guard that **every id in `SECTIONS_WITHOUT_LEGACY_BACKFILL` is a section something can actually build** — the leftover that caused this one would now fail at the suite instead of surviving for months.
+- Full suite green: **719 passed**.
+
+---
+
 ## [1.6.7] — 2026-08-04
 
 ### Removed
@@ -20,7 +39,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Known limits
 - **This does not fix the class of bug that killed the LNG tile.** A frozen series that keeps a fresh timestamp still reads green anywhere it is daily-restamped. That is now the third occurrence in this codebase (policy rate, DAM food prices, gross reserves), and stillness detection is proposed separately, not smuggled into a section removal.
-- **`brief/builders/dam.py` still builds nine food-price metrics every day that no reader ever sees** — `dam` is absent from `V5_TO_V6`, and that map drops what it does not know. Ship-or-delete is a decision, not a cleanup, so it is left for its own change. Recorded as landmine 30.
+- **`brief/builders/dam.py` is a nine-metric Food Prices builder that has never run.** Ship-or-delete is a decision, not a cleanup, so it is left for its own change. Recorded as landmine 30. *(Corrected in 1.6.8: this entry first said the section was built daily and dropped by the map. It was not built at all — `dam` is absent from `ALL_BUILDER_IDS`, which is the tuple `gather()` iterates, so the module was never imported. The conclusion was unaffected; the mechanism as published was wrong.)*
 
 ### Tests
 - 10 new tests in `tests/builders/test_commodities_retired.py`, organised around the three ways a section removal goes half-right: the slug surviving in a map the builder no longer backs, Gold's *value* silently changing during the move, and Gold's disappearance ceasing to be visible. Plus one in `tests/test_pipeline_v6_phase_a_sections.py` pinning that `_to_v6_raw` **drops** a section id the map does not know — which is both why the map entry had to go and why `dam` has never shipped.

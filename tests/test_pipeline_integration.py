@@ -11,8 +11,8 @@ def test_gather_returns_11_sections(fixture_snapshot, today):
     sections = gather(cfg, snapshot_override=fixture_snapshot)
     assert len(sections) == 11
     ids = [s.id for s in sections]
-    # nbr dropped (no longer in spine). dam remains excluded. comm retired in
-    # v1.6.7 — Gold moved into fx, LNG went away with the section.
+    # nbr dropped (no longer in spine). comm retired in v1.6.7 — Gold moved
+    # into fx, LNG went away with the section. dam deleted in v1.6.8.
     assert ids == [
         "bb", "macro", "fx", "dse", "tbond", "iranwar",
         "headlines", "exec",
