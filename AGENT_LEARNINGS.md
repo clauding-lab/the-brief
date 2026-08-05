@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-05 — pipeline | Sub-editor gate had a second fail-open door: a well-formed `revise` with no `revised_brief` shipped the unreviewed brief
+
+**Trigger:** external repo audit, adversarially verified by reproducing the failure end-to-end — constructing the exact `SubeditorReview` shape and executing it through the schema/pipeline rather than reading the code and inferring.
+
+**What went wrong:** the 2026-07-09 fix below closed the malformed-JSON escape route but missed a second one in the same gate. `revised_brief` on `SubeditorReview` was `Optional` with no cross-field check, so a well-formed `{verdict:"revise", issues:[{severity:"error", ...}], revised_brief:null}` validated cleanly. `pipeline_v6.run_publish`'s branch only distinguished `revise` from not-`revise`, so the `else` arm ran for this case too, shipped the UNREVISED editor brief, and logged `"subeditor passed with N warnings"` — a false statement, since the verdict was `revise`, not `pass`. Omitting the largest field (`revised_brief`, a full nested brief payload) is the cheapest way for a token-pressured model to still return schema-valid JSON.
+
+**Lesson:** an `Optional` field on an otherwise-strict schema is still a fail-open path. "A review gate must never fail OPEN" (2026-07-09 entry below) applies to every escape route the schema allows, not just the one that broke last time. `test_subeditor_review_revise_requires_brief`'s own docstring had labelled this exact fallback "intentional" — the test was affirming the fail-open path the rule forbids.
+
+**Prevention:** `SubeditorReview` gained a `model_validator(mode="after")` rejecting `verdict="revise"` with `revised_brief=None` at construction — routes into the existing malformed-review retry-then-hold path (`_run_subeditor`), never auto-pass. Because a validator only guards `model_validate` (not `model_construct()` or bare attribute assignment — no `validate_assignment` on this model), `run_publish`'s branch was also rewritten as an explicit `if verdict == "revise" / elif verdict == "pass" / else raise V6PublishError` — the publish gate now enforces "never ship without a revised_brief" as its OWN invariant, not solely the schema's. The gate log only says "passed" on `verdict == "pass"`. The test that had called the fallback "intentional" is flipped to assert the `ValidationError` and now cites this rule in its docstring. New/changed tests: `test_subeditor_revise_without_brief_holds_never_ships_unrevised`, `test_subeditor_revise_without_brief_holds_even_for_warn_only_issues` (severity-blind — the prompt permits fixing warn-only issues via revise, so a future severity-scoped validator would reopen this), `test_publish_gate_holds_on_non_pass_verdict_even_if_validator_bypassed`, and the rewritten `test_subeditor_review_revise_requires_brief`.
+
+**Hotfix:** `brief/v6_schema.py` (`SubeditorReview._revise_requires_brief`) + `brief/pipeline_v6.py` (`run_publish`'s verdict branch, explicit `elif`/`else raise`) — commits `418784c` + `58b9645` on `fix/subeditor-revise-requires-brief`.
+
+**Cross-references:** 2026-07-09 entry below (malformed-review auto-pass — same gate, the escape route this entry closes); AGENTS.md landmine 20 (editor↔sub-editor lockstep); branch `fix/subeditor-revise-requires-brief`.
+
 ## 2026-08-02 — v1.6.1 | The editor was never misbehaving: we read one message of a multi-message answer, and the alarm we built for it could not fire
 
 **Trigger:** `brief.service` failed at 06:44 BDT on a normal Sunday daily (issue #183), then again on a manual re-fire at 07:48 BDT. Identical signature to the three failures of 2026-07-31 (issue #181), which the v1.6.0 hotfix was supposed to have closed.

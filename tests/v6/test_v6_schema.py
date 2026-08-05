@@ -108,8 +108,10 @@ def test_subeditor_review_pass() -> None:
 
 
 def test_subeditor_review_revise_requires_brief() -> None:
-    """Schema doesn't enforce brief presence on revise (intentional — the orchestrator
-    falls back to editor output if revised_brief is missing). Just verify both shapes parse."""
+    """verdict="revise" without a revised_brief must be REJECTED at the schema
+    layer — a review gate must never fail OPEN (AGENT_LEARNINGS.md). Letting a
+    well-formed-but-empty revise through shipped the unrevised editor brief
+    while journaling it as reviewed."""
     review_with = SubeditorReview.model_validate(
         {
             "verdict": "revise",
@@ -126,6 +128,43 @@ def test_subeditor_review_revise_requires_brief() -> None:
     )
     assert review_with.revised_brief is not None
     assert review_with.revised_brief.brief.issue_no == 89
+
+    with pytest.raises(ValidationError, match="revised_brief"):
+        SubeditorReview.model_validate(
+            {
+                "verdict": "revise",
+                "issues": [
+                    {
+                        "section": "fx",
+                        "field": "banker_read.verdict",
+                        "severity": "error",
+                        "problem": "Verdict claims pin holds but trade analysis says depreciating.",
+                    }
+                ],
+                "revised_brief": None,
+            }
+        )
+
+    # Severity-blind: even a warn-only revise (the prompt permits fixing warn
+    # issues via revise, subeditor_v6.txt:116) must still carry a
+    # revised_brief. A future narrowing of the validator to error-severity
+    # issues only would leave this fail-open again — this case pins that
+    # the rule is not severity-scoped.
+    with pytest.raises(ValidationError, match="revised_brief"):
+        SubeditorReview.model_validate(
+            {
+                "verdict": "revise",
+                "issues": [
+                    {
+                        "section": "fx",
+                        "field": "banker_read.verdict",
+                        "severity": "warn",
+                        "problem": "Minor phrasing nit.",
+                    }
+                ],
+                "revised_brief": None,
+            }
+        )
 
 
 def test_subeditor_review_fail() -> None:

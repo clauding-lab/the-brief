@@ -829,12 +829,24 @@ def run_publish(
         # Re-force lens on revised brief
         final_brief.brief.lens = today_lens
         logger.info("v6: subeditor revised brief, %d issues fixed", len(review.issues))
-    else:
+    elif review.verdict == "pass":
         final_brief = editor_brief
         if review.issues:
             logger.info("v6: subeditor passed with %d warnings", len(review.issues))
         else:
             logger.info("v6: subeditor passed clean")
+    else:
+        # A review gate must never fail OPEN (AGENT_LEARNINGS.md). This is
+        # a belt-and-suspenders check: SubeditorReview's model_validator
+        # already rejects verdict="revise" with revised_brief=None at
+        # construction time, but that guarantee is input-shape-only — it
+        # does not survive model_construct() or attribute reassignment
+        # (validate_assignment is not set). Enforce the invariant here too
+        # so the publish gate itself can never ship an unreviewed brief.
+        raise V6PublishError(
+            f"subeditor verdict={review.verdict!r} reached the publish gate "
+            "without a revised_brief — holding (a review gate must never fail OPEN)"
+        )
 
     # ── Post-LLM: deterministic diff + held-over stamping ──────────
     stamp_changed(final_brief, previous)

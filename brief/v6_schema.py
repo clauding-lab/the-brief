@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date as date_t
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Tone = Literal["bull", "bear", "warn", "neu"]
 SectionGroup = Literal["overview", "banking", "markets", "realeco", "policy"]
@@ -228,3 +228,16 @@ class SubeditorReview(_Strict):
     verdict: ReviewVerdict
     issues: list[ReviewIssue] = Field(default_factory=list)
     revised_brief: Optional[BriefPayloadV6] = None
+
+    @model_validator(mode="after")
+    def _revise_requires_brief(self) -> "SubeditorReview":
+        """A review gate must never fail OPEN (AGENT_LEARNINGS.md): verdict="revise"
+        without a revised_brief previously validated cleanly and shipped the
+        unrevised editor brief while the publish log claimed the sub-editor
+        passed. Reject it here so the caller's malformed-review retry-then-hold
+        path (pipeline_v6._run_subeditor) catches it instead."""
+        if self.verdict == "revise" and self.revised_brief is None:
+            raise ValueError(
+                'verdict="revise" requires revised_brief — got None'
+            )
+        return self
