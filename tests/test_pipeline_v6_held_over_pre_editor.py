@@ -65,6 +65,26 @@ def test_compute_is_held_over(cadence, curr_value, prev_value, expected):
         f"expected {expected}, got {actual}"
 
 
+def test_compute_is_held_over_shares_diffs_tolerance_constant(monkeypatch):
+    """_compute_is_held_over must delegate to builders.diff's comparator, not
+    keep its own hard-coded tolerance literal.
+
+    Regression for the two-comparator drift hazard: widening
+    `brief.builders.diff._NUMERIC_TOLERANCE` must widen what
+    `_compute_is_held_over` treats as held-over too. If pipeline_v6 still
+    carries its own inline `1e-6` compare, this value pair (differs by 0.2,
+    well outside 1e-6 but inside a 1.0 tolerance) stays False and this test
+    fails.
+    """
+    from brief.builders import diff as diff_module
+
+    monkeypatch.setattr(diff_module, "_NUMERIC_TOLERANCE", 1.0)
+
+    actual = pipeline_v6._compute_is_held_over(35.73, 35.93, "quarterly")
+
+    assert actual is True
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Integration: is_held_over flows through editor input + lens scorer
 # ──────────────────────────────────────────────────────────────────────

@@ -53,14 +53,53 @@ def _index_previous_metrics(previous_brief: dict[str, Any] | None) -> dict[tuple
     return out
 
 
+_NUMERIC_STRIP = re.compile(r"[^\d.\-]")
+
+# Absolute tolerance (not relative to magnitude) — effectively exact equality
+# for raw-taka figures. Conservative/safe direction; does not scale with value.
+_NUMERIC_TOLERANCE = 1e-6
+
+
+def _parse_numeric(v: Any) -> float | None:
+    """Best-effort parse of a numeric or numeric-prefixed string. None on failure."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        stripped = _NUMERIC_STRIP.sub("", v)
+        if not stripped or stripped in {".", "-", ".-", "-."}:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return None
+    return None
+
+
+def _values_equal(curr: Any, prev: Any) -> bool:
+    """Numeric-tolerant equality for metric value text.
+
+    The editor free-formats the same figure differently across days
+    ('$3.755B' vs '$3.76B' vs '3.755'). Comparing that text as strings
+    reads an unchanged number as a change. Compare as floats when both
+    sides parse as numbers; fall back to string equality otherwise.
+    """
+    curr_num = _parse_numeric(curr)
+    prev_num = _parse_numeric(prev)
+    if curr_num is not None and prev_num is not None:
+        return abs(curr_num - prev_num) < _NUMERIC_TOLERANCE
+    return curr == prev
+
+
 def stamp_changed(current: BriefPayloadV6, previous_brief: dict[str, Any] | None) -> None:
     """Mutate `current` in place: stamp `changed=True/False` on every news + metric.
 
     Rules:
     - News: changed=True if (normalized_headline, source_url) is NOT in previous brief.
-    - Metric: changed=True if (slug, label) IS in previous brief AND value text differs.
+    - Metric: changed=True if (slug, label) IS in previous brief AND value differs
+              (numeric-tolerant compare when both sides parse as numbers, string
+              inequality fallback otherwise — see `_values_equal`).
               changed=True also if (slug, label) is brand new (not in previous).
-              changed=False if (slug, label) matches and value text is identical.
+              changed=False if (slug, label) matches and the value is unchanged.
     - When previous_brief is None: everything is changed=True (cold start).
     """
     prev_news = _index_previous_news(previous_brief)
@@ -76,7 +115,7 @@ def stamp_changed(current: BriefPayloadV6, previous_brief: dict[str, Any] | None
             if key not in prev_metrics:
                 m.changed = True
             else:
-                m.changed = prev_metrics[key] != m.value
+                m.changed = not _values_equal(m.value, prev_metrics[key])
 
 
 _CADENCE_DAYS: dict[str, int] = {

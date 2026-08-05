@@ -161,3 +161,78 @@ def test_no_previous_brief_no_held_overs():
     ]}, {})
     mark_held_overs(current, None, [])
     assert current.sections[0].metrics[0].held_from is None
+
+
+# ─── B4: numeric-tolerant comparator (formatted-value hazard) ────────────
+# stamp_changed used to string-compare the editor's free-form value text
+# across days ('$3.755B' vs '3.755' for an unchanged figure → changed=True),
+# which then made mark_held_overs skip the metric and drop its "Held from
+# ..." footer. These lock in the numeric-tolerant fix.
+
+
+def test_metric_dollar_format_vs_bare_number_marked_false():
+    """'$3.755B' (previous) vs '3.755' (current) → same figure, changed=False."""
+    previous = {"sections": [{
+        "slug": "banking",
+        "metrics": [{"label": "Reserves", "value": "$3.755B"}],
+    }]}
+    current = _make_brief({"banking": [{"label": "Reserves", "value": "3.755"}]}, {})
+    stamp_changed(current, previous)
+    assert current.sections[0].metrics[0].changed is False
+
+
+def test_metric_percent_vs_bare_float_marked_false():
+    """'35.73%' (previous) vs 35.73 (current) → same figure, changed=False.
+
+    Note: MetricV6._coerce_value stringifies the current value to "35.73"
+    before stamp_changed runs, so this exercises the formatted-vs-bare
+    string branch of _values_equal, not its numeric/numeric branch. That
+    branch (both sides real float/int) is covered separately via
+    _compute_is_held_over in tests/test_pipeline_v6_held_over_pre_editor.py.
+    """
+    previous = {"sections": [{
+        "slug": "banking",
+        "metrics": [{"label": "NPL Ratio", "value": "35.73%"}],
+    }]}
+    current = _make_brief({"banking": [{"label": "NPL Ratio", "value": 35.73}]}, {})
+    stamp_changed(current, previous)
+    assert current.sections[0].metrics[0].changed is False
+
+
+def test_metric_genuine_numeric_move_still_marked_true():
+    """3.755 → 3.80 is a real move even though both sides are numeric-formatted."""
+    previous = {"sections": [{
+        "slug": "banking",
+        "metrics": [{"label": "Reserves", "value": "$3.755B"}],
+    }]}
+    current = _make_brief({"banking": [{"label": "Reserves", "value": "$3.80B"}]}, {})
+    stamp_changed(current, previous)
+    assert current.sections[0].metrics[0].changed is True
+
+
+def test_metric_non_numeric_text_change_marked_true():
+    """Non-numeric value text falls back to string inequality → changed=True."""
+    previous = {"sections": [{
+        "slug": "banking",
+        "metrics": [{"label": "Policy Stance", "value": "Hawkish"}],
+    }]}
+    current = _make_brief({"banking": [{"label": "Policy Stance", "value": "Dovish"}]}, {})
+    stamp_changed(current, previous)
+    assert current.sections[0].metrics[0].changed is True
+
+
+def test_numeric_format_variance_unblocks_held_over_stamping(metric_definitions):
+    """The honesty-critical bit: a quarterly metric that's unchanged in value
+    but reformatted by the editor must still get its held-over footer —
+    changed=False from the tolerant compare has to let mark_held_overs proceed.
+    """
+    previous = {"sections": [{
+        "slug": "banking",
+        "metrics": [{"label": "NPL Ratio", "value": "35.73%"}],
+    }]}
+    current = _make_brief({"banking": [{"label": "NPL Ratio", "value": "35.730"}]}, {})
+    stamp_changed(current, previous)
+    m = current.sections[0].metrics[0]
+    assert m.changed is False
+    mark_held_overs(current, previous, metric_definitions)
+    assert m.held_from is not None

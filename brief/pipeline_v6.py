@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import time
 from datetime import date as date_t
 from pathlib import Path
@@ -249,9 +248,6 @@ def _delta_sigma(
     return 0.0
 
 
-_NUMERIC_STRIP = re.compile(r"[^\d.\-]")
-
-
 def _diff_value_to_sigma(curr: Any, prev: Any) -> float:
     """Numeric-tolerant relative-change magnitude for value text.
 
@@ -267,6 +263,8 @@ def _diff_value_to_sigma(curr: Any, prev: Any) -> float:
     Special case: prev numerically zero → return abs(curr) (clamped to 1.0)
     so a metric moving from 0 to non-zero registers as movement, not /0 NaN.
     """
+    from brief.builders.diff import _parse_numeric
+
     a = _parse_numeric(curr)
     b = _parse_numeric(prev)
     if a is None or b is None:
@@ -274,21 +272,6 @@ def _diff_value_to_sigma(curr: Any, prev: Any) -> float:
     if abs(b) < 1e-9:
         return min(abs(a), 1.0)
     return min(abs(a - b) / max(abs(b), 0.5), 1.0)
-
-
-def _parse_numeric(v: Any) -> float | None:
-    """Best-effort parse of a numeric or numeric-prefixed string. None on failure."""
-    if isinstance(v, (int, float)):
-        return float(v)
-    if isinstance(v, str):
-        stripped = _NUMERIC_STRIP.sub("", v)
-        if not stripped or stripped in {".", "-", ".-", "-."}:
-            return None
-        try:
-            return float(stripped)
-        except ValueError:
-            return None
-    return None
 
 
 _HELD_OVER_CADENCES = frozenset({"monthly", "quarterly"})
@@ -310,15 +293,13 @@ def _compute_is_held_over(curr_value: Any, prev_value: Any, cadence: Any) -> boo
 
     Editor reads `is_held_over=True` and skips the metric for cover_metric.
     """
+    from brief.builders.diff import _values_equal
+
     if prev_value is None:
         return False
     if cadence not in _HELD_OVER_CADENCES:
         return False
-    curr_num = _parse_numeric(curr_value)
-    prev_num = _parse_numeric(prev_value)
-    if curr_num is not None and prev_num is not None:
-        return abs(curr_num - prev_num) < 1e-6
-    return curr_value == prev_value
+    return _values_equal(curr_value, prev_value)
 
 
 def _stamp_freshness(final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]) -> None:
