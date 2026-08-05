@@ -293,17 +293,13 @@ def _compute_is_held_over(curr_value: Any, prev_value: Any, cadence: Any) -> boo
 
     Editor reads `is_held_over=True` and skips the metric for cover_metric.
     """
-    from brief.builders.diff import _parse_numeric
+    from brief.builders.diff import _values_equal
 
     if prev_value is None:
         return False
     if cadence not in _HELD_OVER_CADENCES:
         return False
-    curr_num = _parse_numeric(curr_value)
-    prev_num = _parse_numeric(prev_value)
-    if curr_num is not None and prev_num is not None:
-        return abs(curr_num - prev_num) < 1e-6
-    return curr_value == prev_value
+    return _values_equal(curr_value, prev_value)
 
 
 def _stamp_freshness(final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]) -> None:

@@ -182,7 +182,14 @@ def test_metric_dollar_format_vs_bare_number_marked_false():
 
 
 def test_metric_percent_vs_bare_float_marked_false():
-    """'35.73%' (previous) vs 35.73 (current, numeric) → same figure, changed=False."""
+    """'35.73%' (previous) vs 35.73 (current) → same figure, changed=False.
+
+    Note: MetricV6._coerce_value stringifies the current value to "35.73"
+    before stamp_changed runs, so this exercises the formatted-vs-bare
+    string branch of _values_equal, not its numeric/numeric branch. That
+    branch (both sides real float/int) is covered separately via
+    _compute_is_held_over in tests/test_pipeline_v6_held_over_pre_editor.py.
+    """
     previous = {"sections": [{
         "slug": "banking",
         "metrics": [{"label": "NPL Ratio", "value": "35.73%"}],

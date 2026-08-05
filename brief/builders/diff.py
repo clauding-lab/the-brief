@@ -55,6 +55,8 @@ def _index_previous_metrics(previous_brief: dict[str, Any] | None) -> dict[tuple
 
 _NUMERIC_STRIP = re.compile(r"[^\d.\-]")
 
+# Absolute tolerance (not relative to magnitude) — effectively exact equality
+# for raw-taka figures. Conservative/safe direction; does not scale with value.
 _NUMERIC_TOLERANCE = 1e-6
 
 
@@ -113,7 +115,7 @@ def stamp_changed(current: BriefPayloadV6, previous_brief: dict[str, Any] | None
             if key not in prev_metrics:
                 m.changed = True
             else:
-                m.changed = not _values_equal(prev_metrics[key], m.value)
+                m.changed = not _values_equal(m.value, prev_metrics[key])
 
 
 _CADENCE_DAYS: dict[str, int] = {
