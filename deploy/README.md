@@ -129,7 +129,7 @@ logs loudly on its own failures — but something has to be the last turtle.
 
 ## Rollback
 
-See `docs/ops/part2-rollback-runbook.md`. TL;DR: `BRIEF_DRY_RUN=1` in `/etc/brief.env`, `sudo systemctl restart brief.timer`, re-enable GHA schedule in `.github/workflows/daily-update.yml`.
+TL;DR: `BRIEF_DRY_RUN=1` in `/etc/brief.env` to pause sends, `sudo systemctl stop brief.timer`. To roll back the code, `git revert` the bad commit and push to `main` — `brief.service`'s `ExecStartPre` self-pull (`deploy/brief.service:37-39`, see AGENTS.md landmine #21) picks it up at the next fire, or SSH in and `git -C ~/the-brief pull --ff-only origin main` to apply it sooner. There is no GitHub Actions cron to re-enable — the V1 GHA workflow was retired in PR #57 and deleted 2026-05-01.
 
 ## Uninstall
 
