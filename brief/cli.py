@@ -20,6 +20,7 @@ import sys
 import traceback
 from datetime import date
 
+from brief.cadence import now_bdt
 from brief.pipeline import PipelineConfig, gather
 
 
@@ -33,7 +34,7 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     r.add_argument("--dry-run", action="store_true",
                    help="Run the pipeline but do not write to Supabase")
     r.add_argument("--today", default=None,
-                   help="Override today's date (YYYY-MM-DD); default: system date")
+                   help="Override today's date (YYYY-MM-DD); default: BDT date (now_bdt())")
     r.add_argument("--no-notify", action="store_true",
                    help="Skip the subscriber email notifier after a successful publish")
     r.add_argument("--write-fixture", default=None, metavar="PATH",
@@ -158,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         print("--preview-notify requires --write-fixture (nothing to point at otherwise)", file=sys.stderr)
         return 1
 
-    today = date.fromisoformat(ns.today) if ns.today else date.today()
+    today = date.fromisoformat(ns.today) if ns.today else now_bdt().date()
     cfg = PipelineConfig(today=today)
 
     if ns.publish:
