@@ -336,12 +336,24 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
 
-    # V5 input — single section with explicit freshness
+    # V5 input — single section with explicit freshness. Carries the three
+    # PROTECTED_METRIC_IDS corridor metrics so _reconcile_metrics (which now
+    # runs immediately before _stamp_freshness) doesn't hard-fail this test —
+    # sdf-diagnosis-2026-08-05.md §4; see
+    # tests/test_pipeline_v6_metric_reconciliation.py for reconciliation's own
+    # dedicated coverage.
     v5_sections: list[SectionData] = [
         SectionData(
             id="bb",
             title="Bangladesh Bank",
-            metrics=[],
+            metrics=[
+                Metric(id="bb_policy_rate", label="Policy Rate", value=9.50, unit="%",
+                       as_of=date(2026, 5, 4), source="BB", cadence="event"),
+                Metric(id="bb_sdf", label="SDF", value=7.50, unit="%",
+                       as_of=date(2026, 5, 4), source="BB", cadence="event"),
+                Metric(id="bb_slf", label="SLF", value=11.00, unit="%",
+                       as_of=date(2026, 5, 4), source="BB", cadence="event"),
+            ],
             freshness="stale",
             freshness_reason="not refreshed in 14 days",
         ),

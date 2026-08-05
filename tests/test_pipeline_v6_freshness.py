@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from brief import pipeline_v6
-from brief.schema import SectionData
+from brief.schema import Metric, SectionData
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -46,13 +46,25 @@ def test_monday_pipeline_wires_lens_and_stamps(previous_brief, metric_definition
     monkeypatch.setattr(pipeline_v6, "publish_brief",
                         lambda payload: captured.append(payload) or "fake-uuid-123")
 
+    # Metrics mirror the editor_output labels below ("Brent Spot", "NPL Ratio")
+    # so _reconcile_metrics' invented-label reject step doesn't strip them —
+    # a raw builder metrics=[] would make ANY editor-returned metric look
+    # invented (sdf-diagnosis-2026-08-05.md §4; see
+    # tests/test_pipeline_v6_metric_reconciliation.py for reconciliation's own
+    # dedicated coverage).
     fake_sections = [
         SectionData(id="iranwar", title="External", kicker="", tldr="", pull="",
                     freshness="fresh", freshness_reason="",
-                    metrics=[], news=[]),
+                    metrics=[
+                        Metric(id="iran_brent", label="Brent Spot", value=113.95, unit="USD",
+                               as_of=date(2026, 5, 4), source="EIA", cadence="daily"),
+                    ], news=[]),
         SectionData(id="banking", title="Banking", kicker="", tldr="", pull="",
                     freshness="fresh", freshness_reason="",
-                    metrics=[], news=[]),
+                    metrics=[
+                        Metric(id="banking_npl_pct", label="NPL Ratio", value=35.73, unit="pct",
+                               as_of=date(2026, 5, 4), source="BB", cadence="quarterly"),
+                    ], news=[]),
     ]
 
     scraped = [
