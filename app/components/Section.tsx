@@ -186,7 +186,14 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
 
         {metrics.length > 0 && (
           <div className="tb-kpi-rail">
-            {metrics.slice(0, 5).map((m, i, arr) => (
+            {/* Render every stored metric — the tile rail is a vertical
+                flex column (.tb-kpi-rail, app/globals.css) with no fixed
+                row count, so nothing here needs truncation. A prior
+                slice(0, 5) silently dropped any section storing more than
+                5 metrics (e.g. macro's 8-metric editor carve-out), which
+                is a render-layer constraint leaking into the data layer —
+                see AGENTS.md landmine 25. */}
+            {metrics.map((m, i, arr) => (
               <Fragment key={i}>
                 <div
                   className={`tb-kpi-row${
