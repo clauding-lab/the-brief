@@ -15,13 +15,25 @@ from . import BuilderContext
 
 _log = logging.getLogger(__name__)
 
-# Column 0 is BOTH the metric id AND the metric_history fallback key used on
-# non-trading days (`ctx.history.get_latest(mid)`). The DSEX tile's fallback was
-# pinned to the LEGACY `dse_dsex_close` series (frozen at 5,257 / 2026-04-21)
-# while the chart already reads the LIVE `dsex` series — so on any stale day the
-# tile showed a dead number under a live chart. Repointed to `dsex` (landmine #6;
-# same live-vs-legacy split as landmine #1). Landmine #17: a re-point only shows
-# on prod after the next 06:30 BDT publish — verify PROD, not just preview.
+# Column 0 (mid) is the DISPLAY metric id (prev-brief diff continuity + SPA
+# keys) — it stays `dse_`-prefixed and is NOT queried by THIS builder's
+# fallback. (pipeline._enrich_metric_history still batches every Metric.id
+# into a metric_history window query, where these six match nothing — that
+# path feeds Metric.history_values, which V6 drops before publish, so it is
+# inert today but is NOT an invariant.)
+# Column 2 (src_key) is the LIVE id EconDelta actually writes, both to the
+# snapshot dict AND to metric_history, and is what the non-trading-day
+# fallback queries (`ctx.history.get_latest(src_key)`). The DSEX tile's
+# fallback was pinned to the LEGACY `dse_dsex_close` series (frozen at 5,257 /
+# 2026-04-21) while the chart already reads the LIVE `dsex` series — so on any
+# stale day the tile showed a dead number under a live chart. Repointed to
+# `dsex` (landmine #6; same live-vs-legacy split as landmine #1). The other
+# six tiles had the same bug one level down: their fallback queried the
+# `dse_`-prefixed display id, which EconDelta has never written to
+# metric_history, so on non-trading days they resolved to None — the exact
+# wall-of-None the fallback exists to prevent. Repointed to src_key for all
+# seven rows. Landmine #17: a re-point only shows on prod after the next
+# 06:30 BDT publish — verify PROD, not just preview.
 _SPEC = (
     ("dsex",                 "DSEX close",       "dsex",              "index"),
     ("dse_dsex_change_pct",  "DSEX %Δ",          "dsex_change_pct",   "%"),
@@ -291,7 +303,7 @@ def build(ctx: BuilderContext) -> SectionData:
         as_of = ctx.today
         is_stale = False
         if value is None and ctx.history is not None:
-            last = ctx.history.get_latest(mid)
+            last = ctx.history.get_latest(src_key)
             if last is not None:
                 value = last.value
                 as_of = last.as_of

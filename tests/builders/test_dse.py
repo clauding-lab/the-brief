@@ -82,6 +82,65 @@ def test_dse_stale_fallback_reads_live_dsex_series_not_legacy():
     assert "dse_dsex_close" not in requested_ids  # never the dead legacy series
 
 
+def test_dse_stale_fallback_reads_live_series_for_other_six_tiles():
+    """On a non-trading day, DS30/DSES/Turnover/Advancing/Declining/DSEX-%Δ must
+    fall back to the LIVE metric_history ids EconDelta actually writes
+    (ds30, dses, turnover_crore, advancing, declining, dsex_change_pct) —
+    never the dead dse_-prefixed ids that were never written, which would
+    resolve to None and render the wall-of-None the fallback exists to avoid.
+    """
+    snap = EconDeltaSnapshot(
+        updated_at=datetime(2026, 6, 11, tzinfo=timezone.utc),
+        sources_status={"dse_market": {"status": "ok"}},
+        data={"dsex": None, "dsex_change_pct": None, "ds30": None,
+              "dses": None, "turnover_crore": None,
+              "advancing": None, "declining": None, "unchanged": None},
+    )
+
+    live_values = {
+        "dsex_change_pct": -0.29,
+        "ds30": 1980.01,
+        "dses": 1059.70,
+        "turnover_crore": 824.76,
+        "advancing": 120,
+        "declining": 207,
+    }
+    requested_ids: list[str] = []
+
+    def _get_latest(metric_id, **kwargs):
+        requested_ids.append(metric_id)
+        if metric_id in live_values:
+            return HistoryRow(metric_id=metric_id, as_of=date(2026, 6, 11),
+                              value=live_values[metric_id], source="DSE")
+        return None
+
+    history = MagicMock()
+    history.get_latest.side_effect = _get_latest
+
+    ctx = BuilderContext(snapshot=snap, history=history, today=date(2026, 6, 13))
+    s = build(ctx)
+
+    by_id = {m.id: m for m in s.metrics}
+    # Display Metric.id values stay unchanged (prev-brief diff continuity + SPA keys).
+    assert by_id["dse_dsex_change_pct"].value == -0.29
+    assert by_id["dse_ds30"].value == 1980.01
+    assert by_id["dse_dses"].value == 1059.70
+    assert by_id["dse_turnover_crore"].value == 824.76
+    assert by_id["dse_advancing"].value == 120
+    assert by_id["dse_declining"].value == 207
+    for mid in ("dse_dsex_change_pct", "dse_ds30", "dse_dses",
+                "dse_turnover_crore", "dse_advancing", "dse_declining"):
+        assert by_id[mid].stale is True
+
+    # Fallback must query the live ids EconDelta writes...
+    for live_id in live_values:
+        assert live_id in requested_ids
+    # ...and never the dead dse_-prefixed ids.
+    for dead_id in ("dse_dsex_change_pct", "dse_ds30", "dse_dses",
+                    "dse_turnover_crore", "dse_advancing", "dse_declining"):
+        assert dead_id not in requested_ids
+
+
 def test_dse_unavailable_when_dsex_missing():
     snap = EconDeltaSnapshot(
         updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
