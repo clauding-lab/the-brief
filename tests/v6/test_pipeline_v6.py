@@ -176,6 +176,36 @@ def test_subeditor_malformed_twice_holds_never_auto_pass(_stub_supabase_reads: o
     assert mock_run.call_count == 3  # editor + exactly two sub-editor attempts
 
 
+def test_subeditor_revise_without_brief_holds_never_ships_unrevised(
+    _stub_supabase_reads: object,
+) -> None:
+    """verdict=revise with revised_brief=None is now schema-invalid (never fail
+    OPEN). If the sub-editor persists in returning it after the one retry,
+    run_publish HOLDS — it must never ship the unrevised editor brief while
+    logging the edition as reviewed."""
+    revise_no_brief = {"verdict": "revise", "issues": [
+        {
+            "section": None,
+            "field": "todays_call",
+            "severity": "error",
+            "problem": "Missing posture line at end.",
+        }
+    ], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief") as mock_pub:
+        mock_run.side_effect = [
+            _max_result(_editor_output()),   # editor
+            _max_result(revise_no_brief),    # sub-editor attempt 1 (invalid — no brief)
+            _max_result(revise_no_brief),    # sub-editor attempt 2 (the one retry, still invalid)
+        ]
+        with pytest.raises(V6PublishError, match="malformed review twice"):
+            run_publish([], today=date(2026, 5, 5))
+
+    mock_pub.assert_not_called()
+    assert mock_run.call_count == 3  # editor + exactly two sub-editor attempts
+
+
 def test_subeditor_malformed_once_then_valid_passes(_stub_supabase_reads: object) -> None:
     """A malformed review on the first attempt but a valid one on the retry should
     publish normally (the retry recovers transient LLM formatting glitches)."""

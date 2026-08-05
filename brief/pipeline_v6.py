@@ -824,6 +824,11 @@ def run_publish(
         msgs = [f"  · [{i.severity}] {i.section}.{i.field}: {i.problem}" for i in review.issues]
         raise V6PublishError(f"subeditor verdict=fail with {len(review.issues)} issues:\n" + "\n".join(msgs))
 
+    # SubeditorReview's model_validator rejects verdict="revise" with
+    # revised_brief=None (never fail OPEN), so `revised_brief is not None`
+    # holds for every verdict="revise" that reaches this line — the only way
+    # into the else branch below is verdict="pass", which keeps its "passed"
+    # log truthful.
     if review.verdict == "revise" and review.revised_brief is not None:
         final_brief = review.revised_brief
         # Re-force lens on revised brief
