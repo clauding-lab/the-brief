@@ -16,7 +16,11 @@ from . import BuilderContext
 _log = logging.getLogger(__name__)
 
 # Column 0 (mid) is the DISPLAY metric id (prev-brief diff continuity + SPA
-# keys) — it stays `dse_`-prefixed and is NOT queried against metric_history.
+# keys) — it stays `dse_`-prefixed and is NOT queried by THIS builder's
+# fallback. (pipeline._enrich_metric_history still batches every Metric.id
+# into a metric_history window query, where these six match nothing — that
+# path feeds Metric.history_values, which V6 drops before publish, so it is
+# inert today but is NOT an invariant.)
 # Column 2 (src_key) is the LIVE id EconDelta actually writes, both to the
 # snapshot dict AND to metric_history, and is what the non-trading-day
 # fallback queries (`ctx.history.get_latest(src_key)`). The DSEX tile's
