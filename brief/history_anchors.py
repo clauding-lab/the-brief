@@ -112,6 +112,10 @@ def last_lower_than(
     Returns None when:
       - fewer than MIN_DATA_POINTS[cadence] rows are available
       - no row in `history` is below `current_value`
+      - the TRUE most-recent match sits closer than LOOKBACK_MIN periods back —
+        the fact is suppressed outright, never walked past to a farther match,
+        since skipping to the next-nearest row would misrepresent it as the
+        most recent one and manufacture a different false claim.
     """
     min_pts = MIN_DATA_POINTS.get(cadence, 6)
     if len(history) < min_pts:
@@ -119,9 +123,9 @@ def last_lower_than(
 
     metric_id = history[0].metric_id
     for idx, row in enumerate(history[1:], start=1):
-        if idx < LOOKBACK_MIN:
-            continue
         if row.value < current_value:
+            if idx < LOOKBACK_MIN:
+                return None
             ref_formatted = formatter(row.value)
             period_label = _format_as_of(row.as_of, cadence)
             return HistoryFact(
@@ -148,6 +152,10 @@ def last_higher_than(
     Returns None when:
       - fewer than MIN_DATA_POINTS[cadence] rows are available
       - no row in `history` is above `current_value`
+      - the TRUE most-recent match sits closer than LOOKBACK_MIN periods back —
+        the fact is suppressed outright, never walked past to a farther match,
+        since skipping to the next-nearest row would misrepresent it as the
+        most recent one and manufacture a different false claim.
     """
     min_pts = MIN_DATA_POINTS.get(cadence, 6)
     if len(history) < min_pts:
@@ -155,9 +163,9 @@ def last_higher_than(
 
     metric_id = history[0].metric_id
     for idx, row in enumerate(history[1:], start=1):
-        if idx < LOOKBACK_MIN:
-            continue
         if row.value > current_value:
+            if idx < LOOKBACK_MIN:
+                return None
             ref_formatted = formatter(row.value)
             period_label = _format_as_of(row.as_of, cadence)
             return HistoryFact(
@@ -363,6 +371,11 @@ def compute_history_facts(
     Returns an empty list when:
       - current_value is None (no live value to anchor against)
       - history is shorter than MIN_DATA_POINTS for the cadence
+
+    Assumes `history[0]` IS the current/live row (the only production caller,
+    brief/builders/macro.py, always passes a `current_value` taken from the
+    same client/table as `history[0]`) — the direction check below compares
+    against `history[1]` on that assumption.
     """
     if current_value is None:
         return []
@@ -374,25 +387,22 @@ def compute_history_facts(
     # since_lower / since_higher are mutually exclusive on the same current value.
     # Direction-aware dispatch: if the metric ROSE vs the immediately-preceding
     # period, a "lowest since" claim is backwards (current is not the low point —
-    # it just went up), so since_lower must not fire; prefer since_higher instead.
-    # Mirrors first_cross_since's explicit direction guards above.
+    # it just went up), so only the higher-side anchor may publish — there is NO
+    # fallback to since_lower even when since_higher is None. Symmetrically, on a
+    # fall or a flat print, only the lower-side anchor may publish — no fallback
+    # to since_higher. Mirrors first_cross_since's explicit direction guards
+    # above. Net effect: a metric sitting at an all-time extreme carries no
+    # "since" phrase at all (quieter, never wrong); the window-rank fact below
+    # still applies.
     rose = len(history) > 1 and current_value > history[1].value
     if rose:
         higher = last_higher_than(history, current_value=current_value, cadence=cadence, formatter=formatter)
         if higher:
             facts.append(higher)
-        else:
-            lower = last_lower_than(history, current_value=current_value, cadence=cadence, formatter=formatter)
-            if lower:
-                facts.append(lower)
     else:
         lower = last_lower_than(history, current_value=current_value, cadence=cadence, formatter=formatter)
         if lower:
             facts.append(lower)
-        else:
-            higher = last_higher_than(history, current_value=current_value, cadence=cadence, formatter=formatter)
-            if higher:
-                facts.append(higher)
 
     # rolling_extremes adds a window-rank fact if current is near an extreme
     window = rolling_window or DEFAULT_WINDOW.get(cadence, 30)
