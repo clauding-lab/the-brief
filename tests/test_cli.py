@@ -22,6 +22,47 @@ def test_cli_run_without_publish_returns_1():
     assert rc == 1
 
 
+def test_cli_default_today_uses_bdt_not_system_date():
+    """A manual re-fire on the UTC Hetzner box between 00:00-06:00 BDT must
+    resolve `today` to the BDT date, not the earlier UTC system date — the
+    pipeline's own default (PipelineConfig.today) already does this via
+    now_bdt().date(); the CLI must match it instead of using date.today()."""
+    from datetime import date as _date, datetime as _datetime, timedelta as _timedelta, timezone as _timezone
+
+    bdt_now = _datetime(2026, 8, 5, 2, 30, tzinfo=_timezone(_timedelta(hours=6)))  # 08-05 BDT
+    system_utc_today = _date(2026, 8, 4)  # UTC box clock still reads 08-04
+
+    with patch("brief.cli.date") as mock_date, \
+         patch("brief.cli.now_bdt", return_value=bdt_now), \
+         patch("brief.cli._run_v6_publish", return_value=3) as mock_run:
+        mock_date.today.return_value = system_utc_today
+        mock_date.fromisoformat = _date.fromisoformat  # keep real parsing for --today
+        rc = cli.main(["run", "--publish", "--dry-run", "--no-notify"])
+
+    assert rc == 3
+    resolved_today = mock_run.call_args.args[1]  # `today` positional passed to _run_v6_publish
+    assert resolved_today == _date(2026, 8, 5), (
+        f"expected the BDT date 2026-08-05, got {resolved_today} "
+        "(CLI used the box's system date instead of now_bdt())"
+    )
+
+
+def test_cli_today_override_still_wins_over_bdt_clock():
+    """--today explicitly passed on the command line must still override the
+    now_bdt() default, unchanged by this fix."""
+    from datetime import date as _date, datetime as _datetime, timedelta as _timedelta, timezone as _timezone
+
+    bdt_now = _datetime(2026, 8, 5, 2, 30, tzinfo=_timezone(_timedelta(hours=6)))
+
+    with patch("brief.cli.now_bdt", return_value=bdt_now), \
+         patch("brief.cli._run_v6_publish", return_value=3) as mock_run:
+        rc = cli.main(["run", "--publish", "--dry-run", "--no-notify", "--today=2026-01-01"])
+
+    assert rc == 3
+    resolved_today = mock_run.call_args.args[1]
+    assert resolved_today == _date(2026, 1, 1)
+
+
 def test_cli_run_help_shows_publish_flag():
     """--help for the run subcommand must mention --publish."""
     with pytest.raises(SystemExit) as ei:
