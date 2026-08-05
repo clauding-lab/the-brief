@@ -164,16 +164,22 @@ EconDelta re-upserts the standing BB policy corridor to `metric_history` every d
 
 **`cadence="event"` is bounded on the RESTAMP date, not unconditionally fresh (changed 2026-08-03, PR #142).** It used to return `"fresh"` for every event metric no matter what, which meant §02 was *structurally incapable* of reporting staleness — and did read "fresh" for the four days The Brief printed the pre-cut 10.00% policy rate. `brief/cadence.py` now treats event freshness as a **writer-liveness check**: `stale=True` (fallback-sourced) → `"stale"`; otherwise ≤7d since restamp → `"fresh"`, ≤10d → `"warning"`, else `"stale"`. A standing rate that has not MOVED in years still reads fresh — only a writer that stops confirming it goes stale. **The `_FALLBACK_*_PCT` constants in `bb.py` go out of date at every MPC decision** — bump them in the PR that reacts to the move, with `_LAST_MPC_DECISION`; `tests/builders/test_bb.py::test_fallback_constants_match_the_latest_mpc_decision` guards the pre-cut values specifically.
 
-## 25. §-builder metric order is load-bearing — the 5-tile cap
+## 25. The 5-tile render cap is GONE — every stored metric tiles; tenor tile-eligibility is an OPEN owner decision
 
-`app/components/Section.tsx` renders `metrics.slice(0, 5)` — only a section's
-FIRST 5 metrics become KPI tiles. When adding a metric to any builder,
-tile-eligible metrics MUST precede prose-feed/context metrics in the list, or a
-`slice(0,5)` silently DROPS a real tile (e.g. §02 Reserves) and promotes a
-context metric into the tile row. In `bb.py` the order is
-`[Policy, SDF, SLF, Call Money, Reserves]` (tiles) then the call-money tenor
-points (context); the tenor feed is emitted ONLY when the overnight tile is
-present, so a tenor point can never occupy a tile slot. (B3 item 11, 2026-07-10.)
+`app/components/Section.tsx` renders a section's FULL stored metrics list (the
+historical `metrics.slice(0, 5)` cap was removed 2026-08-05, PR #157, after it
+silently unpainted stored macro metrics — CPI 12m Avg, M2 YoY, REER). Two
+consequences supersede the original wording (B3 item 11, 2026-07-10):
+- Builder list order is ADVISORY, not load-bearing: the daily editor reorders
+  (and drops) metrics before storage, so "first 5" was never a real guarantee
+  post-editor anyway (see the 2026-08-05 SDF diagnosis memo).
+- The cap was the ONLY thing keeping `bb.py`'s call-money tenor points
+  (7d/14d) off the tile row. Today `bb` stores ≤5 metrics so nothing changes
+  visually; once pipeline reconciliation re-injects protected metrics, the
+  tenors CAN surface as KPI tiles on days the editor keeps them. Whether they
+  should tile, or move to a separate never-tiled context feed, is an OPEN
+  question for Adnan (domain call — sdf-diagnosis memo). Do NOT decide it
+  unilaterally in code.
 
 ## 26. A cut-off Claude response continues in a NEW assistant message — read the STREAM, and never trust `num_turns` or `result` to tell you it happened
 
