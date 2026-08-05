@@ -164,16 +164,36 @@ EconDelta re-upserts the standing BB policy corridor to `metric_history` every d
 
 **`cadence="event"` is bounded on the RESTAMP date, not unconditionally fresh (changed 2026-08-03, PR #142).** It used to return `"fresh"` for every event metric no matter what, which meant §02 was *structurally incapable* of reporting staleness — and did read "fresh" for the four days The Brief printed the pre-cut 10.00% policy rate. `brief/cadence.py` now treats event freshness as a **writer-liveness check**: `stale=True` (fallback-sourced) → `"stale"`; otherwise ≤7d since restamp → `"fresh"`, ≤10d → `"warning"`, else `"stale"`. A standing rate that has not MOVED in years still reads fresh — only a writer that stops confirming it goes stale. **The `_FALLBACK_*_PCT` constants in `bb.py` go out of date at every MPC decision** — bump them in the PR that reacts to the move, with `_LAST_MPC_DECISION`; `tests/builders/test_bb.py::test_fallback_constants_match_the_latest_mpc_decision` guards the pre-cut values specifically.
 
-## 25. §-builder metric order is load-bearing — the 5-tile cap
+## 25. §-builder metric order is advisory, NOT load-bearing — the editor reorders before storage
 
-`app/components/Section.tsx` renders `metrics.slice(0, 5)` — only a section's
-FIRST 5 metrics become KPI tiles. When adding a metric to any builder,
-tile-eligible metrics MUST precede prose-feed/context metrics in the list, or a
-`slice(0,5)` silently DROPS a real tile (e.g. §02 Reserves) and promotes a
-context metric into the tile row. In `bb.py` the order is
-`[Policy, SDF, SLF, Call Money, Reserves]` (tiles) then the call-money tenor
-points (context); the tenor feed is emitted ONLY when the overnight tile is
-present, so a tenor point can never occupy a tile slot. (B3 item 11, 2026-07-10.)
+**Correction (2026-08-05, sdf-diagnosis memo):** this landmine originally
+claimed builder-list order was load-bearing because `Section.tsx` renders
+`metrics.slice(0, 5)`. That premise is wrong. `editor_v6.txt:49` reorders and
+drops metrics (capped at 5/section) BEFORE anything reaches storage — the
+editor's per-issue newsworthiness judgment decides what lands in ords 0-4,
+not the builder's emission order. In production this let `bb.py`'s two
+"never a tile" call-money tenors occupy tile slots and evict SDF/Reserves on
+most issues: SDF reached production in only 1 of the 12 issues before this
+fix, SLF in 4 of 12 — see `sdf-diagnosis-2026-08-05.md`.
+
+What actually protects a metric now is `PROTECTED_METRIC_IDS` in
+`brief/pipeline_v6.py`, enforced by `_reconcile_metrics` (runs post-editor,
+pre-publish): any protected id the editor drops is re-injected from the raw
+builder output, and the pipeline HARD-FAILS if one is still absent after
+reconciliation. `_reconcile_metrics` also rejects any editor-returned metric
+whose label has no counterpart in the raw builder output — closing the
+"invented tile" hole (e.g. a synthetic "Breadth" label that existed in no
+builder, §06 `dse`, issues 177-180).
+
+When adding a metric to a builder: putting it first in the builder's list is
+still good practice (readability, and it's what the editor sees first), but
+it is NOT a guarantee against `slice(0,5)` — only `PROTECTED_METRIC_IDS`
+membership is. If a metric MUST survive to the page, add its id to that set
+rather than relying on builder position. `bb.py`'s own emission order is
+`[Policy, SDF, SLF, Call Money, Reserves]` then the call-money tenor points;
+the tenor feed is still emitted ONLY when the overnight tile is present, but
+that governs the BUILDER's list, not what the editor stores. (B3 item 11,
+2026-07-10; corrected sdf-diagnosis-2026-08-05.)
 
 ## 26. A cut-off Claude response continues in a NEW assistant message — read the STREAM, and never trust `num_turns` or `result` to tell you it happened
 

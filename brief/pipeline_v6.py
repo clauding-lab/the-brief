@@ -31,7 +31,7 @@ from brief.v6_publisher import (
     fetch_recent_news,
     publish_brief,
 )
-from brief.v6_schema import BriefPayloadV6, SubeditorReview
+from brief.v6_schema import BriefPayloadV6, MetricV6, SubeditorReview
 from brief.vintage import stamp_vintages, vintage_payload
 from brief.claude import validators as _validators
 
@@ -57,6 +57,27 @@ V5_TO_V6: dict[str, tuple[str, int, str]] = {
 
 class V6PublishError(RuntimeError):
     """Raised when the publish flow fails (Claude error, validation error, write error)."""
+
+
+class MetricReconciliationError(V6PublishError):
+    """Raised when a PROTECTED_METRIC_IDS metric is still absent after
+    `_reconcile_metrics` runs — e.g. the section itself failed to build, or
+    the builder itself omitted the id today. This must HARD-FAIL the publish
+    (surfaces as CLI exit code 4, same as a sub-editor verdict=fail): unlike
+    `_run_deterministic_gate` (a log-only prose backstop that must never hold
+    the fire on a false positive), a missing protected metric is never a false
+    positive — the corridor either printed or it didn't (memo 2026-08-05, §4)."""
+
+
+# Metric ids the editor_v6 prompt may never drop, keyed by V6 section slug.
+# `_reconcile_metrics` re-injects any of these missing from the editor's
+# output, sourced from the builder's own raw metric. The BB corridor is the
+# reason §02 exists — SDF reached production in only 1 of the last 12 issues,
+# SLF in 4, before this guard (sdf-diagnosis-2026-08-05.md §3.2). Extend this
+# set deliberately; it is a hard-fail list, not a "nice to keep" list.
+PROTECTED_METRIC_IDS: dict[str, frozenset[str]] = {
+    "bb": frozenset({"bb_policy_rate", "bb_sdf", "bb_slf"}),
+}
 
 
 def _to_v6_raw(
@@ -321,6 +342,172 @@ def _stamp_freshness(final_brief: BriefPayloadV6, raw_sections: list[dict[str, A
         fresh = freshness_by_slug.get(section.slug)
         if fresh is not None:
             section.freshness = fresh
+
+
+def _format_metric_value(value: Any, unit: str) -> str:
+    """Render a raw builder Metric's numeric value as the display string a
+    MetricV6 expects. Mirrors editor output for the units the protected set
+    actually uses (percent, 2dp — e.g. "9.50%", matching the corridor's
+    existing display); falls back to "<value> <unit>" for anything else so a
+    future protected id (a non-percent metric) still reconciles instead of
+    crashing. `None` values (e.g. a metric the builder itself couldn't
+    resolve) render as an em dash rather than the string "None"."""
+    if value is None:
+        return "—"
+    if isinstance(value, (int, float)):
+        if unit == "%":
+            return f"{value:.2f}%"
+        if unit:
+            return f"{value:,.2f} {unit}"
+        return f"{value:.10g}"
+    return str(value)
+
+
+def _metric_v6_from_raw(raw_metric: dict[str, Any]) -> MetricV6:
+    """Build a MetricV6 for re-injection from one raw builder Metric dict
+    (an entry of `sections_raw[i]["metrics"]`, i.e. `Metric.model_dump()`).
+
+    Deliberately minimal — only `label` and a formatted `value`. Everything
+    else (tone, delta, spark, changed, held_from…) is prose/diff polish the
+    editor or the later stamp_* passes would normally add; a re-injected
+    metric skipping that polish is a strictly better outcome than the metric
+    not existing on the page at all.
+    """
+    return MetricV6(
+        label=raw_metric["label"],
+        value=_format_metric_value(raw_metric.get("value"), raw_metric.get("unit") or ""),
+    )
+
+
+def _reconcile_metrics(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]
+) -> None:
+    """Deterministic post-editor metric reconciliation (sdf-diagnosis-2026-08-05.md §4).
+
+    `editor_v6.txt:49` grants the editor discretionary authority to reorder
+    and drop "low-signal" metrics, capped at 5 per section — and nothing
+    downstream ever validated what survived: an empty `metrics` list passes
+    the V6 schema, and the publisher writes whatever the editor returned
+    verbatim. Two consequences, both closed here:
+
+      1. The editor can INVENT a metric that exists in no builder (e.g.
+         "Breadth" merged from Advancing + Declining, issues 177-180) —
+         `MetricV6` has no label allowlist, so nothing objected.
+      2. A section fed more than 5 metrics loses whichever ones the editor
+         judges least newsworthy that day — for §02 `bb`, that meant SDF
+         survived only 1 of the last 12 issues and SLF only 4, because
+         `bb.py`'s two prose-context call-money tenors hold two of the five
+         tile slots every single day once the editor reorders (builder index
+         carries no meaning after that reorder — AGENTS.md landmine 25's
+         "order is load-bearing" claim was wrong).
+
+    This mutates `final_brief.sections[i].metrics` in place:
+      1. REJECTS any final metric whose `label` has no counterpart among the
+         section's raw builder metrics — editor inventions never publish.
+      2. RE-INJECTS, in builder order, any `PROTECTED_METRIC_IDS` metric the
+         reject/drop step above left missing.
+      3. Every drop and re-injection is logged at WARNING with id + section +
+         counts, so the next casualty is visible in journalctl same-day
+         rather than discovered nine issues later.
+      4. Raises `MetricReconciliationError` — HARD-FAIL, not log-only — if a
+         protected metric is still absent once reconciliation is done. The
+         existing `_run_deterministic_gate` is deliberately log-only because a
+         prose false-positive must never hold the fire; re-inserting a metric
+         the builder produced cannot corrupt a brief, so that reasoning does
+         not transfer here.
+
+    A `final_brief` section whose slug has no counterpart in `raw_sections`
+    (e.g. the editor dropped the whole section) is left untouched — there is
+    nothing to reconcile its metrics against. Protected ids in that section's
+    slug still hard-fail below, since the corridor cannot go missing silently
+    just because the section around it also vanished.
+    """
+    raw_by_slug: dict[str, dict[str, Any]] = {
+        s["slug"]: s for s in raw_sections if "slug" in s
+    }
+    section_by_slug: dict[str, Any] = {s.slug: s for s in final_brief.sections}
+    missing: list[str] = []
+
+    for section in final_brief.sections:
+        raw_section = raw_by_slug.get(section.slug)
+        if raw_section is None:
+            continue
+
+        raw_metrics: list[dict[str, Any]] = raw_section.get("metrics") or []
+        raw_labels = {m["label"] for m in raw_metrics if "label" in m}
+
+        # 1. Reject editor-invented labels.
+        kept: list[MetricV6] = []
+        dropped = 0
+        for m in section.metrics:
+            if m.label in raw_labels:
+                kept.append(m)
+            else:
+                dropped += 1
+                logger.warning(
+                    "v6 reconcile: REJECTED invented metric — section=%s "
+                    "label=%r has no counterpart among %d raw metric label(s)",
+                    section.slug, m.label, len(raw_labels),
+                )
+        section.metrics = kept
+        if dropped:
+            logger.warning(
+                "v6 reconcile: section=%s dropped %d invented metric(s) "
+                "(editor built label set not matched to any builder metric); "
+                "%d survive", section.slug, dropped, len(kept),
+            )
+
+        # 2. Re-inject protected metrics the editor dropped, in builder order.
+        protected_ids = PROTECTED_METRIC_IDS.get(section.slug, frozenset())
+        if not protected_ids:
+            continue
+
+        kept_labels = {m.label for m in section.metrics}
+        built_count = len(raw_metrics)
+        for raw_metric in raw_metrics:  # builder order
+            metric_id = raw_metric.get("id")
+            label = raw_metric.get("label")
+            if metric_id not in protected_ids or label in kept_labels:
+                continue
+            reinjected = _metric_v6_from_raw(raw_metric)
+            section.metrics.append(reinjected)
+            kept_labels.add(label)
+            logger.warning(
+                "v6 reconcile: RE-INJECTED protected metric — section=%s "
+                "id=%s label=%r (builder built %d, editor stored %d before reinject)",
+                section.slug, metric_id, label, built_count, len(kept_labels) - 1,
+            )
+
+    # 3. Hard requirement: verify every protected id independently of whether
+    # a re-injection attempt ran above — a builder that omitted a protected id
+    # today, or an editor that dropped the whole section around it, must
+    # still surface as a hold, not a silent gap. Scoped to slugs that DID have
+    # a raw counterpart this run (same guard as steps 1-2 and _stamp_freshness):
+    # `bb` always does in production (bb.py's fallback path never omits the
+    # corridor, and pipeline.py's builder-exception-swallow still yields a
+    # degraded SectionData V5_TO_V6 maps through) — a slug with NO raw
+    # counterpart at all means this run's raw builder output never touched
+    # it, which is a different, upstream failure this function cannot see.
+    for slug, protected_ids in PROTECTED_METRIC_IDS.items():
+        raw_section = raw_by_slug.get(slug)
+        if raw_section is None:
+            continue
+        section = section_by_slug.get(slug)
+        final_labels = {m.label for m in section.metrics} if section is not None else set()
+        raw_metrics = raw_section.get("metrics") or []
+        raw_by_id = {m.get("id"): m for m in raw_metrics}
+        for metric_id in protected_ids:
+            raw_metric = raw_by_id.get(metric_id)
+            if raw_metric is None:
+                missing.append(f"{slug}.{metric_id} (not built today)")
+            elif raw_metric.get("label") not in final_labels:
+                missing.append(f"{slug}.{metric_id}")
+
+    if missing:
+        raise MetricReconciliationError(
+            "v6 reconcile: protected metric(s) absent after reconciliation — "
+            f"holding the publish (never ship without one): {missing}"
+        )
 
 
 # ─── Phase E.2 — chart series enricher ────────────────────────────────
@@ -839,6 +1026,14 @@ def run_publish(
     # the "held from" footer had never rendered before this ran. See
     # brief/vintage.py.
     vintaged = stamp_vintages(final_brief, sections, today=today)
+
+    # Deterministic post-editor metric reconciliation (sdf-diagnosis-2026-08-05.md
+    # §4, Fix A). Must run before _stamp_freshness so a re-injected metric's
+    # section still gets its freshness stamped normally; must HARD-FAIL (raise)
+    # rather than log-only, unlike _run_deterministic_gate below — see
+    # MetricReconciliationError's docstring for why the two do not share a
+    # log-only rationale.
+    _reconcile_metrics(final_brief, editor_input["sections_raw"])
     _stamp_freshness(final_brief, editor_input["sections_raw"])
 
     # Phase E.2 — chart series enricher. Skip silently when supabase env is

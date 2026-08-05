@@ -271,8 +271,19 @@ def test_build_issues_no_get_history_window_call():
 
 
 def test_overnight_call_money_tile_present_and_live():
-    """§02 surfaces the overnight call-money rate as a tile-eligible metric read
-    live from metric_history. FAILS if bb_call_money is dropped or hardcoded."""
+    """§02 surfaces the overnight call-money rate, read live from metric_history,
+    in the builder's own metric list. FAILS if bb_call_money is dropped or
+    hardcoded.
+
+    NOTE (sdf-diagnosis-2026-08-05.md): this only asserts the BUILDER's list.
+    It does NOT prove bb_call_money renders as a tile — the editor_v6 prompt
+    reorders and drops metrics before anything reaches storage (AGENTS.md
+    landmine 25), so builder-list index carries no downstream meaning. This
+    test used to assert `ids.index("bb_call_money") < 5` as a stand-in for
+    "tile-eligible"; that assertion encoded a false premise and was removed.
+    The real post-editor survival guarantee (for the protected corridor
+    metrics) is tested in tests/test_pipeline_v6_metric_reconciliation.py.
+    """
     hist = _FakeHistory(latest={**_live_rate_rows(), **_live_money_market_rows()})
     ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
     s = build(ctx)
@@ -285,9 +296,8 @@ def test_overnight_call_money_tile_present_and_live():
     assert cm.cadence == "daily"
     assert cm.stale is False
     ids = [m.id for m in s.metrics]
-    # tile-eligible: within the first 5 metrics (Section.tsx renders slice(0,5))
-    assert ids.index("bb_call_money") < 5
-    # grouped with the corridor, ahead of reserves
+    # grouped with the corridor, ahead of reserves — builder's own ordering,
+    # not a claim about what the editor does with it downstream.
     assert ids.index("bb_call_money") < ids.index("bb_gross_reserves")
 
 
@@ -305,9 +315,22 @@ def test_call_money_omitted_when_missing_no_fallback():
 
 
 def test_tenor_points_present_but_never_tiles():
-    """7d/14d call-money tenor feed the editor as prose context: present in the
-    metric list at index >= 5, so slice(0,5) never renders them as tiles. The
-    full order is asserted to lock the tile row (corridor + overnight + reserves)."""
+    """7d/14d call-money tenor feed the editor as prose context, appended after
+    the corridor/overnight/reserves group. The full builder order is asserted
+    to document the atomic tenor feed.
+
+    NOTE (sdf-diagnosis-2026-08-05.md): "never tiles" in this test's name
+    describes the BUILDER's stated intent (bb.py:187-201's own comment), not
+    a guarantee this test can prove. The editor_v6 prompt reorders every
+    section's metrics before storage, so a builder-list position >= 5 does
+    NOT mean a metric never becomes a tile (AGENTS.md landmine 25 corrected
+    this) — in production these two tenor points have occupied tile slots and
+    evicted SDF/Reserves on every recent issue. This test previously asserted
+    `ids.index(...) >= 5` as a stand-in for "safe from tiling"; that assertion
+    encoded the same false premise and was removed. What protects the
+    corridor now is `_reconcile_metrics` in brief/pipeline_v6.py, tested in
+    tests/test_pipeline_v6_metric_reconciliation.py — not builder order.
+    """
     hist = _FakeHistory(latest={**_live_rate_rows(), **_live_money_market_rows()})
     ctx = BuilderContext(snapshot=_snap(), history=hist, today=TODAY)
     s = build(ctx)
@@ -316,8 +339,6 @@ def test_tenor_points_present_but_never_tiles():
     assert _m(s, "bb_call_money_7d").label == "Call Money · 7-day"
     assert _m(s, "bb_call_money_14d").value == 11.19
     ids = [m.id for m in s.metrics]
-    assert ids.index("bb_call_money_7d") >= 5
-    assert ids.index("bb_call_money_14d") >= 5
     assert ids == [
         "bb_policy_rate", "bb_sdf", "bb_slf", "bb_call_money",
         "bb_gross_reserves", "bb_call_money_7d", "bb_call_money_14d",
