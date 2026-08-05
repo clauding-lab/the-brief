@@ -9,7 +9,7 @@ import pytest
 from brief.claude.max_client import MaxCallResult
 from brief.pipeline_v6 import V6PublishError, _to_v6_raw, run_publish
 from brief.schema import SectionData
-from brief.v6_schema import BriefPayloadV6
+from brief.v6_schema import BriefPayloadV6, SubeditorReview
 
 
 @pytest.fixture(autouse=True)
@@ -204,6 +204,56 @@ def test_subeditor_revise_without_brief_holds_never_ships_unrevised(
 
     mock_pub.assert_not_called()
     assert mock_run.call_count == 3  # editor + exactly two sub-editor attempts
+
+
+def test_subeditor_revise_without_brief_holds_even_for_warn_only_issues(
+    _stub_supabase_reads: object,
+) -> None:
+    """Same as above but with a warn-only issue list. The prompt permits fixing
+    warn-only issues via revise (subeditor_v6.txt:116), and the schema rule is
+    severity-blind — a future narrowing to error-severity-only would leave a
+    warn-only revise+None fail-open again, so this case pins the broader rule."""
+    revise_no_brief_warn = {"verdict": "revise", "issues": [
+        {
+            "section": None,
+            "field": "todays_call",
+            "severity": "warn",
+            "problem": "Minor phrasing nit.",
+        }
+    ], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief") as mock_pub:
+        mock_run.side_effect = [
+            _max_result(_editor_output()),        # editor
+            _max_result(revise_no_brief_warn),    # sub-editor attempt 1 (invalid — no brief)
+            _max_result(revise_no_brief_warn),    # sub-editor attempt 2 (the one retry, still invalid)
+        ]
+        with pytest.raises(V6PublishError, match="malformed review twice"):
+            run_publish([], today=date(2026, 5, 5))
+
+    mock_pub.assert_not_called()
+    assert mock_run.call_count == 3  # editor + exactly two sub-editor attempts
+
+
+def test_publish_gate_holds_on_non_pass_verdict_even_if_validator_bypassed(
+    _stub_supabase_reads: object,
+) -> None:
+    """The publish gate must enforce "never ship without a revised_brief" as its
+    OWN invariant, not rely solely on SubeditorReview's model_validator. A
+    validator only guards `model_validate` — `model_construct()` and plain
+    attribute assignment both skip it (no `validate_assignment` on the model),
+    so a bypassed revise+None must still be caught and held at the gate."""
+    bypassed = SubeditorReview.model_construct(verdict="revise", issues=[], revised_brief=None)
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6._run_subeditor", return_value=bypassed), \
+         patch("brief.pipeline_v6.publish_brief") as mock_pub:
+        mock_run.side_effect = [_max_result(_editor_output())]
+        with pytest.raises(V6PublishError, match="never fail OPEN"):
+            run_publish([], today=date(2026, 5, 5))
+
+    mock_pub.assert_not_called()
 
 
 def test_subeditor_malformed_once_then_valid_passes(_stub_supabase_reads: object) -> None:
