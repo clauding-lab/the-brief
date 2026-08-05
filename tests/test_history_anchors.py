@@ -110,10 +110,15 @@ from brief.history_anchors import last_higher_than
 
 
 def test_last_higher_than_finds_most_recent_higher():
+    # Match sits 3 periods back (idx=3) to clear the LOOKBACK_MIN guard. The
+    # idx=2 filler must stay BELOW current — under suppress-first semantics
+    # any closer match (even one that would itself be a valid "higher" row)
+    # would suppress the whole fact rather than being walked past.
     history = [
         _row("cpi_12m_avg_monthly", "2026-04-01", 5.2),
         _row("cpi_12m_avg_monthly", "2026-03-01", 5.0),
-        _row("cpi_12m_avg_monthly", "2022-03-01", 7.5),  # last higher
+        _row("cpi_12m_avg_monthly", "2026-02-01", 5.1),  # filler, doesn't match (< current)
+        _row("cpi_12m_avg_monthly", "2022-03-01", 7.5),  # last higher, 3 periods back
         _row("cpi_12m_avg_monthly", "2022-02-01", 6.0),
         # pad to meet min_data_points threshold (need 6 total)
         *[_row("cpi_12m_avg_monthly", f"2021-{m:02d}-01", 4.0) for m in range(1, 3)],
@@ -124,6 +129,37 @@ def test_last_higher_than_finds_most_recent_higher():
     assert fact.reference_value == 7.5
     assert "highest since Mar 2022" in fact.phrase
     assert "(7.5% then)" in fact.phrase
+
+
+def test_last_higher_than_suppresses_entirely_when_nearest_match_within_lookback_min():
+    # The TRUE most-recent higher row sits 2 periods back (idx=2) — too close.
+    # Correct shape: suppress the whole fact, never walk PAST idx=2 to the
+    # farther idx=4 match — that would misrepresent idx=4 as "the most recent
+    # time this was higher" when idx=2 was actually more recent and higher.
+    history = [
+        _row("x", "2026-04-01", 5.2),  # current
+        _row("x", "2026-03-01", 5.0),  # idx=1, no match (< current)
+        _row("x", "2026-02-01", 9.0),  # idx=2, TRUE nearest match — too recent, suppresses
+        _row("x", "2026-01-01", 5.1),  # idx=3, no match (< current)
+        _row("x", "2025-12-01", 8.0),  # idx=4, would-be match but never reached
+        _row("x", "2025-11-01", 4.0),  # filler
+    ]
+    fact = last_higher_than(history, current_value=5.2, cadence="monthly", formatter=_format_pct_1dp)
+    assert fact is None
+
+
+def test_last_lower_than_suppresses_entirely_when_nearest_match_within_lookback_min():
+    # Mirror of the above for last_lower_than.
+    history = [
+        _row("x", "2026-04-01", 5.2),  # current
+        _row("x", "2026-03-01", 5.3),  # idx=1, no match (> current)
+        _row("x", "2026-02-01", 3.0),  # idx=2, TRUE nearest match — too recent, suppresses
+        _row("x", "2026-01-01", 5.4),  # idx=3, no match (> current)
+        _row("x", "2025-12-01", 4.0),  # idx=4, would-be match but never reached
+        _row("x", "2025-11-01", 6.0),  # filler
+    ]
+    fact = last_lower_than(history, current_value=5.2, cadence="monthly", formatter=_format_pct_1dp)
+    assert fact is None
 
 
 # ── pct_change_since ─────────────────────────────────────────────────────────
@@ -177,6 +213,33 @@ def test_rolling_extremes_returns_min_max_and_rank():
     assert fact.kind == "extreme_in_window"
     # Either highlights the max or notes current rank in window — implementation choice
     assert "$" in fact.reference_value_formatted
+
+
+def test_rolling_extremes_interpolates_actual_row_count_not_requested_window():
+    # Only 8 monthly rows are available (MIN_DATA_POINTS["monthly"]=6 clears the
+    # floor), but the caller requests a 60-period window. The phrase must state
+    # the number of rows actually examined (8), not the requested window (60) —
+    # otherwise 8 rows of history publishes as a false "60-period" claim.
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 6.0),  # current — window max
+        _row("cpi_12m_avg_monthly", "2026-03-01", 5.7),
+        _row("cpi_12m_avg_monthly", "2026-02-01", 5.6),
+        _row("cpi_12m_avg_monthly", "2026-01-01", 5.5),
+        _row("cpi_12m_avg_monthly", "2025-12-01", 5.4),
+        _row("cpi_12m_avg_monthly", "2025-11-01", 5.3),
+        _row("cpi_12m_avg_monthly", "2025-10-01", 5.2),
+        _row("cpi_12m_avg_monthly", "2025-09-01", 5.1),
+    ]
+    fact = rolling_extremes(
+        history,
+        current_value=6.0,
+        window=60,
+        formatter=_format_pct_1dp,
+        cadence="monthly",
+    )
+    assert fact is not None
+    assert "8-period window" in fact.phrase
+    assert "60-period window" not in fact.phrase
 
 
 # ── first_cross_since ────────────────────────────────────────────────────────
@@ -248,6 +311,114 @@ def test_compute_history_facts_returns_empty_when_current_value_is_none():
     history = [_row("x", "2026-04-01", 5.0)] * 10
     facts = compute_history_facts(history, cadence="monthly", current_value=None, formatter=_format_pct_1dp)
     assert facts == []
+
+
+def _assert_true_since_higher_claim(history, fact, current_value):
+    """Intent check for a 'highest since X' fact: X must genuinely be the most
+    recent row above current_value — every row strictly more recent than the
+    reference must be <= current_value. Fails under any implementation that
+    regresses the business rule, not just this one."""
+    ref_date = _date.fromisoformat(fact.reference_as_of)
+    assert fact.reference_value > current_value
+    for row in history:
+        if row.as_of > ref_date and row.as_of != history[0].as_of:
+            assert row.value <= current_value, (
+                f"{row.as_of} ({row.value}) is more recent than the claimed "
+                f"reference {ref_date} but also above current_value — false claim"
+            )
+
+
+def _assert_true_since_lower_claim(history, fact, current_value):
+    """Mirror of _assert_true_since_higher_claim for 'lowest since X'."""
+    ref_date = _date.fromisoformat(fact.reference_as_of)
+    assert fact.reference_value < current_value
+    for row in history:
+        if row.as_of > ref_date and row.as_of != history[0].as_of:
+            assert row.value >= current_value, (
+                f"{row.as_of} ({row.value}) is more recent than the claimed "
+                f"reference {ref_date} but also below current_value — false claim"
+            )
+
+
+def test_compute_history_facts_uptick_does_not_publish_lowest_since():
+    # Current value ROSE vs the immediately-preceding period (8.5 -> from 8.4).
+    # The naive "first row below current" walk would match idx=1 (8.4) trivially
+    # and publish a false "lowest since last month" claim. Direction-aware
+    # dispatch must suppress since_lower entirely on an uptick — with NO
+    # fallback to since_lower even where since_higher itself is degenerate.
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 8.5),  # current — rose from 8.4
+        _row("cpi_12m_avg_monthly", "2026-03-01", 8.4),  # prev period, lower
+        _row("cpi_12m_avg_monthly", "2026-02-01", 8.3),  # lower, matches neither direction
+        _row("cpi_12m_avg_monthly", "2026-01-01", 9.0),  # higher, 3 back — valid since_higher
+        _row("cpi_12m_avg_monthly", "2025-12-01", 8.2),  # filler
+        _row("cpi_12m_avg_monthly", "2025-11-01", 8.1),  # filler
+    ]
+    facts = compute_history_facts(history, cadence="monthly", current_value=8.5, formatter=_format_pct_1dp)
+    kinds = {f.kind for f in facts}
+    assert "since_lower" not in kinds
+    assert "since_higher" in kinds
+    higher = next(f for f in facts if f.kind == "since_higher")
+    _assert_true_since_higher_claim(history, higher, current_value=8.5)
+
+
+def test_compute_history_facts_downtick_still_publishes_lowest_since():
+    # Current value FELL vs the immediately-preceding period (5.0 <- from 5.3).
+    # since_lower must still fire, anchored on the TRUE most-recent lower row
+    # that also clears the minimum-lookback guard.
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 5.0),  # current — fell from 5.3
+        _row("cpi_12m_avg_monthly", "2026-03-01", 5.3),  # prev period, higher
+        _row("cpi_12m_avg_monthly", "2026-02-01", 5.2),  # higher, matches neither direction
+        _row("cpi_12m_avg_monthly", "2026-01-01", 4.7),  # lower, 3 back — valid since_lower
+        _row("cpi_12m_avg_monthly", "2025-12-01", 5.4),  # filler
+        _row("cpi_12m_avg_monthly", "2025-11-01", 5.5),  # filler
+    ]
+    facts = compute_history_facts(history, cadence="monthly", current_value=5.0, formatter=_format_pct_1dp)
+    kinds = {f.kind for f in facts}
+    assert "since_higher" not in kinds
+    assert "since_lower" in kinds
+    lower = next(f for f in facts if f.kind == "since_lower")
+    _assert_true_since_lower_claim(history, lower, current_value=5.0)
+
+
+def test_compute_history_facts_all_time_high_does_not_publish_lowest_since():
+    # Critical #2 (the audited defect, unfixed): a monotone-rising series —
+    # e.g. CPI 8.0 -> 8.5 printing every month — has NO row above current
+    # anywhere, so since_higher is None. There must be NO fallback to
+    # since_lower here; the original false claim re-anchors instead of
+    # disappearing if the fallback survives.
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 8.5),  # current — rose from 8.4, all-time high
+        _row("cpi_12m_avg_monthly", "2026-03-01", 8.4),
+        _row("cpi_12m_avg_monthly", "2026-02-01", 8.3),
+        _row("cpi_12m_avg_monthly", "2026-01-01", 8.2),
+        _row("cpi_12m_avg_monthly", "2025-12-01", 8.1),
+        _row("cpi_12m_avg_monthly", "2025-11-01", 8.0),
+    ]
+    facts = compute_history_facts(history, cadence="monthly", current_value=8.5, formatter=_format_pct_1dp)
+    kinds = {f.kind for f in facts}
+    assert "since_higher" not in kinds
+    assert "since_lower" not in kinds
+
+
+def test_compute_history_facts_all_time_low_does_not_publish_highest_since():
+    # Symmetric guard (Important #1): on a fall with NO lower row anywhere in
+    # history (current is an all-time low), the fact must be suppressed
+    # entirely — not fall back to since_higher and publish "highest since X"
+    # for a metric sitting at its floor.
+    history = [
+        _row("cpi_12m_avg_monthly", "2026-04-01", 4.0),  # current — fell from 4.2, all-time low
+        _row("cpi_12m_avg_monthly", "2026-03-01", 4.2),
+        _row("cpi_12m_avg_monthly", "2026-02-01", 4.4),
+        _row("cpi_12m_avg_monthly", "2026-01-01", 4.6),
+        _row("cpi_12m_avg_monthly", "2025-12-01", 4.8),
+        _row("cpi_12m_avg_monthly", "2025-11-01", 5.0),
+    ]
+    facts = compute_history_facts(history, cadence="monthly", current_value=4.0, formatter=_format_pct_1dp)
+    kinds = {f.kind for f in facts}
+    assert "since_lower" not in kinds
+    assert "since_higher" not in kinds
 
 
 # ── _format_as_of: quarterly cadence ────────────────────────────────────────
