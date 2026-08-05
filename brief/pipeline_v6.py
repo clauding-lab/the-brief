@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import time
+import unicodedata
 from datetime import date as date_t
 from pathlib import Path
 from typing import Any
@@ -31,7 +32,7 @@ from brief.v6_publisher import (
     fetch_recent_news,
     publish_brief,
 )
-from brief.v6_schema import BriefPayloadV6, MetricV6, SubeditorReview
+from brief.v6_schema import BriefPayloadV6, MetricV6, SectionV6, SubeditorReview
 from brief.vintage import stamp_vintages, vintage_payload
 from brief.claude import validators as _validators
 
@@ -78,6 +79,14 @@ class MetricReconciliationError(V6PublishError):
 PROTECTED_METRIC_IDS: dict[str, frozenset[str]] = {
     "bb": frozenset({"bb_policy_rate", "bb_sdf", "bb_slf"}),
 }
+
+# Every slug a builder can legitimately produce (SectionV6.slug has no
+# Pydantic allowlist — extra="forbid" only guards field NAMES, not values).
+# _reconcile_metrics uses this to tell "a known section that just didn't
+# build today" (routine — e.g. a test fixture, or a builder that threw) from
+# "a slug the editor invented out of nothing" (never legitimate — rejected
+# loudly, review finding L3).
+VALID_V6_SLUGS: frozenset[str] = frozenset(slug for slug, _ord, _group in V5_TO_V6.values())
 
 
 def _to_v6_raw(
@@ -363,6 +372,32 @@ def _format_metric_value(value: Any, unit: str) -> str:
     return str(value)
 
 
+def _normalize_label(label: str) -> str:
+    """Normalize a metric label for cross-source comparison.
+
+    NFC Unicode form, trimmed, casefolded. Matching this way — not exact
+    string equality — stops a harmless case/whitespace/Unicode drift between
+    the builder and the editor (e.g. "DSEX Close" vs "DSEX close") from being
+    treated as an invented metric and silently deleted. Before this, a
+    rejection this trivial would have emptied §06 `dse` to one tile with only
+    a journalctl WARNING to show for it (follow-up review, H2, 2026-08-05).
+    """
+    return unicodedata.normalize("NFC", label).strip().casefold()
+
+
+def _alert(message: str) -> None:
+    """Best-effort ops alert for a reconciliation event a human should see
+    same-day. `brief.alerts.send_discord_alert` already guarantees it never
+    raises; the try/except here only guards the local import, matching
+    `brief.cli`'s existing alert call sites — reconciliation must never fail
+    (or fail to publish) because the alert path itself broke."""
+    try:
+        from brief.alerts import send_discord_alert
+        send_discord_alert(message)
+    except Exception:
+        logger.exception("v6 reconcile: send_discord_alert itself failed")
+
+
 def _metric_v6_from_raw(raw_metric: dict[str, Any]) -> MetricV6:
     """Build a MetricV6 for re-injection from one raw builder Metric dict
     (an entry of `sections_raw[i]["metrics"]`, i.e. `Metric.model_dump()`).
@@ -373,10 +408,179 @@ def _metric_v6_from_raw(raw_metric: dict[str, Any]) -> MetricV6:
     metric skipping that polish is a strictly better outcome than the metric
     not existing on the page at all.
     """
+    label = raw_metric.get("label")
+    if not label:
+        raise ValueError(f"v6 reconcile: raw metric missing 'label': {raw_metric!r}")
     return MetricV6(
-        label=raw_metric["label"],
+        label=label,
         value=_format_metric_value(raw_metric.get("value"), raw_metric.get("unit") or ""),
     )
+
+
+def _reject_invented_and_dedupe(
+    section: SectionV6, raw_metrics: list[dict[str, Any]]
+) -> None:
+    """Mutate `section.metrics` in place: drop any metric whose (normalized)
+    label has no counterpart among `raw_metrics` — an editor invention, e.g.
+    a synthetic "Breadth" tile merged from Advancing + Declining that exists
+    in no builder (issues 177-180) — then drop same-label duplicates, keeping
+    the first occurrence (an editor returning one metric twice).
+
+    Every rejection is loud: logged at ERROR and pushed to Discord (H2). The
+    deletion itself still happens — an invented label must never publish —
+    but it must never again be discoverable only by grepping journalctl nine
+    issues later.
+    """
+    raw_norm_labels = {_normalize_label(m["label"]) for m in raw_metrics if "label" in m}
+
+    kept: list[MetricV6] = []
+    dropped = 0
+    for m in section.metrics:
+        if _normalize_label(m.label) in raw_norm_labels:
+            kept.append(m)
+            continue
+        dropped += 1
+        logger.error(
+            "v6 reconcile: REJECTED invented metric — section=%s label=%r "
+            "has no counterpart among %d raw metric label(s)",
+            section.slug, m.label, len(raw_norm_labels),
+        )
+        _alert(
+            f"ALERT: The Brief editor returned metric label={m.label!r} in "
+            f"section={section.slug!r} with no counterpart in the builder's "
+            f"raw output — DROPPED before publish. Verify this was a genuine "
+            f"invention and not a real metric under a label that failed to "
+            f"match. Inspect: journalctl -u brief.service -n 200 --no-pager"
+        )
+
+    seen_norm_labels: set[str] = set()
+    deduped: list[MetricV6] = []
+    for m in kept:
+        norm = _normalize_label(m.label)
+        if norm in seen_norm_labels:
+            logger.warning(
+                "v6 reconcile: section=%s dropped duplicate metric label=%r "
+                "(kept first occurrence)", section.slug, m.label,
+            )
+            continue
+        seen_norm_labels.add(norm)
+        deduped.append(m)
+    section.metrics = deduped
+
+    if dropped:
+        logger.warning(
+            "v6 reconcile: section=%s dropped %d invented metric(s); %d survive",
+            section.slug, dropped, len(section.metrics),
+        )
+
+
+def _reinject_protected_metrics(
+    section: SectionV6, raw_metrics: list[dict[str, Any]]
+) -> None:
+    """Mutate `section.metrics` in place: re-insert any `PROTECTED_METRIC_IDS`
+    metric still missing after `_reject_invented_and_dedupe`, sourced from its
+    raw builder `Metric`.
+
+    Inserted AT ITS RAW BUILDER INDEX, clamped to the current list length —
+    not appended to the tail (M1). Appending put SDF at ord=5, below both
+    call-money tenors, breaking §02's corridor hierarchy on every re-inject.
+    This does NOT re-sort metrics already present: the editor's legitimate
+    reordering of the metrics it kept survives untouched — only the missing
+    protected metric's own position is decided, and only relative to raw
+    builder order.
+    """
+    protected_ids = PROTECTED_METRIC_IDS.get(section.slug, frozenset())
+    if not protected_ids:
+        return
+
+    kept_labels = {_normalize_label(m.label) for m in section.metrics}
+    editor_stored_count = len(kept_labels)  # fixed once — NOT recomputed per
+    # reinject below, which would over-count already-reinjected metrics from
+    # earlier in this same loop as if the editor had stored them (L2).
+    built_count = len(raw_metrics)
+
+    for i, raw_metric in enumerate(raw_metrics):  # builder order
+        metric_id = raw_metric.get("id")
+        label = raw_metric.get("label")
+        if metric_id not in protected_ids or not label:
+            continue
+        norm_label = _normalize_label(label)
+        if norm_label in kept_labels:
+            continue
+        reinjected = _metric_v6_from_raw(raw_metric)
+        insert_at = min(i, len(section.metrics))
+        section.metrics.insert(insert_at, reinjected)
+        kept_labels.add(norm_label)
+        logger.warning(
+            "v6 reconcile: RE-INJECTED protected metric — section=%s id=%s "
+            "label=%r at index=%d (builder built %d, editor stored %d before "
+            "any reinjection)",
+            section.slug, metric_id, label, insert_at, built_count,
+            editor_stored_count,
+        )
+
+
+def _verify_protected_presence(
+    final_brief: BriefPayloadV6, raw_by_slug: dict[str, dict[str, Any]]
+) -> None:
+    """Split verification, per finding H1 — not every missing protected
+    metric is the same failure:
+
+    - The raw builder never produced it today (no raw counterpart for the
+      slug at all, or the id is absent from the raw metrics list): a routine
+      upstream blip — a network timeout inside `bb.py`'s `history.get_latest`
+      calls, for instance, which `brief/pipeline.py:89-96` already degrades
+      to an empty-metrics `SectionData` rather than crashing the whole
+      publish. Reconciliation has nothing to re-inject from. This is logged
+      at ERROR and alerted to Discord, and the publish CONTINUES — converting
+      a routine blip (today: one greyed section) into a lost morning edition
+      would be a worse failure than the one this function exists to prevent.
+    - The raw builder DID produce it, but it is still missing from the final
+      brief after `_reinject_protected_metrics` ran — which only happens if
+      the editor deleted the WHOLE section around it (re-injection into an
+      existing section is deterministic and cannot fail once raw data
+      exists). This is not a blip; the data existed and the editor discarded
+      it. HARD-FAILS via `MetricReconciliationError`.
+    """
+    section_by_slug = {s.slug: s for s in final_brief.sections}
+    hard_missing: list[str] = []
+
+    for slug, protected_ids in PROTECTED_METRIC_IDS.items():
+        raw_section = raw_by_slug.get(slug)
+        raw_metrics: list[dict[str, Any]] = (raw_section or {}).get("metrics") or []
+        raw_by_id = {m.get("id"): m for m in raw_metrics}
+        section = section_by_slug.get(slug)
+        final_labels = (
+            {_normalize_label(m.label) for m in section.metrics}
+            if section is not None else set()
+        )
+
+        for metric_id in protected_ids:
+            raw_metric = raw_by_id.get(metric_id)
+            if raw_metric is None:
+                logger.error(
+                    "v6 reconcile: DEGRADED — protected metric %s.%s was not "
+                    "built today (builder error, or the source row is "
+                    "missing) — publish CONTINUES with %s degraded",
+                    slug, metric_id, slug,
+                )
+                _alert(
+                    f"ALERT: The Brief §{slug} builder did not produce "
+                    f"protected metric {metric_id!r} today — publishing "
+                    f"anyway with {slug} degraded. This is a builder-side "
+                    f"blip (H1), not a hold. Inspect: journalctl -u "
+                    f"brief.service -n 200 --no-pager"
+                )
+                continue
+            if _normalize_label(raw_metric.get("label") or "") not in final_labels:
+                hard_missing.append(f"{slug}.{metric_id}")
+
+    if hard_missing:
+        raise MetricReconciliationError(
+            "v6 reconcile: protected metric(s) were built by the raw "
+            "pipeline but are absent from the final brief after "
+            f"reconciliation — holding the publish: {hard_missing}"
+        )
 
 
 def _reconcile_metrics(
@@ -388,126 +592,64 @@ def _reconcile_metrics(
     and drop "low-signal" metrics, capped at 5 per section — and nothing
     downstream ever validated what survived: an empty `metrics` list passes
     the V6 schema, and the publisher writes whatever the editor returned
-    verbatim. Two consequences, both closed here:
+    verbatim. Consequences, all closed here:
 
       1. The editor can INVENT a metric that exists in no builder (e.g.
-         "Breadth" merged from Advancing + Declining, issues 177-180) —
-         `MetricV6` has no label allowlist, so nothing objected.
+         "Breadth" merged from Advancing + Declining, issues 177-180), or a
+         whole SECTION that maps to no builder at all — neither `MetricV6`
+         nor `SectionV6.slug` carries an allowlist, so nothing objected.
       2. A section fed more than 5 metrics loses whichever ones the editor
          judges least newsworthy that day — for §02 `bb`, that meant SDF
-         survived only 1 of the last 12 issues and SLF only 4, because
-         `bb.py`'s two prose-context call-money tenors hold two of the five
-         tile slots every single day once the editor reorders (builder index
-         carries no meaning after that reorder — AGENTS.md landmine 25's
-         "order is load-bearing" claim was wrong).
+         survived only 1 of the last 12 issues and SLF only 4 (builder order
+         carries no downstream meaning post-editor — AGENTS.md landmine 25).
 
-    This mutates `final_brief.sections[i].metrics` in place:
-      1. REJECTS any final metric whose `label` has no counterpart among the
-         section's raw builder metrics — editor inventions never publish.
-      2. RE-INJECTS, in builder order, any `PROTECTED_METRIC_IDS` metric the
-         reject/drop step above left missing.
-      3. Every drop and re-injection is logged at WARNING with id + section +
-         counts, so the next casualty is visible in journalctl same-day
-         rather than discovered nine issues later.
-      4. Raises `MetricReconciliationError` — HARD-FAIL, not log-only — if a
-         protected metric is still absent once reconciliation is done. The
-         existing `_run_deterministic_gate` is deliberately log-only because a
-         prose false-positive must never hold the fire; re-inserting a metric
-         the builder produced cannot corrupt a brief, so that reasoning does
-         not transfer here.
+    Per-section (mutates `final_brief.sections[i].metrics` in place via the
+    helpers below): reject invented metric labels + dedupe
+    (`_reject_invented_and_dedupe`), then re-inject missing protected metrics
+    at their builder index (`_reinject_protected_metrics`). A section whose
+    slug has no raw counterpart is left untouched UNLESS the slug itself is
+    not a real V6 slug at all (`VALID_V6_SLUGS`) — an editor-invented
+    section is dropped from `final_brief.sections` entirely and alerted, not
+    silently published.
 
-    A `final_brief` section whose slug has no counterpart in `raw_sections`
-    (e.g. the editor dropped the whole section) is left untouched — there is
-    nothing to reconcile its metrics against. Protected ids in that section's
-    slug still hard-fail below, since the corridor cannot go missing silently
-    just because the section around it also vanished.
+    Brief-wide: `_verify_protected_presence` — HARD-FAILS
+    (`MetricReconciliationError`) only when the raw builder proved a
+    protected metric existed today and the final brief still doesn't have
+    it; a protected metric the builder itself never produced today degrades
+    the section and alerts instead of blocking the whole publish (H1).
     """
     raw_by_slug: dict[str, dict[str, Any]] = {
         s["slug"]: s for s in raw_sections if "slug" in s
     }
-    section_by_slug: dict[str, Any] = {s.slug: s for s in final_brief.sections}
-    missing: list[str] = []
 
+    kept_sections: list[SectionV6] = []
     for section in final_brief.sections:
         raw_section = raw_by_slug.get(section.slug)
+
         if raw_section is None:
+            if section.slug not in VALID_V6_SLUGS:
+                logger.error(
+                    "v6 reconcile: REJECTED invented section — slug=%r matches "
+                    "no known V6 slug; %d metric(s) discarded with it",
+                    section.slug, len(section.metrics),
+                )
+                _alert(
+                    f"ALERT: The Brief editor invented section slug="
+                    f"{section.slug!r} with no counterpart in any builder — "
+                    f"DROPPED before publish. Inspect: journalctl -u "
+                    f"brief.service -n 200 --no-pager"
+                )
+                continue  # drop — do not publish an invented section
+            kept_sections.append(section)  # known slug, just didn't build today
             continue
 
         raw_metrics: list[dict[str, Any]] = raw_section.get("metrics") or []
-        raw_labels = {m["label"] for m in raw_metrics if "label" in m}
+        _reject_invented_and_dedupe(section, raw_metrics)
+        _reinject_protected_metrics(section, raw_metrics)
+        kept_sections.append(section)
 
-        # 1. Reject editor-invented labels.
-        kept: list[MetricV6] = []
-        dropped = 0
-        for m in section.metrics:
-            if m.label in raw_labels:
-                kept.append(m)
-            else:
-                dropped += 1
-                logger.warning(
-                    "v6 reconcile: REJECTED invented metric — section=%s "
-                    "label=%r has no counterpart among %d raw metric label(s)",
-                    section.slug, m.label, len(raw_labels),
-                )
-        section.metrics = kept
-        if dropped:
-            logger.warning(
-                "v6 reconcile: section=%s dropped %d invented metric(s) "
-                "(editor built label set not matched to any builder metric); "
-                "%d survive", section.slug, dropped, len(kept),
-            )
-
-        # 2. Re-inject protected metrics the editor dropped, in builder order.
-        protected_ids = PROTECTED_METRIC_IDS.get(section.slug, frozenset())
-        if not protected_ids:
-            continue
-
-        kept_labels = {m.label for m in section.metrics}
-        built_count = len(raw_metrics)
-        for raw_metric in raw_metrics:  # builder order
-            metric_id = raw_metric.get("id")
-            label = raw_metric.get("label")
-            if metric_id not in protected_ids or label in kept_labels:
-                continue
-            reinjected = _metric_v6_from_raw(raw_metric)
-            section.metrics.append(reinjected)
-            kept_labels.add(label)
-            logger.warning(
-                "v6 reconcile: RE-INJECTED protected metric — section=%s "
-                "id=%s label=%r (builder built %d, editor stored %d before reinject)",
-                section.slug, metric_id, label, built_count, len(kept_labels) - 1,
-            )
-
-    # 3. Hard requirement: verify every protected id independently of whether
-    # a re-injection attempt ran above — a builder that omitted a protected id
-    # today, or an editor that dropped the whole section around it, must
-    # still surface as a hold, not a silent gap. Scoped to slugs that DID have
-    # a raw counterpart this run (same guard as steps 1-2 and _stamp_freshness):
-    # `bb` always does in production (bb.py's fallback path never omits the
-    # corridor, and pipeline.py's builder-exception-swallow still yields a
-    # degraded SectionData V5_TO_V6 maps through) — a slug with NO raw
-    # counterpart at all means this run's raw builder output never touched
-    # it, which is a different, upstream failure this function cannot see.
-    for slug, protected_ids in PROTECTED_METRIC_IDS.items():
-        raw_section = raw_by_slug.get(slug)
-        if raw_section is None:
-            continue
-        section = section_by_slug.get(slug)
-        final_labels = {m.label for m in section.metrics} if section is not None else set()
-        raw_metrics = raw_section.get("metrics") or []
-        raw_by_id = {m.get("id"): m for m in raw_metrics}
-        for metric_id in protected_ids:
-            raw_metric = raw_by_id.get(metric_id)
-            if raw_metric is None:
-                missing.append(f"{slug}.{metric_id} (not built today)")
-            elif raw_metric.get("label") not in final_labels:
-                missing.append(f"{slug}.{metric_id}")
-
-    if missing:
-        raise MetricReconciliationError(
-            "v6 reconcile: protected metric(s) absent after reconciliation — "
-            f"holding the publish (never ship without one): {missing}"
-        )
+    final_brief.sections = kept_sections
+    _verify_protected_presence(final_brief, raw_by_slug)
 
 
 # ─── Phase E.2 — chart series enricher ────────────────────────────────
@@ -1016,7 +1158,23 @@ def run_publish(
             "without a revised_brief — holding (a review gate must never fail OPEN)"
         )
 
-    # ── Post-LLM: deterministic diff + held-over stamping ──────────
+    # ── Post-LLM: metric reconciliation FIRST, then diff + held-over ────
+    # Deterministic post-editor metric reconciliation (sdf-diagnosis-2026-08-05.md
+    # §4, Fix A) runs BEFORE stamp_changed/mark_held_overs/stamp_vintages —
+    # not after them. A re-injected protected metric must be visible to those
+    # three passes so it gets a real "changed" dot and vintage "As of…"
+    # footer like any other metric, instead of silently defaulting to
+    # changed=False/no vintage because it was spliced in after they already
+    # ran (follow-up review, M2). The original "after" placement was
+    # justified by proximity to `_stamp_freshness`, which is section-level
+    # and doesn't care about metric identity either way — that justification
+    # doesn't extend to stamp_changed/mark_held_overs/stamp_vintages, which
+    # all key off individual metrics. Must HARD-FAIL (raise) on a genuine
+    # loss, unlike the log-only `_run_deterministic_gate` below — see
+    # MetricReconciliationError's docstring for why the two do not share a
+    # log-only rationale.
+    _reconcile_metrics(final_brief, editor_input["sections_raw"])
+
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
     # Vintage stamping runs LAST of the three and never overwrites
@@ -1026,14 +1184,6 @@ def run_publish(
     # the "held from" footer had never rendered before this ran. See
     # brief/vintage.py.
     vintaged = stamp_vintages(final_brief, sections, today=today)
-
-    # Deterministic post-editor metric reconciliation (sdf-diagnosis-2026-08-05.md
-    # §4, Fix A). Must run before _stamp_freshness so a re-injected metric's
-    # section still gets its freshness stamped normally; must HARD-FAIL (raise)
-    # rather than log-only, unlike _run_deterministic_gate below — see
-    # MetricReconciliationError's docstring for why the two do not share a
-    # log-only rationale.
-    _reconcile_metrics(final_brief, editor_input["sections_raw"])
     _stamp_freshness(final_brief, editor_input["sections_raw"])
 
     # Phase E.2 — chart series enricher. Skip silently when supabase env is

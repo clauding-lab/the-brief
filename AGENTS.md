@@ -174,19 +174,21 @@ consequences supersede the original wording (B3 item 11, 2026-07-10):
   (and drops) metrics before storage, so "first 5" was never a real guarantee
   post-editor anyway (see the 2026-08-05 SDF diagnosis memo).
 - The cap was the ONLY thing keeping `bb.py`'s call-money tenor points
-  (7d/14d) off the tile row. Today `bb` stores ≤5 metrics so nothing changes
-  visually; pipeline reconciliation (`PROTECTED_METRIC_IDS` +
-  `_reconcile_metrics` in `brief/pipeline_v6.py`, PR #158) now re-injects any
-  of the corridor's protected metrics (`bb_policy_rate`, `bb_sdf`, `bb_slf`)
-  the editor drops, and HARD-FAILS the publish if one is still absent after
-  reconciliation — it also rejects any editor-returned metric with no
+  (7d/14d) off the tile row. **After PR #158, `bb` typically stores 6-7
+  metrics, not ≤5** — pipeline reconciliation (`PROTECTED_METRIC_IDS` +
+  `_reconcile_metrics` in `brief/pipeline_v6.py`) re-injects any of the
+  corridor's protected metrics (`bb_policy_rate`, `bb_sdf`, `bb_slf`) the
+  editor drops, and HARD-FAILS the publish if one is still absent after
+  reconciliation; it also rejects any editor-returned metric with no
   counterpart in the raw builder output, closing an "invented tile" hole (a
   synthetic "Breadth" label existed in no builder, §06 `dse`, issues
-  177-180). With the render cap gone, a re-injected tenor point CAN surface
-  as a KPI tile on days the editor keeps it. Whether the tenors should tile,
-  or move to a separate never-tiled context feed, is an OPEN question for
-  Adnan (domain call — sdf-diagnosis memo). Do NOT decide it unilaterally in
-  code.
+  177-180). The tenors themselves are NOT protected and are NEVER
+  re-injected by that mechanism — when they tile, it is only because the
+  editor chose to KEEP them in its own output and the render cap (now gone)
+  no longer cuts them off, the same as any other metric the editor decides
+  to show. Whether the tenors should tile at all, or move to a separate
+  never-tiled context feed, is an OPEN question for Adnan (domain call —
+  sdf-diagnosis memo). Do NOT decide it unilaterally in code.
 
 ## 26. A cut-off Claude response continues in a NEW assistant message — read the STREAM, and never trust `num_turns` or `result` to tell you it happened
 
