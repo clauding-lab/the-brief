@@ -146,14 +146,12 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  // Prefer the service-role key so this route can be the ONLY insert path once the anon
-  // INSERT policy on `subscribers` is dropped (service_role bypasses RLS). Falls back to
-  // the anon key so the form keeps working BEFORE that RLS change lands — but full
-  // protection requires BOTH: set SUPABASE_SERVICE_ROLE_KEY in Vercel env AND drop the
-  // anon `allow_insert` policy (see the deploy runbook + the SQL handed to Adnan).
-  // ORDERING: set the service key first; dropping the policy while only the anon key is
-  // present makes every insert fail RLS (502). Until the service key is set the route is
-  // bypassable via the bundled anon key, so its guards are advisory, not enforced.
+  // Prefer the service-role key so this route is the ONLY insert path (service_role
+  // bypasses RLS). Verified against pg_policy on 2026-07-09: SUPABASE_SERVICE_ROLE_KEY
+  // is set in Vercel AND the anon INSERT policy on `subscribers` has been dropped (0
+  // policies, RLS on) — so the `NEXT_PUBLIC_SUPABASE_ANON_KEY` fallback below is dead
+  // in production; it would 502 on RLS if it were ever reached. It stays only as a
+  // local-dev fallback for a checkout without SUPABASE_SERVICE_ROLE_KEY set.
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const key = serviceKey ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
@@ -162,8 +160,8 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
   if (!serviceKey) {
     console.warn(
-      "subscribe route: SUPABASE_SERVICE_ROLE_KEY not set — using the public anon key; " +
-        "the route is bypassable until the service key is set and the anon insert policy dropped",
+      "subscribe route: SUPABASE_SERVICE_ROLE_KEY not set — falling back to the public " +
+        "anon key, which has no INSERT policy on `subscribers` in production; inserts will fail RLS (502)",
     );
   }
 

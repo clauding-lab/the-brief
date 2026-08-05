@@ -90,9 +90,9 @@ Brief.timer on Hetzner runs `Mon..Sun 02:00 UTC` — every day, Saturday include
    2. **Pick lens** — data-driven (NPL stress → credit-cycle; Brent spike → external-shock; etc.) or weekly_wrap on Friday
    3. **Editor LLM** — Claude with `editor_v6.txt` / `editor_v6_friday.txt` produces structured JSON (Today's Call, section verdicts, banker_read blocks, hero selection, etc.)
    4. **Subeditor LLM** — second Claude call validates the editor's output against the Pydantic schema + editorial rules
-   5. **Publish** — `v6_publisher.publish_brief()` writes brief + sections + metrics + news + chart_series to Supabase (DELETE + INSERT, idempotent for same-day re-runs)
-   6. **Notify** — `notifier.notify()` fetches all rows from `subscribers`, renders an HTML + plain-text digest, POSTs once to Brevo with multi-recipient `to:` list. Fail-open — never crashes the publish.
-3. **Supabase** — the data layer. Tables: `metric_history` (indicator time series), `briefs`, `sections`, `metrics`, `news`, `chart_series`, `chart_notes`, `subscribers`. Service-role auth for the publisher; anon read-only auth for the SPA; insert-only auth for the subscribe form.
+   5. **Publish** — `v6_publisher.publish_brief()` clears any same-issue row, then writes the brief as a `draft`, POSTs sections/metrics/news/chart_series, and flips `status='published'` as the LAST call — a two-phase write, not a single DELETE + INSERT (idempotent for same-day re-runs)
+   6. **Notify** — `notifier.notify()` fetches all rows from `subscribers`, renders an HTML + plain-text digest, and POSTs ONE Brevo call per subscriber (never a multi-recipient `to:` list — that would leak every recipient's address to the others). Fail-open — never crashes the publish.
+3. **Supabase** — the data layer. Tables: `metric_history` (indicator time series), `briefs`, `sections`, `metrics`, `news`, `chart_series`, `chart_notes`, `subscribers`. Service-role auth for the publisher and the subscribe form; anon read-only auth for the SPA.
 4. **Next.js SPA** — `app/`, deployed on Vercel. Reads the latest brief via the `get_latest_brief` Supabase RPC, renders it as a cream-paper newspaper. Hash-routed scroll-spy navigation, IntersectionObserver-driven sticky bar, no-JS-needed first paint via SSR.
 
 ## Tech stack
@@ -100,13 +100,13 @@ Brief.timer on Hetzner runs `Mon..Sun 02:00 UTC` — every day, Saturday include
 | Layer | Tool |
 |---|---|
 | Editorial pipeline | Python 3.11+ (stdlib + `anthropic` + `pydantic`) |
-| LLM | Anthropic Claude (Sonnet 4.6 / Opus 4.7 via Claude CLI) |
+| LLM | Anthropic Claude (single model pin: Opus 4.8 via Claude CLI — no Sonnet path) |
 | Data layer | Supabase Postgres + PostgREST |
 | Web app | Next.js 16 (App Router) + React 19 + TypeScript |
 | Charts | Chart.js 4 + `chartjs-adapter-date-fns` |
 | Hosting (compute) | Hetzner (`clauding-lab`, Ubuntu, systemd) |
 | Hosting (web) | Vercel |
-| Email | Brevo (transactional API, multi-recipient batch) |
+| Email | Brevo (transactional API, one POST per subscriber) |
 | Scrapers (upstream) | `clauding-lab/econdelta` on ExonVPS |
 
 ## Subscribe / unsubscribe
