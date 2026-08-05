@@ -185,7 +185,7 @@ The brief uses banker-domain abbreviations heavily. To keep editorial copy scann
 | BB / Bangladesh Bank | "Bangladesh Bank Authority" (not a real institution) |
 | Tk 1,000 cr | BDT 10,000,000,000 (verbose; non-banker-native) |
 | 9% inflation | "high inflation" (drops precision) |
-| 06:30 BDT | "early morning" |
+| 08:00 BDT | "early morning" |
 | Q1 2026 | "first quarter of fiscal year 2026" |
 | Tier-1 capital | "first-tier capital" |
 | YoY | "compared to last year's same period" |

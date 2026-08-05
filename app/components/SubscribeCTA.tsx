@@ -77,7 +77,7 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
           </div>
           <div className="body">
             What 2,400&nbsp;treasury, policy and corporate-finance readers in Dhaka start
-            their day with. 06:30 BDT sharp. No filler.
+            their day with. 08:00 BDT sharp. No filler.
           </div>
         </div>
         <div
@@ -98,7 +98,7 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
       </div>
 
       <form className="tb-cta-form" onSubmit={handleSubmit} noValidate>
-        <div className="eyebrow">Daily, 06:30 BDT</div>
+        <div className="eyebrow">Daily, 08:00 BDT</div>
         <Hair />
         {done ? (
           <div style={{ paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -113,7 +113,7 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
                 lineHeight: 1.5,
               }}
             >
-              First brief lands in your inbox tomorrow at 06:30 BDT. Forward freely; we
+              First brief lands in your inbox tomorrow at 08:00 BDT. Forward freely; we
               don&rsquo;t track opens.
             </div>
           </div>

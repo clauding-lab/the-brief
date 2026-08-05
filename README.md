@@ -3,10 +3,10 @@
 **Daily macro & markets read for Bangladesh banking professionals.**
 
 [![Live site](https://img.shields.io/badge/live-thebrief.clauding--lab.com-1a1814?style=flat-square)](https://thebrief.clauding-lab.com/)
-[![Cadence](https://img.shields.io/badge/cadence-Mon%E2%80%93Fri%20%2B%20Sun%20%C2%B7%2006%3A30%20BDT-7a6f5c?style=flat-square)](#cadence)
-[![Version](https://img.shields.io/badge/version-1.5.1-a67c2e?style=flat-square)](./CHANGELOG.md)
+[![Cadence](https://img.shields.io/badge/cadence-Daily%20%C2%B7%2008%3A00%20BDT-7a6f5c?style=flat-square)](#cadence)
+[![Version](https://img.shields.io/badge/version-1.6.9-a67c2e?style=flat-square)](./CHANGELOG.md)
 
-Numbers, news, and a banker's read on what matters. One brief. Every morning at 06:30 BDT. ~15 minutes.
+Numbers, news, and a banker's read on what matters. One brief. Every morning at 08:00 BDT. ~15 minutes.
 
 **Read it →** [thebrief.clauding-lab.com](https://thebrief.clauding-lab.com/)
 **Subscribe (free) →** [thebrief.clauding-lab.com/#subscribe](https://thebrief.clauding-lab.com/#subscribe)
@@ -17,9 +17,9 @@ Numbers, news, and a banker's read on what matters. One brief. Every morning at 
 
 The Brief is a daily editorial brief that synthesises Bangladesh's macro and markets data into a single ~15-minute read for senior banking professionals — business heads across corporate, SME, and retail, plus risk heads, plus treasury heads, at Tier-1 banks in Bangladesh.
 
-Every morning at 06:30 BDT, a Python pipeline pulls fresh data from EconDelta (the upstream scraper system) via a Supabase store, hands it to Claude (Anthropic's LLM) running with a tightly-scoped Desk Editor prompt, and publishes the finished brief — structured prose + verdicts + numbers + headlines + chart data — back to Supabase. A Next.js single-page app on Vercel reads the latest issue and renders it as a cream-paper newspaper. Subscribers receive an HTML + plain-text email at the same moment via Brevo.
+Every morning at 08:00 BDT, a Python pipeline pulls fresh data from EconDelta (the upstream scraper system) via a Supabase store, hands it to Claude (Anthropic's LLM) running with a tightly-scoped Desk Editor prompt, and publishes the finished brief — structured prose + verdicts + numbers + headlines + chart data — back to Supabase. A Next.js single-page app on Vercel reads the latest issue and renders it as a cream-paper newspaper. Subscribers receive an HTML + plain-text email at the same moment via Brevo.
 
-There is no human in the loop on the daily run. The brief writes itself, validates itself (via a subeditor LLM pass), and ships itself. The voice is consistent because the prompts are fixed; the data is fresh because the upstream scrapers run an hour earlier.
+There is no human in the loop on the daily run. The brief writes itself, validates itself (via a subeditor LLM pass), and ships itself. The voice is consistent because the prompts are fixed; the data is fresh because the upstream scrapers finish about five hours earlier.
 
 ## Who it's for
 
@@ -52,15 +52,15 @@ On Friday, the cadence shifts — Friday issues are **weekly wraps**: a 5-day sy
 
 | Day | Fires at | Type | Lens |
 |---|---|---|---|
-| Mon | 06:30 BDT | Daily | data-driven (FX-runway / credit-cycle / rates-curve / sovereign-debt / external-shock) |
-| Tue | 06:30 BDT | Daily | data-driven |
-| Wed | 06:30 BDT | Daily | data-driven |
-| Thu | 06:30 BDT | Daily | data-driven |
-| Fri | 06:30 BDT | **Weekly wrap** | 5-day synthesis |
-| Sat | 06:30 BDT | Daily | data-driven |
-| Sun | 06:30 BDT | Daily | data-driven |
+| Mon | 08:00 BDT | Daily | data-driven (FX-runway / credit-cycle / rates-curve / sovereign-debt / external-shock) |
+| Tue | 08:00 BDT | Daily | data-driven |
+| Wed | 08:00 BDT | Daily | data-driven |
+| Thu | 08:00 BDT | Daily | data-driven |
+| Fri | 08:00 BDT | **Weekly wrap** | 5-day synthesis |
+| Sat | 08:00 BDT | Daily | data-driven |
+| Sun | 08:00 BDT | Daily | data-driven |
 
-Brief.timer on Hetzner runs `Mon..Sun 00:30 UTC` — every day, Saturday included.
+Brief.timer on Hetzner runs `Mon..Sun 02:00 UTC` — every day, Saturday included.
 
 ## How it works
 
@@ -68,7 +68,7 @@ Brief.timer on Hetzner runs `Mon..Sun 00:30 UTC` — every day, Saturday include
 ┌─────────────────────┐        ┌───────────────────────┐        ┌──────────────────────┐
 │  EconDelta scrapers │        │  Supabase             │        │  The Brief           │
 │  (ExonVPS)          │  ────▶ │  metric_history,      │ ────▶  │  pipeline (Hetzner)  │
-│  fire 05:30 BDT     │        │  briefs, sections,    │        │  fires 06:30 BDT     │
+│  aggregate 02:55 BDT│        │  briefs, sections,    │        │  fires 08:00 BDT     │
 │  daily              │        │  news, subscribers    │        │                      │
 └─────────────────────┘        └───────────────────────┘        └──────────┬───────────┘
                                           │                                │
@@ -84,8 +84,8 @@ Brief.timer on Hetzner runs `Mon..Sun 00:30 UTC` — every day, Saturday include
 
 ### Four moving parts
 
-1. **EconDelta scrapers** — separate repo (`clauding-lab/econdelta`), runs on ExonVPS. Writes raw indicator data to Supabase `metric_history` at ~05:30 BDT.
-2. **The Brief pipeline** — Python, runs on Hetzner via `brief.service` systemd unit. Fires at 06:30 BDT. Six stages:
+1. **EconDelta scrapers** — separate repo (`clauding-lab/econdelta`), runs on ExonVPS. Fetches from ~01:30 BDT and finishes writing to Supabase `metric_history` when its aggregate stage lands at ~02:55 BDT — deliberately ahead of this pipeline's 08:00 fire, so a brief reads the SAME morning's data rather than yesterday afternoon's.
+2. **The Brief pipeline** — Python, runs on Hetzner via `brief.service` systemd unit. Fires at 08:00 BDT. Six stages:
    1. **Gather** — per-section builders pull from `metric_history` (Supabase) and `latest.json` (rsync'd snapshot from ExonVPS)
    2. **Pick lens** — data-driven (NPL stress → credit-cycle; Brent spike → external-shock; etc.) or weekly_wrap on Friday
    3. **Editor LLM** — Claude with `editor_v6.txt` / `editor_v6_friday.txt` produces structured JSON (Today's Call, section verdicts, banker_read blocks, hero selection, etc.)
@@ -138,7 +138,7 @@ the-brief/
 ├── lib/                          # Shared SPA helpers (format, fallback, supabase client)
 ├── deploy/                       # systemd unit, env example, install/uninstall scripts
 │   ├── brief.service             # The daily (Mon–Sun) timer-driven oneshot unit
-│   ├── brief.timer               # OnCalendar=Mon..Sun 00:30 UTC
+│   ├── brief.timer               # OnCalendar=Mon..Sun 02:00 UTC
 │   └── brief.env.example         # Required env vars
 ├── docs/                         # Design docs, plans, ops notes
 │   └── superpowers/specs/        # Per-feature design specs
@@ -205,7 +205,7 @@ npm run lint
 
 | Where | Runs | Cadence | Files |
 |---|---|---|---|
-| **Hetzner** (`clauding-lab`) | `brief.service` — Python pipeline | Daily · 00:30 UTC | `/etc/systemd/system/brief.{service,timer}`, `/etc/brief.env` |
+| **Hetzner** (`clauding-lab`) | `brief.service` — Python pipeline | Daily · 02:00 UTC | `/etc/systemd/system/brief.{service,timer}`, `/etc/brief.env` |
 | **Vercel** | Next.js SPA | continuous deploy from `main` | `app/`, `lib/`, `public/` |
 | **Supabase** | Postgres + RPC | continuous | `migrations/`, RPC `get_latest_brief` |
 | **ExonVPS** | EconDelta scrapers (upstream) | daily ~05:30 BDT | separate repo |

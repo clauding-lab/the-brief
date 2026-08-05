@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.6.9] — 2026-08-04
+
+### Changed
+- **The daily publish moves from 06:30 BDT to 08:00 BDT** (`brief.timer`: `00:30 UTC` → `02:00 UTC`). The old time put this pipeline *ahead* of the data it reads: EconDelta's `aggregate_latest` stage ran at 13:00 BDT, so every brief was built on an aggregate roughly **17 hours old** — yesterday afternoon's — and any upstream fix landing in the morning could not reach the next morning's issue. EconDelta's chain moves to the small hours in the companion change (fetch ~01:30, aggregate ~02:55 BDT), leaving about five hours of headroom before this fire.
+- **Reader-facing copy follows the timer.** `SubscribeCTA.tsx` states the delivery time in three places (hero line, form eyebrow, post-signup confirmation); all now read 08:00 BDT. Leaving them would have promised subscribers a delivery time they no longer get.
+- `Master.md` copy convention updated to the new time (contract file — changed on the owner's explicit instruction to reschedule).
+- README: cadence table, architecture diagram, deployment table, and the stale `Mon–Fri + Sun` cadence badge (7 days/week since PR #116) all corrected; version badge unstuck from 1.5.1.
+
+### Added
+- **Landmine 32** — the publish time and EconDelta's aggregate are one schedule, not two. Records the constraint that binds them: EconDelta's LLM parse stage must stay clear of ~05:00–06:00 BDT (16:00–17:00 US Pacific, Anthropic's peak), where its preflight failed 12 consecutive times in May 2026. That is what sets how early this brief can fire.
+
+### Known limits
+- **The two repos cannot test each other.** Nothing here fails if EconDelta's timers move back; the coupling is documented, not enforced.
+- **This does not ship itself.** `brief.timer` lives in `/etc/systemd/system/` and needs a root copy + `daemon-reload` on Hetzner. Because the unit is `Persistent=true`, reloading after 02:00 UTC on the switch-over day makes systemd treat that slot as missed and fire an immediate catch-up publish. The safe window is between the old fire and the new one.
+
+### Tests
+- No behavioural code changed; the notifier derives its printed time from the run timestamp rather than a constant, so no test was pinned to 06:30.
+- Full suite green: **721 passed**, 91% coverage. (The 1.6.7/1.6.8 entries state 716/719 — those came from counting progress dots by eye rather than from `--collect-only`, and are each short by two. The counts are wrong; the "green" is not. Left uncorrected because CHANGELOG history is sign-off-gated.)
+
+---
+
 ## [1.6.8] — 2026-08-04
 
 ### Removed

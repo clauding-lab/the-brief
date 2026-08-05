@@ -1,8 +1,10 @@
 [Unit]
-Description=Run The Brief daily at 06:30 BDT (00:30 UTC)
+Description=Run The Brief daily at 08:00 BDT (02:00 UTC)
 
 [Timer]
-OnCalendar=Mon..Sun 00:30:00 UTC
+# Moved 06:30 -> 08:00 BDT so the fire lands AFTER EconDelta's aggregate, not
+# ~17h behind it. See AGENTS.md landmine 32 for the ordering this depends on.
+OnCalendar=Mon..Sun 02:00:00 UTC
 Persistent=true
 Unit=brief.service
 
