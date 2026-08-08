@@ -37,6 +37,30 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-08 — v1.6.9 | An off-schedule `systemctl start brief.service` republish mints a new issue AND re-emails every subscriber — neither is what "just re-run it" means
+
+**Trigger:** the day's original 08:00 BDT publish held (exit 4) — the editor/sub-editor exchange returned a fragment instead of a full `BriefPayloadV6`, a shape-drift the retry logic did not treat as transient. A single manual retry of the same call cleared it, so the underlying data was never bad; the response shape was. Rather than re-running the pipeline directly, the box was re-fired the same way `brief.timer` fires it: `systemctl start brief.service`. That produced two side effects nobody had reasoned through, both discovered only after the fact:
+
+**What went wrong:** `systemctl start brief.service` runs the exact same `ExecStart` the timer uses — `python -m brief.cli run --publish` with no override flags. Two consequences follow mechanically, neither of them a bug in the strict sense, both wrong for what was actually intended:
+
+1. **It mints a NEW `issue_no`, it does not rebuild the day's issue.** `v6_publisher.publish_brief` computes `issue_no` fresh per call rather than keying off `brief_date`; there is no "re-publish issue N" mode, only "publish the next issue." The result: 2026-08-08 now has **two published issues, #189 and #190**, both live in Supabase. The owner reviewed both and ruled to keep them rather than delete either — but that is a one-off call, not a precedent; a future off-schedule re-fire that produces a genuinely bad second issue will need the same delete-or-keep decision made deliberately, not by default.
+2. **It re-emails every subscriber.** `brief.service`'s `ExecStart` has notifier `notify=on` by default (the same path the 06:00 daily fire uses) — there is no separate "quiet" unit for manual re-fires. Every subscriber who received the morning's #189 email also received #190. This is the same class of harm landmine #3 (one-Brevo-POST-per-subscriber privacy contract) protects against, just triggered by an operational habit rather than a code bug: the code did exactly what it was told; what it was told was wrong for the situation.
+
+**Lesson:** `systemctl start brief.service` is the RIGHT command for "the scheduled fire didn't happen, run it as if it had" (a missed-fire catch-up, which legitimately wants a new issue and a real notify). It is the WRONG command for "the day's issue needs correcting, run it again" (an off-schedule same-day republish, which wants neither a second issue_no nor a second round of emails). The two scenarios look identical at the shell prompt and are operationally opposite.
+
+**Prevention:** off-schedule same-day republishes MUST invoke the CLI directly with `--no-notify`, not `systemctl start`:
+
+```bash
+set -a; source /etc/brief.env; set +a
+.venv/bin/python -m brief.cli run --publish --no-notify
+```
+
+This still mints a new `issue_no` today (the publisher has no "overwrite issue N" mode — a real gap, not addressed by this fix) but stops the re-notify. `systemctl start brief.service` stays correct and intended for a genuine missed-fire catch-up, where a fresh issue and a fresh notify are both wanted. README's "Manual fire" runbook (Operations section) documents the missed-fire case only; it should gain an explicit off-schedule-republish variant with `--no-notify` so the next incident doesn't rediscover this by re-emailing subscribers again. Not yet fixed: publisher still cannot target/replace an existing `issue_no`, so two same-day published issues remains reachable by design, not just by mistake.
+
+**Hotfix:** none shipped to code this round — this is a documentation-and-runbook lesson, not a pipeline bug. #189 and #190 both stand, per owner sign-off. The editor/sub-editor shape-drift that triggered the original hold cleared on a single retry and was not independently investigated further; if it recurs, it needs its own entry (see AGENTS.md landmine 26 on cut-off/shape-drift editor responses for the closest existing mechanism).
+
+**Cross-references:** AGENTS.md landmine 3 (notifier privacy contract — one POST per subscriber, the mechanism this incident exercised correctly but unnecessarily), landmine 26 (cut-off/shape-drift editor responses), landmine 21 (self-deploy — no human checkpoint between merge and the next scheduled fire; this incident shows the same "the unit just does what it's told" property applies to manual fires too). Global rulebook: candidate for promotion if another clauding-lab project's systemd unit conflates "catch-up" and "republish" the same way.
+
 ## 2026-08-05 — pipeline | Sub-editor gate had a second fail-open door: a well-formed `revise` with no `revised_brief` shipped the unreviewed brief
 
 **Trigger:** external repo audit, adversarially verified by reproducing the failure end-to-end — constructing the exact `SubeditorReview` shape and executing it through the schema/pipeline rather than reading the code and inferring.
