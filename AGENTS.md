@@ -288,6 +288,15 @@ Rules:
 - **EconDelta's parse stage must stay out of ~05:00–06:00 BDT.** That window is 16:00–17:00 US Pacific, Anthropic's peak; the LLM parse preflight failed 12 consecutive times there in May 2026. This is the real constraint on how late the chain can start, and therefore on how early this brief can fire.
 - **The publish time is printed to readers.** `SubscribeCTA.tsx` states it three times and `Master.md` fixes the phrasing. A timer change that skips the copy leaves the signup box promising subscribers a delivery time they will not get.
 
+## 33. A same-day republish REPLACES the day's issue in place; an off-schedule run on any other day mints a new issue — the same command does both
+
+`python -m brief.cli run --publish --no-notify` (env: `set -a && . /etc/brief.env && set +a` — NOT a repo-local `.env`) behaves differently depending on whether an issue already exists for the current `brief_date`:
+
+- **Same day as an existing published issue:** `v6_publisher` deletes that `issue_no`'s rows and re-inserts under the SAME number (verified 2026-08-08 23:38 BDT: the 08:00 BDT auto-publish had minted #191; the evening republish logged `deleting existing rows for issue_no=191` and re-published #191 in place). No issue-count inflation, nobody emailed.
+- **Any other day (missed fire, next-day correction):** it computes max+1 and mints a NEW issue (the #189/#190 double-issue incident, AGENT_LEARNINGS 2026-08-08).
+
+So "re-run today's publish to pick up fresh chart data" is safe and idempotent on issue numbering — but do not assume that safety extends past midnight BDT, and never use bare `systemctl start brief.service` for either case (it re-emails every subscriber; landmine 3's mechanism). See AGENT_LEARNINGS.md 2026-08-08 (both entries).
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
