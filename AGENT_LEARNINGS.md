@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-08 — v2.0.0 | Four charts served 5-month-old data with zero visible symptoms — the seeded `metric_history_monthly` series had no live producer, and the freshness alert was wallpaper
+
+**Trigger:** owner asked why the fig.07 remittance chart's x-axis stopped at March 2026 while the same page's stat card cited July's flash.
+
+**What went wrong:** The remittance, External Flow Balance, CPI, and yield-ladder charts all read `metric_history_monthly` series that were one-shot seeded from a third-party aggregator (`macro_observer_seed`) which stopped publishing after March 2026. Nothing on our side appended new months. The charts kept rendering a full, healthy-looking window ("last N months that exist"), so nothing looked broken; EconDelta's sentinel flagged the staleness daily from ~mid-April, but as ~20 of 41 digest items — alert fatigue swallowed it. Two prose/data pipes made it invisible: captions and headline stats read the fresh daily `metric_history` ids, so the words stayed current while the lines froze.
+
+**Lesson:** a chart whose data source can die while the chart still renders beautifully needs its own freshness alarm — page-level plausibility ("it renders") proves nothing about currency.
+
+**Prevention:** EconDelta now maintains the series live (append-only monthly appenders, PRs #123/#124), and its sentinel digest lists `CHART_FEEDING_METRIC_IDS` breaches first under a dedicated reader-visible tier, with parked-but-visible ids surfacing on heartbeat day. The Brief needed zero code changes — fetchers auto-extend — but any data fix reaches readers only after a publish (`python -m brief.cli run --publish --no-notify` for off-schedule; a same-day run replaces the same issue_no in place, confirmed on issue #191).
+
+**Hotfix:** official-values backfill Apr–Jun 2026 (remittance/exports/CPI trio) + May–Jul 2026 (all 8 yield tenors from `auction_results`), then same-day republish of issue #191 — all four charts verified extended in PROD HTML. Imports honestly remains at its true frontier (BB publishes cif ~2 months late); exports' ongoing source is parked research (EPB portal is JS-rendered).
+
+**Cross-references:** econdelta AGENTS.md landmines 50–51, econdelta AGENT_LEARNINGS 2026-08-08 entries, global rulebook 2026-08-08 entry, auto-memory `project_frozen_charts_fix_2026_08_08`.
+
 ## 2026-08-08 — v1.6.9 | An off-schedule `systemctl start brief.service` republish mints a new issue AND re-emails every subscriber — neither is what "just re-run it" means
 
 **Trigger:** the day's original 08:00 BDT publish held (exit 4) — the editor/sub-editor exchange returned a fragment instead of a full `BriefPayloadV6`, a shape-drift the retry logic did not treat as transient. A single manual retry of the same call cleared it, so the underlying data was never bad; the response shape was. Rather than re-running the pipeline directly, the box was re-fired the same way `brief.timer` fires it: `systemctl start brief.service`. That produced two side effects nobody had reasoned through, both discovered only after the fact:
