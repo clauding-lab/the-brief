@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.0.0] — 2026-08-08
+
+First tagged release since v1.5.1 — 59 merged PRs (#103–#160) over ten weeks. Full narrative release notes live on the GitHub release page.
+
+### Changed
+- Daily publish moved from 06:30 to 08:00 BDT so every issue reads same-morning EconDelta data instead of yesterday afternoon's (#149); publishes all seven days including Saturday (#116).
+- Editorial voice recast to an Economist/FT register, with the sub-editor's checks updated in lockstep (#114).
+
+### Fixed
+- Sub-editor safety gate no longer fails open: malformed reviews retry once then hold the publish; protected metrics (SDF/SLF corridor and peers) are force-reinserted if the editor drops them, and a publish blocks if they are still missing (#126, #151, #158).
+- Macro section renders every stored metric — a hardcoded five-tile cap had been silently discarding CPI 12-month average, M2 growth, and REER (#157).
+- Frozen policy rates no longer read as "fresh"; every figure carries a visible data-age stamp for both the AI editor and the reader (#142–#145).
+- Numerous dead-source repoints (DSEX tile, DSE tiles, corridor/reserves), timezone-date bugs, and a two-phase publish so a crash can never leave a half-visible issue (#123, #124, #125, #136, #152, #154).
+
+### Added
+- Five new charts (two-line reserves, 8-tenor yield ladder, external flows, DSE top movers, NBR revenue trend) and Long View essays (#105–#113, #159).
+- Failure alerting (service crash, zero-recipient sends), daily off-site health check, weekly archive export, and self-updating deploys (#127, #129, #131, #133–#135).
+- Server-side hardening of the subscribe endpoint: validation, honeypot, rate limit, header-injection protection (#128).
+
+### Security
+- CI test workflow (python-tests + web-build) now gates every PR (#156).
+
 ## [1.6.9] — 2026-08-04
 
 ### Changed

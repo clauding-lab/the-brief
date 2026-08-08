@@ -89,8 +89,8 @@ Brief.timer on Hetzner runs `Mon..Sun 02:00 UTC` — every day, Saturday include
    1. **Gather** — per-section builders pull from `metric_history` (Supabase) and `latest.json` (rsync'd snapshot from ExonVPS)
    2. **Pick lens** — data-driven (NPL stress → credit-cycle; Brent spike → external-shock; etc.) or weekly_wrap on Friday
    3. **Editor LLM** — Claude with `editor_v6.txt` / `editor_v6_friday.txt` produces structured JSON (Today's Call, section verdicts, banker_read blocks, hero selection, etc.)
-   4. **Subeditor LLM** — second Claude call validates the editor's output against the Pydantic schema + editorial rules
-   5. **Publish** — `v6_publisher.publish_brief()` clears any same-issue row, then writes the brief as a `draft`, POSTs sections/metrics/news/chart_series, and flips `status='published'` as the LAST call — a two-phase write, not a single DELETE + INSERT (idempotent for same-day re-runs)
+   4. **Subeditor LLM** — second Claude call validates the editor's output against the Pydantic schema + editorial rules; a malformed or incomplete review is retried once, then HOLDS the publish rather than shipping unreviewed
+   5. **Publish** — `v6_publisher.publish_brief()` clears any same-issue row, then writes the brief as a `draft`, POSTs sections/metrics/news/chart_series, and flips `status='published'` as the LAST call — a two-phase write, not a single DELETE + INSERT (idempotent for same-day re-runs). A reconciliation pass force-reinserts a short list of protected metrics (currently the BB policy corridor) if the editor dropped them, and hard-fails the publish if one is still missing
    6. **Notify** — `notifier.notify()` fetches all rows from `subscribers`, renders an HTML + plain-text digest, and POSTs ONE Brevo call per subscriber (never a multi-recipient `to:` list — that would leak every recipient's address to the others). Fail-open — never crashes the publish.
 3. **Supabase** — the data layer. Tables: `metric_history` (indicator time series), `briefs`, `sections`, `metrics`, `news`, `chart_series`, `chart_notes`, `subscribers`. Service-role auth for the publisher and the subscribe form; anon read-only auth for the SPA.
 4. **Next.js SPA** — `app/`, deployed on Vercel. Reads the latest brief via the `get_latest_brief` Supabase RPC, renders it as a cream-paper newspaper. Hash-routed scroll-spy navigation, IntersectionObserver-driven sticky bar, no-JS-needed first paint via SSR.
@@ -177,8 +177,14 @@ CLI flags:
 - `--dry-run` — go through the pipeline but skip the Supabase write
 - `--no-notify` — skip the subscriber email after a successful publish
 - `--today=YYYY-MM-DD` — override the date (useful for re-runs)
+- `--write-fixture=<path>` — (with `--dry-run`) write the finished brief as JSON instead of publishing; no Supabase write, no email
+- `--preview-notify` — (with `--write-fixture`) best-effort ping to Discord + email with the preview link
 
 Exit codes: `0` ok · `1` error · `3` dry-run ok · `4` publish failed
+
+### Preview a change before it ships
+
+`brief.cli run --publish --dry-run --write-fixture=public/fixtures/<name>.json` runs the full pipeline (editor + sub-editor) and writes the result to a fixture file, without touching Supabase or sending any email. Open `/preview?fixture=<name>.json` on a Vercel branch preview (or locally) to see the brief rendered exactly as a reader would, behind a yellow "PREVIEW MODE" banner. This is the safe way to check an editor-prompt or pipeline change before it reaches production.
 
 ### Next.js SPA
 
@@ -243,7 +249,7 @@ The Brief uses semantic versioning. Releases are tagged on `main` with `v<MAJOR>
 - **Minor** — new section, new editorial feature, new visible UI surface
 - **Patch** — fixes, copy changes, deferred-cleanup commits
 
-See [CHANGELOG.md](./CHANGELOG.md) for the full release history. Current: **v1.5.1**.
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history. Current: **v1.6.9**.
 
 ## Related projects
 
