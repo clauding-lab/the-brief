@@ -114,10 +114,22 @@ def _collect_stream_messages(stdout: str) -> tuple[list[str], dict[str, Any]] | 
     the original payload byte-for-byte (verified against a forced-truncation
     probe, 2026-08-02). Returning them in order lets the caller stitch.
 
-    Messages are de-duplicated by ``message.id`` so a re-emitted event cannot
-    double-insert a chunk. ``thinking`` blocks are skipped — they are not part of
-    the answer. Lines that are not JSON are ignored (the CLI occasionally prints
-    non-protocol noise on stdout).
+    One returned string per text-bearing assistant event, so ``len()`` is the
+    assistant-message count the cut-off alarm keys on.
+
+    De-duplication is by ``(message.id, that event's text)``, NOT by
+    ``message.id`` alone: with ``--effort xhigh`` the CLI splits ONE assistant
+    message into TWO events sharing an id — the ``thinking`` block first, the
+    answer text second (live probe, 2026-08-09). Keying on the id alone kept the
+    thinking-only event and dropped the event carrying the brief, so nothing was
+    collected and the caller silently fell back to the result field: the exact
+    ``--output-format json`` data loss this function exists to prevent (issue
+    190/192). A genuinely re-emitted event repeats both id and text, so it is
+    still de-duplicated; a continuation chunk differs in text and is kept.
+
+    ``thinking`` blocks are skipped — they are not part of the answer, and an
+    event with no text at all is not counted as a message. Lines that are not
+    JSON are ignored (the CLI occasionally prints non-protocol noise on stdout).
 
     Returns None only if stdout carries neither an assistant nor a result event —
     i.e. it is not a stream payload at all and the caller should fall back to
@@ -125,7 +137,7 @@ def _collect_stream_messages(stdout: str) -> tuple[list[str], dict[str, Any]] | 
     short) still returns what was captured rather than discarding it.
     """
     texts: list[str] = []
-    seen_ids: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     result_event: dict[str, Any] | None = None
 
     for line in stdout.splitlines():
@@ -144,14 +156,20 @@ def _collect_stream_messages(stdout: str) -> tuple[list[str], dict[str, Any]] | 
             result_event = event
         elif etype == "assistant":
             message = event.get("message") or {}
+            event_text = "".join(
+                block.get("text") or ""
+                for block in message.get("content") or []
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+            if not event_text:
+                continue
             msg_id = message.get("id")
             if msg_id is not None:
-                if msg_id in seen_ids:
+                key = (msg_id, event_text)
+                if key in seen:
                     continue
-                seen_ids.add(msg_id)
-            for block in message.get("content") or []:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    texts.append(block.get("text") or "")
+                seen.add(key)
+            texts.append(event_text)
 
     if result_event is None:
         if not texts:

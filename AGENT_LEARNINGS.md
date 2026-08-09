@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-09 — v2.0.1 | The stream-stitching fix never ran: `thinking` and the answer share one `message.id`, and our de-dup threw the answer away
+
+**Trigger:** two failed publishes in two days — issue 190 (2026-08-08, 15:59 BDT re-fire) and issue 192 (2026-08-09, 08:13 BDT scheduled run), both `editor_v6 output failed schema validation` where Pydantic was handed a valid *inner* object (a `chart_read`, then a `NewsItemV6`) instead of the brief. The signature of issues 181/183 — which we had already "fixed" on 2026-08-02.
+
+**What went wrong:** `_collect_stream_messages` (`brief/claude/max_client.py`) de-duplicated assistant events by `message.id`. That assumed one event per message. With `--effort xhigh` the CLI emits ONE assistant message as TWO events sharing an id: the `thinking` block first, the `text` block second. The de-dup kept the thinking-only event (no text) and skipped the event carrying the brief, so `texts` came back EMPTY — and the empty-texts branch falls back to `result_event["result"]`, which holds only the FINAL assistant message. In other words the function silently reverted to the `--output-format json` behaviour it was written to replace, on every single call. On a normal day that fallback still contains the whole brief, so nothing looked wrong. On a day the payload was cut off, the pipeline got the tail and rejected a fragment. The cut-off alarm keys on `assistant_messages > 1`; the count was 0, so it could never fire — for a week the loudest evidence was the alarm's silence.
+
+**Lesson:** when a fix's success path and its fallback produce identical output on the happy path, the fix is unverified in production — assert on the mechanism (was anything actually collected?), not on the outcome.
+
+**Prevention:** four regression tests in `tests/claude/test_max_client_stream_stitching.py::TestThinkingAndTextShareOneMessageId` replay the real thinking-on stream shape, including a cut-off payload where every chunk trails its own thinking event. The stream shape was confirmed by a live probe before writing the fix, not assumed: two events, both `msg_011CdrRxd9KybSrDcRoVj6zx`, blocks `thinking` then `text`. The earlier tests modelled thinking as its own message id — which is why they passed against broken code.
+
+**Hotfix:** de-duplicate on `(message.id, that event's text)` instead of `message.id`, skip events with no text, and count only text-bearing events so `assistant_messages` stays a true cut-off signal. Re-emitted events (identical id AND text) are still de-duplicated; a continuation chunk differs in text and is kept.
+
+**Cross-references:** AGENTS.md landmine 26, AGENT_LEARNINGS 2026-08-02 (issue 183), auto-memory `project_brief_publish_v6_failures`.
+
 ## 2026-08-08 — v2.0.0 | Four charts served 5-month-old data with zero visible symptoms — the seeded `metric_history_monthly` series had no live producer, and the freshness alert was wallpaper
 
 **Trigger:** owner asked why the fig.07 remittance chart's x-axis stopped at March 2026 while the same page's stat card cited July's flash.

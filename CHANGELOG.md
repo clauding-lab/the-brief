@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.0.1] — 2026-08-09
+
+### Fixed
+- The editor's answer is no longer discarded when the model thinks first. With `--effort xhigh` the Claude CLI splits one assistant message into two stream events sharing a `message.id` — thinking, then text — and de-duplicating by that id dropped the event carrying the brief. Nothing was collected, so the reader silently fell back to the CLI's final-message-only field: the exact data loss the v1.6.x stream stitching was written to prevent, on every editor call since. It stayed invisible until a payload was cut off, then the pipeline received the tail and rejected a fragment — two lost publishes (#190, #192).
+
+---
+
 ## [2.0.0] — 2026-08-08
 
 First tagged release since v1.5.1 — 59 merged PRs (#103–#160) over ten weeks. Full narrative release notes live on the GitHub release page.

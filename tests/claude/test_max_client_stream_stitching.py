@@ -191,6 +191,100 @@ class TestStitchesCutOffResponse:
         assert r.num_turns == 2
 
 
+# --- thinking and text share ONE message id -------------------------------
+
+
+class TestThinkingAndTextShareOneMessageId:
+    """Regression tests for issue 192 (2026-08-09).
+
+    The stitching above assumed a `thinking` block arrives as its OWN message.
+    It does not. With `--effort xhigh` (the editor's pin) the CLI splits ONE
+    assistant message into TWO stream events that carry the SAME `message.id`:
+    the thinking block first, the answer text second. De-duplicating by
+    `message.id` therefore kept the thinking-only event and discarded the event
+    holding the brief, leaving zero captured text — so `_parse_cli_stdout` fell
+    back to the result field, which is the pre-fix `--output-format json`
+    behaviour it exists to replace.
+
+    Consequence in production: every editor call silently ran on the FINAL
+    message only. Invisible until the payload was cut off, then the pipeline got
+    the tail and rejected a fragment (2026-08-08 issue 190, 2026-08-09 issue
+    192). Shape verified against a live `--effort xhigh` probe: two events,
+    both `msg_011CdrRxd9KybSrDcRoVj6zx`, blocks `thinking` then `text`.
+    """
+
+    def test_text_survives_a_thinking_event_with_the_same_message_id(self):
+        # Arrange — one message, split across two events, thinking first.
+        stdout = _stream(
+            _thinking("msg_1"),
+            _assistant('{"a":1}', "msg_1"),
+            _result('{"a":1}'),
+        )
+        # Act
+        with patch("brief.claude.max_client.subprocess.run",
+                   return_value=_fake_completed(stdout)):
+            r = run_max(prompt="hi")
+        # Assert
+        assert r.raw_text == '{"a":1}'
+        assert r.parsed == {"a": 1}
+        assert r.assistant_messages == 1
+
+    def test_cut_off_payload_is_stitched_when_each_chunk_trails_its_thinking(self):
+        # Arrange — the production failure: a cut-off brief where BOTH chunks
+        # are preceded by a thinking event sharing their message id.
+        head = '{"brief":{"issue_no":192},"sections":[{"slug":"remit","ord":11,"t'
+        tail = 'itle":"Remittance"}]}'
+        stdout = _stream(
+            _thinking("msg_1"),
+            _assistant(head, "msg_1"),
+            _thinking("msg_2"),
+            _assistant(tail, "msg_2"),
+            _result(tail),  # the tail alone — what the pipeline used to receive
+        )
+        # Act
+        with patch("brief.claude.max_client.subprocess.run",
+                   return_value=_fake_completed(stdout)):
+            r = run_max(prompt="write the brief")
+        # Assert — the whole brief, not the fragment Pydantic rejected
+        assert r.raw_text == head + tail
+        assert set(r.parsed) == {"brief", "sections"}
+        assert r.assistant_messages == 2
+
+    def test_alarm_fires_when_a_thinking_paired_response_is_cut_off(self, caplog):
+        # Arrange — the alarm counts text-bearing events, so thinking events
+        # must neither suppress it nor be counted as messages themselves.
+        stdout = _stream(
+            _thinking("msg_1"),
+            _assistant('{"a":', "msg_1"),
+            _thinking("msg_2"),
+            _assistant('1}', "msg_2"),
+            _result('1}'),
+        )
+        # Act
+        with patch("brief.claude.max_client.subprocess.run",
+                   return_value=_fake_completed(stdout)):
+            with caplog.at_level("WARNING"):
+                run_max(prompt="hi")
+        # Assert
+        assert "CUT OFF" in caplog.text
+
+    def test_a_thinking_event_alone_does_not_raise_the_alarm(self, caplog):
+        # Arrange — one complete message that happens to think first is NOT a
+        # cut-off response; counting the thinking event would cry wolf daily.
+        stdout = _stream(
+            _thinking("msg_1"),
+            _assistant('{"a":1}', "msg_1"),
+            _result('{"a":1}'),
+        )
+        # Act
+        with patch("brief.claude.max_client.subprocess.run",
+                   return_value=_fake_completed(stdout)):
+            with caplog.at_level("WARNING"):
+                run_max(prompt="hi")
+        # Assert
+        assert "CUT OFF" not in caplog.text
+
+
 # --- the alarm ------------------------------------------------------------
 
 
