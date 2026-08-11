@@ -180,10 +180,10 @@ body { background: var(--paper); color: var(--ink); }
   animation: tb-pulse 2.4s ease-in-out infinite;
 }
 
+/* Single column since the "In this issue" rail was retired in v2.0.2 — the
+   wordmark + tagline now own the full hero width. */
 .tb-masthead-hero {
   padding: 28px 0;
-  display: grid; grid-template-columns: 1.4fr 1fr;
-  gap: 32px; align-items: end;
 }
 .tb-wordmark-big {
   font-family: var(--mono);
@@ -195,33 +195,6 @@ body { background: var(--paper); color: var(--ink); }
   margin-top: 18px;
   font-size: 13px; line-height: 1.55; color: var(--ink-2);
   max-width: 520px; text-wrap: pretty;
-}
-.tb-issue-rail {
-  border-left: 1px solid var(--rule);
-  padding-left: 24px;
-  display: flex; flex-direction: column; gap: 14px;
-  align-self: stretch; justify-content: flex-end;
-}
-.tb-issue-rail ul {
-  list-style: none; display: flex; flex-direction: column; gap: 10px;
-  font-size: 12.5px; line-height: 1.4;
-}
-.tb-issue-rail li {
-  display: grid; grid-template-columns: 38px 1fr; column-gap: 10px;
-}
-.tb-issue-rail li .num { color: var(--ink-3); font-size: 11px; }
-.tb-issue-rail li .text { text-wrap: pretty; }
-.tb-issue-rail li > a { display: contents; }
-.tb-issue-rail li:has(> a) { cursor: pointer; }
-.tb-issue-rail li > a:hover .text {
-  text-decoration: underline;
-  text-decoration-color: var(--rule);
-  text-underline-offset: 3px;
-}
-.tb-issue-rail li > a:hover .num { color: var(--ink-2); }
-.tb-issue-rail li > a:focus-visible .text {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 /* V6 enrichment — Today's Call paragraph in masthead */
@@ -877,9 +850,8 @@ body.tb-diff .tb-section .tb-kpi-row.is-held-over {
 /* ─── RESPONSIVE ───────────────────────────────────────── */
 @media (max-width: 920px) {
   .tb-masthead-meta { flex-wrap: wrap; gap: 8px; }
-  .tb-masthead-hero { grid-template-columns: 1fr; gap: 24px; padding: 24px 0; }
+  .tb-masthead-hero { padding: 24px 0; }
   .tb-wordmark-big { font-size: 72px; }
-  .tb-issue-rail { border-left: none; padding-left: 0; border-top: 1px solid var(--rule-soft); padding-top: 18px; }
   .tb-todays-call { grid-template-columns: 1fr; gap: 12px; }
   .tb-masthead-foot { flex-direction: column; gap: 12px; align-items: flex-start; }
   .tb-stickybar-inner { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 20px; }

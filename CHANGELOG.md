@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [2.0.2] — 2026-08-11
+
+### Removed
+- The "In this issue" rail in the masthead. It re-listed the first twelve headlines from §01, which the reader then met again in full a screen later — duplication that pushed the first real content further down without adding a way to navigate that `SecNav` did not already provide. The masthead hero is now a single column: wordmark, tagline, Today's Call.
+
+---
+
 ## [2.0.1] — 2026-08-09
 
 ### Fixed

@@ -223,13 +223,7 @@ export function ClientApp(props: ClientAppProps) {
       </a>
       <StickyBar brief={data.brief} source={data._source} visible={stickyVisible} />
       <main id="content" className="tb-body">
-        <Masthead
-          brief={data.brief}
-          source={data._source}
-          sections={data.sections}
-          displayOrdBySlug={displayOrdBySlug}
-          fetchedAt={data._fetchedAt}
-        />
+        <Masthead brief={data.brief} source={data._source} fetchedAt={data._fetchedAt} />
         <SnapshotStrip section={snapshotSection} />
         <SecNav
           sections={data.sections}
