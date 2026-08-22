@@ -628,6 +628,87 @@ def test_stamp_import_cover_sub_is_a_noop_when_no_macro_section_in_raw() -> None
     assert brief.sections[0].metrics[0].sub is None
 
 
+# ── P2 fact-checker (2026-08-22 audit #204) — prose-number gate wiring ──────
+
+
+def test_run_publish_holds_when_a_published_sub_cites_a_stale_flash_figure(
+    _stub_supabase_reads: object,
+) -> None:
+    """End-to-end: the exact audit #204 failure ('$2.82bn' quoted on a real
+    2858.68mn builder value) must hold the publish BEFORE publish_brief runs,
+    same propagation shape as the denylist check."""
+    from brief.pipeline_v6 import ProseNumberGateError
+    from brief.schema import Metric, SectionData
+
+    sections = [SectionData(
+        id="remit", title="Remittance", freshness="fresh",
+        metrics=[Metric(
+            id="remit_monthly_mn", label="Monthly Remittance", value=2858.68,
+            unit="mn USD", as_of=date(2026, 7, 31), source="BB", cadence="monthly",
+        )],
+    )]
+    tainted = {
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-08-22",
+                  "todays_call": "Today's brief is shipping.", "status": "published"},
+        "sections": [{
+            "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+            "weight": 1,
+            "metrics": [{
+                "label": "Monthly Remittance", "value": "$2.86bn",
+                "sub": "$2.82bn — July final",
+            }],
+            "news": [], "summary_pills": [],
+        }],
+    }
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief") as mock_pub:
+        mock_run.side_effect = [_max_result(tainted), _max_result(review)]
+        with pytest.raises(ProseNumberGateError):
+            run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+
+    mock_pub.assert_not_called()
+
+
+def test_run_publish_ships_a_sub_that_traces_to_the_real_builder_value(
+    _stub_supabase_reads: object,
+) -> None:
+    """Sanity companion: the honest figure ($2.86bn, matching 2858.68mn) must
+    NOT be blocked — the gate is precision-checked, not a blanket ban."""
+    from brief.schema import Metric, SectionData
+
+    sections = [SectionData(
+        id="remit", title="Remittance", freshness="fresh",
+        metrics=[Metric(
+            id="remit_monthly_mn", label="Monthly Remittance", value=2858.68,
+            unit="mn USD", as_of=date(2026, 7, 31), source="BB", cadence="monthly",
+        )],
+    )]
+    clean = {
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-08-22",
+                  "todays_call": "Today's brief is shipping.", "status": "published"},
+        "sections": [{
+            "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+            "weight": 1,
+            "metrics": [{
+                "label": "Monthly Remittance", "value": "$2.86bn",
+                "sub": "$2.86bn — Jul final",
+            }],
+            "news": [], "summary_pills": [],
+        }],
+    }
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub:
+        mock_run.side_effect = [_max_result(clean), _max_result(review)]
+        brief_id = run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+
+    assert brief_id == "brief-id-89"
+    mock_pub.assert_called_once()
+
+
 def test_section_adapter_renames_iranwar_to_iran() -> None:
     """V5 SectionData id 'iranwar' → V6 slug 'iran' per the V5_TO_V6 map."""
     sections = [

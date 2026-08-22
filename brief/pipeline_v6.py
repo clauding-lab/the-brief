@@ -34,8 +34,9 @@ from brief.v6_publisher import (
     publish_brief,
 )
 from brief.v6_schema import BriefPayloadV6, MetricV6, SectionV6, SubeditorReview
-from brief.vintage import stamp_vintages, vintage_payload
+from brief.vintage import period_label, stamp_vintages, vintage_payload
 from brief.claude import validators as _validators
+from brief.validators import prose_numbers as _prose_numbers
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,12 @@ def _to_v6_raw(
             # None on a fresh metric — an "as of today" on today's number is
             # noise, and noise is how a real staleness signal gets ignored.
             dumped["vintage"] = vintage_payload(m, today=today)
+            # P2 fact-checker (2026-08-22 audit #204, item 2): ALWAYS present,
+            # unlike `vintage` above — the deterministic period label for this
+            # metric's OWN data, so the editor never has to infer or invent a
+            # month/quarter name. Same underlying function `vintage.py` uses
+            # for stale/warning metrics; here it runs unconditionally.
+            dumped["period"] = period_label(m.as_of, m.cadence)
             metrics_raw.append(dumped)
         out.append(
             {
@@ -225,11 +232,20 @@ def _build_editor_input(
     previous_lens: str | None,
     recent_news: list[dict[str, Any]],
     metric_definitions: list[dict[str, Any]],
+    series_summaries: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Build editor input + return chosen lens.
 
     Returns (editor_input, today_lens). Caller passes today_lens to the
     appropriate prompt template; mostly relevant when caller wants to log it.
+
+    `series_summaries` (P2 fact-checker, 2026-08-22 audit #204, item 3) — a
+    per-slug digest built by `_fetch_series_summaries`, defaulting to `{}` for
+    any slug not present (no chart, or the fetch degraded). This is the fix
+    for editor_v6.txt's false claim that raw input carries a chart's full
+    `series` — it never has (`_stamp_chart_series` stamps the full series
+    onto the FINAL brief, post-editor, for payload-size reasons; see that
+    function's docstring). `chart_read` must derive only from this summary.
     """
     from brief.builders.lens import score_lens
     from brief.builders.dedup import filter_headlines
@@ -237,6 +253,8 @@ def _build_editor_input(
 
     next_issue = fetch_max_issue_no() + 1
     raw_sections = _to_v6_raw(sections, today=today)
+    for s in raw_sections:
+        s["series_summary"] = (series_summaries or {}).get(s["slug"], {})
 
     # Index prev brief metrics by (slug, label) → prev_value_text. Used as the
     # magnitude fallback when V5 metrics carry no Delta object (see
@@ -779,6 +797,120 @@ def _stamp_import_cover_sub(
         break
 
 
+# ─── P2 fact-checker — pre-editor series_summary (item 3) ──────────────
+# Slug → chart_series_fetcher function name for the `*_monthly` group (each
+# returns dict[metric_id, list[SeriesPointV6]]). Mirrors the per-slug
+# dispatch inside `_stamp_chart_series` below deliberately — see
+# `_fetch_series_summaries`'s docstring for why this is a SEPARATE, smaller
+# fetch rather than a refactor of that (already tested) function.
+_SUMMARY_MONTHLY_FETCHERS: dict[str, str] = {
+    "macro": "fetch_macro_cpi_series",
+    "remit": "fetch_remit_monthly",
+    "bb": "fetch_reserves_monthly",
+    "tbond": "fetch_yield_ladder_monthly",
+    "fx": "fetch_fx_balance_monthly",
+    "fiscal": "fetch_fiscal_monthly",
+}
+
+
+def summarize_series_points(points: list[Any]) -> dict[str, dict[str, Any]]:
+    """Reduce a flat list of SeriesPointV6-like objects (`.key`/`.ts`/`.value`
+    attributes, or dicts with the same keys) into a compact per-series-key
+    digest: `{n, first_ts, first_value, last_ts, last_value, min, max}`.
+
+    Groups by `key` (points with no key fall into `"series"`), sorts each
+    group by `ts` before reducing — callers don't need to pre-sort, and the
+    daily HTTP fetchers already return ascending order anyway so this is a
+    no-op there.
+    """
+    def _get(p: Any, name: str) -> Any:
+        return getattr(p, name) if hasattr(p, name) else p[name]
+
+    by_key: dict[str, list[Any]] = {}
+    for p in points:
+        key = _get(p, "key") or "series"
+        by_key.setdefault(key, []).append(p)
+
+    out: dict[str, dict[str, Any]] = {}
+    for key, pts in by_key.items():
+        ordered = sorted(pts, key=lambda p: _get(p, "ts"))
+        values = [_get(p, "value") for p in ordered]
+        out[key] = {
+            "n": len(ordered),
+            "first_ts": _get(ordered[0], "ts"),
+            "first_value": values[0],
+            "last_ts": _get(ordered[-1], "ts"),
+            "last_value": values[-1],
+            "min": min(values),
+            "max": max(values),
+        }
+    return out
+
+
+def _fetch_series_summaries(
+    *, today: date_t, http: HttpClient, supabase_url: str, service_key: str,
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Pre-editor lightweight chart-series digest, keyed by V6 section slug
+    (P2 fact-checker, 2026-08-22 audit #204, item 3 — "the prompt FALSELY
+    tells [the editor] input contains `series`; series are stamped AFTER the
+    editor runs").
+
+    Calls the SAME `chart_series_fetcher` functions `_stamp_chart_series`
+    calls post-editor, but keeps only `summarize_series_points`'s digest —
+    never the full point array — so the editor gets honest "what does the
+    chart actually show" grounding without paying the payload-size cost of
+    sending every point twice. `_stamp_chart_series` is UNCHANGED and still
+    fetches + stores the FULL series after the editor runs; this is a
+    separate, smaller, EARLIER fetch, not a replacement for it (deliberately
+    NOT refactored into a shared helper — `_stamp_chart_series` is small,
+    already tested, and touching its internals for this is not worth the
+    risk of destabilizing it; the per-slug branch list here is intentionally
+    duplicated, not extracted).
+
+    Graceful degradation matches `_stamp_chart_series`: any one fetcher
+    failing logs a WARNING and that slug's summary is simply absent from the
+    result (the editor input then carries `series_summary: {}` for it —
+    treated as "no chart data available", never a fatal error).
+    """
+    from brief.history import MetricHistoryClient as _MetricHistoryClient
+
+    history_monthly_client = _MetricHistoryClient(
+        url=supabase_url, service_key=service_key, http=http,
+    )
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for slug, fn_name in _SUMMARY_MONTHLY_FETCHERS.items():
+        try:
+            fn = getattr(chart_series_fetcher, fn_name)
+            series_by_id = fn(history_monthly_client)
+            flat = [pt for pts in series_by_id.values() for pt in pts]
+            out[slug] = summarize_series_points(flat)
+        except Exception:  # noqa: BLE001 — graceful degradation
+            logger.warning(
+                "v6: series_summary pre-fetch failed for slug=%s (fn=%s)",
+                slug, fn_name, exc_info=True,
+            )
+
+    # dse + iran (brent) use the daily HTTP fetchers — different signature.
+    try:
+        dsex_series, _notes = chart_series_fetcher.fetch_dsex(
+            http=http, supabase_url=supabase_url, service_key=service_key, today=today,
+        )
+        out["dse"] = summarize_series_points(dsex_series)
+    except Exception:  # noqa: BLE001 — graceful degradation
+        logger.warning("v6: series_summary pre-fetch failed for slug=dse", exc_info=True)
+
+    try:
+        brent_series = chart_series_fetcher.fetch_brent(
+            http=http, supabase_url=supabase_url, service_key=service_key, today=today,
+        )
+        out["iran"] = summarize_series_points(brent_series)
+    except Exception:  # noqa: BLE001 — graceful degradation
+        logger.warning("v6: series_summary pre-fetch failed for slug=iran", exc_info=True)
+
+    return out
+
+
 # ─── Phase E.2 — chart series enricher ────────────────────────────────
 # Per-slug chart fetcher dispatch. Sections not in this map skip chart_series
 # stamping (frontend hides the chart slot when series is empty). The values
@@ -1129,6 +1261,17 @@ class DenylistViolationError(V6PublishError):
     """
 
 
+class ProseNumberGateError(V6PublishError):
+    """Raised when `brief.validators.prose_numbers`'s BLOCK-mode checks (P2
+    fact-checker, 2026-08-22 audit #204's round-2 follow-up) find a metric
+    `sub` citing a figure or period that traces to no builder value, or a
+    sourceless count-claim anywhere in the brief. Same propagation shape as
+    `DenylistViolationError` — see `_run_prose_number_gate`, which wraps
+    `prose_numbers.ProseNumberViolationError` into this so it reaches
+    `cli.py`'s existing exit-code-4 handling (AGENTS.md's editor/sub-editor
+    convention note)."""
+
+
 def _collect_prose_fields(final_brief: BriefPayloadV6) -> list[tuple[str, str]]:
     """Every prose text surface the denylist may scan, as (field_path, text).
 
@@ -1309,6 +1452,37 @@ def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
     return violations
 
 
+def _run_prose_number_gate(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]],
+) -> list["_prose_numbers.NumberWarning"]:
+    """Wire `brief.validators.prose_numbers` in (P2 fact-checker, 2026-08-22
+    audit #204 round-2 follow-up). BLOCK-mode violations (bad sub numbers,
+    bad sub periods, sourceless count-claims) HOLD the publish via
+    `ProseNumberGateError`. WARN-mode figures (lede numbers with no builder
+    match anywhere in the issue) are logged + Discord-alerted and returned,
+    never blocking — UNLESS `BRIEF_PROSE_VALIDATOR_STRICT=1`, which upgrades
+    them to the same hard-fail (a documented future flip, not yet default)."""
+    strict = os.environ.get("BRIEF_PROSE_VALIDATOR_STRICT", "").strip() == "1"
+    try:
+        warnings = _prose_numbers.run_prose_number_gate(final_brief, raw_sections, strict=strict)
+    except _prose_numbers.ProseNumberViolationError as e:
+        raise ProseNumberGateError(str(e)) from e
+
+    for w in warnings:
+        logger.warning("v6 prose-number gate (WARN): %s", w.describe())
+        _alert(f"WARN: The Brief prose-number gate — {w.describe()}")
+    if warnings:
+        logger.warning(
+            "v6 prose-number gate: %d WARN-mode figure(s) with no builder "
+            "match anywhere in the issue (log-only unless "
+            "BRIEF_PROSE_VALIDATOR_STRICT=1)",
+            len(warnings),
+        )
+    else:
+        logger.info("v6 prose-number gate: clean")
+    return warnings
+
+
 def run_publish(
     sections: list[SectionData],
     today: date_t,
@@ -1340,6 +1514,28 @@ def run_publish(
             "Check catalog table + RLS."
         )
 
+    # P2 fact-checker (2026-08-22 audit #204, item 3): a lightweight PRE-editor
+    # chart digest. Resolved separately from the post-editor supabase_cfg below
+    # — this is an earlier, smaller fetch, not a substitute for `_stamp_chart_series`.
+    series_summaries: dict[str, dict[str, dict[str, Any]]] = {}
+    pre_editor_supabase_cfg = _resolve_supabase_config()
+    if pre_editor_supabase_cfg is None:
+        logger.warning(
+            "v6: skipping series_summary pre-fetch — SUPABASE_URL or service key missing in env"
+        )
+    else:
+        pre_url, pre_key = pre_editor_supabase_cfg
+        try:
+            series_summaries = _fetch_series_summaries(
+                today=today, http=UrllibHttp(), supabase_url=pre_url, service_key=pre_key,
+            )
+        except Exception:  # noqa: BLE001 — the editor still runs without chart grounding
+            logger.warning(
+                "v6: series_summary pre-fetch failed entirely — editor gets no "
+                "chart grounding this issue",
+                exc_info=True,
+            )
+
     editor_input, today_lens = _build_editor_input(
         sections,
         today,
@@ -1348,6 +1544,7 @@ def run_publish(
         previous_lens=previous_lens,
         recent_news=recent_news,
         metric_definitions=metric_definitions,
+        series_summaries=series_summaries,
     )
 
     issue_no = editor_input["meta"]["issue_no"]
@@ -1525,6 +1722,13 @@ def run_publish(
             "(log-only backstop by design)",
             exc_info=True,
         )
+
+    # P2 fact-checker (2026-08-22 audit #204, item 1): the number/period
+    # validator, run right after the editor/sub-editor output is FINAL —
+    # after every deterministic stamp above has had its say on `sub` text —
+    # and before publish. BLOCK-mode violations propagate (ProseNumberGateError
+    # is a V6PublishError subclass); WARN-mode figures are logged and returned.
+    _run_prose_number_gate(final_brief, editor_input["sections_raw"])
 
     if dry_run:
         logger.info("v6: dry_run=True, skipping Supabase publish")

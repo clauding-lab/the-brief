@@ -110,6 +110,8 @@ These are warn (not error) — fix if obvious, otherwise let pass:
     - Tier-3 (Basel III, ICAAP, IFRS, etc.) — expand every occurrence OR rephrase to a 2-3 word noun phrase.
     If a Tier-2 abbreviation appears bare before its expansion in a section → revise to add the expansion at first use.
 
+## 14. PERIOD & FIGURE PRESERVATION — When you revise `sub`, `banker_read`, `analysis`, `chart_read`, `tldr`, or `todays_call` for style, tone, or any other reason: never alter or remove a period string (e.g. "Jul 2026", "Q1 2026", a day-month string like "22 Aug") or a numeric figure that was present in the Editor's original text. A downstream deterministic check validates every `sub` figure and period against the raw builder data — a rewrite that looks equivalent to you but drops or changes a figure or a month name will hold the publish even though nothing in the meaning appears to have changed. Polish the words around a number or period; never the number or period itself.
+
 # DECISION RULES
 
 - Any `severity="error"` in your issues list → verdict MUST be `revise` (fixable) or `fail` (unfixable).

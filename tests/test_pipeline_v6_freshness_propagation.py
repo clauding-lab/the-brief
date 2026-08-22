@@ -376,7 +376,7 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
                 "weight": 2,
                 "verdict": "Reserves below floor",
                 "verdict_tone": "warn",
-                "tldr": "BB hasn't published reserves in 14 days.",
+                "tldr": "Reserves print is 14 days old — no fresh confirmation yet.",
             },
         ],
     }

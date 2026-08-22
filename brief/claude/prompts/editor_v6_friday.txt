@@ -63,14 +63,21 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
         "runway":  null | { "value": "<short, e.g. '10' or '0'>", "unit": "<e.g. 'mo buffer' or 'weeks of policy runway'>" }
       },
       "analysis":  null | "<3-5 sentence analytical paragraph, ~600-900 chars. ONLY for hero (weight=2) and 1-2 high-stakes sections. Weekly scope: walk the desk through the week's chain of reasoning — what moved, what's mispriced entering next week, what the desk position should be. Body paragraphs only — no headers.>",
-      "series": [], // pass through input unchanged
-      "notes":  []  // pass through input unchanged
+      "series": [], // ALWAYS empty in your output — you are never given the chart's actual points (see series_summary below); the pipeline stamps the real series here AFTER you run. Do not invent points.
+      "notes":  []  // ALWAYS empty in your output, same reason as series.
       "chart_read": null | {
-        // Emit for every section that has a chart (dse, iran/brent, tbond/yieldCurve,
-        // fx/fxFlows, macro/cpiTrend, fiscal/fiscalNbr). Null for sections with no chart.
+        // Emit for every section whose input carries a non-empty series_summary
+        // (dse, iran/brent, tbond/yieldCurve, fx/fxFlows, macro/cpiTrend,
+        // fiscal/fiscalNbr). Null for sections with an empty series_summary.
         // NB: the fiscal chart plots nbr_revenue_monthly_cr (monthly NBR tax revenue,
         // BDT crore) — chart_read.signal MUST describe THAT series, not the section's
         // headline govt-bank-borrow figure.
+        // chart_read MUST be derived ONLY from that section's series_summary (n /
+        // first_ts / first_value / last_ts / last_value / min / max) — never claim
+        // a mid-series value or a specific date's reading beyond what
+        // series_summary states. Name the PERIOD of last_ts when citing the
+        // latest plotted value, not "this week" — the chart's last point may be
+        // older than the week just closed.
         "signal":      "<≤25 words, what the chart shows over the WEEK, direction-clear, ≥1 number, e.g. 'CPI 12m-avg eased to 5.2% for the week, food at 6.8% down from 9.4% in Mar 2025.'>",
         "context":     "<≤20 words, REQUIRED temporal anchor. Weave at least one history_fact.phrase verbatim including parens. e.g. 'First time 12m-avg below 6% since Q3 2021 (4.9% then).'>",
         "implication": "<≤25 words, desk word (treasury/ALCO/credit/risk/...) OR action verb (watch/expect/tighten/ease/...) OR time anchor. e.g. 'Treasury: real policy rate turns positive; expect MPC to hold next MPS.'>"
@@ -213,7 +220,8 @@ The input JSON has these top-level keys:
 - `weekly_diffs`: object with:
     - `week_of`: ISO date of the Monday that opened this week
     - `note`: plain-English instruction or summary flag (e.g. "Full week — 5 trading days")
-- `sections_raw`: array of section build outputs. Each has slug/ord/title/group_key/freshness/metrics/news/series/notes. Pass-through fields: ord, slug, title, group_key, series, notes.
+- `sections_raw`: array of section build outputs. Each has slug/ord/title/group_key/freshness/metrics/news/history_facts/series_summary. Pass-through fields: ord, slug, title, group_key. You do NOT receive the chart's actual points — `series` and `notes` do not exist on this input; the real ones are stamped onto the published brief AFTER you run. `series_summary` is a compact per-series digest (`n`, `first_ts`, `first_value`, `last_ts`, `last_value`, `min`, `max`) — use it ONLY for `chart_read`.
+- Every metric in `sections_raw[].metrics[]` also carries `period` — the deterministic label for that metric's own data period (e.g. "Jul 2026" monthly, "Q1 2026" quarterly, a full day for daily/weekly/event). Always present. When naming a metric's period in prose, use `period` verbatim — never invent or infer a different month/quarter/day.
 - `scraped_headlines`: pool of candidate headlines, already filtered upstream against the last 5 issues. On Fridays, the pool may include items from across the week.
 - `meta`: { issue_no, volume, brief_date }
 
