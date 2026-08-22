@@ -6,7 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
-## [2.0.2] — 2026-08-11
+## [Unreleased]
+
+No version bump yet — the orchestrator cuts one release after every PR from the 2026-08-22 audit (issue #204) lands.
+
+### Fixed
+- Every chart's "LATEST PLOTTED" strip now names the plotted point's own period (e.g. "· Jul 2026") instead of implying it agrees with a neighboring tile of a possibly different vintage; it's still bound to the section's own series, never `metrics[0]`.
+- Per-series staleness: a multi-series chart (e.g. §fx's exports/imports/remittance) now dims and names only the specific dataset that's gone stale, instead of a single worst-of flag dimming the whole canvas.
+- Staleness ages are computed against a cadence-normalized period end, not the raw stamp — some monthly rows are stamped on the 1st of the month, others on the last day, and the former was reading ~30 days older than the same reporting period stamped the other way.
+- SecNav's scroll offset (`scroll-margin-top`, scroll-spy `rootMargin`) is now measured live from the nav's actual rendered height instead of a hardcoded 110px — the nav can wrap to 2-3 rows at wide viewports since its DOM order fix, which had been landing sections 18-65px under it.
+- Print (both the app's `?print=1` mode and the browser's native print) now reliably hides the masthead's small "Subscribe →" link, the diff toggle, and the live-status clock.
+- `prefers-reduced-motion: reduce` now also disables the three JS-driven `scrollIntoView({behavior:"smooth"})` calls and Chart.js's own draw animation — a CSS-only switch can't reach either.
+- Number/date formatting pinned to `en-GB` throughout `lib/chartMeta.ts` — an unpinned locale could render Bengali digits for a reader with `bn-BD` set, and mismatch between server and client render.
+- Archive/permalink reads (`lib/fetchBriefByIssue.ts`) now select explicit columns instead of `select("*")`, and treat a same-day-republish race (a `briefs` row with zero `sections` yet — landmine 33) as "not found" instead of rendering an empty issue.
+- `/issue/0204` redirects to the canonical `/issue/204`.
+- Today's Call masthead tag reads "10 sections", not "+10 sections", now that the count is real (was a hardcoded "+15").
+- Held-over metric rows: only the label/value dim; the "As of …" vintage stamp stays full-contrast, since it's the one thing in a muted row a reader most needs to actually read.
+- `robots.txt` no longer disallows `/preview` — a disallowed URL can't be crawled, which means a crawler never sees the page's own `noindex` meta tag; the meta tag alone reliably keeps it out of search results.
+
+### Note for Adnan
+Most of the archive's 116 issues are expected to show at least one "SERIES ENDS …" mark on a chart once this ships (a handful of source series — imports, NBR revenue, CPI — have been frozen for months, so most issues published after they froze inherit the mark on their own permalink page too). This is the intended, honest behavior for historical pages, not a bug: an old issue's chart data really was that old at the time. Flag if you'd rather archived issues suppress staleness marks entirely.
+
 
 ### Removed
 - The "In this issue" rail in the masthead. It re-listed the first twelve headlines from §01, which the reader then met again in full a screen later — duplication that pushed the first real content further down without adding a way to navigate that `SecNav` did not already provide. The masthead hero is now a single column: wordmark, tagline, Today's Call.
