@@ -27,6 +27,9 @@ No version bump yet — the orchestrator cuts one release after every PR from th
 ### Note for Adnan
 Most of the archive's 116 issues are expected to show at least one "SERIES ENDS …" mark on a chart once this ships (a handful of source series — imports, NBR revenue, CPI — have been frozen for months, so most issues published after they froze inherit the mark on their own permalink page too). This is the intended, honest behavior for historical pages, not a bug: an old issue's chart data really was that old at the time. Flag if you'd rather archived issues suppress staleness marks entirely.
 
+---
+
+## [2.0.2] — 2026-08-11
 
 ### Removed
 - The "In this issue" rail in the masthead. It re-listed the first twelve headlines from §01, which the reader then met again in full a screen later — duplication that pushed the first real content further down without adding a way to navigate that `SecNav` did not already provide. The masthead hero is now a single column: wordmark, tagline, Today's Call.
