@@ -76,7 +76,7 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
             <span className="accent">Free.</span>
           </div>
           <div className="body">
-            What 2,400&nbsp;treasury, policy and corporate-finance readers in Dhaka start
+            What treasury, policy and corporate-finance desks across Dhaka start
             their day with. 08:00 BDT sharp. No filler.
           </div>
         </div>
@@ -182,7 +182,7 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
                 {submitting ? "Sending …" : "Receive the brief →"}
               </button>
               <span className="tb-cta-helper">
-                No tracking. No marketing. Unsubscribe in one click.
+                No tracking. No marketing. Unsubscribe anytime — one email.
               </span>
             </div>
             {err && <div style={{ color: "var(--bear)", fontSize: 12 }}>{err}</div>}
