@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 import unicodedata
 from datetime import date as date_t
@@ -150,6 +151,44 @@ def _to_v6_raw(
     return out
 
 
+# P0 honesty fix (2026-08-22 audit #204): matches any digit-sequence,
+# including internal thousands-commas and a decimal point, as one token — so
+# "2.82" inside "$2.82bn" is replaced whole, leaving the surrounding "$" and
+# "bn" untouched. Deliberately does NOT try to also swallow attached currency
+# symbols or unit suffixes; leaving them in place keeps the sentence readable
+# while still making the actual figure unrecoverable.
+_NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_NUMBER_PLACEHOLDER = "‹n›"
+
+
+def _scrub_numbers(obj: Any) -> Any:
+    """Recursively replace every digit-sequence in string values with a
+    placeholder, so no figure from a previous brief can be copied forward
+    into today's prose.
+
+    The contamination this closes: `pipeline_v6._build_editor_input` feeds the
+    previous issue's full payload to the editor as `previous_brief`, for
+    narrative continuity ("yesterday we said X, today Y"). But the editor
+    reads numbers in there too, and the 2026-08-22 audit found exact old
+    figures ("$2.82bn", "fourteen reads") fossilizing forward across issues —
+    the editor was quoting yesterday's number instead of computing today's.
+    Scrubbing keeps every WORD and the object's structure intact (so the
+    continuity narrative still works) while making every number unrecoverable.
+
+    Apply this ONLY to the copy handed to the editor prompt. Any caller that
+    needs the real values — `_index_previous_metrics`, `stamp_changed`,
+    `mark_held_overs` — must run against the unscrubbed object; this function
+    is called after those, not before.
+    """
+    if isinstance(obj, str):
+        return _NUMBER_RE.sub(_NUMBER_PLACEHOLDER, obj)
+    if isinstance(obj, dict):
+        return {k: _scrub_numbers(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_scrub_numbers(v) for v in obj]
+    return obj
+
+
 def _build_editor_input(
     sections: list[SectionData],
     today: date_t,
@@ -222,7 +261,10 @@ def _build_editor_input(
     return {
         "today": today.isoformat(),
         "today_lens": lens,
-        "previous_brief": previous_brief,
+        # Scrubbed AFTER prev_metrics_idx/is_held_over above ran against the
+        # real values — this copy is for narrative continuity only, never a
+        # source of figures the editor can copy forward (P0 fix, audit #204).
+        "previous_brief": _scrub_numbers(previous_brief),
         "scraped_headlines": filtered_headlines,
         "sections_raw": raw_sections,
         "meta": {
@@ -951,6 +993,47 @@ def _run_subeditor(
     )
 
 
+# P0 honesty fix (2026-08-22 audit #204): hard-denylisted hallucination
+# signatures. The editor invented a "$80 FY27 [crude]" budget-assumption
+# motif — repeated with "$14.09" — that has no basis anywhere in Bangladesh's
+# actual FY27 budget. Unlike the rest of `_run_deterministic_gate` (a log-only
+# backstop that must never hold the publish on a false positive), these
+# patterns are specific enough that a false positive is not a realistic risk:
+# HARD-FAIL, don't log-and-ship. Case-insensitive; checked against the FULL
+# serialized brief because the phrase can land in any prose slot.
+_HARD_DENYLIST_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\$80\b[^.]{0,60}FY.?27", re.IGNORECASE),
+    re.compile(r"FY.?27[^.]{0,60}\$80\b", re.IGNORECASE),
+    re.compile(r"\$?14\.09", re.IGNORECASE),
+)
+
+
+class DenylistViolationError(V6PublishError):
+    """Raised when a hard-denylisted hallucination pattern appears in the
+    final brief's serialized prose. See the 2026-08-22 audit (issue #204):
+    the editor invented an "$80 FY27" crude-price budget assumption and a
+    "$14.09" figure with no basis in Bangladesh's actual FY27 budget. This
+    must propagate and hold the publish — see the call site in `run_publish`,
+    which re-raises this specific error THROUGH the blanket
+    `except Exception` that otherwise makes the deterministic gate log-only.
+    """
+
+
+def _check_hard_denylist(final_brief: BriefPayloadV6) -> None:
+    """Hard-fail if any denylisted hallucination pattern appears anywhere in
+    the final brief. Raises `DenylistViolationError`; never returns a count
+    like the log-only checks below — this is a HOLD, not a signal."""
+    serialized = final_brief.model_dump_json()
+    for pattern in _HARD_DENYLIST_PATTERNS:
+        if pattern.search(serialized):
+            raise DenylistViolationError(
+                f"v6 gate: hard denylist match {pattern.pattern!r} — this is "
+                "the '$80 FY27' / '$14.09' hallucination from the 2026-08-22 "
+                "audit (issue #204); the editor invented a figure with no "
+                "basis in Bangladesh's actual FY27 budget. Publish held."
+            )
+
+
 def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
     """Deterministic post-editor prose backstop (issue 156 review, item 7).
 
@@ -967,8 +1050,16 @@ def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
     in journalctl / the dry-run render so drift is visible. Escalating a specific
     check to hard-fail is a follow-up once the logs establish its precision.
 
+    EXCEPTION: `_check_hard_denylist`, run first, is NOT log-only — see its
+    docstring and `DenylistViolationError`. It is called from inside this
+    function (per the 2026-08-22 audit's spec) but raises rather than
+    incrementing the violation count, and the call site in `run_publish` lets
+    that specific exception propagate through the blanket catch-all below.
+
     Returns the total violation count (also emitted in the summary log line).
     """
+    _check_hard_denylist(final_brief)  # raises DenylistViolationError — must propagate
+
     violations = 0
 
     def _flag(where: str, reason: str) -> None:
@@ -1239,8 +1330,15 @@ def run_publish(
     # could only not crash because validators.py's never-raise contract and the V6
     # schema invariants happen to hold — if either regresses, a cosmetic backstop
     # would hard-block the 06:30 fire. A gate crash is logged and publish proceeds.
+    #
+    # EXCEPTION: DenylistViolationError (P0 honesty fix, 2026-08-22 audit #204)
+    # is a deliberate HARD-FAIL, not a gate crash — re-raised THROUGH this
+    # catch-all so the "$80 FY27" / "$14.09" hallucination signature holds the
+    # publish instead of being logged and shipped.
     try:
         _run_deterministic_gate(final_brief)
+    except DenylistViolationError:
+        raise
     except Exception:  # noqa: BLE001 — the log-only gate must never block a publish
         logger.warning(
             "v6 gate: deterministic gate crashed — continuing, publish NOT blocked "

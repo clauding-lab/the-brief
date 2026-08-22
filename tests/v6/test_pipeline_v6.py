@@ -350,6 +350,86 @@ def test_deterministic_gate_clean_brief_zero_violations() -> None:
     assert _run_deterministic_gate(brief) == 0
 
 
+# ── hard denylist (P0 honesty fix, 2026-08-22 audit #204) ───────────────────
+# The editor invented a "$80 FY27 [crude]" budget-assumption motif, repeated
+# with "$14.09" — neither has any basis in Bangladesh's actual FY27 budget.
+# Unlike the log-only checks above, a match here must HOLD the publish.
+
+
+def _brief_with_todays_call(text: str) -> BriefPayloadV6:
+    return BriefPayloadV6.model_validate({
+        "brief": {
+            "issue_no": 89, "volume": 1, "brief_date": "2026-05-05",
+            "todays_call": text,
+        },
+        "sections": [{
+            "slug": "dse", "ord": 6, "title": "DSE", "group_key": "markets",
+            "weight": 1,
+        }],
+    })
+
+
+def test_deterministic_gate_passes_clean_text_through_the_denylist() -> None:
+    from brief.pipeline_v6 import _run_deterministic_gate
+
+    clean = _brief_with_todays_call(
+        "Reserves firmed to $35.11B; the book stays defensive on import cover."
+    )
+    assert _run_deterministic_gate(clean) == 0
+
+
+def test_deterministic_gate_hard_fails_on_80_dollar_fy27_forward_order() -> None:
+    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+
+    brief = _brief_with_todays_call("The FY27 budget assumes crude at $80 a barrel.")
+    with pytest.raises(DenylistViolationError):
+        _run_deterministic_gate(brief)
+
+
+def test_deterministic_gate_hard_fails_on_80_dollar_fy27_reverse_order() -> None:
+    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+
+    brief = _brief_with_todays_call("Crude at $80 underpins the FY27 budget math.")
+    with pytest.raises(DenylistViolationError):
+        _run_deterministic_gate(brief)
+
+
+def test_deterministic_gate_hard_fails_on_1409() -> None:
+    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+
+    brief = _brief_with_todays_call("Brent settled at $14.09 on thin volume.")
+    with pytest.raises(DenylistViolationError):
+        _run_deterministic_gate(brief)
+
+
+def test_deterministic_gate_denylist_is_case_insensitive() -> None:
+    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+
+    brief = _brief_with_todays_call("the fy27 budget assumes crude at $80 a barrel.")
+    with pytest.raises(DenylistViolationError):
+        _run_deterministic_gate(brief)
+
+
+def test_run_publish_holds_when_editor_output_hits_the_hard_denylist(
+    _stub_supabase_reads: object,
+) -> None:
+    """Unlike a log-only gate crash, a denylist hit must propagate all the way
+    through run_publish and abort BEFORE publish_brief is ever called."""
+    from brief.pipeline_v6 import DenylistViolationError
+
+    tainted = _editor_output()
+    tainted["brief"]["todays_call"] = "The FY27 budget assumes crude at $80 a barrel."
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief") as mock_pub:
+        mock_run.side_effect = [_max_result(tainted), _max_result(review)]
+        with pytest.raises(DenylistViolationError):
+            run_publish([], today=date(2026, 5, 5), scraped_headlines=[])
+
+    mock_pub.assert_not_called()
+
+
 def test_section_adapter_renames_iranwar_to_iran() -> None:
     """V5 SectionData id 'iranwar' → V6 slug 'iran' per the V5_TO_V6 map."""
     sections = [
