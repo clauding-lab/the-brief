@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 import type { Section as SectionType, Mover } from "@/types/brief";
 import { Hair } from "./Hair";
 import { Mark } from "./Mark";
@@ -6,8 +6,20 @@ import { BankerRead } from "./BankerRead";
 import { SignatureChart } from "./SignatureChart";
 import { BriefChart } from "./BriefChart";
 import { SECTION_TO_CHART, CHART_CARD_HEADS } from "@/lib/chartConfigs";
-import { getChartLatestCaption, getPerSeriesStaleness, getChartAriaLabel } from "@/lib/chartMeta";
+import {
+  getChartLatestCaption,
+  getPerSeriesStaleness,
+  getChartAriaLabel,
+  type PerSeriesStaleness,
+} from "@/lib/chartMeta";
 import { formatNewsMeta, cleanMetricValue, formatVintageDate } from "@/lib/format";
+
+// Frozen, module-level, reused across every render/section that has no
+// staleness to report — review round 2 (HIGH): a fresh `[]` literal here
+// would still change reference identity every render, which is exactly the
+// bug being fixed below (BriefChart's chart-construction effect depends on
+// this array's identity, not just its contents).
+const EMPTY_STALE: readonly PerSeriesStaleness[] = Object.freeze([]);
 
 interface SectionProps {
   section: SectionType;
@@ -44,6 +56,25 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
   // when not provided by the parent (defensive; ClientApp always supplies it).
   const ordLabel = String(displayOrd ?? ord).padStart(2, "0");
 
+  const hasChart = series && series.length > 1;
+  const configKey = SECTION_TO_CHART[slug] ?? null;
+  // useMemo, not a plain call (review round 2, HIGH) — and computed here,
+  // BEFORE the early return below, because React's Rules of Hooks forbid
+  // calling a hook conditionally (a hook after an early return only runs on
+  // some renders). A fresh `[]`/array literal would change reference
+  // identity on every Section re-render — and Section re-renders on every
+  // ClientApp state change (diff toggle, scroll-spy active-section change),
+  // not just when `section`/`configKey`/`issueDate` actually change.
+  // BriefChart's chart-construction effect depends on this array's identity
+  // (see its own comment), so an unstable reference here was destroying and
+  // rebuilding all 8 charts — full 300ms re-animation — on every unrelated
+  // state change. Measured before the fix: 32 distinct canvas frames from
+  // one Diff toggle click.
+  const staleSeries = useMemo(
+    () => (hasChart && configKey ? getPerSeriesStaleness(section, configKey, issueDate) : EMPTY_STALE),
+    [hasChart, configKey, section, issueDate]
+  );
+
   // Dead-section collapse only when there's truly nothing to show. If chart
   // data is present (e.g. comm has LNG history but a sibling metric like
   // BAJUS gold went None and dragged section_freshness to "unavailable"),
@@ -68,10 +99,8 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
     );
   }
 
-  const hasChart = series && series.length > 1;
   const seriesKey = hasChart ? series[0].key : null;
   const filteredNotes = notes.filter((n) => n.series_key === seriesKey);
-  const configKey = SECTION_TO_CHART[slug] ?? null;
   // Bound to the CHARTED series' own latest point — never metrics[0] (that
   // bug captioned the bb/"FX Reserves" chart with "Overnight Call Money
   // 9.31%", the section's first tile, which has no relation to the chart).
@@ -81,7 +110,6 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
   // period it plotted rather than reading as agreeing or disagreeing with
   // whatever the tile shows.
   const chartLatest = hasChart ? getChartLatestCaption(section, configKey) : null;
-  const staleSeries = hasChart && configKey ? getPerSeriesStaleness(section, configKey, issueDate) : [];
   const isHero = (weight ?? 1) >= 2;
   const anySignal =
     metrics.some((m) => m.changed || m.held_from) ||

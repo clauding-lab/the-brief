@@ -70,7 +70,7 @@ interface BriefChartProps {
   /** Per-series staleness (H6) — the config builder dims only the flagged
    * dataset(s); a note row renders BELOW the canvas (never overlapping the
    * plot area or its axis ticks) naming each stale series and its period. */
-  staleSeries?: PerSeriesStaleness[];
+  staleSeries?: readonly PerSeriesStaleness[];
 }
 
 // Group SeriesPoint[] (where each point has a `key`) into the
