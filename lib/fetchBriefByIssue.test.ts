@@ -56,7 +56,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 // Imported AFTER the mock is registered (vi.mock is hoisted by Vitest, so
 // this ordering is safe regardless of where the import statement sits).
-import { fetchBriefByIssueNo } from "./fetchBriefByIssue";
+import { fetchBriefByIssueNo, __internals } from "./fetchBriefByIssue";
 
 beforeEach(() => {
   recordedCalls.briefs = [];
@@ -126,6 +126,9 @@ describe("fetchBriefByIssueNo — RLS posture (MED-7)", () => {
     const selectCall = recordedCalls.briefs.find((c) => c.method === "select");
     expect(selectCall).toBeDefined();
     expect(selectCall!.args[0]).not.toBe("*");
+    // Strengthened (review round 2, optional): pin the EXACT column list,
+    // not just "some string that isn't *" — drift here should fail loudly.
+    expect(selectCall!.args[0]).toBe(__internals.BRIEF_SELECT);
   });
 });
 

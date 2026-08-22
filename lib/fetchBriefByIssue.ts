@@ -206,3 +206,8 @@ export async function fetchArchiveIndex(limit = 500): Promise<ArchiveEntry[]> {
   if (error) return [];
   return (data ?? []) as ArchiveEntry[];
 }
+
+// Exported for tests only (review round 2, optional) — lets
+// fetchBriefByIssue.test.ts assert the briefs query sends exactly this
+// column list, not just "some string that isn't *".
+export const __internals = { BRIEF_SELECT, SECTION_SELECT };
