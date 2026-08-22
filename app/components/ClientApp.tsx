@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, Fragment } from "react";
+import Link from "next/link";
 import type { BriefPayload, SectionGroup } from "@/types/brief";
 import { getBrowserSupabase } from "@/lib/supabase";
+import { SECTION_TO_CHART } from "@/lib/chartConfigs";
 import { Masthead } from "./Masthead";
 import { StickyBar } from "./StickyBar";
 import { SnapshotStrip } from "./SnapshotStrip";
@@ -33,8 +35,16 @@ const GROUP_LABELS: Record<SectionGroup, string> = {
 };
 
 type ClientAppProps =
-  | { initialData: BriefPayload; brief?: never; sections?: never; preview?: never }
-  | { brief: BriefPayload["brief"]; sections: BriefPayload["sections"]; initialData?: never; preview?: boolean };
+  | { initialData: BriefPayload; brief?: never; sections?: never; preview?: never; historical?: never }
+  | {
+      brief: BriefPayload["brief"];
+      sections: BriefPayload["sections"];
+      initialData?: never;
+      preview?: boolean;
+      /** A fixed past issue (e.g. /issue/[no]) — skip the live refetch-on-mount
+       * so a permalink doesn't silently swap itself for today's latest brief. */
+      historical?: boolean;
+    };
 
 export function ClientApp(props: ClientAppProps) {
   const initialData: BriefPayload =
@@ -42,6 +52,7 @@ export function ClientApp(props: ClientAppProps) {
       ? props.initialData
       : { brief: props.brief!, sections: props.sections!, _source: "static" };
   const preview = ("preview" in props && props.preview) ?? false;
+  const historical = ("historical" in props && props.historical) ?? false;
 
   const [data, setData] = useState<BriefPayload>(initialData);
   const [active, setActive] = useState<string>(() => {
@@ -91,7 +102,7 @@ export function ClientApp(props: ClientAppProps) {
   // to get the freshest state and to write the localStorage cache for next visit.
   // Skipped in preview mode: the fixture payload is the source of truth there.
   useEffect(() => {
-    if (preview) return;
+    if (preview || historical) return;
     let cancelled = false;
     (async () => {
       try {
@@ -115,7 +126,7 @@ export function ClientApp(props: ClientAppProps) {
     return () => {
       cancelled = true;
     };
-  }, [preview]);
+  }, [preview, historical]);
 
   // Hash sync
   useEffect(() => {
@@ -191,6 +202,19 @@ export function ClientApp(props: ClientAppProps) {
     flatRenderOrder.map((s, i) => [s.slug, i + 1])
   );
 
+  // Sequential FIG numbers (1, 2, …) for charted sections only, in the SAME
+  // reading order as displayOrdBySlug — replaces CHART_CARD_HEADS' old
+  // chart-addition-order numbering (fx=01…bb=08), which printed out of
+  // order and skipped FIG.04 once the comm section was retired.
+  const chartOrdBySlug = new Map<string, number>();
+  let chartCounter = 0;
+  for (const s of flatRenderOrder) {
+    if (SECTION_TO_CHART[s.slug] && s.series && s.series.length > 1) {
+      chartCounter += 1;
+      chartOrdBySlug.set(s.slug, chartCounter);
+    }
+  }
+
   return (
     <div className="tb-shell">
       {preview && (
@@ -223,10 +247,15 @@ export function ClientApp(props: ClientAppProps) {
       </a>
       <StickyBar brief={data.brief} source={data._source} visible={stickyVisible} />
       <main id="content" className="tb-body">
-        <Masthead brief={data.brief} source={data._source} fetchedAt={data._fetchedAt} />
+        <Masthead
+          brief={data.brief}
+          source={data._source}
+          fetchedAt={data._fetchedAt}
+          sectionCount={flatRenderOrder.length}
+        />
         <SnapshotStrip section={snapshotSection} />
         <SecNav
-          sections={data.sections}
+          sections={flatRenderOrder}
           activeSlug={active}
           onJump={jump}
           diffMode={diffMode}
@@ -247,6 +276,8 @@ export function ClientApp(props: ClientAppProps) {
                   section={s}
                   diffMode={diffMode}
                   displayOrd={displayOrdBySlug.get(s.slug)}
+                  chartOrd={chartOrdBySlug.get(s.slug)}
+                  issueDate={data.brief?.brief_date}
                 />
               ))}
             </div>
@@ -269,6 +300,9 @@ export function ClientApp(props: ClientAppProps) {
           {data.brief?.issue_no}
         </div>
         <div>Curated daily · Read time {data.brief?.read_minutes ?? 15} min</div>
+        <div>
+          <Link href="/archive">Archive →</Link>
+        </div>
       </footer>
 
       <StatusBar source={data._source} fetchedAt={data._fetchedAt} />
