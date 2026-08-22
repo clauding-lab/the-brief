@@ -5,6 +5,7 @@ trading-day awareness applies only to `daily`.
 """
 from __future__ import annotations
 
+import calendar
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterable, cast
 
@@ -34,6 +35,32 @@ def now_bdt() -> datetime:
 
 def is_bd_trading_day(d: date) -> bool:
     return d.weekday() in _BD_TRADING_WEEKDAYS
+
+
+def month_end(d: date) -> date:
+    """Normalize `d` to the last calendar day of its month.
+
+    P0 honesty fix (2026-08-22 audit #204): `metric_history_monthly` rows are
+    sometimes stamped at the START of their month (e.g. 2026-07-01 for July's
+    official final) rather than its end. Read literally, that ages a fresh
+    official read by up to ~30 days under `metric_freshness`'s monthly
+    threshold before it should — a same-day publish of July's final would
+    already read 43 days old. Callers that read a monthly archive value should
+    normalize its `as_of` through this before comparing it to today.
+    """
+    last_day = calendar.monthrange(d.year, d.month)[1]
+    return date(d.year, d.month, last_day)
+
+
+def months_apart(a: date, b: date) -> int:
+    """Absolute distance between two dates in whole calendar months.
+
+    Same-month dates (any day) are 0 apart; adjacent months are 1 apart,
+    regardless of day-of-month. Used to gate derived metrics (trade gap,
+    import cover) that must not silently pair figures from different
+    reporting periods.
+    """
+    return abs((a.year - b.year) * 12 + (a.month - b.month))
 
 
 def trading_days_between(start: date, end: date) -> int:
@@ -85,36 +112,56 @@ def metric_freshness(metric: Metric, *, today: date | None = None) -> FreshnessK
     if metric.cadence == "event":
         # Fallback-sourced (history unreachable / row missing): the builder
         # already knows this value is last-known rather than confirmed, and
-        # stamps as_of=today, so the restamp check below cannot see it.
+        # stamps as_of=today, so the restamp check below cannot see it. This
+        # is STRONGER than the floor below (outright "stale", not merely
+        # "warning"), so it stays its own early return.
         if metric.stale:
             return "stale"
         days = (today - metric.as_of).days
         fresh_max, warn_max = _EVENT_RESTAMP_THRESHOLDS
         if days <= fresh_max:
-            return "fresh"
-        if days <= warn_max:
-            return "warning"
-        return "stale"
+            result: FreshnessKind = "fresh"
+        elif days <= warn_max:
+            result = "warning"
+        else:
+            result = "stale"
+        return result
 
     if metric.cadence == "daily":
         gap = trading_days_between(metric.as_of, today)
         if gap <= 1:
-            return "fresh"
-        if gap <= 2:
-            return "warning"
-        return "stale"
-
-    if metric.cadence in _THRESHOLDS:
+            result = "fresh"
+        elif gap <= 2:
+            result = "warning"
+        else:
+            result = "stale"
+    elif metric.cadence in _THRESHOLDS:
         days = (today - metric.as_of).days
         fresh_max, warn_max = _THRESHOLDS[metric.cadence]
         if days <= fresh_max:
-            return "fresh"
-        if days <= warn_max:
-            return "warning"
-        return "stale"
+            result = "fresh"
+        elif days <= warn_max:
+            result = "warning"
+        else:
+            result = "stale"
+    else:
+        # Unknown cadence — conservative
+        return "unavailable"
 
-    # Unknown cadence — conservative
-    return "unavailable"
+    # M-B, review round 2 (2026-08-22 audit #204): `Metric.stale` means "this
+    # value came from a fallback, not a confirmed current read" — per its own
+    # docstring, for EVERY cadence, not just `event`. Before this fix the flag
+    # was inert for daily/weekly/monthly/quarterly: a monthly-cadence fallback
+    # (e.g. remit.py's flash-fallback branch, forced to a recent as_of so it
+    # never claims "today" — see H5 review round 1) could still land inside
+    # the fresh window and ship under a plain "fresh" badge, silently
+    # contradicting its own `source` text. Floor at "warning" so a
+    # stale-flagged value can never read as unqualified fresh — this also
+    # makes `metric_vintage` fire, since it only skips metrics that are
+    # genuinely fresh. Never DOWNGRADES an already-worse computed signal.
+    if metric.stale and result == "fresh":
+        return "warning"
+    return result
 
 
 def metric_aging(metric: Metric, *, today: date | None = None) -> bool:
@@ -137,17 +184,39 @@ def section_freshness(
 
     section_id — when provided and the section belongs to
     SECTIONS_WITHOUT_LEGACY_BACKFILL, "unavailable" is promoted to
-    "warming_up".  This signals intentional history accumulation rather than
-    a data error.  All other rankings (stale, warning, …) are unchanged.
+    "warming_up" — but ONLY when EVERY metric in the section is
+    "unavailable" (H-B, review round 2, 2026-08-22 audit #204). The
+    implementation used to promote whenever "unavailable" was present at
+    ALL, contradicting its own docstring above ("when ALL their metrics have
+    value=None"): a section with, say, three genuinely stale archive metrics
+    and ONE suppressed derived metric (e.g. macro's import cover, gated in
+    fx.py/macro.py on data-vintage checks) reported the cheerful
+    "history is accumulating" badge instead of the honest "stale" one — at
+    ANY size of the underlying data gap, not just the specific one that was
+    first caught. When NOT every metric is unavailable, a single "nothing to
+    show today" metric must not mask a worse REAL signal from a metric that
+    IS reporting — the worst-of ranking runs over the metrics that DO have
+    an answer.
     """
     states = [metric_freshness(m, today=today) for m in metrics]
+    if not states:
+        return "fresh"
+
+    eligible = section_id in SECTIONS_WITHOUT_LEGACY_BACKFILL
+    if eligible and all(s == "unavailable" for s in states):
+        return "warming_up"
+    if eligible:
+        # Some metrics DO have an answer — don't let "unavailable" (a
+        # single metric with nothing to show) outrank a worse REAL signal
+        # from a metric that reported something (e.g. "stale").
+        reporting = [s for s in states if s != "unavailable"]
+        states = reporting or states
+
     # "pending" is reserved for externally-set overrides (e.g. a metric whose
     # next-release window has not passed yet); metric_freshness does not emit
     # it today but the priority tuple retains the slot for future/upstream use.
     for worst in ("unavailable", "stale", "pending", "warning"):
         if worst in states:
-            if worst == "unavailable" and section_id in SECTIONS_WITHOUT_LEGACY_BACKFILL:
-                return "warming_up"
             return cast(FreshnessKind, worst)
     return "fresh"
 
