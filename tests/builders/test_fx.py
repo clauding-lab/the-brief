@@ -3,6 +3,7 @@ from datetime import date, datetime, timezone
 from brief.builders import BuilderContext
 from brief.builders.fx import build
 from brief.econdelta import EconDeltaSnapshot
+from brief.history import HistoryRow
 
 
 def _snap():
@@ -22,7 +23,7 @@ class _FakeHistory:
     def __init__(self, latest_by_id: dict):
         self._latest = latest_by_id
 
-    def get_latest(self, metric_id: str):
+    def get_latest(self, metric_id: str, *, table: str | None = None):
         return self._latest.get(metric_id)
 
 
@@ -32,55 +33,86 @@ class _Row:
         self.as_of = as_of
 
 
-def test_fx_post_2026_05_03_layout():
-    """USD/BDT spot + Gold + 3 cross-section external-balance metrics.
+def _archive_row(metric_id: str, value_mn: float, as_of: date) -> HistoryRow:
+    return HistoryRow(metric_id=metric_id, as_of=as_of, value=value_mn, source="EPB")
 
-    v1.6.7 reshaped this section: EUR/BDT and the duplicate remittance tile went
-    out, Gold came in from the retired `comm` section, leaving exactly the 5
-    metrics the editor prompt will publish.
-    """
+
+def test_fx_post_2026_05_03_layout():
+    """USD/BDT spot + Gold + Gross Reserves + Exports — no trade gap because
+    exports and imports cover different months (P0 honesty fix, audit #204)."""
     history = _FakeHistory({
         "gross_reserves_usd_bn": _Row(35.04, date(2026, 4, 15)),
-        "monthly_export":        _Row(3.48,  date(2026, 3, 31)),
-        "monthly_import":        _Row(6.48,  date(2026, 3, 31)),
     })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 4, 21))
+    history_monthly = _FakeHistory({
+        "exports_usd_mn_monthly": _archive_row("exports_usd_mn_monthly", 4202.69, date(2026, 6, 1)),
+        "imports_usd_mn_monthly": _archive_row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 1)),
+    })
+    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 22),
+                         history_monthly=history_monthly)
     s = build(ctx)
     assert s.id == "fx"
     by_id = {m.id: m for m in s.metrics}
     assert set(by_id) == {"fx_usd_bdt_mid", "fx_gold_usd_oz",
-                          "fx_gross_reserves", "fx_monthly_exports",
-                          "fx_trade_gap"}
+                          "fx_gross_reserves", "fx_monthly_exports"}
     assert by_id["fx_usd_bdt_mid"].value == 122.70
     assert by_id["fx_gold_usd_oz"].value == 3310.5
     assert by_id["fx_gross_reserves"].value == 35.04
-    assert by_id["fx_monthly_exports"].value == 3.48
-    # Trade gap = exports − imports = 3.48 − 6.48 = −3.0
-    assert by_id["fx_trade_gap"].value == -3.0
+    # 4202.69 mn -> 4.20 bn, as_of normalized to June's month-end
+    assert by_id["fx_monthly_exports"].value == 4.2
+    assert by_id["fx_monthly_exports"].as_of == date(2026, 6, 30)
+    assert by_id["fx_monthly_exports"].source == "EPB"
+    # No trade gap tile at all — different months (Jun exports vs Mar imports)
+    assert "fx_trade_gap" not in by_id
 
 
-def test_fx_trade_gap_null_when_legs_missing():
-    """Trade gap requires both export + import; null otherwise."""
-    history = _FakeHistory({
-        "monthly_export": _Row(3.48, date(2026, 3, 31)),
-        # monthly_import absent → no gap
+def test_fx_trade_gap_emitted_when_exports_and_imports_share_a_month():
+    history_monthly = _FakeHistory({
+        "exports_usd_mn_monthly": _archive_row("exports_usd_mn_monthly", 4202.69, date(2026, 6, 1)),
+        "imports_usd_mn_monthly": _archive_row("imports_usd_mn_monthly", 5826.2, date(2026, 6, 30)),
     })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 4, 21))
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 8, 22),
+                         history_monthly=history_monthly)
     s = build(ctx)
     by_id = {m.id: m for m in s.metrics}
-    assert by_id["fx_trade_gap"].value is None
+    assert "fx_trade_gap" in by_id
+    # 4.20 - 5.83 = -1.63 (both mn->bn rounded to 2dp before subtraction)
+    assert by_id["fx_trade_gap"].value == round(4.2 - 5.83, 2)
+    assert by_id["fx_trade_gap"].as_of == date(2026, 6, 30)
+    assert by_id["fx_trade_gap"].source == "EPB · BB"
+
+
+def test_fx_trade_gap_omitted_when_imports_leg_missing():
+    """Trade gap requires both legs from the SAME month; otherwise no tile at all."""
+    history_monthly = _FakeHistory({
+        "exports_usd_mn_monthly": _archive_row("exports_usd_mn_monthly", 4202.69, date(2026, 6, 1)),
+    })
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 8, 22),
+                         history_monthly=history_monthly)
+    s = build(ctx)
+    by_id = {m.id: m for m in s.metrics}
+    assert "fx_trade_gap" not in by_id
     # Exports leg still populated
-    assert by_id["fx_monthly_exports"].value == 3.48
+    assert by_id["fx_monthly_exports"].value == 4.2
 
 
-def test_fx_external_metrics_null_when_history_unavailable():
-    """No history client → cross-section metrics are None placeholders."""
-    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 4, 21))
+def test_fx_exports_omitted_when_archive_has_no_row():
+    """No flash fallback for exports — the flash is a different basis."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 8, 22),
+                         history_monthly=_FakeHistory({}))
     s = build(ctx)
     by_id = {m.id: m for m in s.metrics}
+    assert "fx_monthly_exports" not in by_id
+    assert "fx_trade_gap" not in by_id
+
+
+def test_fx_external_metrics_omitted_when_history_monthly_unavailable():
+    """No monthly client → exports/trade-gap tiles are omitted (not None-valued)."""
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 8, 22))
+    s = build(ctx)
+    by_id = {m.id: m for m in s.metrics}
+    assert "fx_monthly_exports" not in by_id
+    assert "fx_trade_gap" not in by_id
     assert by_id["fx_gross_reserves"].value is None
-    assert by_id["fx_monthly_exports"].value is None
-    assert by_id["fx_trade_gap"].value is None
     # Spot rate and Gold still pulled from the snapshot, which needs no history
     assert by_id["fx_usd_bdt_mid"].value == 122.70
     assert by_id["fx_gold_usd_oz"].value == 3310.5

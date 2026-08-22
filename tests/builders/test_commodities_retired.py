@@ -57,9 +57,14 @@ class _FakeHistory:
 
 LIVE = {
     "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 37.578, JUN30),
-    "monthly_export": _row("monthly_export", 4.03, AUG4),
-    "monthly_import": _row("monthly_import", 5.80, AUG4),
-    "monthly_remittance": _row("monthly_remittance", 2.82, AUG4),
+    # P0 honesty fix (2026-08-22 audit #204): fx.py no longer reads the daily
+    # `monthly_export`/`monthly_import` flash — exports/trade-gap now read the
+    # official `*_usd_mn_monthly` archive (mn USD; fx.py converts to bn). Both
+    # dated the SAME month (June) here so the trade gap actually computes —
+    # 4030.0mn/5800.0mn -> 4.03bn/5.80bn, reproducing this fixture's original
+    # figures on an honest (same-month) footing.
+    "exports_usd_mn_monthly": _row("exports_usd_mn_monthly", 4030.0, JUN30),
+    "imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5800.0, JUN30),
 }
 
 

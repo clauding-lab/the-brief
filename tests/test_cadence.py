@@ -4,6 +4,8 @@ from brief.cadence import (
     is_bd_trading_day,
     metric_aging,
     metric_freshness,
+    month_end,
+    months_apart,
     section_freshness,
     trading_days_between,
 )
@@ -230,3 +232,44 @@ def test_metric_aging_quarterly_warning_band():
     today = date(2026, 4, 21)
     metric = _m("npl", date(2026, 1, 1), "quarterly")  # 110 days → warning (≤120)
     assert metric_aging(metric, today=today) is True
+
+
+# ── month_end / months_apart (P0 honesty fix, 2026-08-22 audit #204) ─────────
+
+def test_month_end_normalizes_a_month_start_stamp():
+    assert month_end(date(2026, 7, 1)) == date(2026, 7, 31)
+
+
+def test_month_end_is_idempotent_on_an_already_month_end_date():
+    assert month_end(date(2026, 2, 28)) == date(2026, 2, 28)
+
+
+def test_month_end_handles_leap_february():
+    assert month_end(date(2024, 2, 5)) == date(2024, 2, 29)
+
+
+def test_month_end_handles_31_day_month():
+    assert month_end(date(2026, 1, 15)) == date(2026, 1, 31)
+
+
+def test_months_apart_same_month_is_zero():
+    assert months_apart(date(2026, 7, 1), date(2026, 7, 31)) == 0
+
+
+def test_months_apart_adjacent_months_is_one():
+    assert months_apart(date(2026, 7, 31), date(2026, 8, 1)) == 1
+
+
+def test_months_apart_is_symmetric():
+    assert months_apart(date(2026, 8, 1), date(2026, 3, 31)) == months_apart(
+        date(2026, 3, 31), date(2026, 8, 1)
+    )
+
+
+def test_months_apart_counts_across_year_boundary():
+    assert months_apart(date(2025, 12, 1), date(2026, 1, 1)) == 1
+
+
+def test_months_apart_several_months():
+    # July issue expects the imports archive frozen at March: 4 months apart.
+    assert months_apart(date(2026, 7, 31), date(2026, 3, 31)) == 4

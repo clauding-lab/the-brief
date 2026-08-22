@@ -40,3 +40,40 @@ class BuilderContext:
     # table="metric_history_monthly" per call. Separate field so builders that
     # don't need monthly data don't need to be updated.
     history_monthly: "MetricHistoryClient | None" = None
+
+
+def official_monthly_bn(ctx: "BuilderContext", metric_id: str, *,
+                        table: str = "metric_history_monthly"):
+    """Latest official monthly row for `metric_id`, converted mn USD -> bn USD
+    (/1000) with `as_of` normalized to month-end.
+
+    Shared by fx.py (exports/imports, trade gap) and macro.py (import cover) —
+    both read the same class of BB/EPB "*_usd_mn_monthly" archive series and
+    need identical unit + date-stamp handling (P0 honesty fix, 2026-08-22
+    audit #204: the pre-fix reads mixed a bn-scale daily flash with these
+    mn-scale official finals, and dated an archive row by whichever calendar
+    day it happened to be stamped on rather than that month's end).
+
+    Returns None if the client is absent, the row is missing, its value isn't
+    numeric, or the read raises — a section going dark must not take the
+    builder (or the issue) down; a missing row already renders as
+    "unavailable".
+    """
+    from brief.cadence import month_end
+    from brief.history import HistoryRow
+
+    history_monthly = ctx.history_monthly
+    if history_monthly is None:
+        return None
+    try:
+        row = history_monthly.get_latest(metric_id, table=table)
+    except Exception:  # noqa: BLE001 — best-effort read, never fatal
+        return None
+    if row is None or not isinstance(row.value, (int, float)):
+        return None
+    return HistoryRow(
+        metric_id=row.metric_id,
+        as_of=month_end(row.as_of),
+        value=round(row.value / 1000, 2),
+        source=row.source,
+    )

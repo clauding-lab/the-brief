@@ -135,6 +135,41 @@ def test_get_latest_from_monthly_table():
     assert row.as_of.isoformat() == "2026-04-01"
 
 
+# ── get_at_or_before ─────────────────────────────────────────────────────────
+
+
+def test_get_at_or_before_returns_the_row_in_force_on_that_date():
+    """P0 honesty fix (2026-08-22 audit #204): pairing the repo rate AS OF an
+    inflation reading's date, not today's, so a Jun inflation print pairs with
+    the Jun rate even after a later cut."""
+    http = _StubHttp(
+        {"/rest/v1/metric_history?metric_id=eq.policy_rate_repo&as_of=lte.2026-06-30&order=as_of.desc&limit=1":
+            (200, [{"metric_id": "policy_rate_repo", "as_of": "2026-06-30", "value": 10.0, "source": "BB"}])}
+    )
+    client = MetricHistoryClient(url="https://x", service_key="k", http=http)
+    row = client.get_at_or_before("policy_rate_repo", date(2026, 6, 30))
+    assert row is not None
+    assert row.value == 10.0
+    assert row.as_of == date(2026, 6, 30)
+
+
+def test_get_at_or_before_returns_none_when_no_row_exists_that_early():
+    http = _StubHttp({})
+    client = MetricHistoryClient(url="https://x", service_key="k", http=http)
+    assert client.get_at_or_before("policy_rate_repo", date(2020, 1, 1)) is None
+
+
+def test_get_at_or_before_accepts_a_table_kwarg():
+    http = _StubHttp(
+        {"/rest/v1/metric_history_monthly?metric_id=eq.x&as_of=lte.2026-06-30&order=as_of.desc&limit=1":
+            (200, [{"metric_id": "x", "as_of": "2026-06-01", "value": 1.0, "source": "s"}])}
+    )
+    client = MetricHistoryClient(url="https://x", service_key="k", http=http)
+    row = client.get_at_or_before("x", date(2026, 6, 30), table="metric_history_monthly")
+    assert row is not None
+    assert row.as_of == date(2026, 6, 1)
+
+
 def test_get_history_window_from_monthly_table():
     http = _StubHttp(
         {"/rest/v1/metric_history_monthly?metric_id=in.(cpi_12m_avg_monthly)&order=as_of.desc&limit=60":

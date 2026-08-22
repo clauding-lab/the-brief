@@ -37,44 +37,79 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Callable
 
-from brief.cadence import section_freshness
+from brief.cadence import months_apart, section_freshness
 from brief.history import HistoryRow
 from brief.history_anchors import HistoryFact, fetch_and_compute
 from brief.schema import Metric, SectionData
-from . import BuilderContext
+from . import BuilderContext, official_monthly_bn
 
 
-@dataclass(frozen=True)
-class _Derivation:
-    """A macro figure EconDelta does not publish directly, but whose inputs it does.
+_Deriver = Callable[["BuilderContext"], "tuple[float | None, date | None]"]
 
-    `fn` receives the input values in `inputs` order. Both derivations below were
-    confirmed against what the old pipeline actually printed before being
-    written here, rather than assumed from the metric's name — see each one's
-    comment for the arithmetic that reproduces the published figure.
+
+def _at_or_before(client, metric_id: str, as_of: date, *, table: str) -> HistoryRow | None:
+    """One `get_at_or_before`, tolerating a client that raises or lacks it."""
+    try:
+        return client.get_at_or_before(metric_id, as_of, table=table)
+    except Exception:  # noqa: BLE001 — best-effort read, never fatal
+        return None
+
+
+def _real_policy_rate(ctx: "BuilderContext") -> tuple[float | None, date | None]:
+    """Real policy rate = the repo rate IN FORCE on the inflation reading's
+    date, minus that same reading (period-consistent; P0 honesty fix, 2026-08-22
+    audit #204).
+
+    Pairing "latest repo" with "latest inflation" mixes vintages whenever a cut
+    lands between the two prints. On 2026-08-22 the live repo read 9.50 (post
+    the 30-Jul cut) while the latest inflation print was still June's, so the
+    old arithmetic (9.50 - 9.16 = 0.34%) described a rate that never actually
+    existed alongside that inflation reading. The June-consistent value is the
+    repo rate AS OF 30 Jun (10.00, pre-cut) minus June's inflation (9.16) =
+    0.84%. `as_of` is the inflation date — that is the period this figure
+    describes.
     """
+    if ctx.history is None:
+        return (None, None)
+    inflation = _latest(ctx.history, "general_inflation", table="metric_history")
+    if inflation is None or not isinstance(inflation.value, (int, float)):
+        return (None, None)
+    repo = _at_or_before(ctx.history, "policy_rate_repo", inflation.as_of, table="metric_history")
+    if repo is None or not isinstance(repo.value, (int, float)):
+        return (None, None)
+    return (repo.value - inflation.value, inflation.as_of)
 
-    inputs: tuple[str, ...]
-    fn: Callable[..., float]
 
+def _import_cover(ctx: "BuilderContext") -> tuple[float | None, date | None]:
+    """Import cover = gross reserves / one month of OFFICIAL imports, gated on
+    the two legs sharing a reporting month within 1 month (P0 honesty fix,
+    2026-08-22 audit #204).
 
-# Real policy rate = nominal policy rate - point-to-point headline inflation.
-# Confirmed: issue #184 printed 1.29%, and 10.00 (the then-current repo rate)
-# minus 8.71 (March headline) = 1.29 exactly. `general_inflation` and
-# `point_to_point_inflation` carry the same value; the former is the headline id.
-_REAL_POLICY_RATE = _Derivation(
-    inputs=("policy_rate_repo", "general_inflation"),
-    fn=lambda repo, inflation: repo - inflation,
-)
-
-# Import cover = gross reserves / one month's imports, both in USD bn.
-# Confirmed: issue #184 printed 5.86 months against March reserves of 34.12bn,
-# which implies a monthly import bill of 5.82bn — `monthly_import` reads 5.8.
-# Cross-check on units: monthly_import x 12 = 69.6 against fy_import_lc 74.78.
-_IMPORT_COVER = _Derivation(
-    inputs=("gross_reserves_usd_bn", "monthly_import"),
-    fn=lambda reserves, monthly_imports: reserves / monthly_imports,
-)
+    This used to divide reserves by the live `monthly_import` flash — a figure
+    frozen on a ~March print while EconDelta restamped it daily with today's
+    date. A 31-Jul reserves read against that frozen ~March bill produced
+    "6.28 months", read as a current figure, when BB's own published cover
+    (goods & services basis) was 5.4. Reading the official
+    `imports_usd_mn_monthly` archive removes the falsely-fresh `as_of`, but the
+    derivation is only honest when the two legs are actually close in time —
+    gated here, not just dated, so a reserves-vs-stale-imports mismatch
+    suppresses the metric instead of printing a misleading ratio.
+    """
+    if ctx.history is None:
+        return (None, None)
+    reserves = _latest(ctx.history, "gross_reserves_usd_bn", table="metric_history")
+    if reserves is None or not isinstance(reserves.value, (int, float)):
+        return (None, None)
+    imports = official_monthly_bn(ctx, "imports_usd_mn_monthly")
+    if imports is None:
+        return (None, None)
+    if months_apart(reserves.as_of, imports.as_of) > 1:
+        return (None, None)
+    try:
+        cover = reserves.value / imports.value
+    except ZeroDivisionError:
+        return (None, None)
+    return (cover, min(reserves.as_of, imports.as_of))
 
 
 @dataclass(frozen=True)
@@ -92,7 +127,7 @@ class _MacroSpec:
     source: str
     format_kind: str
     live_id: str | None = None
-    derive: _Derivation | None = None
+    derive: _Deriver | None = None
     archive_id: str | None = None
 
 
@@ -106,7 +141,7 @@ _MACRO_METRICS: tuple[_MacroSpec, ...] = (
     _MacroSpec("cpi_p2p_nonfood_monthly", "CPI Non-Food (P-to-P)", "%", "BBS", "percent-1dp",
                live_id="non_food_inflation"),
     _MacroSpec("real_policy_rate_monthly", "Real Policy Rate", "%", "BB+BBS", "percent-1dp",
-               derive=_REAL_POLICY_RATE),
+               derive=_real_policy_rate),
     # No live source: REER appears in no table, ever. Needs a scraper.
     _MacroSpec("reer_monthly", "REER", "index", "BB", "comma-2dp",
                archive_id="reer_monthly"),
@@ -117,7 +152,7 @@ _MACRO_METRICS: tuple[_MacroSpec, ...] = (
     _MacroSpec("m2_growth_yoy_monthly", "M2 YoY", "%", "BB", "percent-1dp",
                archive_id="m2_growth_yoy_monthly"),
     _MacroSpec("import_cover_months_monthly", "Import Cover", "months", "BB", "comma-1dp",
-               derive=_IMPORT_COVER),
+               derive=_import_cover),
 )
 
 
@@ -143,28 +178,6 @@ def _latest(client, metric_id: str, *, table: str) -> HistoryRow | None:
         return None
 
 
-def _derive(client, derivation: _Derivation) -> tuple[float | None, date | None]:
-    """Compute a derived figure and date it by its STALEST input.
-
-    Dating it by the freshest input would be the exact failure this section
-    exists to stop: issue #184 printed a March REER beside that day's spot rate
-    in one clause, because nothing recorded that the two were months apart. A
-    derived number is only as current as the oldest thing it is made of.
-    """
-    values: list[float] = []
-    as_ofs: list[date] = []
-    for input_id in derivation.inputs:
-        row = _latest(client, input_id, table="metric_history")
-        if row is None or not isinstance(row.value, (int, float)):
-            return (None, None)
-        values.append(float(row.value))
-        as_ofs.append(row.as_of)
-    try:
-        return (derivation.fn(*values), min(as_ofs))
-    except ZeroDivisionError:
-        return (None, None)
-
-
 def build(ctx: BuilderContext) -> SectionData:
     metrics: list[Metric] = []
     history_facts: list[HistoryFact] = []
@@ -173,8 +186,8 @@ def build(ctx: BuilderContext) -> SectionData:
         value: float | None = None
         as_of: date | None = None
 
-        if spec.derive is not None and ctx.history is not None:
-            value, as_of = _derive(ctx.history, spec.derive)
+        if spec.derive is not None:
+            value, as_of = spec.derive(ctx)
         elif spec.live_id is not None and ctx.history is not None:
             row = _latest(ctx.history, spec.live_id, table="metric_history")
             if row is not None:

@@ -5,6 +5,7 @@ trading-day awareness applies only to `daily`.
 """
 from __future__ import annotations
 
+import calendar
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterable, cast
 
@@ -34,6 +35,32 @@ def now_bdt() -> datetime:
 
 def is_bd_trading_day(d: date) -> bool:
     return d.weekday() in _BD_TRADING_WEEKDAYS
+
+
+def month_end(d: date) -> date:
+    """Normalize `d` to the last calendar day of its month.
+
+    P0 honesty fix (2026-08-22 audit #204): `metric_history_monthly` rows are
+    sometimes stamped at the START of their month (e.g. 2026-07-01 for July's
+    official final) rather than its end. Read literally, that ages a fresh
+    official read by up to ~30 days under `metric_freshness`'s monthly
+    threshold before it should — a same-day publish of July's final would
+    already read 43 days old. Callers that read a monthly archive value should
+    normalize its `as_of` through this before comparing it to today.
+    """
+    last_day = calendar.monthrange(d.year, d.month)[1]
+    return date(d.year, d.month, last_day)
+
+
+def months_apart(a: date, b: date) -> int:
+    """Absolute distance between two dates in whole calendar months.
+
+    Same-month dates (any day) are 0 apart; adjacent months are 1 apart,
+    regardless of day-of-month. Used to gate derived metrics (trade gap,
+    import cover) that must not silently pair figures from different
+    reporting periods.
+    """
+    return abs((a.year - b.year) * 12 + (a.month - b.month))
 
 
 def trading_days_between(start: date, end: date) -> int:
