@@ -72,6 +72,7 @@ LIVE = {
     "private_sector_credit_yoy_pct": _row("private_sector_credit_yoy_pct", 4.98, AUG3),
     "policy_rate_repo": _row("policy_rate_repo", 9.5, AUG3),
     "general_inflation": _row("general_inflation", 9.16, JUN30),
+    "point_to_point_inflation": _row("point_to_point_inflation", 9.16, JUN30),
     "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 37.578, JUN30),
 }
 
@@ -373,7 +374,7 @@ def test_a_derived_metric_is_dated_by_its_oldest_input() -> None:
 
 def test_derived_metric_is_none_when_an_input_is_missing() -> None:
     """Half a derivation is not a number. Better unavailable than invented."""
-    partial = {k: v for k, v in LIVE.items() if k != "general_inflation"}
+    partial = {k: v for k, v in LIVE.items() if k != "point_to_point_inflation"}
     m = next(m for m in build(_ctx(live=partial, at_or_before=LIVE_AT_OR_BEFORE)).metrics
              if m.id == "real_policy_rate_monthly")
     assert m.value is None
