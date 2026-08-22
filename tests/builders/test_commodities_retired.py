@@ -163,13 +163,17 @@ def test_a_snapshot_without_gold_degrades_the_fx_badge() -> None:
     assert s.freshness != "fresh"
 
 
-def test_a_stale_reserves_row_still_does_not_drag_the_fx_badge() -> None:
-    """Deliberate, pre-existing behaviour that this change must not disturb:
-    reserves and trade flows are supporting context in FX and are excluded from
-    the badge. On 2026-08-04 reserves were 35 days old and FX still read fresh.
-    Adding Gold to the badge set must not have widened it to everything."""
+def test_a_stale_reserves_row_now_correctly_drags_the_fx_badge() -> None:
+    """SUPERSEDED (P2 fact-checker, 2026-08-22 audit #204, round-2 item 4):
+    this test used to assert the opposite — that reserves and trade flows
+    were supporting context excluded from the freshness badge, so FX stayed
+    "fresh" even while reserves sat 35 days stale. That was audit finding (e):
+    "the fx badge reads ONLY spot+gold." fx.py now scores freshness worst-of
+    ALL its metrics, same as every other builder — reserves at 35 days old
+    (weekly cadence, stale past 10 days) now correctly drags the section to
+    "stale", which is the honest reading."""
     s = build_fx(_ctx())
     reserves = next(m for m in s.metrics if m.id == "fx_gross_reserves")
     assert reserves.as_of == JUN30
     assert (AUG4 - reserves.as_of).days == 35
-    assert s.freshness == "fresh"
+    assert s.freshness == "stale"

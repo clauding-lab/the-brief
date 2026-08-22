@@ -121,6 +121,38 @@ def test_fx_external_metrics_omitted_when_history_monthly_unavailable():
     assert by_id["fx_gold_usd_oz"].value == 3310.5
 
 
+def test_fx_freshness_is_worst_of_all_metrics_not_badge_cherry_picked():
+    """P2 fact-checker regression (2026-08-22 audit #204, round-2 item 4):
+    the old `badge_metrics` cherry-pick only looked at spot + Gold, both
+    stamped with today's date every run, so the section could never read
+    anything but "fresh" — even while Exports sat two months stale. With
+    today's real production data shape (Exports at Jun, reserves stale since
+    mid-April) the section must now honestly read "stale"."""
+    history = _FakeHistory({
+        "gross_reserves_usd_bn": _Row(35.04, date(2026, 4, 15)),
+    })
+    history_monthly = _FakeHistory({
+        "exports_usd_mn_monthly": _archive_row("exports_usd_mn_monthly", 4202.69, date(2026, 6, 1)),
+        "imports_usd_mn_monthly": _archive_row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 1)),
+    })
+    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 22),
+                         history_monthly=history_monthly)
+    s = build(ctx)
+    assert s.freshness == "stale"
+
+
+def test_fx_freshness_is_fresh_when_every_metric_is_genuinely_current():
+    """Same worst-of mechanism, opposite direction — spot/Gold/reserves all
+    current and no monthly archive tiles present must still read "fresh"."""
+    history = _FakeHistory({
+        "gross_reserves_usd_bn": _Row(35.04, date(2026, 8, 21)),
+    })
+    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 22),
+                         history_monthly=_FakeHistory({}))
+    s = build(ctx)
+    assert s.freshness == "fresh"
+
+
 def test_fx_unavailable_when_all_values_none():
     snap = EconDeltaSnapshot(
         updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),

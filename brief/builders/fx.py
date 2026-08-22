@@ -117,22 +117,19 @@ def build(ctx: BuilderContext) -> SectionData:
     # label. Dropping the copy, not the original: §11 is the section that exists
     # to report it.
 
-    # Section freshness is driven by the spot rate (the section's primary
-    # identity). Cross-section external-balance metrics are supporting context
-    # — their staleness must not push the whole section into "stale".
-    #
-    # Gold joins the badge set deliberately. Both it and the spot rate are
-    # stamped with today's date every run, so neither can ever age into "stale"
-    # — but a snapshot that stops carrying `gold_usd_oz` yields value=None,
-    # which section_freshness reports as "unavailable". Including it keeps the
-    # disappearance visible; the retired `comm` section used to provide that
-    # signal, and dropping it silently would have been a regression.
-    badge_metrics = [
-        m for m in metrics if m.id in ("fx_usd_bdt_mid", "fx_gold_usd_oz")
-    ]
+    # P0 honesty fix (2026-08-22 audit #204, round-2 follow-up, item 4):
+    # freshness used to badge off ONLY the spot rate + Gold — both stamped
+    # with today's date every run, so the section could never read anything
+    # but "fresh" even while Exports (monthly, official-final-only, no flash
+    # fallback) or the Trade Gap sat months stale. Worst-of ALL metrics, same
+    # as every other builder (bb/dse/fiscal/macro/iranwar/remit/tbond already
+    # pass their full `metrics` list — fx was the one outlier; see AGENTS.md
+    # landmine 27(a)). No opt-out list here: every fx metric (spot, Gold,
+    # reserves, Exports, Trade Gap) is substantive external-balance content,
+    # not context-only chrome, so none is excluded from the badge.
     return SectionData(
         id="fx",
         title="FX & External",
         metrics=metrics,
-        freshness=section_freshness(badge_metrics, today=ctx.today),
+        freshness=section_freshness(metrics, today=ctx.today),
     )
