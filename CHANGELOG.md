@@ -8,7 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-No version bump yet — the orchestrator cuts one release after every PR from the 2026-08-22 audit (issue #204) lands.
+_Nothing yet._
+
+## [2.1.0] — 2026-08-22
+
+Consolidated release for the 2026-08-22 two-pass audit of issue #204 (PRs #165, #166, #167).
 
 ### Added
 - P2 post-editor number/period fact-checker (2026-08-22 audit #204, round-2 follow-up): a new deterministic gate reads the editor/sub-editor's final output back against the deterministic BUILDER values (never the editor's own formatted text) before every publish. A sourceless "across/for fourteen reads/prints" style count-claim still HOLDS the publish outright (corpus-verified: 17 true positives, 0 false positives across 9 of 25 real published issues once narrowed to reads/prints only — a tripwire on the common surface forms, not an exhaustive ban). Everything else — a metric's `sub` citing a figure or period that doesn't trace to the builder data, or a metric's own headline `value` diverging from its raw source — is logged and sent as one grouped Discord alert per publish, not yet held; a `BRIEF_PROSE_VALIDATOR_STRICT=1` flag exists to promote these to the same hard-fail once production log volume shows a low false-positive rate. Every published metric now also carries a deterministic `period` label so the editor never has to guess a month/quarter, and a compact chart digest (`series_summary`) replaces a prompt claim that was simply false (the editor never actually received a chart's full data).
