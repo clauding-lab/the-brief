@@ -85,12 +85,20 @@ def _real_policy_rate(ctx: "BuilderContext") -> tuple[float | None, date | None,
     repo rate AS OF 30 Jun (10.00, pre-cut) minus June's inflation (9.16) =
     0.84%. `as_of` is the inflation date — that is the period this figure
     describes.
+
+    Inflation leg = `point_to_point_inflation` (current-month y/y CPI), the
+    market convention for a real policy rate. Paired with econdelta PR #126
+    (2026-08-23), which anchors `general_inflation` to BB's twelve-month
+    AVERAGE column — a trailing measure that would understate the real rate
+    by construction. Before #126 the two ids carried the same p2p number, so
+    this repoint changes nothing retroactively; after it, each id has one
+    well-defined meaning. Owner veto invited (landmine 49(a) pairing).
     """
     if ctx.history is None:
         return (None, None, None)
-    inflation = _latest(ctx.history, "general_inflation", table="metric_history")
+    inflation = _latest(ctx.history, "point_to_point_inflation", table="metric_history")
     if inflation is None or not isinstance(inflation.value, (int, float)):
-        logger.warning("macro: real_policy_rate suppressed — general_inflation unavailable")
+        logger.warning("macro: real_policy_rate suppressed — point_to_point_inflation unavailable")
         return (None, None, None)
     repo = _at_or_before(ctx.history, "policy_rate_repo", inflation.as_of, table="metric_history")
     if repo is None or not isinstance(repo.value, (int, float)):
@@ -232,7 +240,7 @@ def _latest(client, metric_id: str, *, table: str) -> HistoryRow | None:
 
     A macro metric going dark must not take the section — or the issue — down;
     a missing row already renders as "unavailable". Feeds 5 of the section's
-    8 published metrics (the 3 direct `live_id` reads, plus `general_inflation`
+    8 published metrics (the 3 direct `live_id` reads, plus `point_to_point_inflation`
     inside `_real_policy_rate` and `gross_reserves_usd_bn` inside
     `_import_cover`), so a silent swallow here was a wide blind spot — logs a
     WARNING naming the metric id on both non-success paths (M-C, review
