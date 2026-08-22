@@ -235,10 +235,13 @@ body { background: var(--paper); color: var(--ink); }
   /* This is the issue's thesis — it was rendering smaller than the per-
      section verdicts it's supposed to frame (13.5px vs .tb-section-verdict's
      13px and .tb-banker-verdict's 22px) at an ~129ch measure with no cap.
-     19px is Design.md's next scale step up (matching "Comparison row value:
-     17-19px"); 70ch keeps the paragraph readable. Kept italic mono per the
-     existing contract. */
-  font-size: 19px;
+     17px sits at the top of Design.md's existing "Comparison row value:
+     17-19px" scale step without exceeding it (review round 1, MED-8: picked
+     the conservative end of the same step rather than its ceiling); 70ch
+     keeps the paragraph readable. Kept italic mono per the existing
+     contract. A dedicated Today's Call scale row belongs in Design.md
+     itself as a separate docs PR (AGENTS.md landmine 8) — not proposed here. */
+  font-size: 17px;
   line-height: 1.5;
   max-width: 70ch;
   color: var(--ink);
@@ -478,7 +481,11 @@ body { background: var(--paper); color: var(--ink); }
 }
 
 /* ─── SECTION ──────────────────────────────────────────── */
-.tb-section { padding: 64px 0 56px; border-bottom: 1px solid var(--rule); scroll-margin-top: 110px; }
+/* --nav-offset is set live by lib/useNavOffset.ts — SecNav now wraps to 2-3
+   rows at wide viewports, so its real height (plus its own sticky `top`)
+   varies; a hardcoded 110px landed a section 18-65px under the nav
+   depending on how many rows it wrapped to (review round 1, H1). */
+.tb-section { padding: 64px 0 56px; border-bottom: 1px solid var(--rule); scroll-margin-top: var(--nav-offset, 110px); }
 .tb-section:last-of-type { border-bottom: 0; }
 
 /* V6 Phase D.2 — collapsed one-liner for sections with freshness="unavailable" */
@@ -573,15 +580,21 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 .tb-chart-card { display: flex; flex-direction: column; min-width: 0; }
 .tb-chart-card-head { margin-bottom: 14px; }
 .tb-chart-canvas-wrap { min-width: 0; }
-/* Stale-series treatment: dims the plotted canvas only — never the
-   surrounding text — and states plainly where the data stops. No blur, no
-   transition/animation (kept out of Design.md's "opacity + blur, diff-stale
-   only" carve-out on purpose). */
-.tb-chart-canvas-wrap.is-stale-series canvas { opacity: 0.55; }
+/* Per-series stale treatment (review round 1, H6): dimming now happens
+   PER-DATASET inside the Chart.js config (chartConfigs.ts's dimColor), not
+   as a blanket canvas-wide opacity — a multi-series chart where only one
+   line has died shouldn't mute its still-current siblings. The note row
+   sits BELOW the canvas as a normal in-flow element, not absolutely
+   positioned over the plot area (it used to overprint the x-axis ticks). No
+   blur, no transition/animation (kept out of Design.md's "opacity + blur,
+   diff-stale only" carve-out on purpose). */
+.tb-chart-stale-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+}
 .tb-chart-stale-note {
-  position: absolute;
-  right: 0;
-  bottom: 4px;
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -864,9 +877,14 @@ body.tb-diff .tb-statstack:not(.is-changed) {
   color: var(--color-muted);
 }
 
+/* Deliberately NOT muted (review round 1, LOW): the row's label/value dim to
+   signal "don't read this as current," but the vintage stamp is the one
+   thing in a held-over row a reader most needs to actually read — it stays
+   full-contrast so the "as of" date doesn't get visually deprioritized
+   along with the stale value it's explaining. */
 .tb-held-footer {
   font-size: 0.75rem;
-  color: var(--color-muted);
+  color: var(--ink-2);
   margin-top: 0.25rem;
   font-style: italic;
 }
@@ -1005,12 +1023,20 @@ body.tb-diff .tb-statstack:not(.is-changed) {
 }
 
 /* ─── PRINT MODE ───────────────────────────────────────── */
+/* .tb-btn-cta and .tb-diff-toggle listed explicitly, not just via their
+   hidden ancestors (.tb-masthead-actions, .tb-secnav) — review round 1, H2:
+   getComputedStyle on a DESCENDANT of a display:none element still reports
+   that descendant's own specified display value, not "none", so a check
+   that reads .tb-btn-cta's own computed display directly needs .tb-btn-cta
+   itself in the hide list, not just its parent. */
 body.tb-print .tb-stickybar,
 body.tb-print .tb-secnav,
 body.tb-print .tb-cta,
 body.tb-print .tb-statusbar,
 body.tb-print .tb-skip,
 body.tb-print .tb-masthead-actions,
+body.tb-print .tb-btn-cta,
+body.tb-print .tb-diff-toggle,
 body.tb-print .tb-live {
   display: none !important;
 }
@@ -1037,9 +1063,15 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
      the page directly — it named .tb-cta (the bottom subscribe section) but
      not .tb-btn-cta (the masthead's small "Subscribe →" link) or .tb-live
      (the page-load clock + pulse), so both printed into PDFs regardless of
-     which print path was used. */
+     which print path was used.
+     !important on .tb-live specifically (review round 1, H2): its own base
+     rules — .tb-masthead-meta .tb-live and .tb-stickybar .tb-live, both
+     two-class selectors — outrank this block's original bare `.tb-live`
+     one-class selector, so `display: inline-flex` was WINNING the cascade
+     over this rule's `display: none` regardless of source order. */
   .tb-stickybar, .tb-secnav, .tb-cta, .tb-statusbar, .tb-skip, .tb-diff-toggle,
-  .tb-btn-cta, .tb-live { display: none; }
+  .tb-btn-cta { display: none; }
+  .tb-live { display: none !important; }
   .tb-section { page-break-inside: avoid; padding: 24px 0; }
   .tb-cover { padding: 24px 0; }
   body { background: white; color: black; }
@@ -1085,7 +1117,7 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   padding: 56px 0 48px;
   margin-top: 12px;
   margin-bottom: 12px;
-  scroll-margin-top: 110px;
+  scroll-margin-top: var(--nav-offset, 110px);
   border-top: 1px solid var(--rule-soft);
   border-bottom: 1px solid var(--rule-soft);
   font-family: var(--mono);
