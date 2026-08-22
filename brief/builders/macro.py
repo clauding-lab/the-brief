@@ -130,11 +130,20 @@ def _import_cover(ctx: "BuilderContext") -> tuple[float | None, date | None, str
     `as_of` is dated by the IMPORTS month specifically (the rate-limiting,
     always-older leg) — never the fresher reserves date, and never min() of
     the two — so the metric's OWN freshness stays honest: stale imports keep
-    §03 reading "stale", which is the entire point of this fix. `source`
-    (returned as this function's third element, an override of the spec's
-    default "BB") names BOTH periods explicitly, e.g.
-    "BB (reserves 31 Jul ÷ Mar import bill)", so the two-vintage nature of
-    the ratio is never silently implied to be a single, current read.
+    §03 reading "stale", which is the entire point of this fix.
+
+    `source` (returned as this function's third element, an override of the
+    spec's default "BB") carries the dual-period note, e.g.
+    "BB (reserves 31 Jul ÷ Mar import bill)". SOFTENED CLAIM (M-A, review
+    round 2): this function does NOT by itself guarantee a reader ever sees
+    that note — `MetricV6`, the schema the editor's output is validated
+    against, has no `source` field, so it is dropped at validation time no
+    matter what the editor does with it. The note only reaches the reader
+    because `pipeline_v6._stamp_import_cover_sub` reads THIS `source` string
+    back out of the raw builder output and deterministically writes it into
+    the published metric's `sub` field after the editor runs. This function's
+    only real guarantee is that the dual-period fact is computed and recorded
+    somewhere in the raw payload — a downstream pass is what makes it visible.
 
     Suppressed (returns all-None) only when either leg is missing or imports
     are more than `_IMPORT_COVER_MAX_MONTHS_APART` months older than reserves.
@@ -222,12 +231,25 @@ def _latest(client, metric_id: str, *, table: str) -> HistoryRow | None:
     """One `get_latest`, tolerating a client that raises.
 
     A macro metric going dark must not take the section — or the issue — down;
-    a missing row already renders as "unavailable".
+    a missing row already renders as "unavailable". Feeds 5 of the section's
+    8 published metrics (the 3 direct `live_id` reads, plus `general_inflation`
+    inside `_real_policy_rate` and `gross_reserves_usd_bn` inside
+    `_import_cover`), so a silent swallow here was a wide blind spot — logs a
+    WARNING naming the metric id on both non-success paths (M-C, review
+    round 2, matching the M3 treatment already given to `official_monthly_bn`
+    and `_at_or_before`).
     """
     try:
-        return client.get_latest(metric_id, table=table)
+        row = client.get_latest(metric_id, table=table)
     except Exception:  # noqa: BLE001 — best-effort read, never fatal
+        logger.warning(
+            "macro: get_latest(%s, table=%s) raised, treating as absent",
+            metric_id, table, exc_info=True,
+        )
         return None
+    if row is None:
+        logger.warning("macro: get_latest(%s, table=%s) — no row found", metric_id, table)
+    return row
 
 
 def build(ctx: BuilderContext) -> SectionData:

@@ -231,6 +231,34 @@ def test_at_or_before_warns_by_name_when_the_client_raises(caplog) -> None:
     assert any("policy_rate_repo" in r.message for r in caplog.records)
 
 
+# ── M-C, review round 2: `_latest`'s swallow path feeds 5 of macro's 8
+# published metrics — no silent darkness there either. ──────────────────────
+
+def test_latest_warns_by_name_when_no_row_found(caplog) -> None:
+    partial = {k: v for k, v in LIVE.items() if k != "food_inflation"}
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(_ctx(live=partial))
+    assert any("food_inflation" in r.message for r in caplog.records)
+
+
+def test_latest_warns_by_name_when_the_client_raises(caplog) -> None:
+    class _RaisingGetLatest:
+        def get_latest(self, metric_id, *, table=None):
+            raise RuntimeError("supabase down")
+
+        def get_at_or_before(self, metric_id, as_of, *, table=None):
+            return None
+
+        def get_history_window(self, metric_ids, **kwargs):
+            return {mid: [] for mid in metric_ids}
+
+    ctx = BuilderContext(snapshot=_snap(), history=_RaisingGetLatest(), today=AUG3)
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(ctx)
+    assert any("food_inflation" in r.message for r in caplog.records)
+    assert any("gross_reserves_usd_bn" in r.message for r in caplog.records)
+
+
 def test_import_cover_is_reserves_over_one_month_of_official_imports() -> None:
     """37.578bn reserves / 5.8bn (official imports archive, mn->bn) = 6.48 months."""
     m = next(m for m in build(_ctx(live=LIVE, archive=IMPORTS_ARCHIVE)).metrics
@@ -280,6 +308,31 @@ def test_import_cover_production_gap_keeps_macro_section_honestly_stale() -> Non
     assert s.freshness == "stale"
     cover = next(m for m in s.metrics if m.id == "import_cover_months_monthly")
     assert cover.value == pytest.approx(6.25, abs=0.01)
+
+
+def test_import_cover_suppressed_at_five_months_still_keeps_the_section_stale() -> None:
+    """H-B, review round 2 — the regression the review specifically demanded:
+    imports 5 months behind reserves (2026-08-31 vs 2026-03-01) is PAST the
+    H1 4-month gate, so import cover is genuinely suppressed (value=None,
+    "unavailable"). That must NOT flip the section to "warming_up" just
+    because one metric has nothing to show — the cadence.py fix (promotion
+    only when EVERY metric is unavailable) is what protects this, at any
+    gap size, independent of where the H1 threshold happens to sit."""
+    today = date(2026, 9, 1)
+    live = dict(LIVE, **{
+        "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 36.4222, date(2026, 8, 31)),
+    })
+    archive = {
+        "reer_monthly": _row("reer_monthly", 102.78, date(2026, 3, 1)),
+        "cpi_12m_avg_monthly": _row("cpi_12m_avg_monthly", 8.6, date(2026, 3, 1)),
+        "m2_growth_yoy_monthly": _row("m2_growth_yoy_monthly", 10.52, date(2026, 2, 1)),
+        "imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 1)),
+    }
+    s = build(_ctx(live=live, archive=archive, at_or_before=LIVE_AT_OR_BEFORE, today=today))
+    cover = next(m for m in s.metrics if m.id == "import_cover_months_monthly")
+    assert cover.value is None  # months_apart(31 Aug, 1 Mar) = 5 > 4 -> suppressed
+    assert s.freshness == "stale"
+    assert s.freshness != "warming_up"
 
 
 def test_import_cover_is_suppressed_when_imports_are_more_than_four_months_stale() -> None:
@@ -364,6 +417,11 @@ def test_no_history_clients_yields_all_none_and_no_facts() -> None:
         assert m.value is None, f"{m.id} should be None with no history client"
         assert m.as_of == AUG3
     assert s.history_facts == []
+    # H-B, review round 2: the promotion ITSELF must still fire when EVERY
+    # metric is genuinely unavailable — this test's whole point is that
+    # scenario. The companion regression above (five-months-behind) proves
+    # the promotion is now correctly gated OFF a partial outage.
+    assert s.freshness == "warming_up"
 
 
 def test_a_raising_history_client_does_not_take_the_section_down() -> None:
