@@ -65,11 +65,10 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
       "series": [], // ALWAYS empty in your output — you are never given the chart's actual points (see series_summary below); the pipeline stamps the real series here AFTER you run. Do not invent points.
       "notes":  []  // ALWAYS empty in your output, same reason as series.
       "chart_read": null | {
-        // Emit for every section whose input carries a non-empty series_summary
-        // (dse, iran/brent, tbond/yieldCurve, fx/fxFlows, macro/cpiTrend,
-        // fiscal/fiscalNbr). Null for sections with an empty series_summary —
-        // that means no chart data is available this issue, not that you should
-        // describe the chart from memory of a prior issue.
+        // Emit for every section whose input carries a non-empty series_summary.
+        // Null for sections with an empty series_summary — that means no chart
+        // data is available this issue, not that you should describe the chart
+        // from memory of a prior issue.
         // NB: the fiscal chart plots nbr_revenue_monthly_cr (monthly NBR tax revenue,
         // BDT crore) — chart_read.signal MUST describe THAT series, not the section's
         // headline govt-bank-borrow figure.

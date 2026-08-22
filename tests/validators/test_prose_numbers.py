@@ -1,8 +1,14 @@
 """Unit tests for brief/validators/prose_numbers.py — the P2 fact-checker.
 
-Fixtures below are the audit #204 findings + the round-2 review's own PASS
-cases, reproduced verbatim from the task spec so a regression against the
-real shape of the failure is caught, not an idealized one.
+Round-2 reshape: BLOCK is now `check_count_claims` ONLY (25-real-issue
+corpus replay: 14 TP, 0 FP). `check_metric_sub_numbers`,
+`check_metric_sub_periods`, `check_metric_value_vs_raw`, and
+`check_lede_numbers_against_builder_values` are WARN-mode — they return
+`list[NumberWarning]` and never raise (except through the orchestrator's
+`strict` escalation). Fixtures reproduce the audit's real findings plus the
+concrete corpus defects round 2 caught (missing "trn" unit, machine-stamped
+import-cover dual periods, approximation markers, coarse-currency false
+passes).
 """
 from __future__ import annotations
 
@@ -15,6 +21,7 @@ from brief.validators.prose_numbers import (
     check_lede_numbers_against_builder_values,
     check_metric_sub_numbers,
     check_metric_sub_periods,
+    check_metric_value_vs_raw,
     run_prose_number_gate,
 )
 
@@ -30,36 +37,7 @@ def _raw_section(slug: str, metrics: list[dict]) -> dict:
     return {"slug": slug, "metrics": metrics}
 
 
-# ─── BLOCK: number-vs-builder-value ────────────────────────────────────────
-
-
-def test_block_stale_flash_figure_presented_as_current():
-    """The audit's headline finding: '$2.82bn' sub on a metric whose real
-    builder value is 2858.68 (mn USD) — the stale mid-month flash quoted as
-    though it were the official final."""
-    raw = {"remit": _raw_section("remit", [
-        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
-    ])}
-    brief = _brief([{
-        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
-        "weight": 1,
-        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "$2.82bn — July final"}],
-    }])
-    with pytest.raises(ProseNumberViolationError, match=r"\$2\.82bn"):
-        check_metric_sub_numbers(brief, raw)
-
-
-def test_block_month_mismatch_july_print_on_june_period_metric():
-    raw = {"fx": _raw_section("fx", [
-        {"label": "Monthly Exports", "value": 4.20269, "unit": "bn USD", "as_of": "2026-06-30"},
-    ])}
-    brief = _brief([{
-        "slug": "fx", "ord": 5, "title": "FX & External", "group_key": "markets",
-        "weight": 1,
-        "metrics": [{"label": "Monthly Exports", "value": "$4.20bn", "sub": "July print"}],
-    }])
-    with pytest.raises(ProseNumberViolationError, match=r"July"):
-        check_metric_sub_periods(brief, raw)
+# ─── BLOCK: count-claims — the ONLY unconditional BLOCK post-round-2 ───────
 
 
 def test_block_count_claim_fourteen_reads():
@@ -72,6 +50,20 @@ def test_block_count_claim_fourteen_reads():
         check_count_claims(brief)
 
 
+def test_block_count_claim_fourteen_prints():
+    brief = _brief([{
+        "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
+        "weight": 1,
+        "banker_read": {
+            "verdict": "The fiscal read stays frozen at Tk3.61tn, unmoved for a while now.",
+            "watch": ["The next monthly NBR print — flat in fourteen prints so far"],
+            "risk": ["Slippage against the full-year target"],
+        },
+    }])
+    with pytest.raises(ProseNumberViolationError, match=r"fourteen prints"):
+        check_count_claims(brief)
+
+
 def test_count_claim_passes_when_no_such_phrase_present():
     brief = _brief([{
         "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
@@ -81,7 +73,49 @@ def test_count_claim_passes_when_no_such_phrase_present():
     check_count_claims(brief)  # must not raise
 
 
-# ─── PASS cases from the review's own worked examples ──────────────────────
+def test_count_claim_narrowed_nouns_no_longer_flag_a_plain_duration_statement():
+    """Round-2 corpus fix: 'in 14 days' is a plain duration statement, not an
+    invented observation count. Dropping 'days'/'sessions' from the noun
+    list was the fix for this exact real false positive
+    (`tests/test_pipeline_v6_freshness_propagation.py`'s own fixture)."""
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "tldr": "BB hasn't published reserves in 14 days.",
+    }])
+    check_count_claims(brief)  # must not raise
+
+
+def test_count_claim_narrowed_nouns_no_longer_flag_sessions():
+    brief = _brief([{
+        "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+        "weight": 1,
+        "tldr": "DSEX has drifted sideways across 14 sessions.",
+    }])
+    check_count_claims(brief)  # must not raise — "sessions" contributed zero TPs, dropped
+
+
+# ─── WARN: check_metric_sub_numbers ────────────────────────────────────────
+
+
+def test_warn_stale_flash_figure_presented_as_current():
+    """The audit's headline finding: '$2.82bn' sub on a metric whose real
+    builder value is 2858.68 (mn USD). WARN-mode post-round-2 — this alone
+    no longer holds the publish (that gap is why check_metric_value_vs_raw
+    exists — see below)."""
+    raw = {"remit": _raw_section("remit", [
+        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
+    ])}
+    brief = _brief([{
+        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "$2.82bn — July final"}],
+    }])
+    warnings = check_metric_sub_numbers(brief, raw)
+    assert len(warnings) == 1
+    assert "$2.82bn" in warnings[0].matched_text
+    assert warnings[0].section == "remit"
+    assert warnings[0].kind == "sub_number"
 
 
 def test_pass_derived_bp_spread_between_two_section_metrics():
@@ -99,7 +133,7 @@ def test_pass_derived_bp_spread_between_two_section_metrics():
             "sub": "19bp under the 9.50% policy",
         }],
     }])
-    check_metric_sub_numbers(brief, raw)  # must not raise
+    assert check_metric_sub_numbers(brief, raw) == []
 
 
 def test_pass_half_ulp_tolerance_on_integer_printed_crore_figure():
@@ -113,7 +147,7 @@ def test_pass_half_ulp_tolerance_on_integer_printed_crore_figure():
         "weight": 1,
         "metrics": [{"label": "NBR Collections", "value": "Tk732.83cr", "sub": "Tk733cr collected in July"}],
     }])
-    check_metric_sub_numbers(brief, raw)  # must not raise
+    assert check_metric_sub_numbers(brief, raw) == []
 
 
 def test_pass_derived_bp_gap_below_a_regulatory_floor():
@@ -128,63 +162,7 @@ def test_pass_derived_bp_gap_below_a_regulatory_floor():
         "weight": 2,
         "metrics": [{"label": "CAR", "value": "1.56%", "sub": "844bp below the 10% floor"}],
     }])
-    check_metric_sub_numbers(brief, raw)  # must not raise
-
-
-# ─── period-token nuances ───────────────────────────────────────────────────
-
-
-def test_month_token_without_year_matches_any_year_with_that_month():
-    raw = {"remit": _raw_section("remit", [
-        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
-    ])}
-    brief = _brief([{
-        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
-        "weight": 1,
-        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "Jul print, official"}],
-    }])
-    check_metric_sub_periods(brief, raw)  # must not raise
-
-
-def test_month_token_with_wrong_year_still_blocks():
-    raw = {"remit": _raw_section("remit", [
-        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
-    ])}
-    brief = _brief([{
-        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
-        "weight": 1,
-        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "Jul 2025 print"}],
-    }])
-    with pytest.raises(ProseNumberViolationError, match=r"Jul 2025"):
-        check_metric_sub_periods(brief, raw)
-
-
-def test_month_token_matches_a_sibling_metrics_period_not_just_its_own():
-    raw = {"macro": _raw_section("macro", [
-        {"label": "CPI 12m Avg", "value": 5.2, "unit": "%", "as_of": "2026-06-30"},
-        {"label": "Import Cover", "value": 6.25, "unit": "months", "as_of": "2026-03-31"},
-    ])}
-    brief = _brief([{
-        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
-        "weight": 1,
-        "metrics": [{"label": "Import Cover", "value": "6.25", "sub": "on the Mar print"}],
-    }])
-    check_metric_sub_periods(brief, raw)  # must not raise — Mar is a sibling's period
-
-
-def test_no_periods_available_for_section_is_a_noop():
-    """A section with no parseable as_of anywhere just skips the check —
-    never a false BLOCK from missing data."""
-    raw = {"bb": _raw_section("bb", [{"label": "Policy Rate", "value": 9.5, "unit": "%"}])}
-    brief = _brief([{
-        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
-        "weight": 1,
-        "metrics": [{"label": "Policy Rate", "value": "9.50%", "sub": "held since the Jul cut"}],
-    }])
-    check_metric_sub_periods(brief, raw)  # must not raise
-
-
-# ─── numbers with no unit/currency marker are out of scope for BLOCK ───────
+    assert check_metric_sub_numbers(brief, raw) == []
 
 
 def test_negative_value_with_masterdotmd_minus_glyph_matches_a_signed_raw_value():
@@ -199,7 +177,7 @@ def test_negative_value_with_masterdotmd_minus_glyph_matches_a_signed_raw_value(
         "weight": 1,
         "metrics": [{"label": "Trade Gap", "value": "−$1.62bn", "sub": "gap widens to −$1.62bn"}],
     }])
-    check_metric_sub_numbers(brief, raw)  # must not raise
+    assert check_metric_sub_numbers(brief, raw) == []
 
 
 def test_bare_numbers_are_never_flagged_as_value_mismatches():
@@ -209,10 +187,293 @@ def test_bare_numbers_are_never_flagged_as_value_mismatches():
         "weight": 1,
         "metrics": [{"label": "DSEX", "value": "5,257.00", "sub": "third straight session of gains"}],
     }])
-    check_metric_sub_numbers(brief, raw)  # "third" has no digit token; must not raise
+    assert check_metric_sub_numbers(brief, raw) == []  # "third" has no digit token
 
 
-# ─── WARN mode ──────────────────────────────────────────────────────────────
+# ─── round-2 corpus fixes ───────────────────────────────────────────────────
+
+
+def test_bdt_trn_unit_matches_its_own_tn_suffixed_sub():
+    """Round-2 corpus defect (item 3a): the real fiscal.py unit string is
+    'BDT trn' — 'trn' does not contain 'tn' as a substring, so this used to
+    fall into a 'plain' bucket that could never match the 'tn'-suffixed
+    token a sub would use to restate its OWN value. A fiscal sub honestly
+    restating "Tk3.61tn" against a raw value of 3.61 (BDT trn) must pass."""
+    raw = {"fiscal": _raw_section("fiscal", [
+        {"label": "NBR collected YTD", "value": 3.61, "unit": "BDT trn", "as_of": "2026-06-30"},
+    ])}
+    brief = _brief([{
+        "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
+        "weight": 1,
+        "metrics": [{"label": "NBR collected YTD", "value": "Tk3.61tn", "sub": "flat at Tk3.61tn"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+def test_approximation_marker_widens_tolerance_to_a_full_unit():
+    """Round-2 corpus defect (item 3c): '~8bp' is a deliberate hedge — the
+    editor is signalling its OWN precision is coarser than the printed
+    decimal count suggests. It must accept a precise 8.6bp derived spread,
+    which the standard half-ulp (±0.5bp) would reject."""
+    raw = {"bb": _raw_section("bb", [
+        {"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"},
+        {"label": "Overnight Call Money", "value": 9.414, "unit": "%", "as_of": "2026-08-22"},
+    ])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "metrics": [{"label": "Overnight Call Money", "value": "9.41%", "sub": "~8bp under policy"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+def test_without_approximation_marker_the_same_gap_still_warns():
+    """Companion to the above: WITHOUT the '~', the tight half-ulp tolerance
+    applies and the same 8.6bp-vs-8bp gap is flagged."""
+    raw = {"bb": _raw_section("bb", [
+        {"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"},
+        {"label": "Overnight Call Money", "value": 9.414, "unit": "%", "as_of": "2026-08-22"},
+    ])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "metrics": [{"label": "Overnight Call Money", "value": "9.41%", "sub": "8bp under policy"}],
+    }])
+    assert len(check_metric_sub_numbers(brief, raw)) == 1
+
+
+def test_coarse_currency_figure_no_longer_gets_a_free_pass():
+    """Round-2 corpus defect (item 3d): '$3bn' vs a true 2858.68mn (2.86bn)
+    used to pass silently — its own half-ulp (±0.5bn = ±500mn) swallowed a
+    141mn gap. The tolerance is now floored at 0.5% and capped at 1% of the
+    matched value (28.59mn here), so this now warns."""
+    raw = {"remit": _raw_section("remit", [
+        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
+    ])}
+    brief = _brief([{
+        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "$3bn — July final"}],
+    }])
+    warnings = check_metric_sub_numbers(brief, raw)
+    assert len(warnings) == 1
+    assert "$3bn" in warnings[0].matched_text
+
+
+def test_currency_floor_still_allows_a_legitimate_close_rounding():
+    """The same floor/cap machinery must not turn honest rounding into a
+    false warning: $2.86bn against 2858.68mn (a 1.32mn gap, well inside even
+    the tightened 14.29mn floor) still passes."""
+    raw = {"remit": _raw_section("remit", [
+        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
+    ])}
+    brief = _brief([{
+        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "$2.86bn — July final"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+def test_percent_and_bp_tokens_are_unaffected_by_the_currency_floor_cap():
+    """The floor/cap is scoped to currency tokens only (item 3d's explicit
+    wording) — a percent figure's plain half-ulp tolerance is unchanged."""
+    raw = {"bb": _raw_section("bb", [
+        {"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"},
+    ])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "metrics": [{"label": "Policy Rate", "value": "9.50%", "sub": "holds at 9.50%"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+# ─── WARN: check_metric_sub_periods ─────────────────────────────────────────
+
+
+def test_warn_month_mismatch_july_print_on_june_period_metric():
+    raw = {"fx": _raw_section("fx", [
+        {"label": "Monthly Exports", "value": 4.20269, "unit": "bn USD", "as_of": "2026-06-30"},
+    ])}
+    brief = _brief([{
+        "slug": "fx", "ord": 5, "title": "FX & External", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Monthly Exports", "value": "$4.20bn", "sub": "July print"}],
+    }])
+    warnings = check_metric_sub_periods(brief, raw)
+    assert len(warnings) == 1
+    assert "July" in warnings[0].matched_text
+    assert warnings[0].kind == "sub_period"
+
+
+def test_month_token_without_year_matches_any_year_with_that_month():
+    raw = {"remit": _raw_section("remit", [
+        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
+    ])}
+    brief = _brief([{
+        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "Jul print, official"}],
+    }])
+    assert check_metric_sub_periods(brief, raw) == []
+
+
+def test_month_token_with_wrong_year_still_warns():
+    raw = {"remit": _raw_section("remit", [
+        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
+    ])}
+    brief = _brief([{
+        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "Jul 2025 print"}],
+    }])
+    warnings = check_metric_sub_periods(brief, raw)
+    assert len(warnings) == 1
+    assert "Jul 2025" in warnings[0].matched_text
+
+
+def test_month_token_matches_a_sibling_metrics_period_not_just_its_own():
+    raw = {"macro": _raw_section("macro", [
+        {"label": "CPI 12m Avg", "value": 5.2, "unit": "%", "as_of": "2026-06-30"},
+        {"label": "Import Cover", "value": 6.25, "unit": "months", "as_of": "2026-03-31"},
+    ])}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Import Cover", "value": "6.25", "sub": "on the Mar print"}],
+    }])
+    assert check_metric_sub_periods(brief, raw) == []  # Mar is a sibling's period
+
+
+def test_no_periods_available_for_section_is_a_noop():
+    """A section with no parseable as_of anywhere just skips the check —
+    never a false warning from missing data."""
+    raw = {"bb": _raw_section("bb", [{"label": "Policy Rate", "value": 9.5, "unit": "%"}])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "metrics": [{"label": "Policy Rate", "value": "9.50%", "sub": "held since the Jul cut"}],
+    }])
+    assert check_metric_sub_periods(brief, raw) == []
+
+
+def test_event_cadence_metric_sub_may_name_a_decision_date_unrelated_to_its_restamp():
+    """AGENTS.md landmine 24: `bb_policy_rate` is daily-restamped, so its
+    `as_of` is always "today" — the corridor's actual decision date (the 30
+    Jul MPC cut) has nothing to do with that restamp. A sub naming the real
+    decision month must NOT warn as a period mismatch."""
+    raw = {"bb": _raw_section("bb", [
+        {"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22", "cadence": "event"},
+    ])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 2,
+        "metrics": [{"label": "Policy Rate", "value": "9.50%", "sub": "held since the 30 Jul cut"}],
+    }])
+    assert check_metric_sub_periods(brief, raw) == []
+
+
+def test_t_bill_cutoff_rates_are_also_event_cadence_exempted():
+    """The exemption is cadence-based, not a hardcoded bb-only rule — the
+    three T-Bill cut-off rates (tbond.py) are event-cadence too, restamped
+    daily between auctions the same way the policy corridor is."""
+    raw = {"tbond": _raw_section("tbond", [
+        {"label": "91d T-Bill cut-off", "value": 8.90, "unit": "%",
+         "as_of": "2026-08-22", "cadence": "event"},
+    ])}
+    brief = _brief([{
+        "slug": "tbond", "ord": 7, "title": "T-Bonds & T-Bills", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "91d T-Bill cut-off", "value": "8.90%",
+                     "sub": "unchanged since the 12 Aug auction"}],
+    }])
+    assert check_metric_sub_periods(brief, raw) == []
+
+
+def test_machine_stamped_import_cover_sub_is_exempt_from_the_period_check():
+    """Round-2 corpus defect (item 3b): `_stamp_import_cover_sub` (pipeline_v6.py)
+    deterministically appends a dual-period note ("reserves 31 Jul ÷ Mar
+    import bill") to the macro Import Cover metric — by construction it
+    names TWO different months. Detected via the raw metric's OWN `source`
+    marker (matching the stamping function's own detection), not via label
+    casefold, so it survives a label rename."""
+    raw = {"macro": _raw_section("macro", [
+        {"label": "Import Cover", "value": 6.25, "unit": "months", "as_of": "2026-03-31",
+         "cadence": "monthly", "source": "BB (reserves 31 Jul ÷ Mar import bill)"},
+    ])}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Import Cover", "value": "6.25",
+                     "sub": "reserves 31 Jul ÷ Mar import bill"}],
+    }])
+    assert check_metric_sub_periods(brief, raw) == []
+
+
+def test_import_cover_exemption_does_not_leak_to_other_macro_metrics():
+    """The exemption is per-metric (via its OWN source marker), not
+    section-wide — a genuinely wrong month on a SIBLING metric in the same
+    section must still warn."""
+    raw = {"macro": _raw_section("macro", [
+        {"label": "Import Cover", "value": 6.25, "unit": "months", "as_of": "2026-03-31",
+         "cadence": "monthly", "source": "BB (reserves 31 Jul ÷ Mar import bill)"},
+        {"label": "CPI 12m Avg", "value": 5.2, "unit": "%", "as_of": "2026-06-30", "cadence": "monthly"},
+    ])}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "CPI 12m Avg", "value": "5.2%", "sub": "September print eases further"}],
+    }])
+    warnings = check_metric_sub_periods(brief, raw)
+    assert len(warnings) == 1
+    assert "September" in warnings[0].matched_text
+
+
+# ─── WARN: check_metric_value_vs_raw (new, item 4) ─────────────────────────
+
+
+def test_value_vs_raw_catches_the_actual_2_82bn_headline_falsehood():
+    """The exact gap round 2 identified: the audit's '$2.82bn' falsehood
+    lived in the metric's own headline `value`, not `sub` — round 1's checks
+    never read `value` at all. This check does."""
+    raw = {"remit": _raw_section("remit", [
+        {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
+    ])}
+    brief = _brief([{
+        "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Monthly Remittance", "value": "$2.82bn"}],
+    }])
+    warnings = check_metric_value_vs_raw(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].field_path == "remit.metrics[0].value"
+    assert warnings[0].kind == "value_vs_raw"
+
+
+def test_value_vs_raw_passes_when_headline_matches_the_raw_value():
+    raw = {"bb": _raw_section("bb", [
+        {"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"},
+    ])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "metrics": [{"label": "Policy Rate", "value": "9.50%"}],
+    }])
+    assert check_metric_value_vs_raw(brief, raw) == []
+
+
+def test_value_vs_raw_is_a_noop_when_no_raw_counterpart_exists():
+    raw = {"bb": _raw_section("bb", [])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "metrics": [{"label": "Policy Rate", "value": "9.50%"}],
+    }])
+    assert check_metric_value_vs_raw(brief, raw) == []
+
+
+# ─── WARN: check_lede_numbers_against_builder_values (extended surface) ────
 
 
 def test_warn_flags_a_lede_figure_with_no_builder_match():
@@ -222,10 +483,9 @@ def test_warn_flags_a_lede_figure_with_no_builder_match():
         "weight": 2,
         "analysis": "The corridor now sits 200bp above the regional median.",
     }])
-    warnings = check_lede_numbers_against_builder_values(brief, raw, strict=False)
+    warnings = check_lede_numbers_against_builder_values(brief, raw)
     assert len(warnings) == 1
     assert "200bp" in warnings[0].matched_text
-    assert "no builder value" in warnings[0].describe() or warnings[0].nearest_value is not None
 
 
 def test_warn_does_not_flag_a_figure_that_matches_a_builder_value():
@@ -235,22 +495,10 @@ def test_warn_does_not_flag_a_figure_that_matches_a_builder_value():
         "weight": 2,
         "analysis": "The corridor holds at 9.50% this morning.",
     }])
-    warnings = check_lede_numbers_against_builder_values(brief, raw, strict=False)
-    assert warnings == []
+    assert check_lede_numbers_against_builder_values(brief, raw) == []
 
 
-def test_strict_mode_upgrades_warn_to_raise():
-    raw = [_raw_section("bb", [{"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"}])]
-    brief = _brief([{
-        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
-        "weight": 2,
-        "analysis": "The corridor now sits 200bp above the regional median.",
-    }])
-    with pytest.raises(ProseNumberViolationError):
-        check_lede_numbers_against_builder_values(brief, raw, strict=True)
-
-
-def test_todays_call_and_tldr_and_verdict_all_scanned_by_warn_mode():
+def test_todays_call_and_tldr_and_verdict_all_scanned():
     raw = [_raw_section("bb", [{"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"}])]
     brief = _brief([{
         "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
@@ -259,27 +507,88 @@ def test_todays_call_and_tldr_and_verdict_all_scanned_by_warn_mode():
         "verdict": "Holding at 9.50%, tightening bias intact.",
     }])
     brief.brief.todays_call = "The book stays defensive at 9.50% overnight cost of funds."
-    warnings = check_lede_numbers_against_builder_values(brief, raw, strict=False)
-    assert warnings == []  # every occurrence matches the same real 9.50 builder value
+    assert check_lede_numbers_against_builder_values(brief, raw) == []
 
 
-# ─── orchestrator ordering ──────────────────────────────────────────────────
+def test_banker_read_watch_and_risk_are_now_scanned():
+    """Round-2 extension (item 4b): banker_read.* joins the lede surface."""
+    raw = [_raw_section("bb", [{"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"}])]
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 2,
+        "banker_read": {
+            "verdict": "The corridor holds firm against a backdrop of steady liquidity conditions.",
+            "watch": ["A jump to 200bp above the regional median would change the calculus"],
+            "risk": ["Imported inflation re-accelerating"],
+        },
+    }])
+    warnings = check_lede_numbers_against_builder_values(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].field_path == "bb.banker_read.watch[0]"
 
 
-def test_run_prose_number_gate_raises_on_first_block_violation_before_warn_scan():
+def test_chart_read_figures_are_now_scanned():
+    """Round-2 extension (item 4b): chart_read.* joins the lede surface."""
+    raw = [_raw_section("dse", [{"label": "DSEX", "value": 5257.0, "unit": "index", "as_of": "2026-08-20"}])]
+    brief = _brief([{
+        "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+        "weight": 1,
+        "chart_read": {
+            "signal": "DSEX climbed 12% since Q2 2026 on heavy volume.",
+            "context": "Third weekly gain since Q2 2026.",
+            "implication": "Watch for profit-taking into the weekend.",
+        },
+    }])
+    warnings = check_lede_numbers_against_builder_values(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].field_path == "dse.chart_read.signal"
+
+
+# ─── orchestrator ────────────────────────────────────────────────────────────
+
+
+def test_orchestrator_raises_on_count_claim_unconditionally():
+    raw = [_raw_section("bb", [{"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"}])]
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "verdict": "Flat across fourteen reads — corridor unchanged.",
+    }])
+    with pytest.raises(ProseNumberViolationError, match=r"fourteen reads"):
+        run_prose_number_gate(brief, raw)
+
+
+def test_orchestrator_default_mode_never_blocks_on_warn_findings():
+    """The former audit headline ('$2.82bn') no longer holds the publish by
+    itself in default mode — it surfaces as a WARN via the orchestrator's
+    combined list, same as every other non-count-claim check."""
     raw = [_raw_section("remit", [
         {"label": "Monthly Remittance", "value": 2858.68, "unit": "mn USD", "as_of": "2026-07-31"},
     ])]
     brief = _brief([{
         "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
         "weight": 1,
-        "metrics": [{"label": "Monthly Remittance", "value": "$2.86bn", "sub": "$2.82bn — July final"}],
+        "metrics": [{"label": "Monthly Remittance", "value": "$2.82bn", "sub": "$2.82bn — July final"}],
     }])
-    with pytest.raises(ProseNumberViolationError):
-        run_prose_number_gate(brief, raw)
+    warnings = run_prose_number_gate(brief, raw, strict=False)
+    assert len(warnings) >= 1
+    kinds = {w.kind for w in warnings}
+    assert "value_vs_raw" in kinds  # caught via the metric's own headline value
+    assert "sub_number" in kinds    # AND via its sub — both surfaces fire
 
 
-def test_run_prose_number_gate_clean_brief_returns_empty_warnings():
+def test_orchestrator_strict_mode_escalates_any_warning_to_a_raise():
+    raw = [_raw_section("bb", [{"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22"}])]
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 2,
+        "analysis": "The corridor now sits 200bp above the regional median.",
+    }])
+    with pytest.raises(ProseNumberViolationError, match=r"STRICT"):
+        run_prose_number_gate(brief, raw, strict=True)
+
+
+def test_orchestrator_clean_brief_returns_empty_warnings():
     raw = [_raw_section("bb", [
         {"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22", "cadence": "event"},
     ])]
@@ -290,19 +599,3 @@ def test_run_prose_number_gate_clean_brief_returns_empty_warnings():
         "analysis": "The corridor holds at 9.50%.",
     }])
     assert run_prose_number_gate(brief, raw) == []
-
-
-def test_event_cadence_metric_sub_may_name_a_decision_date_unrelated_to_its_restamp():
-    """AGENTS.md landmine 24: `bb_policy_rate` is daily-restamped, so its
-    `as_of` is always "today" — the corridor's actual decision date (the 30
-    Jul MPC cut) has nothing to do with that restamp. A sub naming the real
-    decision month must NOT be blocked as a period mismatch."""
-    raw = {"bb": _raw_section("bb", [
-        {"label": "Policy Rate", "value": 9.50, "unit": "%", "as_of": "2026-08-22", "cadence": "event"},
-    ])}
-    brief = _brief([{
-        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
-        "weight": 2,
-        "metrics": [{"label": "Policy Rate", "value": "9.50%", "sub": "held since the 30 Jul cut"}],
-    }])
-    check_metric_sub_periods(brief, raw)  # must not raise

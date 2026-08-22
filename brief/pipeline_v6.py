@@ -821,18 +821,28 @@ def summarize_series_points(points: list[Any]) -> dict[str, dict[str, Any]]:
     Groups by `key` (points with no key fall into `"series"`), sorts each
     group by `ts` before reducing — callers don't need to pre-sort, and the
     daily HTTP fetchers already return ascending order anyway so this is a
-    no-op there.
+    no-op there. Points with a None `value` are skipped entirely (round-2
+    review, item 7) — `SeriesPointV6.value` is typed non-optional, but this
+    function also accepts plain dicts from callers that haven't gone through
+    that validation yet, and `min()`/`max()` on a None-containing list raises
+    a `TypeError` that would otherwise take down the whole pre-editor fetch.
+    A key whose points are ALL None-valued is dropped from the output rather
+    than emitting an empty/nonsensical digest.
     """
     def _get(p: Any, name: str) -> Any:
         return getattr(p, name) if hasattr(p, name) else p[name]
 
     by_key: dict[str, list[Any]] = {}
     for p in points:
+        if _get(p, "value") is None:
+            continue
         key = _get(p, "key") or "series"
         by_key.setdefault(key, []).append(p)
 
     out: dict[str, dict[str, Any]] = {}
     for key, pts in by_key.items():
+        if not pts:
+            continue
         ordered = sorted(pts, key=lambda p: _get(p, "ts"))
         values = [_get(p, "value") for p in ordered]
         out[key] = {
@@ -1262,14 +1272,15 @@ class DenylistViolationError(V6PublishError):
 
 
 class ProseNumberGateError(V6PublishError):
-    """Raised when `brief.validators.prose_numbers`'s BLOCK-mode checks (P2
-    fact-checker, 2026-08-22 audit #204's round-2 follow-up) find a metric
-    `sub` citing a figure or period that traces to no builder value, or a
-    sourceless count-claim anywhere in the brief. Same propagation shape as
-    `DenylistViolationError` — see `_run_prose_number_gate`, which wraps
-    `prose_numbers.ProseNumberViolationError` into this so it reaches
-    `cli.py`'s existing exit-code-4 handling (AGENTS.md's editor/sub-editor
-    convention note)."""
+    """Raised when `brief.validators.prose_numbers` finds a sourceless
+    count-claim anywhere in the brief (`check_count_claims` — the ONLY
+    unconditional BLOCK post-round-2 review, corpus-verified 14/14 TP, 0 FP;
+    P2 fact-checker, 2026-08-22 audit #204), OR — only when
+    `BRIEF_PROSE_VALIDATOR_STRICT=1` — any WARN-mode figure/period mismatch.
+    Same propagation shape as `DenylistViolationError` — see
+    `_run_prose_number_gate`, which wraps `prose_numbers.ProseNumberViolationError`
+    into this so it reaches `cli.py`'s existing exit-code-4 handling
+    (AGENTS.md's editor/sub-editor convention note)."""
 
 
 def _collect_prose_fields(final_brief: BriefPayloadV6) -> list[tuple[str, str]]:
@@ -1452,30 +1463,50 @@ def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
     return violations
 
 
+def _format_prose_number_alert(warnings: list["_prose_numbers.NumberWarning"]) -> str:
+    """One Discord message for ALL of this issue's WARN-mode figures, grouped
+    by section (H3, round-2 review item 6) — a publish with N warnings used
+    to send N separate Discord messages, which drowns the channel on a bad
+    day and reads as N unrelated incidents instead of one. Truncation to
+    Discord's 2000-char cap is `alerts.send_discord_alert`'s job; this only
+    shapes the content."""
+    by_section: dict[str, list["_prose_numbers.NumberWarning"]] = {}
+    for w in warnings:
+        by_section.setdefault(w.section, []).append(w)
+    lines = [f"WARN: The Brief prose-number gate — {len(warnings)} figure(s) across {len(by_section)} section(s):"]
+    for section, section_warnings in by_section.items():
+        lines.append(f"  [{section}]")
+        for w in section_warnings:
+            lines.append(f"    {w.describe()}")
+    return "\n".join(lines)
+
+
 def _run_prose_number_gate(
     final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]],
 ) -> list["_prose_numbers.NumberWarning"]:
     """Wire `brief.validators.prose_numbers` in (P2 fact-checker, 2026-08-22
-    audit #204 round-2 follow-up). BLOCK-mode violations (bad sub numbers,
-    bad sub periods, sourceless count-claims) HOLD the publish via
-    `ProseNumberGateError`. WARN-mode figures (lede numbers with no builder
-    match anywhere in the issue) are logged + Discord-alerted and returned,
-    never blocking — UNLESS `BRIEF_PROSE_VALIDATOR_STRICT=1`, which upgrades
-    them to the same hard-fail (a documented future flip, not yet default)."""
+    audit #204, round-2 review). `check_count_claims` is the ONLY BLOCK-mode
+    check post-round-2 (14/14 TP, 0 FP against a 25-real-issue corpus replay)
+    and HOLDS the publish via `ProseNumberGateError`. Everything else
+    (sub numbers/periods, metric.value vs raw, lede figures) is WARN-mode —
+    collected and sent as ONE grouped Discord alert (H3), never blocking —
+    UNLESS `BRIEF_PROSE_VALIDATOR_STRICT=1`, which upgrades the whole set to
+    the same hard-fail (a documented future flip, not yet default; see the
+    module docstring in brief/validators/prose_numbers.py for the corpus
+    evidence behind this staging)."""
     strict = os.environ.get("BRIEF_PROSE_VALIDATOR_STRICT", "").strip() == "1"
     try:
         warnings = _prose_numbers.run_prose_number_gate(final_brief, raw_sections, strict=strict)
     except _prose_numbers.ProseNumberViolationError as e:
         raise ProseNumberGateError(str(e)) from e
 
-    for w in warnings:
-        logger.warning("v6 prose-number gate (WARN): %s", w.describe())
-        _alert(f"WARN: The Brief prose-number gate — {w.describe()}")
     if warnings:
+        for w in warnings:
+            logger.warning("v6 prose-number gate (WARN): %s", w.describe())
+        _alert(_format_prose_number_alert(warnings))
         logger.warning(
             "v6 prose-number gate: %d WARN-mode figure(s) with no builder "
-            "match anywhere in the issue (log-only unless "
-            "BRIEF_PROSE_VALIDATOR_STRICT=1)",
+            "match (log-only unless BRIEF_PROSE_VALIDATOR_STRICT=1)",
             len(warnings),
         )
     else:
