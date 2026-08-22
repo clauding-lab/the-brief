@@ -36,6 +36,15 @@ export type SeriesByKey = Record<string, Array<[string, number | null]>>;
 export interface BuildContext {
   series: SeriesByKey;
   notes?: SeriesNote[];
+  /** Series keys flagged stale by chartMeta.ts's per-series check (H6) — a
+   * multi-series builder dims ONLY the datasets whose key is in this set,
+   * instead of the whole canvas going dim. Absent/empty means "nothing to
+   * dim" (draw at full strength). */
+  staleKeys?: ReadonlySet<string>;
+  /** True when the viewer has prefers-reduced-motion: reduce — builders that
+   * set their own `animation` block (bypassing baseLineOptions) must also
+   * check this directly. */
+  reducedMotion?: boolean;
 }
 
 interface XYPoint {
@@ -45,10 +54,20 @@ interface XYPoint {
 
 interface BaseLineOptionsArgs {
   legend?: boolean;
+  reducedMotion?: boolean;
   yTicks?: {
     callback?: (v: number) => string;
     [k: string]: unknown;
   };
+}
+
+// Low-alpha tint of a solid ink, reusing the same hue — the shared "dim this
+// dataset" treatment for a stale series (mirrors fxBalanceConfig's existing
+// area-fill tint, generalized so any multi-series builder can mute one line
+// without touching its siblings).
+const STALE_ALPHA = 35; // vs. AREA_ALPHA's 18 for fills — a stale LINE needs to read as muted, not just tinted
+function dimColor(ink: string): string {
+  return `color-mix(in oklch, ${ink} ${STALE_ALPHA}%, transparent)`;
 }
 
 interface EventMarker {
@@ -141,7 +160,11 @@ function baseLineOptions(opts: BaseLineOptionsArgs = {}) {
   return {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 300 },
+    // prefers-reduced-motion: reduce means Chart.js's own rAF-driven draw
+    // animation, not just CSS transitions — a global CSS kill switch can't
+    // touch this loop, so BriefChart.tsx reads the media query and threads
+    // it through BuildContext.reducedMotion into every builder.
+    animation: opts.reducedMotion ? false : { duration: 300 },
     interaction: { mode: "index" as const, intersect: false },
     spanGaps: true,
     elements: {
@@ -438,7 +461,7 @@ function fxFlowsConfig(ctx: BuildContext): ChartConfiguration<"bar"> {
     },
   ];
 
-  const base = baseLineOptions({ legend: true });
+  const base = baseLineOptions({ reducedMotion: ctx.reducedMotion, legend: true });
   // Stacked bars across both axes
   const options = {
     ...base,
@@ -510,12 +533,23 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   });
   const impNeg: XYPoint[] = imp.map((p) => ({ x: p.x, y: p.y == null ? null : -Math.abs(p.y) }));
 
+  // Per-series dimming (H6): worst-of is right for DETECTING that this chart
+  // needs a closer look, but wrong for drawing it — verified live, the
+  // imports line here can stop (Mar 2026) while exports/remittance keep
+  // updating, and blanket-dimming the whole canvas would mute two current
+  // lines to signal one dead one. Only the flagged key's own line dims; the
+  // derived "Net basic balance" line dims too if ANY of its three inputs is
+  // stale, since it's a function of all three and can't be more current
+  // than its oldest input.
+  const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
+  const netStale = isStale(EXP) || isStale(IMP) || isStale(REM);
+
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "Exports",
       data: exp,
-      backgroundColor: soft(palette.bull),
-      borderColor: palette.bull,
+      backgroundColor: isStale(EXP) ? dimColor(palette.bull) : soft(palette.bull),
+      borderColor: isStale(EXP) ? dimColor(palette.bull) : palette.bull,
       borderWidth: 0.8,
       fill: "origin",
       pointRadius: 0,
@@ -524,8 +558,8 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Remittance",
       data: inflowTop,
-      backgroundColor: soft(palette.ink2),
-      borderColor: palette.ink2,
+      backgroundColor: isStale(REM) ? dimColor(palette.ink2) : soft(palette.ink2),
+      borderColor: isStale(REM) ? dimColor(palette.ink2) : palette.ink2,
       borderWidth: 0.8,
       fill: "-1",
       pointRadius: 0,
@@ -534,8 +568,8 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Imports",
       data: impNeg,
-      backgroundColor: soft(palette.bear),
-      borderColor: palette.bear,
+      backgroundColor: isStale(IMP) ? dimColor(palette.bear) : soft(palette.bear),
+      borderColor: isStale(IMP) ? dimColor(palette.bear) : palette.bear,
       borderWidth: 0.8,
       fill: "origin",
       pointRadius: 0,
@@ -544,7 +578,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Net basic balance",
       data: net,
-      borderColor: palette.ink,
+      borderColor: netStale ? dimColor(palette.ink) : palette.ink,
       borderWidth: 2.6,
       fill: false,
       pointRadius: 0,
@@ -553,7 +587,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
-  const baseOpts = baseLineOptions({
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: true,
     yTicks: { callback: (v: number) => (v < 0 ? "-$" : "$") + r2str(Math.abs(v)) },
   });
@@ -589,7 +623,7 @@ function dsexConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     (e) => !!e.color && !!e.date,
   );
 
-  const baseOpts = baseLineOptions({ legend: false });
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion, legend: false });
   const options = {
     ...baseOpts,
     layout: events.length > 0 ? { padding: { top: 50 } } : {},
@@ -645,7 +679,7 @@ function brentConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
-  const baseOpts = baseLineOptions({
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     yTicks: { callback: (v: number) => "$" + r2str(v) },
   });
   return {
@@ -733,7 +767,7 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 300 },
+    animation: ctx.reducedMotion ? false : { duration: 300 },
     interaction: { mode: "nearest" as const, intersect: false, axis: "x" as const },
     elements: {
       line: { tension: 0.1, borderJoinStyle: "round" as const },
@@ -877,7 +911,7 @@ function yieldLadderConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 300 },
+    animation: ctx.reducedMotion ? false : { duration: 300 },
     interaction: { mode: "nearest" as const, intersect: false, axis: "x" as const },
     elements: {
       line: { tension: 0.1, borderJoinStyle: "round" as const },
@@ -963,12 +997,13 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   }
 
   const palette = buildPalette();
+  const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
 
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "Headline (12m avg)",
       data: toPoints(ctx.series[HEADLINE_KEY]),
-      borderColor: palette.ink,
+      borderColor: isStale(HEADLINE_KEY) ? dimColor(palette.ink) : palette.ink,
       borderWidth: 1.8,
       pointRadius: 0,
       tension: 0.25,
@@ -977,7 +1012,7 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Food (P-to-P)",
       data: toPoints(ctx.series[FOOD_KEY]),
-      borderColor: palette.warn,
+      borderColor: isStale(FOOD_KEY) ? dimColor(palette.warn) : palette.warn,
       borderWidth: 1.2,
       pointRadius: 0,
       tension: 0.25,
@@ -986,7 +1021,7 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Non-Food (P-to-P)",
       data: toPoints(ctx.series[NONFOOD_KEY]),
-      borderColor: palette.ink3,
+      borderColor: isStale(NONFOOD_KEY) ? dimColor(palette.ink3) : palette.ink3,
       borderWidth: 1.2,
       pointRadius: 0,
       tension: 0.25,
@@ -994,7 +1029,7 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
-  const baseOpts = baseLineOptions({
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: true,
     yTicks: { callback: (v: number) => r2str(v) + "%" },
   });
@@ -1049,7 +1084,7 @@ function remitFlowConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
-  const baseOpts = baseLineOptions({
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: false,
     yTicks: { callback: (v: number) => Number(v).toLocaleString() },
   });
@@ -1103,7 +1138,7 @@ function fiscalNbrConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
-  const baseOpts = baseLineOptions({
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: false,
     yTicks: { callback: (v: number) => Number(v).toLocaleString() },
   });
@@ -1146,12 +1181,13 @@ function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   }
 
   const palette = buildPalette();
+  const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
 
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "Gross",
       data: toPoints(ctx.series[GROSS_KEY]),
-      borderColor: palette.ink,
+      borderColor: isStale(GROSS_KEY) ? dimColor(palette.ink) : palette.ink,
       borderWidth: 1.8,
       pointRadius: 0,
       tension: 0.25,
@@ -1160,7 +1196,7 @@ function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Net (BPM6)",
       data: toPoints(ctx.series[BPM6_KEY]),
-      borderColor: palette.accent,
+      borderColor: isStale(BPM6_KEY) ? dimColor(palette.accent) : palette.accent,
       borderWidth: 1.4,
       pointRadius: 0,
       tension: 0.25,
@@ -1168,7 +1204,7 @@ function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
-  const baseOpts = baseLineOptions({
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: true,
     yTicks: { callback: (v: number) => r2str(v) },
   });
@@ -1235,7 +1271,7 @@ function lngConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
   ];
 
-  const baseOpts = baseLineOptions({
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     yTicks: { callback: (v: number) => "$" + r2str(v) + "/MMBtu" },
   });
   return {

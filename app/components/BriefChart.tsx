@@ -40,6 +40,8 @@ import {
   type ChartConfigKey,
   type SeriesByKey,
 } from "@/lib/chartConfigs";
+import type { PerSeriesStaleness } from "@/lib/chartMeta";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 
 // Selective registration trims ~25KB gzipped vs registerables.
 // Chart.register is idempotent so this is safe across HMR + re-mounts.
@@ -65,9 +67,10 @@ interface BriefChartProps {
   ariaLabel?: string;
   /** id of the section's CHART READ block, wired to aria-describedby. */
   describedById?: string;
-  /** When true, dims the canvas and shows `staleLabel` beneath it. */
-  stale?: boolean;
-  staleLabel?: string;
+  /** Per-series staleness (H6) — the config builder dims only the flagged
+   * dataset(s); a note row renders BELOW the canvas (never overlapping the
+   * plot area or its axis ticks) naming each stale series and its period. */
+  staleSeries?: PerSeriesStaleness[];
 }
 
 // Group SeriesPoint[] (where each point has a `key`) into the
@@ -94,11 +97,13 @@ export function BriefChart({
   height = 280,
   ariaLabel,
   describedById,
-  stale = false,
-  staleLabel,
+  staleSeries = [],
 }: BriefChartProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
+  const reducedMotion = useReducedMotion();
+
+  const staleKeys = new Set(staleSeries.filter((s) => s.isStale).map((s) => s.key));
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -111,6 +116,8 @@ export function BriefChart({
     const config = builder({
       series: grouped,
       notes: section.notes,
+      staleKeys,
+      reducedMotion,
     });
 
     // Chart.js expects a non-generic Chart constructor; cast the union here.
@@ -123,27 +130,39 @@ export function BriefChart({
         chartRef.current = null;
       }
     };
-  }, [section.series, section.notes, configKey]);
+    // staleKeys is rebuilt fresh every render (a `new Set` each time), so it
+    // can't be a dependency without re-running on every render regardless of
+    // content — depend on the underlying staleSeries prop instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section.series, section.notes, configKey, reducedMotion, staleSeries]);
+
+  const staleNotes = staleSeries.filter((s) => s.isStale);
 
   return (
-    <div
-      style={{
-        height: `${height}px`,
-        position: "relative",
-        width: "100%",
-        minWidth: 0,
-      }}
-      className={`tb-chart-canvas-wrap${stale ? " is-stale-series" : ""}`}
-      role="img"
-      aria-label={ariaLabel || `${section.title} chart`}
-      aria-describedby={describedById}
-    >
-      <canvas ref={canvasRef} />
-      {stale && staleLabel && (
-        <div className="tb-chart-stale-note" role="note">
-          {staleLabel}
+    <>
+      <div
+        style={{
+          height: `${height}px`,
+          position: "relative",
+          width: "100%",
+          minWidth: 0,
+        }}
+        className="tb-chart-canvas-wrap"
+        role="img"
+        aria-label={ariaLabel || `${section.title} chart`}
+        aria-describedby={describedById}
+      >
+        <canvas ref={canvasRef} />
+      </div>
+      {staleNotes.length > 0 && (
+        <div className="tb-chart-stale-row">
+          {staleNotes.map((s) => (
+            <span key={s.key} className="tb-chart-stale-note" role="note">
+              {s.noteLabel}
+            </span>
+          ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

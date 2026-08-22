@@ -6,7 +6,7 @@ import { BankerRead } from "./BankerRead";
 import { SignatureChart } from "./SignatureChart";
 import { BriefChart } from "./BriefChart";
 import { SECTION_TO_CHART, CHART_CARD_HEADS } from "@/lib/chartConfigs";
-import { getChartLatestCaption, getChartStaleness, getChartAriaLabel } from "@/lib/chartMeta";
+import { getChartLatestCaption, getPerSeriesStaleness, getChartAriaLabel } from "@/lib/chartMeta";
 import { formatNewsMeta, cleanMetricValue, formatVintageDate } from "@/lib/format";
 
 interface SectionProps {
@@ -75,8 +75,13 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
   // Bound to the CHARTED series' own latest point — never metrics[0] (that
   // bug captioned the bb/"FX Reserves" chart with "Overnight Call Money
   // 9.31%", the section's first tile, which has no relation to the chart).
+  // Always names its own period (review round 1, C1): a chart's plotted
+  // point and a neighboring tile can be different — both honest — vintages
+  // (e.g. a monthly series vs. a daily/YTD tile), so the strip states which
+  // period it plotted rather than reading as agreeing or disagreeing with
+  // whatever the tile shows.
   const chartLatest = hasChart ? getChartLatestCaption(section, configKey) : null;
-  const staleness = hasChart && configKey ? getChartStaleness(section, configKey, issueDate) : null;
+  const staleSeries = hasChart && configKey ? getPerSeriesStaleness(section, configKey, issueDate) : [];
   const isHero = (weight ?? 1) >= 2;
   const anySignal =
     metrics.some((m) => m.changed || m.held_from) ||
@@ -143,7 +148,8 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
                     )}
                     {chartLatest && (
                       <div className="tb-chart-latest">
-                        Latest: {chartLatest.label} {cleanMetricValue(chartLatest.value)}
+                        Latest plotted · {chartLatest.label} {cleanMetricValue(chartLatest.value)} ·{" "}
+                        {chartLatest.periodLabel}
                       </div>
                     )}
                   </div>
@@ -161,8 +167,7 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
                 configKey={configKey}
                 ariaLabel={getChartAriaLabel(section, configKey, CHART_CARD_HEADS[slug])}
                 describedById={chart_read ? `${slug}-chart-read` : undefined}
-                stale={staleness?.isStale ?? false}
-                staleLabel={staleness?.label}
+                staleSeries={staleSeries}
               />
             ) : (
               <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
