@@ -102,6 +102,21 @@ def _esc(s: str) -> str:
     return _html.escape(s, quote=True)
 
 
+def _mask_email(email: str) -> str:
+    """Mask an email for logs: keep the first character and the domain.
+
+    e.g. "adnan.rshd@gmail.com" -> "a***@gmail.com". P0 honesty fix
+    (2026-08-22 audit #204): the send-failure logs used to print the full
+    subscriber address, violating the repo's own no-PII-in-logs rule
+    (app/api/subscribe/route.ts:174-177 logs an error CODE, never the email,
+    for the same reason).
+    """
+    local, sep, domain = email.partition("@")
+    if not sep or not local or not domain:
+        return "***"
+    return f"{local[0]}***@{domain}"
+
+
 def _hhmm_bdt(ts: datetime | None) -> str:
     """Format a timestamp as HH:MM BDT. None → empty string."""
     if ts is None:
@@ -148,10 +163,15 @@ def render_subject(*, issue_no: int, brief_date: date_t, lens: str | None) -> st
     return f"The Brief · No. {issue_no} · {date_str} · {_lens_phrase(lens)}"
 
 
-def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
+def render_text(*, brief: BriefRow, lead_news: NewsRow | None, from_email: str) -> str:
     """Plain-text body for the release email.
 
     LEAD HEADLINE section is omitted entirely when lead_news is None.
+
+    `from_email` names the SAME mailbox the HTML unsubscribe link points at
+    (P0 honesty fix, 2026-08-22 audit #204 — the HTML version used to point at
+    a personal Gmail address, a different mailbox than the one this email was
+    actually sent from).
     """
     lines: list[str] = []
     lines.append(f"THE BRIEF · Vol. {brief.volume:02d} · No. {brief.issue_no}")
@@ -176,20 +196,32 @@ def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
             lines.append(lead_news.source_url)
         lines.append("")
 
+    # Issue number + date near the CTA (P0 honesty fix, 2026-08-22 audit #204):
+    # a copy of this email opened months later should identify which issue it
+    # was without scrolling back to the masthead line above.
+    lines.append(
+        f"Issue No. {brief.issue_no} · {brief.brief_date.strftime('%a %d %b %Y')}"
+    )
     lines.append(f"Full edition → {_HOSTED_URL}")
     lines.append("")
     lines.append("---")
     lines.append("You're getting this because you subscribed at thebrief.clauding-lab.com.")
-    lines.append("Unsubscribe: reply to this email with 'Unsubscribe' in the subject.")
+    lines.append(f"Unsubscribe: reply to this email ({from_email}) with 'Unsubscribe' in the subject.")
 
     return "\n".join(lines)
 
 
-def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
+def render_html(*, brief: BriefRow, lead_news: NewsRow | None, from_email: str) -> str:
     """HTML body — single-column 600px, Outlook-safe inline styles.
 
     Cream-paper palette mirrors the site identity; Georgia for editorial weight,
     system sans for chrome, amber-gold (#a67c2e) section labels, hairline rules.
+
+    `from_email` is the SAME mailbox the plain-text version's unsubscribe line
+    names (P0 honesty fix, 2026-08-22 audit #204 — this used to hardcode a
+    personal Gmail address here while the text version pointed at "this
+    email", i.e. the actual FROM_EMAIL sender — two different mailboxes for
+    the same action).
     """
     paragraphs = [p.strip() for p in brief.todays_call.split("\n\n") if p.strip()]
     paragraphs_html = "".join(
@@ -232,25 +264,30 @@ def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
     <hr style="border:none;border-top:1px solid #e6dfd1;margin:24px 0;">
 
     {lead_block}
+    <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9a8e75;margin-bottom:8px;">Issue No. {brief.issue_no} &middot; {brief.brief_date.strftime("%a %d %b %Y")}</div>
     <a href="{_HOSTED_URL}" style="display:inline-block;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#1a1814;font-weight:600;border-bottom:2px solid #1a1814;text-decoration:none;padding-bottom:2px;">Full edition &rarr;</a>
-    <div style="font-size:10px;color:#9a8e75;margin-top:20px;">You're getting this because you subscribed at thebrief.clauding-lab.com. <a href="mailto:adnan.rshd@gmail.com?subject=Unsubscribe%20-%20The%20Brief" style="color:#9a8e75;">Unsubscribe</a>.</div>
+    <div style="font-size:10px;color:#9a8e75;margin-top:20px;">You're getting this because you subscribed at thebrief.clauding-lab.com. <a href="mailto:{_esc(from_email)}?subject=Unsubscribe%20-%20The%20Brief" style="color:#9a8e75;">Unsubscribe</a>.</div>
   </td></tr>
 </table>
 </body></html>"""
 
 
-def render_email(*, brief: BriefRow, lead_news: NewsRow | None) -> tuple[str, str, str]:
+def render_email(*, brief: BriefRow, lead_news: NewsRow | None, from_email: str) -> tuple[str, str, str]:
     """Return (subject, html_body, text_body) for a brief release email.
 
     Pure function — no I/O, no env reads. Use for unit-testing and dry-run rendering.
+
+    `from_email` is threaded through (not read from the environment here) so
+    the render layer stays pure; `notify()` is the only caller that reads it
+    from `FROM_EMAIL`.
     """
     subject = render_subject(
         issue_no=brief.issue_no,
         brief_date=brief.brief_date,
         lens=brief.lens,
     )
-    html = render_html(brief=brief, lead_news=lead_news)
-    text = render_text(brief=brief, lead_news=lead_news)
+    html = render_html(brief=brief, lead_news=lead_news, from_email=from_email)
+    text = render_text(brief=brief, lead_news=lead_news, from_email=from_email)
     return subject, html, text
 
 
@@ -359,6 +396,11 @@ def send_via_brevo(
       - sent_count: subscribers Brevo accepted (2xx response)
       - message_id: the Brevo messageId from the LAST successful send, or None
       - error: the FIRST failure tag encountered, or None if all sends succeeded
+
+    Every payload carries a `List-Unsubscribe` header pointing at `from_email`
+    (P0 honesty fix, 2026-08-22 audit #204 — no unsubscribe mechanism beyond
+    "reply to this email" existed before; the header lets mail clients offer
+    a one-click unsubscribe against the SAME mailbox the email was sent from).
     """
     sent_count = 0
     last_message_id: str | None = None
@@ -371,6 +413,9 @@ def send_via_brevo(
             "subject": subject,
             "htmlContent": html_body,
             "textContent": text_body,
+            "headers": {
+                "List-Unsubscribe": f"<mailto:{from_email}?subject=Unsubscribe>",
+            },
         }
         req = Request(
             _BREVO_URL,
@@ -389,12 +434,12 @@ def send_via_brevo(
                     last_message_id = body["messageId"]
         except urllib.error.HTTPError as e:
             err = f"HTTP {e.code}: {e.reason}"
-            logger.warning("notifier: send to %s failed: %s", sub.email, err)
+            logger.warning("notifier: send to %s failed: %s", _mask_email(sub.email), err)
             if first_error is None:
                 first_error = err
         except Exception as e:
             err = f"{type(e).__name__}: {e}"
-            logger.warning("notifier: send to %s failed: %s", sub.email, err)
+            logger.warning("notifier: send to %s failed: %s", _mask_email(sub.email), err)
             if first_error is None:
                 first_error = err
 
@@ -439,7 +484,7 @@ def notify(brief_id: str) -> NotifyResult:
         logger.info("notifier: no subscribers, skipping send")
         return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error="no_subscribers")
 
-    subject, html_body, text_body = render_email(brief=brief, lead_news=lead_news)
+    subject, html_body, text_body = render_email(brief=brief, lead_news=lead_news, from_email=from_email)
 
     sent_count, message_id, error = send_via_brevo(
         api_key=api_key,
