@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { BriefPayload, SectionGroup } from "@/types/brief";
 import { getBrowserSupabase } from "@/lib/supabase";
 import { SECTION_TO_CHART } from "@/lib/chartConfigs";
+import { useNavOffset } from "@/lib/useNavOffset";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 import { Masthead } from "./Masthead";
 import { StickyBar } from "./StickyBar";
 import { SnapshotStrip } from "./SnapshotStrip";
@@ -62,6 +64,8 @@ export function ClientApp(props: ClientAppProps) {
   const [stickyVisible, setStickyVisible] = useState(false);
   const [diffMode, setDiffMode] = useState<boolean>(false);
   const [printMode, setPrintMode] = useState<boolean>(false);
+  const navOffset = useNavOffset();
+  const reducedMotion = useReducedMotion();
 
   // Read localStorage diff + URL print=1 after mount (avoid SSR hydration mismatch).
   // Reading client-only state (localStorage) post-mount and syncing it into React
@@ -138,7 +142,11 @@ export function ClientApp(props: ClientAppProps) {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // Scroll-spy via IntersectionObserver
+  // Scroll-spy via IntersectionObserver. rootMargin's top offset must match
+  // .tb-section/.tb-longview's scroll-margin-top (both driven by
+  // --nav-offset — review round 1, H1): SecNav can wrap to 2-3 rows at wide
+  // viewports, so a hardcoded "-110px" landed sections under the nav by a
+  // variable amount depending on how many rows it wrapped to.
   useEffect(() => {
     const ids = data.sections.map((s) => s.slug).concat(["snapshot"]);
     const obs = new IntersectionObserver(
@@ -151,14 +159,14 @@ export function ClientApp(props: ClientAppProps) {
           if (id) setActive(id);
         }
       },
-      { rootMargin: "-110px 0px -60% 0px", threshold: 0 }
+      { rootMargin: `-${Math.round(navOffset)}px 0px -60% 0px`, threshold: 0 }
     );
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (el) obs.observe(el);
     });
     return () => obs.disconnect();
-  }, [data]);
+  }, [data, navOffset]);
 
   // Sticky bar appears after the masthead scrolls out
   useEffect(() => {
@@ -174,16 +182,24 @@ export function ClientApp(props: ClientAppProps) {
     return () => obs.disconnect();
   }, [data]);
 
-  const jump = useCallback((slug: string) => {
-    setActive(slug);
-    if (typeof history !== "undefined" && history.replaceState) {
-      history.replaceState(null, "", `#${slug}`);
-    } else {
-      window.location.hash = slug;
-    }
-    const el = document.getElementById(slug);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  const jump = useCallback(
+    (slug: string) => {
+      setActive(slug);
+      if (typeof history !== "undefined" && history.replaceState) {
+        history.replaceState(null, "", `#${slug}`);
+      } else {
+        window.location.hash = slug;
+      }
+      const el = document.getElementById(slug);
+      // A CSS prefers-reduced-motion switch can't stop this call — Element.
+      // scrollIntoView({behavior:"smooth"}) animates regardless of the CSS
+      // scroll-behavior property once a caller passes its own explicit
+      // `behavior` (review round 1, H3; measured an 11,028px animated
+      // scroll with reduced motion requested).
+      if (el) el.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    },
+    [reducedMotion]
+  );
 
   const snapshotSection = data.sections.find((s) => s.slug === "snapshot");
   const bodySections = data.sections.filter(
@@ -252,6 +268,7 @@ export function ClientApp(props: ClientAppProps) {
           source={data._source}
           fetchedAt={data._fetchedAt}
           sectionCount={flatRenderOrder.length}
+          historical={historical}
         />
         <SnapshotStrip section={snapshotSection} />
         <SecNav
