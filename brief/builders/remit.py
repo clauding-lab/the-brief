@@ -49,18 +49,23 @@ def _expected_final_month(today: date) -> tuple[int, int]:
 
 
 def _official_final(ctx: BuilderContext) -> HistoryRow | None:
-    """The official monthly final, but ONLY if it covers the expected month.
+    """The official monthly final, but ONLY if it has caught up to the
+    expected month.
 
-    A row for an older month (or no row at all) means the archive has not
-    caught up yet — falling back to the flash is correct there, not printing
-    a stale "final" as if it were this cycle's number.
+    L3 (review round 1): compares chronologically, not with `!=`. A row for
+    a month OLDER than expected means the archive hasn't caught up yet —
+    fall back to the flash. A row for the expected month, OR a NEWER one
+    (the archive got ahead of schedule — rare, but not a reason to discard a
+    genuine newer final), is used as-is: a newer final must win, not be
+    treated the same as a stale one just because it doesn't match exactly.
     """
     if ctx.history_monthly is None:
         return None
     row = ctx.history_monthly.get_latest(_OFFICIAL_METRIC_ID, table="metric_history_monthly")
     if row is None:
         return None
-    if (row.as_of.year, row.as_of.month) != _expected_final_month(ctx.today):
+    archive_month = (row.as_of.year, row.as_of.month)
+    if archive_month < _expected_final_month(ctx.today):
         return None
     return row
 
@@ -78,14 +83,27 @@ def build(ctx: BuilderContext) -> SectionData:
             ),
         ]
     else:
+        # H5, M1 (review round 1): the label stays "Monthly Remittance" on
+        # BOTH paths — provenance goes in `source` only, protecting the
+        # (slug, label) keying `_reject_invented_and_dedupe` and
+        # `stamp_vintages` both rely on. And this branch must never ship
+        # "(BB flash)" dated TODAY with no month named: the flash is a
+        # daily-restamped running figure, so its own `as_of` says nothing
+        # about which month it's tracking. `as_of` is forced to the month-end
+        # of the EXPECTED month, and `source` states that month explicitly
+        # and marks the figure provisional. Whether the flash is still
+        # actively changing intra-month is unknowable here without a second
+        # `get_history_window` call (landmine 23 forbids it from a builder).
         last_mn = ctx.history.get_latest(_FLASH_METRIC_ID) if ctx.history is not None else None
+        expected_y, expected_m = _expected_final_month(ctx.today)
+        month_label = date(expected_y, expected_m, 1).strftime("%b %Y")
         metrics = [
             Metric(
-                id="remit_monthly_mn", label="Monthly Remittance (BB flash)",
+                id="remit_monthly_mn", label="Monthly Remittance",
                 value=(last_mn.value if last_mn else None), unit="mn USD",
-                as_of=(last_mn.as_of if last_mn else ctx.today),
-                source="BB flash (publictn/5/27) — official final not yet published",
-                cadence="monthly",
+                as_of=month_end(date(expected_y, expected_m, 1)),
+                source=f"BB flash · {month_label}, provisional",
+                cadence="monthly", stale=True,
             ),
         ]
     return SectionData(
