@@ -1,18 +1,23 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Brief, DataSource } from "@/types/brief";
 import { Hair } from "./Hair";
-import { formatBriefDate } from "@/lib/format";
+import { formatBriefDate, formatPublishedAt } from "@/lib/format";
 import { MastheadLensPill } from "./MastheadLensPill";
+
+const LIVE_WINDOW_MS = 10 * 60 * 1000; // "Live" claim expires 10 min after fetch
 
 interface MastheadProps {
   brief?: Brief;
   source?: DataSource;
   /** Epoch ms of the last data fetch; formatted to Asia/Dhaka for the Live stamp. */
   fetchedAt?: number;
+  /** Total body sections in this issue — drives "+{n} sections" (was hardcoded 15). */
+  sectionCount?: number;
 }
 
-export function Masthead({ brief, source, fetchedAt }: MastheadProps) {
+export function Masthead({ brief, source, fetchedAt, sectionCount }: MastheadProps) {
   const dateLabel = formatBriefDate(brief?.brief_date);
   const issueNo = brief?.issue_no ?? 87;
   const vol = brief?.volume ?? 1;
@@ -28,6 +33,23 @@ export function Masthead({ brief, source, fetchedAt }: MastheadProps) {
         timeZone: "Asia/Dhaka",
       })
     : null;
+  // The clock above is page-LOAD time, not the issue's publish time — the two
+  // used to be conflated under one "Live · HH:MM" label. "Live" now only
+  // claims to be current while the fetch itself is fresh; past that it just
+  // states when the page fetched, and the real publish time (from the
+  // payload, not the client clock) prints separately below.
+  //
+  // `Date.now()` is an impure read, so it can't run inline during render
+  // (React's purity rule) — computed in an effect instead, same pattern as
+  // ClientApp's post-mount localStorage reads.
+  const [isFreshFetch, setIsFreshFetch] = useState(false);
+  useEffect(() => {
+    // Deliberate post-mount impure read (Date.now()) synced into state — the
+    // server can't know "now", same pattern as ClientApp's localStorage sync.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
+    setIsFreshFetch(fetchedAt != null && Date.now() - fetchedAt < LIVE_WINDOW_MS);
+  }, [fetchedAt]);
+  const publishedLabel = formatPublishedAt(brief?.published_at);
 
   return (
     <header className="tb-masthead-full" id="masthead">
@@ -39,18 +61,24 @@ export function Masthead({ brief, source, fetchedAt }: MastheadProps) {
           <span>{dateLabel}</span>
           <MastheadLensPill lens={brief?.lens} frame={brief?.frame} briefDate={brief?.brief_date} />
         </div>
-        <div className="tb-live">
-          <span className="pulse" />
-          <span>{sourceLabel}{fetchedTime ? ` · ${fetchedTime} BDT` : ""}</span>
+        <div>
+          <div className="tb-live">
+            {isFreshFetch && <span className="pulse" />}
+            <span>
+              {isFreshFetch ? "Live · " : ""}
+              {fetchedTime ? `Fetched ${fetchedTime} BDT` : sourceLabel}
+            </span>
+          </div>
+          {publishedLabel && <div className="tb-published">Published {publishedLabel}</div>}
         </div>
       </div>
 
       <Hair style={{ marginTop: 14 }} />
 
       <div className="tb-masthead-hero">
-        <div className="tb-wordmark-big">
+        <h1 className="tb-wordmark-big">
           The Brief<span className="dot">.</span>
-        </div>
+        </h1>
         <div className="tb-tagline">
           Daily macro &amp; markets read for Bangladesh banking professionals. One brief.
           Numbers, news, and a banker&rsquo;s read on what matters.
@@ -74,7 +102,7 @@ export function Masthead({ brief, source, fetchedAt }: MastheadProps) {
           <span className="tag">Macro</span>
           <span className="tag">Markets</span>
           <span className="tag">Banking</span>
-          <span className="tag tag-soft">+15 sections</span>
+          <span className="tag tag-soft">+{sectionCount ?? 15} sections</span>
         </div>
         <div className="tb-masthead-actions">
           <span className="tb-readtime">Read time · {readMin} min</span>

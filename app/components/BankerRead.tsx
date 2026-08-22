@@ -1,6 +1,7 @@
 import type { BankerRead as BankerReadShape } from "@/types/brief";
 import { Hair } from "./Hair";
 import { Mark } from "./Mark";
+import { splitBigNum } from "@/lib/format";
 
 interface BankerReadProps {
   read: BankerReadShape;
@@ -15,10 +16,13 @@ export function BankerRead({ read, hero = false }: BankerReadProps) {
       <div className={`tb-banker${hero ? " is-hero" : ""}`}>
         {runway ? (
           <div className="tb-banker-runway">
-            <div className="num">
-              {runway.value}
-              <span className="dot">.</span>
-            </div>
+            {/* splitBigNum only colors an ACTUAL decimal point in the value
+                (matching Cover.tsx's bignum treatment) instead of always
+                appending a decorative "." — the old unconditional dot
+                rendered a bare "0." for a zero/near-zero runway (the
+                Banking hero's "BP OF CAR BUFFER" stat) and would have done
+                the same for a negative value, which this stat can now be. */}
+            <div className="num">{splitBigNum(runway.value)}</div>
             <div className="label">{runway.unit}</div>
           </div>
         ) : (
