@@ -11,6 +11,19 @@
   --rhythm: 28px;
   --gutter: 24px;
   --hair: 1px;
+
+  /* Cross-palette aliases. Two components (tb-held-footer, the masthead lens
+     pill) referenced --color-muted / --color-surface-2 with a hardcoded
+     fallback (#888, #f4f4f4) and no real definition anywhere, so they always
+     rendered the fallback regardless of active palette — #888 on --paper is
+     2.91:1, below the 4.5:1 AA floor for normal text. Aliasing to the actual
+     palette tokens (not raw hex) keeps both readable and palette-aware; only
+     steel-crimson/bone exist today, so this is defined once on :root rather
+     than per-palette. --ink-3 measures ~6.2:1 on --paper here; --ink-4 (the
+     next step down, "disabled") measures ~3.3:1 and must NOT be used for
+     readable text at this size. */
+  --color-muted: var(--ink-3);
+  --color-surface-2: var(--paper-2);
 }
 
 :root,
@@ -176,8 +189,13 @@ body { background: var(--paper); color: var(--ink); }
 .tb-masthead-meta .tb-live { display: inline-flex; align-items: center; gap: 8px; }
 .tb-masthead-meta .pulse {
   width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-  animation: tb-pulse 2.4s ease-in-out infinite;
+}
+.tb-published {
+  margin-top: 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
 }
 
 /* Single column since the "In this issue" rail was retired in v2.0.2 — the
@@ -214,8 +232,18 @@ body { background: var(--paper); color: var(--ink); }
   font-weight: 600;
 }
 .tb-todays-call .body {
-  font-size: 13.5px;
-  line-height: 1.6;
+  /* This is the issue's thesis — it was rendering smaller than the per-
+     section verdicts it's supposed to frame (13.5px vs .tb-section-verdict's
+     13px and .tb-banker-verdict's 22px) at an ~129ch measure with no cap.
+     17px sits at the top of Design.md's existing "Comparison row value:
+     17-19px" scale step without exceeding it (review round 1, MED-8: picked
+     the conservative end of the same step rather than its ceiling); 70ch
+     keeps the paragraph readable. Kept italic mono per the existing
+     contract. A dedicated Today's Call scale row belongs in Design.md
+     itself as a separate docs PR (AGENTS.md landmine 8) — not proposed here. */
+  font-size: 17px;
+  line-height: 1.5;
+  max-width: 70ch;
   color: var(--ink);
   text-wrap: pretty;
   font-style: italic;
@@ -275,13 +303,21 @@ body { background: var(--paper); color: var(--ink); }
 .tb-stickybar .tb-live { display: inline-flex; align-items: center; gap: 8px; }
 .tb-stickybar .pulse {
   width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-  animation: tb-pulse 2.4s ease-in-out infinite;
 }
 
+/* Pulse redrawn as an opacity throb (Design.md's only sanctioned animatable
+   property) — it previously animated box-shadow, which Design.md forbids
+   outright ("No shadows"). Gated below prefers-reduced-motion: no-preference
+   so the dot is a plain static mark for anyone who has reduced motion on. */
 @keyframes tb-pulse {
-  0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
-  50%      { box-shadow: 0 0 0 6px transparent; }
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tb-masthead-meta .pulse,
+  .tb-stickybar .pulse {
+    animation: tb-pulse 2.4s ease-in-out infinite;
+  }
 }
 
 /* ─── SNAPSHOT STRIP ───────────────────────────────────── */
@@ -316,6 +352,22 @@ body { background: var(--paper); color: var(--ink); }
   flex: 1;
 }
 .tb-secnav-inner::-webkit-scrollbar { display: none; }
+/* Desktop tiers (1024/1440/1920) measured up to 741px of the rail hidden
+   past clientWidth with no scroll affordance at all — a horizontally-
+   scrolling nav with a hidden scrollbar and no fade cue is undiscoverable.
+   Wrapping to as many rows as needed guarantees every link is visible
+   without relying on a user noticing they can scroll; it's also the option
+   that adds zero risk against Design.md's shadow/gradient/radius rules,
+   unlike an edge fade mask. Left untouched below 921px — mobile's
+   horizontal swipe-scroll here wasn't flagged and is a normal touch
+   pattern. */
+@media (min-width: 921px) {
+  .tb-secnav-inner {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    overflow-x: visible;
+  }
+}
 .tb-secnav-item {
   flex: 0 0 auto;
   padding: 8px 12px;
@@ -382,7 +434,7 @@ body { background: var(--paper); color: var(--ink); }
 .tb-diff-toggle.is-on {
   color: var(--paper); background: var(--ink); border-color: var(--ink);
 }
-.tb-diff-toggle.is-on .dot { background: var(--accent); box-shadow: 0 0 0 3px rgba(168, 65, 65, 0.25); }
+.tb-diff-toggle.is-on .dot { background: var(--accent); }
 
 /* ─── BODY GRID ─────────────────────────────────────────── */
 .tb-body {
@@ -429,7 +481,11 @@ body { background: var(--paper); color: var(--ink); }
 }
 
 /* ─── SECTION ──────────────────────────────────────────── */
-.tb-section { padding: 64px 0 56px; border-bottom: 1px solid var(--rule); scroll-margin-top: 110px; }
+/* --nav-offset is set live by lib/useNavOffset.ts — SecNav now wraps to 2-3
+   rows at wide viewports, so its real height (plus its own sticky `top`)
+   varies; a hardcoded 110px landed a section 18-65px under the nav
+   depending on how many rows it wrapped to (review round 1, H1). */
+.tb-section { padding: 64px 0 56px; border-bottom: 1px solid var(--rule); scroll-margin-top: var(--nav-offset, 110px); }
 .tb-section:last-of-type { border-bottom: 0; }
 
 /* V6 Phase D.2 — collapsed one-liner for sections with freshness="unavailable" */
@@ -517,8 +573,33 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 .tb-section-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 32px; padding-top: 28px; }
 .tb-section-grid.no-chart { grid-template-columns: 1fr 1fr; }
 
-.tb-chart-card { display: flex; flex-direction: column; }
+/* min-width: 0 overrides the grid item's default min-width:auto, which was
+   pinning this column to the canvas's last-rendered intrinsic width and
+   blocking it from ever shrinking back down on viewport resize (Chart.js's
+   own documented fix for "canvas won't shrink in a flex/grid layout"). */
+.tb-chart-card { display: flex; flex-direction: column; min-width: 0; }
 .tb-chart-card-head { margin-bottom: 14px; }
+.tb-chart-canvas-wrap { min-width: 0; }
+/* Per-series stale treatment (review round 1, H6): dimming now happens
+   PER-DATASET inside the Chart.js config (chartConfigs.ts's dimColor), not
+   as a blanket canvas-wide opacity — a multi-series chart where only one
+   line has died shouldn't mute its still-current siblings. The note row
+   sits BELOW the canvas as a normal in-flow element, not absolutely
+   positioned over the plot area (it used to overprint the x-axis ticks). No
+   blur, no transition/animation (kept out of Design.md's "opacity + blur,
+   diff-stale only" carve-out on purpose). */
+.tb-chart-stale-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+}
+.tb-chart-stale-note {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
 .tb-chart-fig {
   font-family: var(--mono), 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10px;
@@ -747,7 +828,6 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   border-radius: 999px;
   background: var(--accent);
   vertical-align: 1px;
-  box-shadow: 0 0 0 3px rgba(168, 65, 65, 0.18);
 }
 .tb-news-item.is-changed .tb-news-meta,
 .tb-cover-line.is-changed .tb-news-meta {
@@ -784,22 +864,29 @@ body.tb-diff .tb-statstack:not(.is-changed) {
 
 /* ── Held-over state ─────────────────────────────────────────────── */
 
-.tb-news-item.is-held-over,
-.tb-kpi-row.is-held-over {
-  opacity: 0.65;
+/* Muted via explicit colors on the text itself, NOT a blanket opacity on the
+   row. Opacity multiplies against whatever's behind it — 0.65 opacity on
+   top of the already-muted "As of …" stamp (--color-muted, ~6.2:1 on its
+   own) compounded to ~1.9:1, failing WCAG AA. --color-muted alone stays
+   ~6.2:1 in every state, diff mode included, since diff mode reused the
+   same opacity mechanism on the same elements. */
+.tb-news-item.is-held-over .tb-news-headline,
+.tb-news-item.is-held-over .tb-news-detail,
+.tb-kpi-row.is-held-over .tb-kpi-label,
+.tb-kpi-row.is-held-over .tb-kpi-value {
+  color: var(--color-muted);
 }
 
+/* Deliberately NOT muted (review round 1, LOW): the row's label/value dim to
+   signal "don't read this as current," but the vintage stamp is the one
+   thing in a held-over row a reader most needs to actually read — it stays
+   full-contrast so the "as of" date doesn't get visually deprioritized
+   along with the stale value it's explaining. */
 .tb-held-footer {
   font-size: 0.75rem;
-  color: var(--color-muted, #888);
+  color: var(--ink-2);
   margin-top: 0.25rem;
   font-style: italic;
-}
-
-/* Diff toggle: held-over items shown muted, NOT blanked */
-body.tb-diff .tb-section .tb-news-item.is-held-over,
-body.tb-diff .tb-section .tb-kpi-row.is-held-over {
-  opacity: 0.5;
 }
 
 /* ─── HERO SECTION ─────────────────────────────────────── */
@@ -847,12 +934,35 @@ body.tb-diff .tb-section .tb-kpi-row.is-held-over {
   font-weight: 700;
 }
 
+/* ─── REDUCED MOTION ───────────────────────────────────── */
+/* No page anywhere checked prefers-reduced-motion. The pulse's own
+   `animation:` declaration is already gated (`no-preference` media query
+   above), but `html { scroll-behavior: smooth }` and every hover/state
+   `transition` in this file are not — this is the standard blanket kill
+   switch (used by most CSS frameworks) that collapses every animation and
+   transition to effectively-instant for anyone who asked for reduced
+   motion, without hand-auditing each `transition:` declaration one by one. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
 /* ─── RESPONSIVE ───────────────────────────────────────── */
 @media (max-width: 920px) {
   .tb-masthead-meta { flex-wrap: wrap; gap: 8px; }
   .tb-masthead-hero { padding: 24px 0; }
   .tb-wordmark-big { font-size: 72px; }
   .tb-todays-call { grid-template-columns: 1fr; gap: 12px; }
+  /* .tb-section.is-hero's base rule assumes the 32px desktop gutter
+     (margin: 0 -32px; padding-left/right: 32px), but .tb-body drops to a
+     20px gutter at this breakpoint (below) — the 12px-per-side mismatch is
+     exactly the 12px horizontal overflow measured at 375 (documentElement
+     scrollWidth 387 vs 375). Match the gutter here. */
+  .tb-section.is-hero { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
   .tb-masthead-foot { flex-direction: column; gap: 12px; align-items: flex-start; }
   .tb-stickybar-inner { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 20px; }
   .tb-stickybar .wordmark { display: none; }
@@ -889,13 +999,45 @@ body.tb-diff .tb-section .tb-kpi-row.is-held-over {
   .tb-statusbar { display: none; }
 }
 
+/* Phone tier — the 920px tablet tier still let masthead-meta's 3 children
+   (No./Vol, date+lens, live-status) share a row via `justify-content:
+   space-between`, which only inserts space when there's leftover width to
+   distribute; at 375 there wasn't any, so items abutted directly
+   ("NO. 204 / VOL. 01SAT · 22 AUG 2026", no gap). Stacking to one column
+   removes any dependency on leftover space and gives the lens pill its own
+   full-width row instead of fighting neighbours for room. */
+@media (max-width: 480px) {
+  .tb-masthead-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .tb-masthead-meta > div:nth-child(2) {
+    text-align: left;
+    flex: none;
+    width: 100%;
+  }
+  /* 2 columns of a 16-headline grid was still cramped at 375; single column
+     reads cleanly. */
+  .tb-news-rail.is-headlines { grid-template-columns: 1fr; }
+}
+
 /* ─── PRINT MODE ───────────────────────────────────────── */
+/* .tb-btn-cta and .tb-diff-toggle listed explicitly, not just via their
+   hidden ancestors (.tb-masthead-actions, .tb-secnav) — review round 1, H2:
+   getComputedStyle on a DESCENDANT of a display:none element still reports
+   that descendant's own specified display value, not "none", so a check
+   that reads .tb-btn-cta's own computed display directly needs .tb-btn-cta
+   itself in the hide list, not just its parent. */
 body.tb-print .tb-stickybar,
 body.tb-print .tb-secnav,
 body.tb-print .tb-cta,
 body.tb-print .tb-statusbar,
 body.tb-print .tb-skip,
-body.tb-print .tb-masthead-actions {
+body.tb-print .tb-masthead-actions,
+body.tb-print .tb-btn-cta,
+body.tb-print .tb-diff-toggle,
+body.tb-print .tb-live {
   display: none !important;
 }
 body.tb-print { background: white; }
@@ -916,7 +1058,20 @@ body.tb-print .tb-masthead-full { padding: 18px 0 14px; }
 body.tb-print .tb-wordmark-big { font-size: 64px; }
 
 @media print {
-  .tb-stickybar, .tb-secnav, .tb-cta, .tb-statusbar, .tb-skip, .tb-diff-toggle { display: none; }
+  /* This native browser-print rule (Cmd/Ctrl+P) is separate from the app's
+     own `?print=1` tb-print class mode above, and fires for anyone printing
+     the page directly — it named .tb-cta (the bottom subscribe section) but
+     not .tb-btn-cta (the masthead's small "Subscribe →" link) or .tb-live
+     (the page-load clock + pulse), so both printed into PDFs regardless of
+     which print path was used.
+     !important on .tb-live specifically (review round 1, H2): its own base
+     rules — .tb-masthead-meta .tb-live and .tb-stickybar .tb-live, both
+     two-class selectors — outrank this block's original bare `.tb-live`
+     one-class selector, so `display: inline-flex` was WINNING the cascade
+     over this rule's `display: none` regardless of source order. */
+  .tb-stickybar, .tb-secnav, .tb-cta, .tb-statusbar, .tb-skip, .tb-diff-toggle,
+  .tb-btn-cta { display: none; }
+  .tb-live { display: none !important; }
   .tb-section { page-break-inside: avoid; padding: 24px 0; }
   .tb-cover { padding: 24px 0; }
   body { background: white; color: black; }
@@ -936,10 +1091,15 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   align-items: center;
   gap: 0.25rem;
   padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  background: var(--color-surface-2, #f4f4f4);
+  /* Design.md: no corners > 2px. Was 999px (a true pill) — flattened; the
+     six 6x6px status DOTS elsewhere (pulse/tl/diff-toggle/changed/statusbar)
+     keep border-radius:999px on purpose, since a "dot" indicator has to be
+     round to read as a dot — that's a different shape language than a
+     rounded-rectangle pill. */
+  border-radius: 2px;
+  background: var(--color-surface-2);
   font-size: 0.75rem;
-  color: var(--color-muted, #666);
+  color: var(--color-muted);
   text-transform: lowercase;
   letter-spacing: 0.02em;
 }
@@ -957,7 +1117,7 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   padding: 56px 0 48px;
   margin-top: 12px;
   margin-bottom: 12px;
-  scroll-margin-top: 110px;
+  scroll-margin-top: var(--nav-offset, 110px);
   border-top: 1px solid var(--rule-soft);
   border-bottom: 1px solid var(--rule-soft);
   font-family: var(--mono);
@@ -1294,4 +1454,61 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
    (Kept from v1.1.0.) */
 .tb-longview + .tb-group {
   margin-top: 64px;
+}
+
+/* ─── ARCHIVE (app/archive) ────────────────────────────────────────
+   Newest-first list of published issues. Matches the section/news-rail
+   language — mono, hair rules, no shadows/radius/gradients. */
+.tb-archive-title {
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 200;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-top: 48px;
+}
+.tb-archive-sub {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.tb-archive-list {
+  list-style: none;
+  margin: 32px 0 64px;
+  border-top: 1px solid var(--rule);
+}
+.tb-archive-row {
+  border-bottom: 1px solid var(--rule-soft);
+}
+.tb-archive-row a {
+  display: grid;
+  grid-template-columns: 110px 180px 1fr;
+  gap: 24px;
+  align-items: baseline;
+  padding: 16px 0;
+}
+.tb-archive-row a:hover .tb-archive-call {
+  color: var(--ink);
+}
+.tb-archive-no {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.tb-archive-date {
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+}
+.tb-archive-call {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+@media (max-width: 640px) {
+  .tb-archive-row a {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 14px 0;
+  }
 }

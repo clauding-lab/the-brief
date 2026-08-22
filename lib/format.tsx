@@ -40,6 +40,34 @@ export function formatVintageDate(s?: string | null): string {
   });
 }
 
+/** "09:14 BDT · 22 Aug 2026" — the issue's real publish timestamp (from the
+ * payload's `published_at`, UTC ISO 8601), NOT the client's page-load clock.
+ * The masthead used to print only a "LIVE · HH:MM BDT" stamp that was in
+ * fact the moment the browser fetched the page — the issue's actual publish
+ * time appeared nowhere. Returns null so callers can omit the line cleanly
+ * when the field is absent (e.g. the static fallback). */
+export function formatPublishedAt(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const time = d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Dhaka",
+  });
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Dhaka",
+    })
+      .formatToParts(d)
+      .map((p) => [p.type, p.value])
+  );
+  return `${time} BDT · ${parts.day} ${parts.month} ${parts.year}`;
+}
+
 export function formatNewsMeta(n: NewsItem): string {
   const parts: string[] = [];
   if (n.published_at) {

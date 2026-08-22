@@ -59,7 +59,7 @@ export function LongViewBarChart({ block }: LongViewBarChartProps) {
           const fillClass = item.tone
             ? `tb-longview-bar-fill-${item.tone}`
             : "tb-longview-bar-fill-default";
-          const display = item.display ?? item.value.toLocaleString();
+          const display = item.display ?? item.value.toLocaleString("en-GB");
           return (
             <g key={i}>
               <text
