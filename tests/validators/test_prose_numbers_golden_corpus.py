@@ -53,8 +53,13 @@ ISSUE_NUMBERS = (199, 200, 201, 202, 203, 204)
 # specs, not invented. Cross-referenced against bb.py, fx.py, dse.py,
 # tbond.py, fiscal.py, macro.py, remit.py, banking.py at the time of this PR.
 _UNITS: dict[tuple[str, str], tuple[str, str]] = {
-    ("bb", "Overnight Call Money"): ("%", "event"),
-    ("bb", "Call Money · 7-day"): ("%", "event"),
+    # Call-money tenors are FAST DAILY prints with no standing value (bb.py's
+    # _money_market_metric sets cadence="daily", never "event") — only the
+    # policy corridor (repo/SDF/SLF) is a restamped standing rate. Reviewer
+    # round-2 item 8.
+    ("bb", "Overnight Call Money"): ("%", "daily"),
+    ("bb", "Call Money · 7-day"): ("%", "daily"),
+    ("bb", "Call Money · 14-day"): ("%", "daily"),
     ("bb", "Policy Rate"): ("%", "event"),
     ("bb", "SLF"): ("%", "event"),
     ("bb", "SDF"): ("%", "event"),

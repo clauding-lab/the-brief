@@ -18,11 +18,17 @@ metric's own headline `value` (where the "$2.82bn" falsehood actually
 lived). The reshape below is round 2's verdict, not a guess:
 
   BLOCK (raises `ProseNumberViolationError`, holds the publish) — ONLY
-  `check_count_claims`. Its corpus replay: 14 true positives (all the
-  fiscal "fourteen reads/prints" phrasing), 0 false positives, once the
-  noun list is narrowed to (reads|prints) — "days"/"sessions" contributed
-  zero true positives and real false positives ("...in 14 days" as a
-  plain duration statement, not a count-of-observations claim).
+  `check_count_claims`, and only as a TRIPWIRE on the common surface
+  forms, not an exhaustive ban: "for twelve reads" ("twelve" doesn't end
+  in "teen"/"ty") and "through fourteen reads" ("through" isn't in the
+  preposition list) both pass uncaught. Its corpus replay: 17 true
+  positives across 9 real issues (#184, #197-#204) — 16 in fiscal
+  sections across #197-#204, plus one in issue #184's
+  `fx.chart_read.context` ("held 122.85 for fourteen prints") — 0 false
+  positives, once the noun list is narrowed to (reads|prints) —
+  "days"/"sessions" contributed zero true positives and a real false
+  positive ("...in 14 days" as a plain duration statement, not a
+  count-of-observations claim).
 
   WARN (logged + Discord-alerted in ONE grouped message, never blocks) —
   everything else: `check_metric_sub_numbers`, `check_metric_sub_periods`,
@@ -388,8 +394,12 @@ def _is_machine_stamped_dual_period(raw_metric: dict[str, Any]) -> bool:
 # contributed ZERO true positives across the corpus and "days" produced a
 # real false positive ("BB hasn't published reserves in 14 days" — a plain
 # duration statement, not an invented observation count). With this narrower
-# noun list: 14 true positives, 0 false positives, all of them the fiscal
-# section's "fourteen reads/prints" phrasing.
+# noun list: 17 true positives across 9 issues (#184, #197-#204; 16 fiscal
+# section hits across #197-#204 plus one in issue #184's fx.chart_read.context,
+# "held 122.85 for fourteen prints"), 0 false positives. This is a TRIPWIRE
+# on the common surface forms, not an exhaustive ban — "for twelve reads"
+# ("twelve" doesn't end in "teen"/"ty") and "through fourteen reads"
+# ("through" isn't in the preposition alternation) both pass uncaught.
 _COUNT_CLAIM_RE = re.compile(
     r"(?:across|for|in)\s+(?:\w+teen|\w+ty|\d+)\s+(?:reads|prints)\b",
     re.IGNORECASE,
@@ -402,8 +412,11 @@ _COUNT_CLAIM_RE = re.compile(
 def check_count_claims(final_brief: Any) -> None:
     """Blocks any sourceless "across/for/in N reads/prints" claim anywhere in
     the brief's prose (audit #204's "fourteen reads"). The ONLY unconditional
-    BLOCK in this module — round-2 corpus replay: 14/14 true positives, 0
-    false positives across 25 real published issues."""
+    BLOCK in this module — a tripwire on the common surface forms (see
+    `_COUNT_CLAIM_RE`'s comment for the confirmed gaps), not an exhaustive
+    ban. Round-2 corpus replay: 17/17 true positives, 0 false positives
+    across 9 of 25 real published issues (the other 16 have no such
+    phrasing at all)."""
     from brief.pipeline_v6 import _collect_prose_fields  # lazy: pipeline_v6 imports this module
 
     for field_path, text in _collect_prose_fields(final_brief):

@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-22 — unreleased | PR #167 round 2: a publish-holding check shipped without corpus replay would have held 25/25 real mornings at 0.6% precision
+
+**Trigger:** an engineering review of PR #167 (the P2 post-editor number/period fact-checker) replayed its two BLOCK-mode checks — `check_metric_sub_numbers` and `check_metric_sub_periods` — against 25 real published issues (#180–#204) instead of trusting the synthetic unit-test fixtures that had already shipped green.
+
+**What went wrong:** the checks were designed, tested, and merge-ready entirely against hand-built fixtures that looked exactly like the failure modes they were meant to catch — and never once run against a real published issue before being wired to hold the daily publish. Against the real corpus: 25 of 25 issues would have held, 527 BLOCK hits, only 3 true positives (0.6% precision). Worse, the review's real audit findings weren't even where the check was looking — 3 of the 5 known #204 falsehoods (including the headline "$2.82bn" figure) lived in a metric's own published `value`, and the check only ever read `sub`. A check that is precise against fixtures it was designed to pass is not evidence it is precise against the data it will actually run on.
+
+**Lesson:** a check that can hold the daily publish must be corpus-replayed against real historical output before it ships as BLOCK, not just unit-tested against fixtures written to match its own design. Synthetic fixtures prove a check catches what its author imagined; only real data proves it catches what actually happens — and reveals what it's looking at the wrong field for.
+
+**Prevention:** golden-corpus regression tests (`tests/validators/test_prose_numbers_golden_corpus.py`, `tests/fixtures/real_issues/*.json` — real anon-fetched published rows, not synthetic) now sit alongside the unit tests. Severity is staged, not asserted: only a corpus-verified near-zero-false-positive surface (`check_count_claims`, 17 true positives / 0 false positives across 9 of the 25 real issues) is allowed to BLOCK; everything else is WARN-only until production log volume earns the same confidence, gated behind `BRIEF_PROSE_VALIDATOR_STRICT=1` as an explicit, documented future promotion — never silently upgraded.
+
+**Hotfix:** PR #167's round-2 reshape — `check_metric_sub_numbers`/`check_metric_sub_periods` demoted to WARN (batched into ONE Discord alert per publish, grouped by section, not one message per warning); a new `check_metric_value_vs_raw` added specifically to read the field (`value`) the original design missed; count-claim noun list narrowed from `(reads|prints|sessions|days)` to `(reads|prints)` after "days"/"sessions" contributed zero true positives and a real false positive ("BB hasn't published reserves in 14 days").
+
+**Cross-references:** AGENTS.md landmine 34, `tests/validators/test_prose_numbers_golden_corpus.py`, the 2026-08-22 audit #204 entry below (the original incident this fact-checker was built to prevent a recurrence of).
+
 ## 2026-08-22 — unreleased | Audit #204: the front page was printing false numbers — flash data presented as final, mismatched-vintage derivations, and an editor free to invent figures
 
 **Trigger:** a two-pass audit of issue #204 found the front page's remittance card citing a frozen mid-month provisional figure as if it were BB's official number ($2.82bn vs the real $2.86bn), a trade gap and an import-cover ratio each silently combining two different reporting months into one number, a "real policy rate" that mixed a post-rate-cut reading with a pre-cut inflation print, a stale-data footer that blamed Bangladesh Bank for "overdue" data when the pipeline only knew its own copy was old, and — separately — the AI editor inventing a "$80 FY27 crude" budget-assumption motif with no basis anywhere in Bangladesh's actual budget documents.
