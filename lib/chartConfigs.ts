@@ -207,7 +207,7 @@ function baseLineOptions(opts: BaseLineOptionsArgs = {}) {
             if (v == null) return label ? label + ": —" : "—";
             const fmt = yTickCallback
               ? yTickCallback(v)
-              : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+              : Number(v).toLocaleString("en-GB", { maximumFractionDigits: 2 });
             return label ? label + ": " + fmt : String(fmt);
           },
         },
@@ -351,7 +351,7 @@ function makeEventMarkersPlugin(
           ctx.font = `10px ${FONT.family}`;
           ctx.fillStyle = e.color;
           const dateStr = new Date(e.date)
-            .toLocaleDateString("en-US", { year: "numeric", month: "short" })
+            .toLocaleDateString("en-GB", { year: "numeric", month: "short" })
             .toUpperCase();
           const dateW = ctx.measureText(dateStr).width;
           let dateX = xPx - dateW / 2;
@@ -544,11 +544,18 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
   const netStale = isStale(EXP) || isStale(IMP) || isStale(REM);
 
+  // Fill (backgroundColor) stays at the constant soft() alpha regardless of
+  // staleness — review round 2, MEDIUM: STALE_ALPHA (35%) is higher than
+  // AREA_ALPHA (18%), so using dimColor() on the FILL made a stale band
+  // render ~2x more opaque/bolder than a fresh one, the opposite of "dim."
+  // Only the border dims (soft ink -> dimColor's lower-contrast tint), which
+  // is the correct direction: a stale line reads as fainter, not as a
+  // bolder-filled area.
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "Exports",
       data: exp,
-      backgroundColor: isStale(EXP) ? dimColor(palette.bull) : soft(palette.bull),
+      backgroundColor: soft(palette.bull),
       borderColor: isStale(EXP) ? dimColor(palette.bull) : palette.bull,
       borderWidth: 0.8,
       fill: "origin",
@@ -558,7 +565,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Remittance",
       data: inflowTop,
-      backgroundColor: isStale(REM) ? dimColor(palette.ink2) : soft(palette.ink2),
+      backgroundColor: soft(palette.ink2),
       borderColor: isStale(REM) ? dimColor(palette.ink2) : palette.ink2,
       borderWidth: 0.8,
       fill: "-1",
@@ -568,7 +575,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     {
       label: "Imports",
       data: impNeg,
-      backgroundColor: isStale(IMP) ? dimColor(palette.bear) : soft(palette.bear),
+      backgroundColor: soft(palette.bear),
       borderColor: isStale(IMP) ? dimColor(palette.bear) : palette.bear,
       borderWidth: 0.8,
       fill: "origin",
@@ -1086,7 +1093,7 @@ function remitFlowConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 
   const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: false,
-    yTicks: { callback: (v: number) => Number(v).toLocaleString() },
+    yTicks: { callback: (v: number) => Number(v).toLocaleString("en-GB") },
   });
 
   return {
@@ -1140,7 +1147,7 @@ function fiscalNbrConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 
   const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: false,
-    yTicks: { callback: (v: number) => Number(v).toLocaleString() },
+    yTicks: { callback: (v: number) => Number(v).toLocaleString("en-GB") },
   });
 
   return {
