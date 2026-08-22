@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback, Fragment } from "react";
+import Link from "next/link";
 import type { BriefPayload, SectionGroup } from "@/types/brief";
 import { getBrowserSupabase } from "@/lib/supabase";
+import { SECTION_TO_CHART } from "@/lib/chartConfigs";
+import { useNavOffset } from "@/lib/useNavOffset";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 import { Masthead } from "./Masthead";
 import { StickyBar } from "./StickyBar";
 import { SnapshotStrip } from "./SnapshotStrip";
@@ -33,8 +37,16 @@ const GROUP_LABELS: Record<SectionGroup, string> = {
 };
 
 type ClientAppProps =
-  | { initialData: BriefPayload; brief?: never; sections?: never; preview?: never }
-  | { brief: BriefPayload["brief"]; sections: BriefPayload["sections"]; initialData?: never; preview?: boolean };
+  | { initialData: BriefPayload; brief?: never; sections?: never; preview?: never; historical?: never }
+  | {
+      brief: BriefPayload["brief"];
+      sections: BriefPayload["sections"];
+      initialData?: never;
+      preview?: boolean;
+      /** A fixed past issue (e.g. /issue/[no]) — skip the live refetch-on-mount
+       * so a permalink doesn't silently swap itself for today's latest brief. */
+      historical?: boolean;
+    };
 
 export function ClientApp(props: ClientAppProps) {
   const initialData: BriefPayload =
@@ -42,6 +54,7 @@ export function ClientApp(props: ClientAppProps) {
       ? props.initialData
       : { brief: props.brief!, sections: props.sections!, _source: "static" };
   const preview = ("preview" in props && props.preview) ?? false;
+  const historical = ("historical" in props && props.historical) ?? false;
 
   const [data, setData] = useState<BriefPayload>(initialData);
   const [active, setActive] = useState<string>(() => {
@@ -51,6 +64,8 @@ export function ClientApp(props: ClientAppProps) {
   const [stickyVisible, setStickyVisible] = useState(false);
   const [diffMode, setDiffMode] = useState<boolean>(false);
   const [printMode, setPrintMode] = useState<boolean>(false);
+  const navOffset = useNavOffset();
+  const reducedMotion = useReducedMotion();
 
   // Read localStorage diff + URL print=1 after mount (avoid SSR hydration mismatch).
   // Reading client-only state (localStorage) post-mount and syncing it into React
@@ -91,7 +106,7 @@ export function ClientApp(props: ClientAppProps) {
   // to get the freshest state and to write the localStorage cache for next visit.
   // Skipped in preview mode: the fixture payload is the source of truth there.
   useEffect(() => {
-    if (preview) return;
+    if (preview || historical) return;
     let cancelled = false;
     (async () => {
       try {
@@ -115,7 +130,7 @@ export function ClientApp(props: ClientAppProps) {
     return () => {
       cancelled = true;
     };
-  }, [preview]);
+  }, [preview, historical]);
 
   // Hash sync
   useEffect(() => {
@@ -127,7 +142,11 @@ export function ClientApp(props: ClientAppProps) {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // Scroll-spy via IntersectionObserver
+  // Scroll-spy via IntersectionObserver. rootMargin's top offset must match
+  // .tb-section/.tb-longview's scroll-margin-top (both driven by
+  // --nav-offset — review round 1, H1): SecNav can wrap to 2-3 rows at wide
+  // viewports, so a hardcoded "-110px" landed sections under the nav by a
+  // variable amount depending on how many rows it wrapped to.
   useEffect(() => {
     const ids = data.sections.map((s) => s.slug).concat(["snapshot"]);
     const obs = new IntersectionObserver(
@@ -140,14 +159,14 @@ export function ClientApp(props: ClientAppProps) {
           if (id) setActive(id);
         }
       },
-      { rootMargin: "-110px 0px -60% 0px", threshold: 0 }
+      { rootMargin: `-${Math.round(navOffset)}px 0px -60% 0px`, threshold: 0 }
     );
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (el) obs.observe(el);
     });
     return () => obs.disconnect();
-  }, [data]);
+  }, [data, navOffset]);
 
   // Sticky bar appears after the masthead scrolls out
   useEffect(() => {
@@ -163,16 +182,24 @@ export function ClientApp(props: ClientAppProps) {
     return () => obs.disconnect();
   }, [data]);
 
-  const jump = useCallback((slug: string) => {
-    setActive(slug);
-    if (typeof history !== "undefined" && history.replaceState) {
-      history.replaceState(null, "", `#${slug}`);
-    } else {
-      window.location.hash = slug;
-    }
-    const el = document.getElementById(slug);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  const jump = useCallback(
+    (slug: string) => {
+      setActive(slug);
+      if (typeof history !== "undefined" && history.replaceState) {
+        history.replaceState(null, "", `#${slug}`);
+      } else {
+        window.location.hash = slug;
+      }
+      const el = document.getElementById(slug);
+      // A CSS prefers-reduced-motion switch can't stop this call — Element.
+      // scrollIntoView({behavior:"smooth"}) animates regardless of the CSS
+      // scroll-behavior property once a caller passes its own explicit
+      // `behavior` (review round 1, H3; measured an 11,028px animated
+      // scroll with reduced motion requested).
+      if (el) el.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    },
+    [reducedMotion]
+  );
 
   const snapshotSection = data.sections.find((s) => s.slug === "snapshot");
   const bodySections = data.sections.filter(
@@ -190,6 +217,19 @@ export function ClientApp(props: ClientAppProps) {
   const displayOrdBySlug = new Map<string, number>(
     flatRenderOrder.map((s, i) => [s.slug, i + 1])
   );
+
+  // Sequential FIG numbers (1, 2, …) for charted sections only, in the SAME
+  // reading order as displayOrdBySlug — replaces CHART_CARD_HEADS' old
+  // chart-addition-order numbering (fx=01…bb=08), which printed out of
+  // order and skipped FIG.04 once the comm section was retired.
+  const chartOrdBySlug = new Map<string, number>();
+  let chartCounter = 0;
+  for (const s of flatRenderOrder) {
+    if (SECTION_TO_CHART[s.slug] && s.series && s.series.length > 1) {
+      chartCounter += 1;
+      chartOrdBySlug.set(s.slug, chartCounter);
+    }
+  }
 
   return (
     <div className="tb-shell">
@@ -223,10 +263,16 @@ export function ClientApp(props: ClientAppProps) {
       </a>
       <StickyBar brief={data.brief} source={data._source} visible={stickyVisible} />
       <main id="content" className="tb-body">
-        <Masthead brief={data.brief} source={data._source} fetchedAt={data._fetchedAt} />
+        <Masthead
+          brief={data.brief}
+          source={data._source}
+          fetchedAt={data._fetchedAt}
+          sectionCount={flatRenderOrder.length}
+          historical={historical}
+        />
         <SnapshotStrip section={snapshotSection} />
         <SecNav
-          sections={data.sections}
+          sections={flatRenderOrder}
           activeSlug={active}
           onJump={jump}
           diffMode={diffMode}
@@ -247,6 +293,8 @@ export function ClientApp(props: ClientAppProps) {
                   section={s}
                   diffMode={diffMode}
                   displayOrd={displayOrdBySlug.get(s.slug)}
+                  chartOrd={chartOrdBySlug.get(s.slug)}
+                  issueDate={data.brief?.brief_date}
                 />
               ))}
             </div>
@@ -269,6 +317,9 @@ export function ClientApp(props: ClientAppProps) {
           {data.brief?.issue_no}
         </div>
         <div>Curated daily · Read time {data.brief?.read_minutes ?? 15} min</div>
+        <div>
+          <Link href="/archive">Archive →</Link>
+        </div>
       </footer>
 
       <StatusBar source={data._source} fetchedAt={data._fetchedAt} />

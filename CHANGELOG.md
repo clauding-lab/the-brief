@@ -8,9 +8,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+No version bump yet — the orchestrator cuts one release after every PR from the 2026-08-22 audit (issue #204) lands.
+
 ### Fixed
 - Front page and subscriber emails were printing false or fabricated numbers (2026-08-22 audit #204). Remittance and exports cards read a daily "flash" figure instead of the official monthly final; the trade gap and import cover silently mixed figures from different reporting months; the "real policy rate" paired a post-rate-cut repo reading with a pre-cut inflation print; a stale-data footer said a number was "overdue," implying Bangladesh Bank hadn't published when the pipeline only knew its own copy was old; the AI editor could copy exact figures forward from yesterday's brief verbatim, and had separately invented a "$80 FY27 crude" budget assumption with no basis in Bangladesh's actual budget; the subscribe box claimed a fabricated reader count and a one-click unsubscribe that doesn't exist; the unsubscribe email pointed at a different mailbox than the one it was actually sent from, and logged full subscriber addresses on send failure.
 - Review round 1 fixes to the above (same audit): the hallucination denylist is now scoped to prose only and requires FY27/$80/crude/budget context before flagging "$14.09" — the original version would have held every publish for up to a year on a chart value that happened to end in those digits. Import cover's freshness gate widened from >1 month to >4 months to match how Bangladesh Bank's own methodology mixes a near-current reserves reading against a lagged monthly import figure — production's real 4-month gap was being wrongly suppressed, which flipped an honestly "stale" macro badge into a false "history is accumulating" one. Unsubscribe now uses a dedicated, verified-deliverable address, separate from the technical sending address; the Brevo List-Unsubscribe header ships feature-flagged OFF pending a controlled real-send test.
+- Every chart's "LATEST PLOTTED" strip now names the plotted point's own period (e.g. "· Jul 2026") instead of implying it agrees with a neighboring tile of a possibly different vintage; it's still bound to the section's own series, never `metrics[0]`.
+- Per-series staleness: a multi-series chart (e.g. §fx's exports/imports/remittance) now dims and names only the specific dataset that's gone stale, instead of a single worst-of flag dimming the whole canvas.
+- Staleness ages are computed against a cadence-normalized period end, not the raw stamp — some monthly rows are stamped on the 1st of the month, others on the last day, and the former was reading ~30 days older than the same reporting period stamped the other way.
+- SecNav's scroll offset (`scroll-margin-top`, scroll-spy `rootMargin`) is now measured live from the nav's actual rendered height instead of a hardcoded 110px — the nav can wrap to 2-3 rows at wide viewports since its DOM order fix, which had been landing sections 18-65px under it.
+- Print (both the app's `?print=1` mode and the browser's native print) now reliably hides the masthead's small "Subscribe →" link, the diff toggle, and the live-status clock.
+- `prefers-reduced-motion: reduce` now also disables the three JS-driven `scrollIntoView({behavior:"smooth"})` calls and Chart.js's own draw animation — a CSS-only switch can't reach either.
+- Number/date formatting pinned to `en-GB` throughout `lib/chartMeta.ts` — an unpinned locale could render Bengali digits for a reader with `bn-BD` set, and mismatch between server and client render.
+- Archive/permalink reads (`lib/fetchBriefByIssue.ts`) now select explicit columns instead of `select("*")`, and treat a same-day-republish race (a `briefs` row with zero `sections` yet — landmine 33) as "not found" instead of rendering an empty issue.
+- `/issue/0204` redirects to the canonical `/issue/204`.
+- Today's Call masthead tag reads "10 sections", not "+10 sections", now that the count is real (was a hardcoded "+15").
+- Held-over metric rows: only the label/value dim; the "As of …" vintage stamp stays full-contrast, since it's the one thing in a muted row a reader most needs to actually read.
+- `robots.txt` no longer disallows `/preview` — a disallowed URL can't be crawled, which means a crawler never sees the page's own `noindex` meta tag; the meta tag alone reliably keeps it out of search results.
+
+### Note for Adnan
+Most of the archive's 116 issues are expected to show at least one "SERIES ENDS …" mark on a chart once this ships (a handful of source series — imports, NBR revenue, CPI — have been frozen for months, so most issues published after they froze inherit the mark on their own permalink page too). This is the intended, honest behavior for historical pages, not a bug: an old issue's chart data really was that old at the time. Flag if you'd rather archived issues suppress staleness marks entirely.
 
 ---
 

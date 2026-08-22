@@ -1,11 +1,20 @@
 import { notFound } from "next/navigation";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { Metadata } from "next";
 
 import { ClientApp } from "@/app/components/ClientApp";
 import type { BriefPayload } from "@/types/brief";
 
 export const dynamic = "force-dynamic";
+
+// /preview always renders fixture data, never a real issue — robots.txt
+// disallows the path too, but a stale preview link (e.g. the 27-May
+// dry-run fixture) sitting indexable with a live-looking "PREVIEW MODE"
+// banner is worth a belt-and-braces noindex meta tag as well.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 interface PageProps {
   searchParams: Promise<{ fixture?: string }>;

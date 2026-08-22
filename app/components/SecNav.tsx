@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef } from "react";
 import type { Section } from "@/types/brief";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 
 interface SecNavProps {
   sections: Section[];
@@ -21,13 +22,20 @@ export function SecNav({
   displayOrdBySlug,
 }: SecNavProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const el = ref.current?.querySelector<HTMLElement>(`[data-slug="${activeSlug}"]`);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      // See ClientApp.tsx's `jump` for why this reads reducedMotion directly
+      // instead of relying on the CSS scroll-behavior switch (H3).
+      el.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        inline: "center",
+        block: "nearest",
+      });
     }
-  }, [activeSlug]);
+  }, [activeSlug, reducedMotion]);
 
   return (
     <nav className="tb-secnav" aria-label="Sections">
