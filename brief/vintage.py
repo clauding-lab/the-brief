@@ -110,9 +110,14 @@ def _note(label: str, age_days: int, cadence: str, freshness: str) -> str:
         )
     plural = "day" if age_days == 1 else "days"
     if freshness == "stale":
+        # P0 honesty fix (2026-08-22 audit #204): "overdue" accused the SOURCE
+        # (e.g. Bangladesh Bank) of not publishing, when all the pipeline
+        # actually knows is that ITS OWN read is old — BB may well have
+        # published five times since. State the fact (our read's age), not an
+        # inference about the source's behaviour.
         return (
-            f"{label} print, {age_days} {plural} old — overdue; name the period "
-            "in any sentence that uses this number"
+            f"{label} print — our latest read, {age_days}d old; name the "
+            "period in any sentence that uses this number"
         )
     return f"{label} print, {age_days} {plural} old — name the period if you pair it with a current number"
 
