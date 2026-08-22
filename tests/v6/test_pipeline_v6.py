@@ -394,12 +394,55 @@ def test_deterministic_gate_hard_fails_on_80_dollar_fy27_reverse_order() -> None
         _run_deterministic_gate(brief)
 
 
-def test_deterministic_gate_hard_fails_on_1409() -> None:
-    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+def test_deterministic_gate_1409_alone_passes() -> None:
+    """Review round 1 (C1, BLOCKER): the original bare '$14.09' pattern would
+    have blocked this legitimate desk line forever — there is nothing
+    hallucinatory about Brent settling at $14.09. It now needs FY27/$80/
+    crude/budget CONTEXT in the same field to mean anything."""
+    from brief.pipeline_v6 import _run_deterministic_gate
 
     brief = _brief_with_todays_call("Brent settled at $14.09 on thin volume.")
+    assert _run_deterministic_gate(brief) == 0
+
+
+def test_deterministic_gate_hard_fails_on_1409_with_fy27_context() -> None:
+    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+
+    brief = _brief_with_todays_call("$14.09 above the $80 FY27 line.")
     with pytest.raises(DenylistViolationError):
         _run_deterministic_gate(brief)
+
+
+def test_deterministic_gate_hard_fails_on_1409_with_budget_context() -> None:
+    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+
+    brief = _brief_with_todays_call("The line item sits $14.09 over the budget assumption.")
+    with pytest.raises(DenylistViolationError):
+        _run_deterministic_gate(brief)
+
+
+def test_deterministic_gate_scans_prose_only_a_chart_series_value_of_5114_09_passes() -> None:
+    """C1 BLOCKER, real reviewer reproduction: scanning the FULL serialized
+    brief matched a chart data point whose JSON happens to end in '14.09'
+    (e.g. DSEX closing at 5114.09) with zero relation to the FY27
+    hallucination — that would have held the publish for as long as the
+    point stayed in the trailing window. `series`/`spark`/`movers`/
+    `metric.value` are never scanned."""
+    from brief.pipeline_v6 import _run_deterministic_gate
+
+    brief = BriefPayloadV6.model_validate({
+        "brief": {
+            "issue_no": 89, "volume": 1, "brief_date": "2026-05-05",
+            "todays_call": "A quiet session across the board.",
+        },
+        "sections": [{
+            "slug": "dse", "ord": 6, "title": "DSE", "group_key": "markets",
+            "weight": 1,
+            "series": [{"key": "dsex", "ts": "2026-05-05", "value": 5114.09}],
+            "metrics": [{"label": "DSEX", "value": "5,114.09"}],
+        }],
+    })
+    assert _run_deterministic_gate(brief) == 0
 
 
 def test_deterministic_gate_denylist_is_case_insensitive() -> None:
