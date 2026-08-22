@@ -24,6 +24,12 @@ import type {
   SeriesPoint,
 } from "@/types/brief";
 
+// Explicit columns, not select("*") (review round 1, MED-7): "*" silently
+// widens to whatever the table gains next — an explicit list means a new
+// column shows up as a deliberate change to this file, not a surprise.
+const BRIEF_SELECT =
+  "id,issue_no,volume,brief_date,read_minutes,cover_metric,published_at,status,todays_call,lens,frame";
+
 const SECTION_SELECT =
   "slug,ord,title,group_key,freshness,verdict,verdict_tone,banker_read,weight,tldr," +
   "summary_pills,analysis,chart_read,movers," +
@@ -138,14 +144,25 @@ function client() {
   });
 }
 
-/** A single published issue by issue_no, or null if it doesn't exist / isn't published. */
+// RLS posture (review round 1, MED-7 — recorded, not changed here): no
+// migration under migrations/ defines a Row Level Security policy for
+// `briefs` or `sections`. Draft-hiding for permalinks/archive rests
+// ENTIRELY on the two `.eq("status", "published")` filters below being
+// present and correct — there is no database-side backstop. Removing
+// either filter would serve an in-progress draft (or, per landmine 33, a
+// row mid-republish-swap) to an anon reader. The regression test in
+// fetchBriefByIssue.test.ts pins that this function always sends that
+// filter; it can't verify the database enforces anything, because it
+// doesn't.
+/** A single published issue by issue_no, or null if it doesn't exist, isn't
+ * published, or (landmine 33) is mid-republish-swap with no sections yet. */
 export async function fetchBriefByIssueNo(issueNo: number): Promise<BriefPayload | null> {
   const sb = client();
   if (!sb) return null;
 
   const { data: briefs, error: briefErr } = await sb
     .from("briefs")
-    .select("*")
+    .select(BRIEF_SELECT)
     .eq("issue_no", issueNo)
     .eq("status", "published")
     .limit(1);
@@ -159,7 +176,14 @@ export async function fetchBriefByIssueNo(issueNo: number): Promise<BriefPayload
     .order("ord", { ascending: true });
   if (sectionErr) return null;
 
-  const sections = ((sectionRows ?? []) as unknown as RawSectionRow[]).map(toSection);
+  // A same-day republish DELETEs this issue_no's rows and re-INSERTs under
+  // the same number (AGENTS.md landmine 33) — a request landing in that
+  // narrow window would see the `briefs` row but zero sections yet. Treat
+  // that as "not found" rather than rendering a brief with no content; a
+  // retry a moment later sees the completed republish.
+  if (!sectionRows || sectionRows.length === 0) return null;
+
+  const sections = (sectionRows as unknown as RawSectionRow[]).map(toSection);
   return { brief, sections };
 }
 

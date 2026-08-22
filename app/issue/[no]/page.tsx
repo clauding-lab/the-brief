@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ClientApp } from "@/app/components/ClientApp";
 import { fetchBriefByIssueNo } from "@/lib/fetchBriefByIssue";
@@ -36,6 +36,12 @@ export default async function IssuePage({ params }: PageProps) {
   const { no } = await params;
   const issueNo = parseIssueNo(no);
   if (issueNo === null) notFound();
+
+  // Canonicalize leading zeros (review round 1, LOW): /issue/0204 and
+  // /issue/204 are the same issue, but two URLs for it split link equity
+  // and let an indexer treat them as duplicate content.
+  const canonical = String(issueNo);
+  if (no !== canonical) redirect(`/issue/${canonical}`);
 
   const payload = await fetchBriefByIssueNo(issueNo);
   if (!payload) notFound();
