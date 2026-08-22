@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- Front page and subscriber emails were printing false or fabricated numbers (2026-08-22 audit #204). Remittance and exports cards read a daily "flash" figure instead of the official monthly final; the trade gap and import cover silently mixed figures from different reporting months; the "real policy rate" paired a post-rate-cut repo reading with a pre-cut inflation print; a stale-data footer said a number was "overdue," implying Bangladesh Bank hadn't published when the pipeline only knew its own copy was old; the AI editor could copy exact figures forward from yesterday's brief verbatim, and had separately invented a "$80 FY27 crude" budget assumption with no basis in Bangladesh's actual budget; the subscribe box claimed a fabricated reader count and a one-click unsubscribe that doesn't exist; the unsubscribe email pointed at a different mailbox than the one it was actually sent from, and logged full subscriber addresses on send failure.
+- Review round 1 fixes to the above (same audit): the hallucination denylist is now scoped to prose only and requires FY27/$80/crude/budget context before flagging "$14.09" — the original version would have held every publish for up to a year on a chart value that happened to end in those digits. Import cover's freshness gate widened from >1 month to >4 months to match how Bangladesh Bank's own methodology mixes a near-current reserves reading against a lagged monthly import figure — production's real 4-month gap was being wrongly suppressed, which flipped an honestly "stale" macro badge into a false "history is accumulating" one. Unsubscribe now uses a dedicated, verified-deliverable address, separate from the technical sending address; the Brevo List-Unsubscribe header ships feature-flagged OFF pending a controlled real-send test.
+
+---
+
 ## [2.0.2] — 2026-08-11
 
 ### Removed
