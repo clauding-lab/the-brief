@@ -405,6 +405,40 @@ def test_deterministic_gate_1409_alone_passes() -> None:
     assert _run_deterministic_gate(brief) == 0
 
 
+# H-A, review round 2: the bare (no-lookaround) "$?14\.09" pattern matched
+# "14.09" as a SUBSTRING of a larger real number. Each of these four is a
+# genuine banker-grade figure with nothing to do with the FY27 hallucination
+# and must pass even with no context requirement — the fix is in the regex
+# itself (bounded on both sides), not just the co-occurrence gate above.
+
+def test_deterministic_gate_passes_tk_1214_09():
+    from brief.pipeline_v6 import _run_deterministic_gate
+
+    brief = _brief_with_todays_call("NBR collections reached Tk1,214.09 crore in July.")
+    assert _run_deterministic_gate(brief) == 0
+
+
+def test_deterministic_gate_passes_314_09bn():
+    from brief.pipeline_v6 import _run_deterministic_gate
+
+    brief = _brief_with_todays_call("Gross reserves stand at $314.09bn equivalent.")
+    assert _run_deterministic_gate(brief) == 0
+
+
+def test_deterministic_gate_passes_3914_09():
+    from brief.pipeline_v6 import _run_deterministic_gate
+
+    brief = _brief_with_todays_call("The index closed at 3,914.09, up on the session.")
+    assert _run_deterministic_gate(brief) == 0
+
+
+def test_deterministic_gate_passes_4014_09():
+    from brief.pipeline_v6 import _run_deterministic_gate
+
+    brief = _brief_with_todays_call("Turnover hit 4,014.09 crore taka on the DSE.")
+    assert _run_deterministic_gate(brief) == 0
+
+
 def test_deterministic_gate_hard_fails_on_1409_with_fy27_context() -> None:
     from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
 
@@ -445,6 +479,47 @@ def test_deterministic_gate_scans_prose_only_a_chart_series_value_of_5114_09_pas
     assert _run_deterministic_gate(brief) == 0
 
 
+def test_deterministic_gate_scans_chart_note_detail_which_is_free_prose() -> None:
+    """L-C, review round 2: `notes[].detail` is free-text the editor writes
+    (a chart annotation's explanation) — the same kind of surface as
+    `todays_call`, and was originally lumped in with the numeric exclusions
+    by mistake."""
+    from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
+
+    brief = BriefPayloadV6.model_validate({
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-05-05"},
+        "sections": [{
+            "slug": "dse", "ord": 6, "title": "DSE", "group_key": "markets",
+            "weight": 1,
+            "notes": [{
+                "series_key": "dsex", "ts": "2026-05-05", "label": "Peak",
+                "detail": "The FY27 budget assumes crude at $80 a barrel.",
+            }],
+        }],
+    })
+    with pytest.raises(DenylistViolationError):
+        _run_deterministic_gate(brief)
+
+
+def test_deterministic_gate_does_not_scan_note_label_or_series_key() -> None:
+    """The short structural fields on a chart note (`label`, `series_key`,
+    `ts`) stay unscanned — only `detail` is prose."""
+    from brief.pipeline_v6 import _run_deterministic_gate
+
+    brief = BriefPayloadV6.model_validate({
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-05-05"},
+        "sections": [{
+            "slug": "dse", "ord": 6, "title": "DSE", "group_key": "markets",
+            "weight": 1,
+            "notes": [{
+                "series_key": "$80 FY27", "ts": "2026-05-05",
+                "label": "$80 FY27 crude",
+            }],
+        }],
+    })
+    assert _run_deterministic_gate(brief) == 0
+
+
 def test_deterministic_gate_denylist_is_case_insensitive() -> None:
     from brief.pipeline_v6 import DenylistViolationError, _run_deterministic_gate
 
@@ -471,6 +546,86 @@ def test_run_publish_holds_when_editor_output_hits_the_hard_denylist(
             run_publish([], today=date(2026, 5, 5), scraped_headlines=[])
 
     mock_pub.assert_not_called()
+
+
+# ── M-A, review round 2: _stamp_import_cover_sub — MetricV6 has no `source`
+# field, so the dual-period note the builder computes must be forced into
+# `sub` deterministically, not left to the editor to transcribe. ────────────
+
+def _macro_raw_sections_with_import_cover(source: str | None, value: float | None = 6.25) -> list[dict]:
+    return [{
+        "slug": "macro",
+        "metrics": [{"label": "Import Cover", "value": value, "source": source}],
+    }]
+
+
+def _macro_brief_with_import_cover_sub(sub: str | None) -> BriefPayloadV6:
+    return BriefPayloadV6.model_validate({
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-05-05"},
+        "sections": [{
+            "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+            "weight": 1,
+            "metrics": [{"label": "Import Cover", "value": "6.25", "sub": sub}],
+        }],
+    })
+
+
+def test_stamp_import_cover_sub_appends_the_note_when_the_editor_dropped_it() -> None:
+    from brief.pipeline_v6 import _stamp_import_cover_sub
+
+    raw = _macro_raw_sections_with_import_cover("BB (reserves 31 Jul ÷ Mar import bill)")
+    brief = _macro_brief_with_import_cover_sub(None)
+
+    _stamp_import_cover_sub(brief, raw)
+
+    metric = brief.sections[0].metrics[0]
+    assert metric.sub == "reserves 31 Jul ÷ Mar import bill"
+
+
+def test_stamp_import_cover_sub_appends_to_existing_editor_prose_not_replaces_it() -> None:
+    from brief.pipeline_v6 import _stamp_import_cover_sub
+
+    raw = _macro_raw_sections_with_import_cover("BB (reserves 31 Jul ÷ Mar import bill)")
+    brief = _macro_brief_with_import_cover_sub("Comfortable against short-term needs.")
+
+    _stamp_import_cover_sub(brief, raw)
+
+    metric = brief.sections[0].metrics[0]
+    assert metric.sub == "Comfortable against short-term needs. · reserves 31 Jul ÷ Mar import bill"
+
+
+def test_stamp_import_cover_sub_is_a_noop_when_already_present() -> None:
+    """Never double-appends on a re-run."""
+    from brief.pipeline_v6 import _stamp_import_cover_sub
+
+    raw = _macro_raw_sections_with_import_cover("BB (reserves 31 Jul ÷ Mar import bill)")
+    already = "reserves 31 Jul ÷ Mar import bill"
+    brief = _macro_brief_with_import_cover_sub(already)
+
+    _stamp_import_cover_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == already
+
+
+def test_stamp_import_cover_sub_is_a_noop_when_the_metric_is_suppressed() -> None:
+    """The raw builder metric has value=None (H1's 4-month gate suppressed
+    it) — there is no dual-period fact to stamp."""
+    from brief.pipeline_v6 import _stamp_import_cover_sub
+
+    raw = _macro_raw_sections_with_import_cover("BB", value=None)
+    brief = _macro_brief_with_import_cover_sub(None)
+
+    _stamp_import_cover_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub is None
+
+
+def test_stamp_import_cover_sub_is_a_noop_when_no_macro_section_in_raw() -> None:
+    from brief.pipeline_v6 import _stamp_import_cover_sub
+
+    brief = _macro_brief_with_import_cover_sub(None)
+    _stamp_import_cover_sub(brief, [])
+    assert brief.sections[0].metrics[0].sub is None
 
 
 def test_section_adapter_renames_iranwar_to_iran() -> None:

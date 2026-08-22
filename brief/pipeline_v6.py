@@ -721,6 +721,64 @@ def _reconcile_metrics(
     _verify_protected_presence(final_brief, raw_by_slug)
 
 
+# M-A, review round 2 (2026-08-22 audit #204): the marker substring the
+# builder's dual-period note and the published `sub` field are both checked
+# against, so a re-run never double-appends.
+_IMPORT_COVER_SUB_MARKER = "import bill"
+
+
+def _stamp_import_cover_sub(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]
+) -> None:
+    """Force the published Import Cover metric's `sub` to name both periods
+    the ratio combines (M-A, review round 2, 2026-08-22 audit #204).
+
+    `MetricV6` has no `source` field: the builder's dual-period note (set on
+    the RAW metric's `source` by `macro._import_cover`, H1 review round 1)
+    is dropped the moment the editor's output is validated against the V6
+    schema — `_Lenient.model_config` is `extra="ignore"`, so an editor that
+    faithfully copied `source` through would still lose it, and one that
+    didn't never had a chance either way. `sub` is the only free-text field
+    `MetricV6` actually carries to the reader. This pass runs
+    deterministically, AFTER `_reconcile_metrics`, and reads the note from
+    the BUILDER's raw output — never from the editor's memory of it — so the
+    dual-period disclosure reaches the reader regardless of what (or
+    whether) the editor wrote into `sub`.
+
+    A no-op when the raw metric has no value (suppressed this issue), when
+    its `source` carries no dual-period note (i.e. `_import_cover` didn't
+    take its success path), or when the published `sub` already contains
+    the marker phrase (never double-appends on a re-run).
+    """
+    note: str | None = None
+    for s in raw_sections:
+        if s.get("slug") != "macro":
+            continue
+        for m in s.get("metrics", []) or []:
+            if m.get("label") != "Import Cover" or m.get("value") is None:
+                continue
+            src = m.get("source") or ""
+            if "reserves" in src and _IMPORT_COVER_SUB_MARKER in src:
+                start = src.find("reserves")
+                end = src.find(_IMPORT_COVER_SUB_MARKER) + len(_IMPORT_COVER_SUB_MARKER)
+                note = src[start:end]
+        break
+
+    if not note:
+        return
+
+    for section in final_brief.sections:
+        if section.slug != "macro":
+            continue
+        for pub in section.metrics:
+            if pub.label != "Import Cover":
+                continue
+            current = pub.sub or ""
+            if _IMPORT_COVER_SUB_MARKER not in current:
+                pub.sub = f"{current} · {note}" if current else note
+        break
+
+
 # ─── Phase E.2 — chart series enricher ────────────────────────────────
 # Per-slug chart fetcher dispatch. Sections not in this map skip chart_series
 # stamping (frontend hides the chart slot when series is empty). The values
@@ -1049,7 +1107,14 @@ _FY27_80_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\$80\b[^.]{0,60}FY.?27", re.IGNORECASE),
     re.compile(r"FY.?27[^.]{0,60}\$80\b", re.IGNORECASE),
 )
-_1409_RE = re.compile(r"\$?14\.09")
+# H-A, review round 2: bounded on both sides so "14.09" is only matched when
+# it is the WHOLE number, not a substring of a larger one. The bare version
+# (no lookaround) matched "14.09" inside "Tk1,214.09", "314.09bn", "3,914.09"
+# and "4,014.09" — real banker-grade figures with nothing to do with the
+# audit's hallucination. `(?<![\d.,])` refuses a digit/period/comma
+# immediately before the match (so it can't be the tail of a bigger number);
+# `(?!\d)` refuses a digit immediately after (so "14.099" doesn't match either).
+_1409_RE = re.compile(r"(?<![\d.,])\$?14\.09(?!\d)")
 _1409_CONTEXT_RE = re.compile(r"FY.?27|\$80\b|crude|budget", re.IGNORECASE)
 
 
@@ -1068,10 +1133,20 @@ def _collect_prose_fields(final_brief: BriefPayloadV6) -> list[tuple[str, str]]:
     """Every prose text surface the denylist may scan, as (field_path, text).
 
     Deliberately excludes anything numeric/series-shaped — `metric.value`,
-    `metric.delta`/`delta_pct`, `spark`, `series`, `notes`, `movers` — so a
-    real chart data point can never trip a prose-hallucination pattern (C1).
-    `metric.sub` and `cover_metric.sub` ARE included: they are free-text the
-    editor writes, the same kind of surface `todays_call` is.
+    `metric.delta`/`delta_pct`, `spark`, `series`, `movers` — so a real chart
+    data point can never trip a prose-hallucination pattern (C1). `metric.sub`,
+    `cover_metric.sub`, and `notes[].detail` ARE included: they are free-text
+    the editor writes, the same kind of surface `todays_call` is (L-C, review
+    round 2 — `notes[].detail` was originally lumped in with the numeric
+    exclusions by mistake; it is prose, `series_key`/`ts` on the same object
+    are not).
+
+    Deliberately ALSO excludes (L-C): closed-vocabulary/structural strings the
+    editor picks from a fixed set or copies verbatim rather than composes —
+    `brief.lens`, `brief.frame` (enum-like slugs), section/metric/news
+    `label`/`title` fields, and `notes[].label` (a short annotation tag, not
+    prose). None of these are places a multi-sentence hallucination could
+    hide, and scanning them would only add false-positive surface.
     """
     fields: list[tuple[str, str]] = []
     if final_brief.brief.todays_call:
@@ -1104,6 +1179,9 @@ def _collect_prose_fields(final_brief: BriefPayloadV6) -> list[tuple[str, str]]:
         for i, m in enumerate(s.metrics):
             if m.sub:
                 fields.append((f"{s.slug}.metrics[{i}].sub", m.sub))
+        for i, note in enumerate(s.notes):
+            if note.detail:
+                fields.append((f"{s.slug}.notes[{i}].detail", note.detail))
     return fields
 
 
@@ -1363,6 +1441,10 @@ def run_publish(
     # MetricReconciliationError's docstring for why the two do not share a
     # log-only rationale.
     _reconcile_metrics(final_brief, editor_input["sections_raw"])
+    # M-A, review round 2: deterministically stamps the macro Import Cover
+    # metric's `sub` with its dual-period note — MetricV6 has no `source`
+    # field, so nothing upstream of this call guarantees the note survives.
+    _stamp_import_cover_sub(final_brief, editor_input["sections_raw"])
 
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
