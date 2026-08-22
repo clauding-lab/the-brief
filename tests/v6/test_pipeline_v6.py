@@ -628,6 +628,133 @@ def test_stamp_import_cover_sub_is_a_noop_when_no_macro_section_in_raw() -> None
     assert brief.sections[0].metrics[0].sub is None
 
 
+# ── P2 fact-checker (2026-08-22 audit #204) — prose-number gate wiring ──────
+
+
+def test_run_publish_warns_but_still_ships_a_stale_flash_figure_by_default(
+    _stub_supabase_reads: object, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Round-2 review reshape: `check_metric_sub_numbers`/`check_metric_value_vs_raw`
+    are WARN-mode by default (25-real-issue corpus replay showed 0.6%
+    precision when this held the publish). The audit #204 failure ('$2.82bn'
+    quoted on a real 2858.68mn builder value) now surfaces as a Discord
+    alert + log line, but the issue STILL ships — unlike the denylist check,
+    which still hard-fails."""
+    monkeypatch.delenv("BRIEF_PROSE_VALIDATOR_STRICT", raising=False)
+    from brief.schema import Metric, SectionData
+
+    sections = [SectionData(
+        id="remit", title="Remittance", freshness="fresh",
+        metrics=[Metric(
+            id="remit_monthly_mn", label="Monthly Remittance", value=2858.68,
+            unit="mn USD", as_of=date(2026, 7, 31), source="BB", cadence="monthly",
+        )],
+    )]
+    tainted = {
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-08-22",
+                  "todays_call": "Today's brief is shipping.", "status": "published"},
+        "sections": [{
+            "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+            "weight": 1,
+            "metrics": [{
+                "label": "Monthly Remittance", "value": "$2.86bn",
+                "sub": "$2.82bn — July final",
+            }],
+            "news": [], "summary_pills": [],
+        }],
+    }
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub, \
+         patch("brief.pipeline_v6._alert") as mock_alert:
+        mock_run.side_effect = [_max_result(tainted), _max_result(review)]
+        brief_id = run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+
+    assert brief_id == "brief-id-89"
+    mock_pub.assert_called_once()
+    # Filtered against `_alert` calls, not asserted as the ONLY calls — this
+    # fixture's "bb"-less sections list also triggers the UNRELATED protected-
+    # metric degradation alert (3 calls, pre-existing behaviour). ONE grouped
+    # prose-number alert (H3), not one per warning, is what this test proves.
+    prose_alerts = [c for c in mock_alert.call_args_list if "prose-number gate" in c.args[0]]
+    assert len(prose_alerts) == 1
+    assert "$2.82bn" in prose_alerts[0].args[0]
+
+
+def test_run_publish_holds_on_a_sourceless_count_claim(
+    _stub_supabase_reads: object,
+) -> None:
+    """The ONLY BLOCK-mode surface left post-round-2: a sourceless
+    "fourteen reads" style count-claim still holds the publish."""
+    from brief.pipeline_v6 import ProseNumberGateError
+    from brief.schema import SectionData
+
+    sections = [SectionData(id="fiscal", title="Fiscal", freshness="fresh")]
+    tainted = {
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-08-22",
+                  "todays_call": "Today's brief is shipping.", "status": "published"},
+        "sections": [{
+            "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
+            "weight": 1,
+            "verdict": "Flat across fourteen reads — no new monthly print.",
+            "news": [], "summary_pills": [],
+        }],
+    }
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief") as mock_pub:
+        mock_run.side_effect = [_max_result(tainted), _max_result(review)]
+        with pytest.raises(ProseNumberGateError):
+            run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+
+    mock_pub.assert_not_called()
+
+
+def test_run_publish_ships_a_sub_that_traces_to_the_real_builder_value(
+    _stub_supabase_reads: object,
+) -> None:
+    """Sanity companion: the honest figure ($2.86bn, matching 2858.68mn)
+    produces no warnings at all."""
+    from brief.schema import Metric, SectionData
+
+    sections = [SectionData(
+        id="remit", title="Remittance", freshness="fresh",
+        metrics=[Metric(
+            id="remit_monthly_mn", label="Monthly Remittance", value=2858.68,
+            unit="mn USD", as_of=date(2026, 7, 31), source="BB", cadence="monthly",
+        )],
+    )]
+    clean = {
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-08-22",
+                  "todays_call": "Today's brief is shipping.", "status": "published"},
+        "sections": [{
+            "slug": "remit", "ord": 11, "title": "Remittance", "group_key": "markets",
+            "weight": 1,
+            "metrics": [{
+                "label": "Monthly Remittance", "value": "$2.86bn",
+                "sub": "$2.86bn — Jul final",
+            }],
+            "news": [], "summary_pills": [],
+        }],
+    }
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub, \
+         patch("brief.pipeline_v6._alert") as mock_alert:
+        mock_run.side_effect = [_max_result(clean), _max_result(review)]
+        brief_id = run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+
+    assert brief_id == "brief-id-89"
+    mock_pub.assert_called_once()
+    # Same filtering as above — this fixture also fires the unrelated
+    # protected-metric degradation alert; no prose-number alert is the point.
+    prose_alerts = [c for c in mock_alert.call_args_list if "prose-number gate" in c.args[0]]
+    assert prose_alerts == []
+
+
 def test_section_adapter_renames_iranwar_to_iran() -> None:
     """V5 SectionData id 'iranwar' → V6 slug 'iran' per the V5_TO_V6 map."""
     sections = [

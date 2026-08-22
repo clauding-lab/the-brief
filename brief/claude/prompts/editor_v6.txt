@@ -62,14 +62,24 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
         "runway":  null | { "value": "<short, e.g. '10' or '0'>", "unit": "<e.g. 'mo buffer' or 'weeks of policy runway'>" }
       },
       "analysis":  null | "<3-5 sentence analytical paragraph, ~600-900 chars. ONLY for hero (weight=2) and 1-2 high-stakes sections. Goes deeper than banker_read: walk the reader through the chain of reasoning, what's mispriced, what the desk position should be. Body paragraphs only — no headers.>",
-      "series": [], // pass through input unchanged
-      "notes":  []  // pass through input unchanged
+      "series": [], // ALWAYS empty in your output — you are never given the chart's actual points (see series_summary below); the pipeline stamps the real series here AFTER you run. Do not invent points.
+      "notes":  []  // ALWAYS empty in your output, same reason as series.
       "chart_read": null | {
-        // Emit for every section that has a chart (dse, iran/brent, tbond/yieldCurve,
-        // fx/fxFlows, macro/cpiTrend, fiscal/fiscalNbr). Null for sections with no chart.
+        // Emit for every section whose input carries a non-empty series_summary.
+        // Null for sections with an empty series_summary — that means no chart
+        // data is available this issue, not that you should describe the chart
+        // from memory of a prior issue.
         // NB: the fiscal chart plots nbr_revenue_monthly_cr (monthly NBR tax revenue,
         // BDT crore) — chart_read.signal MUST describe THAT series, not the section's
         // headline govt-bank-borrow figure.
+        // chart_read MUST be derived ONLY from that section's series_summary (n /
+        // first_ts / first_value / last_ts / last_value / min / max) — you do NOT
+        // receive the chart's individual points, so never claim a mid-series value,
+        // a specific date's reading, or a count of points beyond what
+        // series_summary states. When citing the latest plotted value, name the
+        // PERIOD of last_ts (e.g. "as of the Jun 2026 print"), not "today" or "this
+        // week" — the chart's last point is very likely older than today's headline
+        // number.
         "signal":      "<≤25 words, what the chart shows, direction-clear, ≥1 number, e.g. 'CPI 12m-avg eased to 5.2%, food inflation now 6.8% vs 9.4% in Mar 2025.'>",
         "context":     "<≤20 words, REQUIRED temporal anchor. Weave at least one history_fact.phrase verbatim including parens. e.g. 'First time 12m-avg below 6% since Q3 2021 (4.9% then).'>",
         "implication": "<≤25 words, desk word (treasury/ALCO/credit/risk/...) OR action verb (watch/expect/tighten/ease/...) OR time anchor. e.g. 'Treasury: real policy rate turns positive; expect MPC to hold next MPS.'>"
@@ -214,7 +224,7 @@ Every metric that is past its cadence's fresh threshold carries a `vintage` obje
 
 - `period_label` — the period the number belongs to ('Mar 2026', 'Q1 2026', '14 Jul 2026')
 - `age_days` — how many days old it is
-- `freshness` — 'warning' (getting old) or 'stale' (overdue)
+- `freshness` — 'warning' (getting old) or 'stale' (our read is old)
 - `note` — a plain-English restatement of the above
 
 Two rules, both non-negotiable:
@@ -234,6 +244,7 @@ The input flags each section's freshness state ('fresh', 'warning', 'stale', 'un
 - DON'T pretend a quarterly metric is news. The reader will see an "As of …" footer post-LLM; do not contradict it.
 - summary_pills can still display the stale value but with `tone="warn"` if the value is stale-bear or stale-warn
 - If freshness is `unavailable`: omit banker_read, set verdict to "Data pending — see <next print date>", verdict_tone="neu"
+- Never claim a source has or hasn't published; describe only our data's age using the provided freshness/vintage fields. Never state how many reads/prints a value has held (e.g. "flat across N reads") unless a count field is actually provided to you — none is, today.
 
 ## Curated headlines (headlines section)
 
@@ -256,7 +267,8 @@ The input JSON below has these top-level keys:
 - `today`: ISO date string
 - `today_lens`: the slug of today's hero section (e.g. "banking", "iran", "fx", "fiscal", "remit", "comm"). Pre-computed by a deterministic scorer; you MUST honor it.
 - `previous_brief`: yesterday's published brief (or null if first run); use for hero context (NOT for diff signaling — that is system-stamped post-LLM)
-- `sections_raw`: array of section build outputs from the deterministic builders. Each has slug/ord/title/group_key/freshness/metrics/news/series/notes. Pass-through fields: ord, slug, title, group_key, series, notes.
+- `sections_raw`: array of section build outputs from the deterministic builders. Each has slug/ord/title/group_key/freshness/metrics/news/history_facts/series_summary. Pass-through fields: ord, slug, title, group_key. You do NOT receive the chart's actual points here — `series` and `notes` do not exist on this input; the real ones are stamped onto the published brief AFTER you run (payload-size reasons). What you get instead is `series_summary`: a compact digest, per series key, of `{n, first_ts, first_value, last_ts, last_value, min, max}`. Use it ONLY for `chart_read` (see that field's spec above) — never claim a chart shows anything beyond what this digest states. `series_summary.n` counts chart POINTS in that series; never state how many reads/prints a value has held — no such count is provided.
+- Every metric in `sections_raw[].metrics[]` also carries `period` — the deterministic label for THAT metric's own data period (e.g. "Jul 2026" for a monthly metric, "Q1 2026" for quarterly, a full day for daily/weekly/event). `period` is ALWAYS present, unlike `vintage` (below), which only exists once a metric is past its fresh threshold. When your `sub` (or any prose) names a metric's time period, it MUST use the provided `period` string verbatim — never write any other month, quarter, or day name for that metric's data. `period` is computed by the pipeline from `as_of` + `cadence`; it is not something you infer or round to the nearest plausible month.
 - `scraped_headlines`: pool of candidate headlines for the headlines section, already filtered upstream against the last 5 issues.
 - `meta`: { issue_no, volume, brief_date }
 

@@ -98,6 +98,16 @@ def _period_label(as_of: date, cadence: str) -> str:
     return as_of.strftime("%-d %b %Y")
 
 
+# Public alias — P2 fact-checker PR (2026-08-22 audit #204, item 2). Unlike
+# `metric_vintage`, which only computes a label for metrics already past
+# their fresh threshold, `pipeline_v6._to_v6_raw` stamps a `period` on EVERY
+# metric regardless of freshness, so the editor always has a data-derived
+# period string to use verbatim instead of inventing a month name. Same
+# function, just exported under a name that doesn't read as module-private
+# when imported from another module.
+period_label = _period_label
+
+
 def _note(label: str, age_days: int, cadence: str, freshness: str) -> str:
     """The phrase the editor reads. Written to be usable in prose as-is."""
     if cadence == "event":
