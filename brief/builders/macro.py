@@ -33,48 +33,144 @@ the EconDelta-written ones.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Callable
 
-from brief.cadence import section_freshness
+from brief.cadence import months_apart, section_freshness
 from brief.history import HistoryRow
 from brief.history_anchors import HistoryFact, fetch_and_compute
 from brief.schema import Metric, SectionData
-from . import BuilderContext
+from . import BuilderContext, official_monthly_bn
+
+logger = logging.getLogger(__name__)
+
+# Each deriver returns (value, as_of, source_override). `source_override` is
+# None to keep the spec's default `source` string; a deriver sets it to
+# override with metric-specific provenance text (see `_import_cover`'s
+# dual-period note, H1 review round 1).
+_Deriver = Callable[["BuilderContext"], "tuple[float | None, date | None, str | None]"]
 
 
-@dataclass(frozen=True)
-class _Derivation:
-    """A macro figure EconDelta does not publish directly, but whose inputs it does.
+def _at_or_before(client, metric_id: str, as_of: date, *, table: str) -> HistoryRow | None:
+    """One `get_at_or_before`, tolerating a client that raises or lacks it.
 
-    `fn` receives the input values in `inputs` order. Both derivations below were
-    confirmed against what the old pipeline actually printed before being
-    written here, rather than assumed from the metric's name — see each one's
-    comment for the arithmetic that reproduces the published figure.
+    Logs a WARNING naming the metric id on any non-success path (M3, review
+    round 1) — a dark corridor read must never fail silently.
     """
+    try:
+        row = client.get_at_or_before(metric_id, as_of, table=table)
+    except Exception:  # noqa: BLE001 — best-effort read, never fatal
+        logger.warning(
+            "macro: get_at_or_before(%s, %s) raised, treating as absent",
+            metric_id, as_of, exc_info=True,
+        )
+        return None
+    if row is None:
+        logger.warning("macro: get_at_or_before(%s, %s) — no row found", metric_id, as_of)
+    return row
 
-    inputs: tuple[str, ...]
-    fn: Callable[..., float]
+
+def _real_policy_rate(ctx: "BuilderContext") -> tuple[float | None, date | None, str | None]:
+    """Real policy rate = the repo rate IN FORCE on the inflation reading's
+    date, minus that same reading (period-consistent; P0 honesty fix, 2026-08-22
+    audit #204).
+
+    Pairing "latest repo" with "latest inflation" mixes vintages whenever a cut
+    lands between the two prints. On 2026-08-22 the live repo read 9.50 (post
+    the 30-Jul cut) while the latest inflation print was still June's, so the
+    old arithmetic (9.50 - 9.16 = 0.34%) described a rate that never actually
+    existed alongside that inflation reading. The June-consistent value is the
+    repo rate AS OF 30 Jun (10.00, pre-cut) minus June's inflation (9.16) =
+    0.84%. `as_of` is the inflation date — that is the period this figure
+    describes.
+    """
+    if ctx.history is None:
+        return (None, None, None)
+    inflation = _latest(ctx.history, "general_inflation", table="metric_history")
+    if inflation is None or not isinstance(inflation.value, (int, float)):
+        logger.warning("macro: real_policy_rate suppressed — general_inflation unavailable")
+        return (None, None, None)
+    repo = _at_or_before(ctx.history, "policy_rate_repo", inflation.as_of, table="metric_history")
+    if repo is None or not isinstance(repo.value, (int, float)):
+        logger.warning(
+            "macro: real_policy_rate suppressed — no policy_rate_repo at or before %s",
+            inflation.as_of,
+        )
+        return (None, None, None)
+    return (repo.value - inflation.value, inflation.as_of, None)
 
 
-# Real policy rate = nominal policy rate - point-to-point headline inflation.
-# Confirmed: issue #184 printed 1.29%, and 10.00 (the then-current repo rate)
-# minus 8.71 (March headline) = 1.29 exactly. `general_inflation` and
-# `point_to_point_inflation` carry the same value; the former is the headline id.
-_REAL_POLICY_RATE = _Derivation(
-    inputs=("policy_rate_repo", "general_inflation"),
-    fn=lambda repo, inflation: repo - inflation,
-)
+# ORCHESTRATOR DECISION (2026-08-22 audit #204, review round 1, H1): import
+# cover is a stock (reserves) over a flow (the most recent official import
+# bill), and BB's own methodology tolerates the flow leg running several
+# months behind the stock leg — that is just how customs-cleared import data
+# is reported. Production today (Jul reserves vs Mar imports) is 4 months
+# apart. The trade gap in fx.py stays same-month-only: that IS a flow-vs-flow
+# comparison, where mixing vintages is genuinely meaningless.
+_IMPORT_COVER_MAX_MONTHS_APART = 4
 
-# Import cover = gross reserves / one month's imports, both in USD bn.
-# Confirmed: issue #184 printed 5.86 months against March reserves of 34.12bn,
-# which implies a monthly import bill of 5.82bn — `monthly_import` reads 5.8.
-# Cross-check on units: monthly_import x 12 = 69.6 against fy_import_lc 74.78.
-_IMPORT_COVER = _Derivation(
-    inputs=("gross_reserves_usd_bn", "monthly_import"),
-    fn=lambda reserves, monthly_imports: reserves / monthly_imports,
-)
+
+def _import_cover(ctx: "BuilderContext") -> tuple[float | None, date | None, str | None]:
+    """Import cover = gross reserves / the latest OFFICIAL monthly imports.
+
+    ORCHESTRATOR DECISION (2026-08-22 audit #204, review round 1, H1) —
+    replaces the first cut's >1-month suppression rule. That rule suppressed
+    the metric (value=None) on every real production day, because BB's
+    customs-cleared import figure runs months behind reserves by nature — and
+    a suppressed metric scores "unavailable" in `section_freshness`, which
+    macro (in `SECTIONS_WITHOUT_LEGACY_BACKFILL`) PROMOTES to "warming_up".
+    That flipped §03's honestly "stale" badge (driven by the three still-
+    archived metrics: REER, CPI 12m avg, M2 YoY) into a false "history is
+    accumulating" signal — worse than the mismatch it was trying to prevent.
+
+    The fix re-emits the ratio whenever the official imports archive is
+    within `_IMPORT_COVER_MAX_MONTHS_APART` months of the reserves reading.
+    `as_of` is dated by the IMPORTS month specifically (the rate-limiting,
+    always-older leg) — never the fresher reserves date, and never min() of
+    the two — so the metric's OWN freshness stays honest: stale imports keep
+    §03 reading "stale", which is the entire point of this fix.
+
+    `source` (returned as this function's third element, an override of the
+    spec's default "BB") carries the dual-period note, e.g.
+    "BB (reserves 31 Jul ÷ Mar import bill)". SOFTENED CLAIM (M-A, review
+    round 2): this function does NOT by itself guarantee a reader ever sees
+    that note — `MetricV6`, the schema the editor's output is validated
+    against, has no `source` field, so it is dropped at validation time no
+    matter what the editor does with it. The note only reaches the reader
+    because `pipeline_v6._stamp_import_cover_sub` reads THIS `source` string
+    back out of the raw builder output and deterministically writes it into
+    the published metric's `sub` field after the editor runs. This function's
+    only real guarantee is that the dual-period fact is computed and recorded
+    somewhere in the raw payload — a downstream pass is what makes it visible.
+
+    Suppressed (returns all-None) only when either leg is missing or imports
+    are more than `_IMPORT_COVER_MAX_MONTHS_APART` months older than reserves.
+    """
+    if ctx.history is None:
+        return (None, None, None)
+    reserves = _latest(ctx.history, "gross_reserves_usd_bn", table="metric_history")
+    if reserves is None or not isinstance(reserves.value, (int, float)):
+        logger.warning("macro: import_cover suppressed — gross_reserves_usd_bn unavailable")
+        return (None, None, None)
+    imports = official_monthly_bn(ctx, "imports_usd_mn_monthly")
+    if imports is None:
+        logger.warning("macro: import_cover suppressed — imports_usd_mn_monthly unavailable")
+        return (None, None, None)
+    gap = months_apart(reserves.as_of, imports.as_of)
+    if gap > _IMPORT_COVER_MAX_MONTHS_APART:
+        logger.warning(
+            "macro: import_cover suppressed — imports_usd_mn_monthly is %d months "
+            "behind reserves (max %d)", gap, _IMPORT_COVER_MAX_MONTHS_APART,
+        )
+        return (None, None, None)
+    try:
+        cover = reserves.value / imports.value
+    except ZeroDivisionError:
+        return (None, None, None)
+    note = f"BB (reserves {reserves.as_of:%-d %b} ÷ {imports.as_of:%b} import bill)"
+    return (cover, imports.as_of, note)
 
 
 @dataclass(frozen=True)
@@ -92,7 +188,7 @@ class _MacroSpec:
     source: str
     format_kind: str
     live_id: str | None = None
-    derive: _Derivation | None = None
+    derive: _Deriver | None = None
     archive_id: str | None = None
 
 
@@ -106,7 +202,7 @@ _MACRO_METRICS: tuple[_MacroSpec, ...] = (
     _MacroSpec("cpi_p2p_nonfood_monthly", "CPI Non-Food (P-to-P)", "%", "BBS", "percent-1dp",
                live_id="non_food_inflation"),
     _MacroSpec("real_policy_rate_monthly", "Real Policy Rate", "%", "BB+BBS", "percent-1dp",
-               derive=_REAL_POLICY_RATE),
+               derive=_real_policy_rate),
     # No live source: REER appears in no table, ever. Needs a scraper.
     _MacroSpec("reer_monthly", "REER", "index", "BB", "comma-2dp",
                archive_id="reer_monthly"),
@@ -117,7 +213,7 @@ _MACRO_METRICS: tuple[_MacroSpec, ...] = (
     _MacroSpec("m2_growth_yoy_monthly", "M2 YoY", "%", "BB", "percent-1dp",
                archive_id="m2_growth_yoy_monthly"),
     _MacroSpec("import_cover_months_monthly", "Import Cover", "months", "BB", "comma-1dp",
-               derive=_IMPORT_COVER),
+               derive=_import_cover),
 )
 
 
@@ -135,34 +231,25 @@ def _latest(client, metric_id: str, *, table: str) -> HistoryRow | None:
     """One `get_latest`, tolerating a client that raises.
 
     A macro metric going dark must not take the section — or the issue — down;
-    a missing row already renders as "unavailable".
+    a missing row already renders as "unavailable". Feeds 5 of the section's
+    8 published metrics (the 3 direct `live_id` reads, plus `general_inflation`
+    inside `_real_policy_rate` and `gross_reserves_usd_bn` inside
+    `_import_cover`), so a silent swallow here was a wide blind spot — logs a
+    WARNING naming the metric id on both non-success paths (M-C, review
+    round 2, matching the M3 treatment already given to `official_monthly_bn`
+    and `_at_or_before`).
     """
     try:
-        return client.get_latest(metric_id, table=table)
+        row = client.get_latest(metric_id, table=table)
     except Exception:  # noqa: BLE001 — best-effort read, never fatal
+        logger.warning(
+            "macro: get_latest(%s, table=%s) raised, treating as absent",
+            metric_id, table, exc_info=True,
+        )
         return None
-
-
-def _derive(client, derivation: _Derivation) -> tuple[float | None, date | None]:
-    """Compute a derived figure and date it by its STALEST input.
-
-    Dating it by the freshest input would be the exact failure this section
-    exists to stop: issue #184 printed a March REER beside that day's spot rate
-    in one clause, because nothing recorded that the two were months apart. A
-    derived number is only as current as the oldest thing it is made of.
-    """
-    values: list[float] = []
-    as_ofs: list[date] = []
-    for input_id in derivation.inputs:
-        row = _latest(client, input_id, table="metric_history")
-        if row is None or not isinstance(row.value, (int, float)):
-            return (None, None)
-        values.append(float(row.value))
-        as_ofs.append(row.as_of)
-    try:
-        return (derivation.fn(*values), min(as_ofs))
-    except ZeroDivisionError:
-        return (None, None)
+    if row is None:
+        logger.warning("macro: get_latest(%s, table=%s) — no row found", metric_id, table)
+    return row
 
 
 def build(ctx: BuilderContext) -> SectionData:
@@ -172,9 +259,12 @@ def build(ctx: BuilderContext) -> SectionData:
     for spec in _MACRO_METRICS:
         value: float | None = None
         as_of: date | None = None
+        source: str = spec.source
 
-        if spec.derive is not None and ctx.history is not None:
-            value, as_of = _derive(ctx.history, spec.derive)
+        if spec.derive is not None:
+            value, as_of, source_override = spec.derive(ctx)
+            if source_override is not None:
+                source = source_override
         elif spec.live_id is not None and ctx.history is not None:
             row = _latest(ctx.history, spec.live_id, table="metric_history")
             if row is not None:
@@ -191,7 +281,7 @@ def build(ctx: BuilderContext) -> SectionData:
             value=value,
             unit=spec.unit,
             as_of=as_of if as_of is not None else ctx.today,
-            source=spec.source,
+            source=source,
             cadence="monthly",  # type: ignore[arg-type]
         ))
 

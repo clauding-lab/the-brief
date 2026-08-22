@@ -52,10 +52,16 @@ class _FakeHistory:
 
 
 # The live rows, at the values production actually held on 2026-08-03.
+# `remittance_usd_mn_monthly` is the OFFICIAL final remit.py now reads first
+# (P0 honesty fix, 2026-08-22 audit #204) — with a July row present, remit
+# takes that path rather than the unconfirmed daily flash, so its freshness
+# genuinely reflects a confirmed current read (not floored to "warning" by
+# the flash-fallback's stale=True, M-B review round 2).
 LIVE = {
     "fiscal_nbr_collected_trn": _row("fiscal_nbr_collected_trn", 3.61, AUG3),
     "fiscal_govt_borrow_trn": _row("fiscal_govt_borrow_trn", 0.94, JUN30),
     "remit_monthly_mn": _row("remit_monthly_mn", 2820.0, AUG3),
+    "remittance_usd_mn_monthly": _row("remittance_usd_mn_monthly", 2858.68, date(2026, 7, 31)),
 }
 
 

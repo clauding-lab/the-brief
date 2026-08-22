@@ -4,6 +4,8 @@ from brief.cadence import (
     is_bd_trading_day,
     metric_aging,
     metric_freshness,
+    month_end,
+    months_apart,
     section_freshness,
     trading_days_between,
 )
@@ -94,6 +96,39 @@ def test_monthly_fresh_under_35_days():
     assert metric_freshness(m, today=today) == "fresh"
 
 
+# ── M-B, review round 2 (2026-08-22 audit #204): `stale=True` used to be
+# inert outside `event` cadence — a monthly-cadence fallback (e.g. remit.py's
+# flash branch) could land inside the fresh window and ship under a plain
+# "fresh" badge despite explicitly being marked "not a confirmed read". ─────
+
+def test_stale_flag_floors_a_would_be_fresh_monthly_metric_to_warning():
+    today = date(2026, 4, 21)
+    m = _m("x", date(2026, 4, 1), "monthly")  # 20 days -> would be "fresh"
+    m.stale = True
+    assert metric_freshness(m, today=today) == "warning"
+
+
+def test_stale_flag_never_downgrades_an_already_worse_monthly_signal():
+    today = date(2026, 4, 21)
+    m = _m("x", date(2026, 2, 1), "monthly")  # 79 days -> already "stale"
+    m.stale = True
+    assert metric_freshness(m, today=today) == "stale"
+
+
+def test_stale_flag_floors_a_would_be_fresh_daily_metric_to_warning():
+    today = date(2026, 4, 21)  # Tuesday
+    m = _m("x", date(2026, 4, 20), "daily")  # 1 trading day -> would be "fresh"
+    m.stale = True
+    assert metric_freshness(m, today=today) == "warning"
+
+
+def test_non_stale_monthly_metric_is_unaffected():
+    today = date(2026, 4, 21)
+    m = _m("x", date(2026, 4, 1), "monthly")
+    assert m.stale is False
+    assert metric_freshness(m, today=today) == "fresh"
+
+
 def test_monthly_stale_over_45_days():
     today = date(2026, 4, 21)
     m = _m("x", date(2026, 2, 20), "monthly")
@@ -173,6 +208,57 @@ def test_section_freshness_worst_unavailable_wins():
     assert section_freshness(metrics, today=today) == "unavailable"
 
 
+def test_section_freshness_worst_unavailable_wins_when_no_section_id():
+    """The general (non-promotion-eligible) path is unaffected by H-B: with
+    no section_id, "unavailable" still ranks worst outright — H-B only
+    tightens the eligible-section promotion condition below."""
+    today = date(2026, 4, 21)
+    metrics = [
+        _m("a", date(2026, 4, 20), "daily"),                      # fresh
+        _m("b", date(2026, 4, 20), "daily", value=None),          # unavailable
+        _m("c", date(2026, 3, 1), "monthly"),                     # stale
+    ]
+    assert section_freshness(metrics, today=today) == "unavailable"
+
+
+# ── H-B, review round 2 (2026-08-22 audit #204): promotion to "warming_up"
+# only when EVERY metric is unavailable — the implementation used to promote
+# on ANY single unavailable metric, contradicting its own docstring. ────────
+
+def test_partial_unavailable_in_an_eligible_section_reads_the_worse_real_signal():
+    """The exact bug: one suppressed metric (macro's import cover, gated
+    elsewhere on data-vintage checks) beside three genuinely STALE archive
+    metrics must read "stale" — not "warming_up" (which would hide the real
+    staleness) and not bare "unavailable" (which would hide it too)."""
+    today = date(2026, 4, 21)
+    metrics = [
+        _m("reer", date(2026, 1, 1), "monthly"),                       # stale (110d)
+        _m("cpi12m", date(2026, 1, 1), "monthly"),                     # stale
+        _m("m2", date(2026, 1, 1), "monthly"),                         # stale
+        _m("cover", date(2026, 4, 20), "monthly", value=None),         # unavailable (suppressed)
+        _m("food", date(2026, 4, 1), "monthly"),                       # fresh
+    ]
+    assert section_freshness(metrics, today=today, section_id="macro") == "stale"
+
+
+def test_a_genuinely_all_unavailable_eligible_section_still_reads_warming_up():
+    """The promotion itself must still fire — H-B tightens WHEN it fires, it
+    does not remove it. A section with truly nothing to show (e.g. a total
+    history-client outage) is "warming_up", not "unavailable"."""
+    today = date(2026, 4, 21)
+    metrics = [
+        _m("a", date(2026, 4, 21), "monthly", value=None),
+        _m("b", date(2026, 4, 21), "monthly", value=None),
+    ]
+    assert section_freshness(metrics, today=today, section_id="macro") == "warming_up"
+
+
+def test_all_unavailable_in_a_non_eligible_section_stays_plain_unavailable():
+    today = date(2026, 4, 21)
+    metrics = [_m("a", date(2026, 4, 21), "monthly", value=None)]
+    assert section_freshness(metrics, today=today, section_id="dse") == "unavailable"
+
+
 def test_section_freshness_stale_beats_warning():
     today = date(2026, 4, 21)
     metrics = [
@@ -230,3 +316,44 @@ def test_metric_aging_quarterly_warning_band():
     today = date(2026, 4, 21)
     metric = _m("npl", date(2026, 1, 1), "quarterly")  # 110 days → warning (≤120)
     assert metric_aging(metric, today=today) is True
+
+
+# ── month_end / months_apart (P0 honesty fix, 2026-08-22 audit #204) ─────────
+
+def test_month_end_normalizes_a_month_start_stamp():
+    assert month_end(date(2026, 7, 1)) == date(2026, 7, 31)
+
+
+def test_month_end_is_idempotent_on_an_already_month_end_date():
+    assert month_end(date(2026, 2, 28)) == date(2026, 2, 28)
+
+
+def test_month_end_handles_leap_february():
+    assert month_end(date(2024, 2, 5)) == date(2024, 2, 29)
+
+
+def test_month_end_handles_31_day_month():
+    assert month_end(date(2026, 1, 15)) == date(2026, 1, 31)
+
+
+def test_months_apart_same_month_is_zero():
+    assert months_apart(date(2026, 7, 1), date(2026, 7, 31)) == 0
+
+
+def test_months_apart_adjacent_months_is_one():
+    assert months_apart(date(2026, 7, 31), date(2026, 8, 1)) == 1
+
+
+def test_months_apart_is_symmetric():
+    assert months_apart(date(2026, 8, 1), date(2026, 3, 31)) == months_apart(
+        date(2026, 3, 31), date(2026, 8, 1)
+    )
+
+
+def test_months_apart_counts_across_year_boundary():
+    assert months_apart(date(2025, 12, 1), date(2026, 1, 1)) == 1
+
+
+def test_months_apart_several_months():
+    # July issue expects the imports archive frozen at March: 4 months apart.
+    assert months_apart(date(2026, 7, 31), date(2026, 3, 31)) == 4

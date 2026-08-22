@@ -38,10 +38,13 @@ class _FakeHistory:
     """Minimal MetricHistoryClient stub. Records the tables it was asked for."""
 
     def __init__(self, latest_by_id: dict[str, HistoryRow], *,
-                 default_table: str = "metric_history") -> None:
+                 default_table: str = "metric_history",
+                 at_or_before_by_id: dict[str, HistoryRow] | None = None) -> None:
         self._latest = latest_by_id
         self.default_table = default_table
         self.tables_seen: list[str] = []
+        self._at_or_before = at_or_before_by_id or {}
+        self.at_or_before_calls: list[tuple[str, date]] = []
 
     def get_latest(self, metric_id: str, *, table: str | None = None) -> HistoryRow | None:
         self.tables_seen.append(table or self.default_table)
@@ -50,12 +53,19 @@ class _FakeHistory:
     def get_history_window(self, metric_ids: list[str], **kwargs) -> dict:
         return {mid: [] for mid in metric_ids}
 
+    def get_at_or_before(self, metric_id: str, as_of: date, *, table: str | None = None) -> HistoryRow | None:
+        self.at_or_before_calls.append((metric_id, as_of))
+        return self._at_or_before.get(metric_id)
+
 
 # Live values good enough to exercise every path, dated 2026-08-03 unless the
 # real series is genuinely older (the inflation family publishes at month end).
 JUN30 = date(2026, 6, 30)
 AUG3 = date(2026, 8, 3)
 
+# `policy_rate_repo`'s LATEST read is post the 30-Jul cut (9.50); the rate IN
+# FORCE on the inflation reading's date (Jun 30) was still the pre-cut 10.00 —
+# this pair is what makes the period-consistency fix testable at all.
 LIVE = {
     "food_inflation": _row("food_inflation", 8.6, JUN30),
     "non_food_inflation": _row("non_food_inflation", 9.61, JUN30),
@@ -63,15 +73,27 @@ LIVE = {
     "policy_rate_repo": _row("policy_rate_repo", 9.5, AUG3),
     "general_inflation": _row("general_inflation", 9.16, JUN30),
     "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 37.578, JUN30),
-    "monthly_import": _row("monthly_import", 5.8, AUG3),
+}
+
+LIVE_AT_OR_BEFORE = {
+    "policy_rate_repo": _row("policy_rate_repo", 10.0, JUN30),
+}
+
+# Official imports archive (mn USD), same month as reserves (JUN30) so import
+# cover computes: 5800.0mn -> 5.8bn, `official_monthly_bn` normalizes as_of to
+# JUN30's month-end (JUN30 itself, already month-end).
+IMPORTS_ARCHIVE = {
+    "imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5800.0, JUN30),
 }
 
 
 def _ctx(*, live: dict | None = None, archive: dict | None = None,
-         today: date = AUG3) -> BuilderContext:
+         at_or_before: dict | None = None, today: date = AUG3) -> BuilderContext:
     return BuilderContext(
         snapshot=_snap(),
-        history=_FakeHistory(live) if live is not None else None,
+        history=(
+            _FakeHistory(live, at_or_before_by_id=at_or_before) if live is not None else None
+        ),
         today=today,
         history_monthly=(
             _FakeHistory(archive, default_table="metric_history_monthly")
@@ -149,48 +171,218 @@ def test_archive_metrics_still_read_the_monthly_table() -> None:
     assert by_id["m2_growth_yoy_monthly"].value == 10.52
 
 
-# ── the derived pair ─────────────────────────────────────────────────────────
+# ── the derived pair (P0 honesty fix, 2026-08-22 audit #204) ────────────────
 
-def test_real_policy_rate_is_repo_minus_headline_inflation() -> None:
-    """9.50 repo - 9.16 headline = 0.34. The old pipeline printed 1.29 from
-    10.00 - 8.71, which is the same arithmetic on the numbers of the day."""
-    m = next(m for m in build(_ctx(live=LIVE)).metrics
+def test_real_policy_rate_pairs_the_repo_rate_in_force_on_the_inflation_date() -> None:
+    """The bug this fixes: pairing the LATEST repo rate (9.50, post the 30-Jul
+    cut) with June's inflation print (9.16) gives 0.34% — a rate that never
+    coexisted with that inflation reading. The June-consistent value is the
+    rate in force ON 30 Jun (10.00, pre-cut) minus 9.16 = 0.84%."""
+    m = next(m for m in build(_ctx(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE)).metrics
              if m.id == "real_policy_rate_monthly")
-    assert m.value == pytest.approx(0.34)
+    assert m.value == pytest.approx(0.84)
 
 
-def test_import_cover_is_reserves_over_one_month_of_imports() -> None:
-    """37.578bn / 5.8bn per month = 6.48 months."""
-    m = next(m for m in build(_ctx(live=LIVE)).metrics
+def test_real_policy_rate_as_of_is_the_inflation_date() -> None:
+    m = next(m for m in build(_ctx(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE)).metrics
+             if m.id == "real_policy_rate_monthly")
+    assert m.as_of == JUN30
+
+
+def test_real_policy_rate_looks_up_the_repo_rate_at_the_inflation_date() -> None:
+    """Regression guard for the mechanism, not just the number: the repo
+    lookup must be anchored on the inflation reading's date, not "today"."""
+    history = _FakeHistory(LIVE, at_or_before_by_id=LIVE_AT_OR_BEFORE)
+    ctx = BuilderContext(snapshot=_snap(), history=history, today=AUG3)
+    build(ctx)
+    assert ("policy_rate_repo", JUN30) in history.at_or_before_calls
+
+
+def test_real_policy_rate_is_none_when_no_repo_rate_existed_that_early() -> None:
+    """The corridor's `at_or_before` read finding nothing (e.g. history starts
+    after the inflation date) is a missing input, not an invented rate."""
+    m = next(m for m in build(_ctx(live=LIVE, at_or_before={})).metrics
+             if m.id == "real_policy_rate_monthly")
+    assert m.value is None
+
+
+def test_at_or_before_warns_by_name_when_no_row_found(caplog) -> None:
+    """M3, review round 1: no silent darkness — a missing at_or_before row
+    logs a WARNING naming the metric id."""
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(_ctx(live=LIVE, at_or_before={}))
+    assert any("policy_rate_repo" in r.message for r in caplog.records)
+
+
+def test_at_or_before_warns_by_name_when_the_client_raises(caplog) -> None:
+    class _RaisingAtOrBefore:
+        def get_latest(self, metric_id, *, table=None):
+            return LIVE.get(metric_id)
+
+        def get_at_or_before(self, metric_id, as_of, *, table=None):
+            raise RuntimeError("supabase down")
+
+        def get_history_window(self, metric_ids, **kwargs):
+            return {mid: [] for mid in metric_ids}
+
+    ctx = BuilderContext(snapshot=_snap(), history=_RaisingAtOrBefore(), today=AUG3)
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(ctx)
+    assert any("policy_rate_repo" in r.message for r in caplog.records)
+
+
+# ── M-C, review round 2: `_latest`'s swallow path feeds 5 of macro's 8
+# published metrics — no silent darkness there either. ──────────────────────
+
+def test_latest_warns_by_name_when_no_row_found(caplog) -> None:
+    partial = {k: v for k, v in LIVE.items() if k != "food_inflation"}
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(_ctx(live=partial))
+    assert any("food_inflation" in r.message for r in caplog.records)
+
+
+def test_latest_warns_by_name_when_the_client_raises(caplog) -> None:
+    class _RaisingGetLatest:
+        def get_latest(self, metric_id, *, table=None):
+            raise RuntimeError("supabase down")
+
+        def get_at_or_before(self, metric_id, as_of, *, table=None):
+            return None
+
+        def get_history_window(self, metric_ids, **kwargs):
+            return {mid: [] for mid in metric_ids}
+
+    ctx = BuilderContext(snapshot=_snap(), history=_RaisingGetLatest(), today=AUG3)
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(ctx)
+    assert any("food_inflation" in r.message for r in caplog.records)
+    assert any("gross_reserves_usd_bn" in r.message for r in caplog.records)
+
+
+def test_import_cover_is_reserves_over_one_month_of_official_imports() -> None:
+    """37.578bn reserves / 5.8bn (official imports archive, mn->bn) = 6.48 months."""
+    m = next(m for m in build(_ctx(live=LIVE, archive=IMPORTS_ARCHIVE)).metrics
              if m.id == "import_cover_months_monthly")
     assert m.value == pytest.approx(6.4790, rel=1e-3)
 
 
-def test_a_derived_metric_is_dated_by_its_stalest_input() -> None:
+# ── H1, review round 1: the >1-month gate flipped an honest "stale" section
+# into a false "warming_up" one — see _import_cover's docstring. Replaced
+# with a 4-month gate, dated by the IMPORTS month, with a dual-period source. ──
+
+def test_import_cover_computes_at_the_real_production_gap_of_four_months() -> None:
+    """The exact 2026-08-22 audit #204 production shape: reserves 31 Jul
+    (36.4222bn) vs the official imports archive frozen at Mar (5826.2mn ->
+    5.8262bn) — 4 months apart. This USED to suppress under the old >1-month
+    rule; it must now compute, dated by the (older) imports month, with both
+    periods named in `source`."""
+    live = dict(LIVE, **{
+        "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 36.4222, date(2026, 7, 31)),
+    })
+    archive = {"imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 31))}
+    m = next(m for m in build(_ctx(live=live, archive=archive)).metrics
+             if m.id == "import_cover_months_monthly")
+    assert m.value == pytest.approx(6.25, abs=0.01)
+    assert m.as_of == date(2026, 3, 31)  # dated by the IMPORTS month, not reserves
+    assert "31 Jul" in m.source
+    assert "Mar" in m.source
+
+
+def test_import_cover_production_gap_keeps_macro_section_honestly_stale() -> None:
+    """The regression the review demanded: with the three still-archived
+    metrics (REER/CPI 12m avg/M2 YoY) genuinely 5+ months old, §03 must read
+    "stale" — NOT "warming_up". Import cover computing (rather than
+    suppressing) is what protects this: a suppressed metric would score
+    "unavailable", which macro's SECTIONS_WITHOUT_LEGACY_BACKFILL membership
+    promotes to the false "warming_up" badge."""
+    live = dict(LIVE, **{
+        "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 36.4222, date(2026, 7, 31)),
+    })
+    archive = {
+        "reer_monthly": _row("reer_monthly", 102.78, date(2026, 3, 1)),
+        "cpi_12m_avg_monthly": _row("cpi_12m_avg_monthly", 8.6, date(2026, 3, 1)),
+        "m2_growth_yoy_monthly": _row("m2_growth_yoy_monthly", 10.52, date(2026, 2, 1)),
+        "imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 31)),
+    }
+    s = build(_ctx(live=live, archive=archive, at_or_before=LIVE_AT_OR_BEFORE))
+    assert s.freshness == "stale"
+    cover = next(m for m in s.metrics if m.id == "import_cover_months_monthly")
+    assert cover.value == pytest.approx(6.25, abs=0.01)
+
+
+def test_import_cover_suppressed_at_five_months_still_keeps_the_section_stale() -> None:
+    """H-B, review round 2 — the regression the review specifically demanded:
+    imports 5 months behind reserves (2026-08-31 vs 2026-03-01) is PAST the
+    H1 4-month gate, so import cover is genuinely suppressed (value=None,
+    "unavailable"). That must NOT flip the section to "warming_up" just
+    because one metric has nothing to show — the cadence.py fix (promotion
+    only when EVERY metric is unavailable) is what protects this, at any
+    gap size, independent of where the H1 threshold happens to sit."""
+    today = date(2026, 9, 1)
+    live = dict(LIVE, **{
+        "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 36.4222, date(2026, 8, 31)),
+    })
+    archive = {
+        "reer_monthly": _row("reer_monthly", 102.78, date(2026, 3, 1)),
+        "cpi_12m_avg_monthly": _row("cpi_12m_avg_monthly", 8.6, date(2026, 3, 1)),
+        "m2_growth_yoy_monthly": _row("m2_growth_yoy_monthly", 10.52, date(2026, 2, 1)),
+        "imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 1)),
+    }
+    s = build(_ctx(live=live, archive=archive, at_or_before=LIVE_AT_OR_BEFORE, today=today))
+    cover = next(m for m in s.metrics if m.id == "import_cover_months_monthly")
+    assert cover.value is None  # months_apart(31 Aug, 1 Mar) = 5 > 4 -> suppressed
+    assert s.freshness == "stale"
+    assert s.freshness != "warming_up"
+
+
+def test_import_cover_is_suppressed_when_imports_are_more_than_four_months_stale() -> None:
+    """Beyond the 4-month gate, suppress rather than guess. Reserves (Jun) vs
+    a Jan imports archive are 5 months apart."""
+    stale_imports = {"imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5800.0, date(2026, 1, 31))}
+    m = next(m for m in build(_ctx(live=LIVE, archive=stale_imports)).metrics
+             if m.id == "import_cover_months_monthly")
+    assert m.value is None
+
+
+def test_import_cover_is_none_when_the_official_imports_archive_has_no_row() -> None:
+    m = next(m for m in build(_ctx(live=LIVE, archive={})).metrics
+             if m.id == "import_cover_months_monthly")
+    assert m.value is None
+
+
+def test_import_cover_source_defaults_to_bb_when_suppressed() -> None:
+    """No dual-period override when the metric can't compute — the spec's
+    plain "BB" source stays, rather than a stale/misleading note."""
+    m = next(m for m in build(_ctx(live=LIVE, archive={})).metrics
+             if m.id == "import_cover_months_monthly")
+    assert m.source == "BB"
+
+
+def test_a_derived_metric_is_dated_by_its_oldest_input() -> None:
     """The #184 failure was a March REER printed beside that day's spot rate with
     nothing recording the gap. A figure made of a fresh input and a stale one is
     as old as the stale one."""
-    s = build(_ctx(live=LIVE))
+    s = build(_ctx(live=LIVE, archive=IMPORTS_ARCHIVE, at_or_before=LIVE_AT_OR_BEFORE))
     by_id = {m.id: m for m in s.metrics}
 
-    # repo is 2026-08-03, headline inflation is 2026-06-30
+    # Real policy rate is dated by the inflation reading it pairs with (Jun 30).
     assert by_id["real_policy_rate_monthly"].as_of == JUN30
-    # reserves 2026-06-30, monthly_import 2026-08-03
+    # Import cover: reserves and the official imports archive are both Jun 30 here.
     assert by_id["import_cover_months_monthly"].as_of == JUN30
 
 
 def test_derived_metric_is_none_when_an_input_is_missing() -> None:
     """Half a derivation is not a number. Better unavailable than invented."""
     partial = {k: v for k, v in LIVE.items() if k != "general_inflation"}
-    m = next(m for m in build(_ctx(live=partial)).metrics
+    m = next(m for m in build(_ctx(live=partial, at_or_before=LIVE_AT_OR_BEFORE)).metrics
              if m.id == "real_policy_rate_monthly")
     assert m.value is None
 
 
 def test_derived_metric_survives_a_zero_denominator() -> None:
     """A zero import bill is nonsense data, not a reason to lose the issue."""
-    zeroed = dict(LIVE, monthly_import=_row("monthly_import", 0.0, AUG3))
-    m = next(m for m in build(_ctx(live=zeroed)).metrics
+    zeroed = {"imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 0.0, JUN30)}
+    m = next(m for m in build(_ctx(live=LIVE, archive=zeroed)).metrics
              if m.id == "import_cover_months_monthly")
     assert m.value is None
 
@@ -205,8 +397,9 @@ def test_section_stays_stale_while_the_unsourced_three_are_old() -> None:
         "reer_monthly": _row("reer_monthly", 102.78, date(2026, 3, 1)),
         "cpi_12m_avg_monthly": _row("cpi_12m_avg_monthly", 8.6, date(2026, 3, 1)),
         "m2_growth_yoy_monthly": _row("m2_growth_yoy_monthly", 10.52, date(2026, 2, 1)),
+        **IMPORTS_ARCHIVE,
     }
-    s = build(_ctx(live=LIVE, archive=archive))
+    s = build(_ctx(live=LIVE, archive=archive, at_or_before=LIVE_AT_OR_BEFORE))
     assert s.freshness == "stale"
 
     # ...and it is the archive three dragging it down, not the repointed five.
@@ -224,6 +417,11 @@ def test_no_history_clients_yields_all_none_and_no_facts() -> None:
         assert m.value is None, f"{m.id} should be None with no history client"
         assert m.as_of == AUG3
     assert s.history_facts == []
+    # H-B, review round 2: the promotion ITSELF must still fire when EVERY
+    # metric is genuinely unavailable — this test's whole point is that
+    # scenario. The companion regression above (five-months-behind) proves
+    # the promotion is now correctly gated OFF a partial outage.
+    assert s.freshness == "warming_up"
 
 
 def test_a_raising_history_client_does_not_take_the_section_down() -> None:

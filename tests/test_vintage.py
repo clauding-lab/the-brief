@@ -127,7 +127,19 @@ def test_the_reer_case_reads_as_a_march_print() -> None:
     assert v is not None
     assert v.age_days == 155
     assert "Mar 2026" in v.note
-    assert "155 days old" in v.note
+    assert "155d old" in v.note
+
+
+def test_a_stale_vintage_note_does_not_blame_the_source() -> None:
+    """P0 honesty fix (2026-08-22 audit #204): "overdue" accused the SOURCE of
+    not publishing, when the pipeline only knows its OWN read is old — BB may
+    have published several times since. The note states our read's age, not
+    an inference about the source's behaviour."""
+    v = metric_vintage(_m(as_of=date(2026, 3, 1)), today=TODAY)
+    assert v is not None
+    assert v.freshness == "stale"
+    assert "overdue" not in v.note
+    assert "our latest read" in v.note
 
 
 # ── event cadence keeps landmine 24's semantics ──────────────────────────────

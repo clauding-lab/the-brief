@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 import unicodedata
 from datetime import date as date_t
@@ -150,6 +151,71 @@ def _to_v6_raw(
     return out
 
 
+# P0 honesty fix (2026-08-22 audit #204): matches any digit-sequence,
+# including internal thousands-commas and a decimal point, as one token — so
+# "2.82" inside "$2.82bn" is replaced whole, leaving the surrounding "$" and
+# "bn" untouched. Deliberately does NOT try to also swallow attached currency
+# symbols or unit suffixes; leaving them in place keeps the sentence readable
+# while still making the actual figure unrecoverable.
+_NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_NUMBER_PLACEHOLDER = "‹n›"
+
+# M2, review round 1: numeric LEAF values (not just numbers embedded in
+# strings) are scrubbed too — a mover's `price`/`return_pct`, a still-raw
+# `value`/`delta`, etc. Only STRUCTURAL bookkeeping keys survive unscrubbed;
+# everything else that could read as "a figure from a previous issue" does
+# not reach the editor's copy.
+_SCRUB_ALLOWLIST_KEYS = frozenset({"issue_no", "volume", "ord", "weight", "read_minutes"})
+
+
+def _scrub_numbers(obj: Any, *, key: str | None = None) -> Any:
+    """Recursively replace every figure in `obj` with a placeholder, so no
+    number from a previous brief can be copied forward into today's prose.
+
+    The contamination this closes: `pipeline_v6._build_editor_input` feeds the
+    previous issue's full payload to the editor as `previous_brief`, for
+    narrative continuity ("yesterday we said X, today Y"). But the editor
+    reads numbers in there too, and the 2026-08-22 audit found exact old
+    figures ("$2.82bn", "fourteen reads") fossilizing forward across issues —
+    the editor was quoting yesterday's number instead of computing today's.
+    Scrubbing keeps every WORD and the object's structure intact (so the
+    continuity narrative still works) while making every number unrecoverable.
+
+    Three cases:
+      - str: every digit-sequence inside it is replaced (`_NUMBER_RE`).
+      - int/float (excluding bool): replaced wholesale with None, UNLESS its
+        dict key is in `_SCRUB_ALLOWLIST_KEYS` (structural bookkeeping the
+        pipeline itself needs downstream, e.g. `issue_no`/`volume` — never
+        prose the editor could quote). This is what keeps a mover's
+        `price`/`return_pct`, or a still-numeric `metric.value`, from
+        reaching the editor unscrubbed (review round 1, M2).
+      - dict/list: rebuilt recursively; a dict passes its OWN key down to
+        each value so the allowlist check applies at the leaf, not the
+        container.
+    bool passes through unscrubbed — it isn't a figure, and `bool` is a
+    subclass of `int` in Python so it must be checked before the numeric case.
+
+    This function never mutates `obj` — every branch returns a NEW
+    dict/list/string. Apply it ONLY to the copy handed to the editor prompt;
+    any caller that needs the real values — `_index_previous_metrics`,
+    `stamp_changed`, `mark_held_overs` — must run against the unscrubbed
+    object, since `_build_editor_input` calls this after those, not before.
+    """
+    if isinstance(obj, str):
+        return _NUMBER_RE.sub(_NUMBER_PLACEHOLDER, obj)
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, (int, float)):
+        if key in _SCRUB_ALLOWLIST_KEYS:
+            return obj
+        return None
+    if isinstance(obj, dict):
+        return {k: _scrub_numbers(v, key=k) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_scrub_numbers(v, key=key) for v in obj]
+    return obj
+
+
 def _build_editor_input(
     sections: list[SectionData],
     today: date_t,
@@ -222,7 +288,10 @@ def _build_editor_input(
     return {
         "today": today.isoformat(),
         "today_lens": lens,
-        "previous_brief": previous_brief,
+        # Scrubbed AFTER prev_metrics_idx/is_held_over above ran against the
+        # real values — this copy is for narrative continuity only, never a
+        # source of figures the editor can copy forward (P0 fix, audit #204).
+        "previous_brief": _scrub_numbers(previous_brief),
         "scraped_headlines": filtered_headlines,
         "sections_raw": raw_sections,
         "meta": {
@@ -652,6 +721,64 @@ def _reconcile_metrics(
     _verify_protected_presence(final_brief, raw_by_slug)
 
 
+# M-A, review round 2 (2026-08-22 audit #204): the marker substring the
+# builder's dual-period note and the published `sub` field are both checked
+# against, so a re-run never double-appends.
+_IMPORT_COVER_SUB_MARKER = "import bill"
+
+
+def _stamp_import_cover_sub(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]
+) -> None:
+    """Force the published Import Cover metric's `sub` to name both periods
+    the ratio combines (M-A, review round 2, 2026-08-22 audit #204).
+
+    `MetricV6` has no `source` field: the builder's dual-period note (set on
+    the RAW metric's `source` by `macro._import_cover`, H1 review round 1)
+    is dropped the moment the editor's output is validated against the V6
+    schema — `_Lenient.model_config` is `extra="ignore"`, so an editor that
+    faithfully copied `source` through would still lose it, and one that
+    didn't never had a chance either way. `sub` is the only free-text field
+    `MetricV6` actually carries to the reader. This pass runs
+    deterministically, AFTER `_reconcile_metrics`, and reads the note from
+    the BUILDER's raw output — never from the editor's memory of it — so the
+    dual-period disclosure reaches the reader regardless of what (or
+    whether) the editor wrote into `sub`.
+
+    A no-op when the raw metric has no value (suppressed this issue), when
+    its `source` carries no dual-period note (i.e. `_import_cover` didn't
+    take its success path), or when the published `sub` already contains
+    the marker phrase (never double-appends on a re-run).
+    """
+    note: str | None = None
+    for s in raw_sections:
+        if s.get("slug") != "macro":
+            continue
+        for m in s.get("metrics", []) or []:
+            if m.get("label") != "Import Cover" or m.get("value") is None:
+                continue
+            src = m.get("source") or ""
+            if "reserves" in src and _IMPORT_COVER_SUB_MARKER in src:
+                start = src.find("reserves")
+                end = src.find(_IMPORT_COVER_SUB_MARKER) + len(_IMPORT_COVER_SUB_MARKER)
+                note = src[start:end]
+        break
+
+    if not note:
+        return
+
+    for section in final_brief.sections:
+        if section.slug != "macro":
+            continue
+        for pub in section.metrics:
+            if pub.label != "Import Cover":
+                continue
+            current = pub.sub or ""
+            if _IMPORT_COVER_SUB_MARKER not in current:
+                pub.sub = f"{current} · {note}" if current else note
+        break
+
+
 # ─── Phase E.2 — chart series enricher ────────────────────────────────
 # Per-slug chart fetcher dispatch. Sections not in this map skip chart_series
 # stamping (frontend hides the chart slot when series is empty). The values
@@ -951,6 +1078,138 @@ def _run_subeditor(
     )
 
 
+# P0 honesty fix (2026-08-22 audit #204): hard-denylisted hallucination
+# signatures. The editor invented a "$80 FY27 [crude]" budget-assumption
+# motif — repeated with "$14.09" — that has no basis anywhere in Bangladesh's
+# actual FY27 budget. Unlike the rest of `_run_deterministic_gate` (a log-only
+# backstop that must never hold the publish on a false positive), these
+# patterns are specific enough that a false positive is not a realistic risk
+# PROVIDED the scan is scoped to prose: HARD-FAIL, don't log-and-ship.
+#
+# Review round 1 (C1, BLOCKER): the first cut of this check scanned
+# `model_dump_json()` of the WHOLE brief, including chart series points,
+# sparklines and movers. A chart value that happens to serialize as
+# `...5114.09...` matches the bare `\$?14\.09` pattern with zero relation to
+# the FY27 hallucination — a real reviewer reproduction, and it would have
+# held the publish for as long as that data point stayed in the trailing
+# window (up to a year for a monthly series). Two fixes, both required:
+#   1. Scan PROSE FIELDS ONLY (`_collect_prose_fields`) — never
+#      `metric.value`, `spark`, `series`, `notes`, or `movers`.
+#   2. The bare "$14.09" pattern is replaced with a CO-OCCURRENCE rule: a
+#      "14.09" only blocks when the SAME prose field also mentions FY27,
+#      $80, "crude", or "budget" — i.e. it has to look like the actual
+#      hallucination, not just contain that one number. A genuine desk line
+#      like "Brent settled at $14.09 on thin volume" has none of that context
+#      and must PASS.
+# The $80<->FY27 proximity patterns (either word order) are unchanged and
+# still hard-fail on their own — they are specific enough already.
+_FY27_80_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\$80\b[^.]{0,60}FY.?27", re.IGNORECASE),
+    re.compile(r"FY.?27[^.]{0,60}\$80\b", re.IGNORECASE),
+)
+# H-A, review round 2: bounded on both sides so "14.09" is only matched when
+# it is the WHOLE number, not a substring of a larger one. The bare version
+# (no lookaround) matched "14.09" inside "Tk1,214.09", "314.09bn", "3,914.09"
+# and "4,014.09" — real banker-grade figures with nothing to do with the
+# audit's hallucination. `(?<![\d.,])` refuses a digit/period/comma
+# immediately before the match (so it can't be the tail of a bigger number);
+# `(?!\d)` refuses a digit immediately after (so "14.099" doesn't match either).
+_1409_RE = re.compile(r"(?<![\d.,])\$?14\.09(?!\d)")
+_1409_CONTEXT_RE = re.compile(r"FY.?27|\$80\b|crude|budget", re.IGNORECASE)
+
+
+class DenylistViolationError(V6PublishError):
+    """Raised when a hard-denylisted hallucination pattern appears in the
+    final brief's PROSE. See the 2026-08-22 audit (issue #204): the editor
+    invented an "$80 FY27" crude-price budget assumption and a "$14.09"
+    figure with no basis in Bangladesh's actual FY27 budget. This must
+    propagate and hold the publish — see the call site in `run_publish`,
+    which re-raises this specific error THROUGH the blanket
+    `except Exception` that otherwise makes the deterministic gate log-only.
+    """
+
+
+def _collect_prose_fields(final_brief: BriefPayloadV6) -> list[tuple[str, str]]:
+    """Every prose text surface the denylist may scan, as (field_path, text).
+
+    Deliberately excludes anything numeric/series-shaped — `metric.value`,
+    `metric.delta`/`delta_pct`, `spark`, `series`, `movers` — so a real chart
+    data point can never trip a prose-hallucination pattern (C1). `metric.sub`,
+    `cover_metric.sub`, and `notes[].detail` ARE included: they are free-text
+    the editor writes, the same kind of surface `todays_call` is (L-C, review
+    round 2 — `notes[].detail` was originally lumped in with the numeric
+    exclusions by mistake; it is prose, `series_key`/`ts` on the same object
+    are not).
+
+    Deliberately ALSO excludes (L-C): closed-vocabulary/structural strings the
+    editor picks from a fixed set or copies verbatim rather than composes —
+    `brief.lens`, `brief.frame` (enum-like slugs), section/metric/news
+    `label`/`title` fields, and `notes[].label` (a short annotation tag, not
+    prose). None of these are places a multi-sentence hallucination could
+    hide, and scanning them would only add false-positive surface.
+    """
+    fields: list[tuple[str, str]] = []
+    if final_brief.brief.todays_call:
+        fields.append(("brief.todays_call", final_brief.brief.todays_call))
+    if final_brief.brief.cover_metric is not None and final_brief.brief.cover_metric.sub:
+        fields.append(("brief.cover_metric.sub", final_brief.brief.cover_metric.sub))
+    for s in final_brief.sections:
+        if s.tldr:
+            fields.append((f"{s.slug}.tldr", s.tldr))
+        if s.verdict:
+            fields.append((f"{s.slug}.verdict", s.verdict))
+        if s.analysis:
+            fields.append((f"{s.slug}.analysis", s.analysis))
+        if s.banker_read is not None:
+            fields.append((f"{s.slug}.banker_read.verdict", s.banker_read.verdict))
+            for i, w in enumerate(s.banker_read.watch):
+                fields.append((f"{s.slug}.banker_read.watch[{i}]", w))
+            for i, r in enumerate(s.banker_read.risk):
+                fields.append((f"{s.slug}.banker_read.risk[{i}]", r))
+        if s.chart_read is not None:
+            fields.append((f"{s.slug}.chart_read.signal", s.chart_read.signal))
+            fields.append((f"{s.slug}.chart_read.context", s.chart_read.context))
+            fields.append((f"{s.slug}.chart_read.implication", s.chart_read.implication))
+        for i, pill in enumerate(s.summary_pills):
+            fields.append((f"{s.slug}.summary_pills[{i}].value", pill.value))
+        for i, n in enumerate(s.news):
+            fields.append((f"{s.slug}.news[{i}].headline", n.headline))
+            if n.detail:
+                fields.append((f"{s.slug}.news[{i}].detail", n.detail))
+        for i, m in enumerate(s.metrics):
+            if m.sub:
+                fields.append((f"{s.slug}.metrics[{i}].sub", m.sub))
+        for i, note in enumerate(s.notes):
+            if note.detail:
+                fields.append((f"{s.slug}.notes[{i}].detail", note.detail))
+    return fields
+
+
+def _check_hard_denylist(final_brief: BriefPayloadV6) -> None:
+    """Hard-fail if any denylisted hallucination pattern appears in PROSE.
+
+    Raises `DenylistViolationError`; never returns a count like the log-only
+    checks below — this is a HOLD, not a signal.
+    """
+    for field_path, text in _collect_prose_fields(final_brief):
+        for pattern in _FY27_80_PATTERNS:
+            if pattern.search(text):
+                raise DenylistViolationError(
+                    f"v6 gate: hard denylist match at {field_path!r} "
+                    f"({pattern.pattern!r}) — this is the '$80 FY27' "
+                    "hallucination from the 2026-08-22 audit (issue #204); "
+                    "the editor invented a figure with no basis in "
+                    "Bangladesh's actual FY27 budget. Publish held."
+                )
+        if _1409_RE.search(text) and _1409_CONTEXT_RE.search(text):
+            raise DenylistViolationError(
+                f"v6 gate: hard denylist match at {field_path!r} "
+                "('$14.09' co-occurring with FY27/$80/crude/budget context) "
+                "— this is the 2026-08-22 audit's (issue #204) hallucinated "
+                "figure, not a coincidental number. Publish held."
+            )
+
+
 def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
     """Deterministic post-editor prose backstop (issue 156 review, item 7).
 
@@ -967,8 +1226,16 @@ def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
     in journalctl / the dry-run render so drift is visible. Escalating a specific
     check to hard-fail is a follow-up once the logs establish its precision.
 
+    EXCEPTION: `_check_hard_denylist`, run first, is NOT log-only — see its
+    docstring and `DenylistViolationError`. It is called from inside this
+    function (per the 2026-08-22 audit's spec) but raises rather than
+    incrementing the violation count, and the call site in `run_publish` lets
+    that specific exception propagate through the blanket catch-all below.
+
     Returns the total violation count (also emitted in the summary log line).
     """
+    _check_hard_denylist(final_brief)  # raises DenylistViolationError — must propagate
+
     violations = 0
 
     def _flag(where: str, reason: str) -> None:
@@ -1174,6 +1441,10 @@ def run_publish(
     # MetricReconciliationError's docstring for why the two do not share a
     # log-only rationale.
     _reconcile_metrics(final_brief, editor_input["sections_raw"])
+    # M-A, review round 2: deterministically stamps the macro Import Cover
+    # metric's `sub` with its dual-period note — MetricV6 has no `source`
+    # field, so nothing upstream of this call guarantees the note survives.
+    _stamp_import_cover_sub(final_brief, editor_input["sections_raw"])
 
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
@@ -1239,8 +1510,15 @@ def run_publish(
     # could only not crash because validators.py's never-raise contract and the V6
     # schema invariants happen to hold — if either regresses, a cosmetic backstop
     # would hard-block the 06:30 fire. A gate crash is logged and publish proceeds.
+    #
+    # EXCEPTION: DenylistViolationError (P0 honesty fix, 2026-08-22 audit #204)
+    # is a deliberate HARD-FAIL, not a gate crash — re-raised THROUGH this
+    # catch-all so the "$80 FY27" / "$14.09" hallucination signature holds the
+    # publish instead of being logged and shipped.
     try:
         _run_deterministic_gate(final_brief)
+    except DenylistViolationError:
+        raise
     except Exception:  # noqa: BLE001 — the log-only gate must never block a publish
         logger.warning(
             "v6 gate: deterministic gate crashed — continuing, publish NOT blocked "

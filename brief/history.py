@@ -83,6 +83,35 @@ class MetricHistoryClient:
             source=row["source"],
         )
 
+    def get_at_or_before(
+        self, metric_id: str, as_of: date, *, table: str = "metric_history"
+    ) -> HistoryRow | None:
+        """Fetch the most recent row for `metric_id` dated at or before `as_of`.
+
+        Needed for period-consistent derivations (P0 honesty fix, 2026-08-22
+        audit #204): pairing "latest repo rate" with "latest inflation reading"
+        silently mixes vintages when a rate cut lands between the two prints. A
+        Jun inflation print must pair with the Jun repo rate — this fetches
+        exactly that, walking backward from `as_of` rather than always reading
+        today's value.
+        """
+        url = (
+            f"{self.url}/rest/v1/{table}"
+            f"?metric_id=eq.{urllib.parse.quote(metric_id)}"
+            f"&as_of=lte.{as_of.isoformat()}"
+            "&order=as_of.desc&limit=1"
+        )
+        status, body = self.http.get(url, headers=self._headers())
+        if status != 200 or not body:
+            return None
+        row = body[0]
+        return HistoryRow(
+            metric_id=row["metric_id"],
+            as_of=date.fromisoformat(row["as_of"]),
+            value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
+            source=row["source"],
+        )
+
     def get_history_window(
         self,
         metric_ids: Sequence[str],

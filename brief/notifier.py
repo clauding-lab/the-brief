@@ -16,6 +16,7 @@ import urllib.error
 from dataclasses import dataclass
 from datetime import date as date_t
 from datetime import datetime, timezone
+from typing import Any
 from urllib.parse import quote as _urlquote
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -26,6 +27,14 @@ from zoneinfo import ZoneInfo
 _BDT = ZoneInfo("Asia/Dhaka")
 _HOSTED_URL = "https://thebrief.clauding-lab.com/"
 _BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+# H4, review round 1: FROM_EMAIL is the Brevo SENDING address (may be a
+# no-reply / unmonitored address — Brevo only requires it be sender-verified,
+# not that it receives mail). The unsubscribe mailbox is a SEPARATE concept:
+# it must be an address that demonstrably receives mail today. Default is
+# the owner's personal address, already the one the HTML half pointed at
+# before this fix — env-overridable once a branded inbox exists.
+_DEFAULT_UNSUBSCRIBE_EMAIL = "adnan.rshd@gmail.com"
 
 _LENS_PHRASE: dict[str, str] = {
     "weekly_wrap": "weekly wrap",
@@ -102,6 +111,30 @@ def _esc(s: str) -> str:
     return _html.escape(s, quote=True)
 
 
+def _mailto_encode(email: str) -> str:
+    """Percent-encode an email address for embedding in a `mailto:` URI (L4,
+    review round 1). `@` and `.` are left literal (valid and expected in a
+    mailto address); anything else that isn't already URL-safe gets encoded.
+    Callers still HTML-escape the result before writing it into an href
+    attribute — URL-encoding and HTML-escaping are separate concerns."""
+    return _urlquote(email, safe="@.")
+
+
+def _mask_email(email: str) -> str:
+    """Mask an email for logs: keep the first character and the domain.
+
+    e.g. "adnan.rshd@gmail.com" -> "a***@gmail.com". P0 honesty fix
+    (2026-08-22 audit #204): the send-failure logs used to print the full
+    subscriber address, violating the repo's own no-PII-in-logs rule
+    (app/api/subscribe/route.ts:174-177 logs an error CODE, never the email,
+    for the same reason).
+    """
+    local, sep, domain = email.partition("@")
+    if not sep or not local or not domain:
+        return "***"
+    return f"{local[0]}***@{domain}"
+
+
 def _hhmm_bdt(ts: datetime | None) -> str:
     """Format a timestamp as HH:MM BDT. None → empty string."""
     if ts is None:
@@ -148,10 +181,18 @@ def render_subject(*, issue_no: int, brief_date: date_t, lens: str | None) -> st
     return f"The Brief · No. {issue_no} · {date_str} · {_lens_phrase(lens)}"
 
 
-def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
+def render_text(*, brief: BriefRow, lead_news: NewsRow | None, unsubscribe_email: str) -> str:
     """Plain-text body for the release email.
 
     LEAD HEADLINE section is omitted entirely when lead_news is None.
+
+    `unsubscribe_email` names the SAME mailbox the HTML unsubscribe link
+    points at (P0 honesty fix, 2026-08-22 audit #204 — the HTML version used
+    to hardcode a personal Gmail address while this text version said "reply
+    to this email", which is actually FROM_EMAIL, a THIRD, possibly
+    unmonitored address — H4, review round 1: unsubscribe is now its own
+    address, separate from the Brevo sending address, named explicitly here
+    rather than implied by "this email").
     """
     lines: list[str] = []
     lines.append(f"THE BRIEF · Vol. {brief.volume:02d} · No. {brief.issue_no}")
@@ -176,20 +217,34 @@ def render_text(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
             lines.append(lead_news.source_url)
         lines.append("")
 
+    # Issue number + date near the CTA (P0 honesty fix, 2026-08-22 audit #204):
+    # a copy of this email opened months later should identify which issue it
+    # was without scrolling back to the masthead line above.
+    lines.append(
+        f"Issue No. {brief.issue_no} · {brief.brief_date.strftime('%a %d %b %Y')}"
+    )
     lines.append(f"Full edition → {_HOSTED_URL}")
     lines.append("")
     lines.append("---")
     lines.append("You're getting this because you subscribed at thebrief.clauding-lab.com.")
-    lines.append("Unsubscribe: reply to this email with 'Unsubscribe' in the subject.")
+    lines.append(f"Unsubscribe: email {unsubscribe_email} with 'Unsubscribe' in the subject.")
 
     return "\n".join(lines)
 
 
-def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
+def render_html(*, brief: BriefRow, lead_news: NewsRow | None, unsubscribe_email: str) -> str:
     """HTML body — single-column 600px, Outlook-safe inline styles.
 
     Cream-paper palette mirrors the site identity; Georgia for editorial weight,
     system sans for chrome, amber-gold (#a67c2e) section labels, hairline rules.
+
+    `unsubscribe_email` is the SAME mailbox the plain-text version names
+    (P0 honesty fix, 2026-08-22 audit #204 — this used to hardcode a personal
+    Gmail address here while the text version implied "reply to this email",
+    i.e. FROM_EMAIL, a THIRD address. H4, review round 1: unsubscribe is now
+    a distinct, explicit address, not tied to whatever FROM_EMAIL happens to
+    be — FROM_EMAIL may not even be a monitored inbox (the fallback is
+    literally `noreply@example.com`).
     """
     paragraphs = [p.strip() for p in brief.todays_call.split("\n\n") if p.strip()]
     paragraphs_html = "".join(
@@ -232,25 +287,30 @@ def render_html(*, brief: BriefRow, lead_news: NewsRow | None) -> str:
     <hr style="border:none;border-top:1px solid #e6dfd1;margin:24px 0;">
 
     {lead_block}
+    <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#9a8e75;margin-bottom:8px;">Issue No. {brief.issue_no} &middot; {brief.brief_date.strftime("%a %d %b %Y")}</div>
     <a href="{_HOSTED_URL}" style="display:inline-block;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#1a1814;font-weight:600;border-bottom:2px solid #1a1814;text-decoration:none;padding-bottom:2px;">Full edition &rarr;</a>
-    <div style="font-size:10px;color:#9a8e75;margin-top:20px;">You're getting this because you subscribed at thebrief.clauding-lab.com. <a href="mailto:adnan.rshd@gmail.com?subject=Unsubscribe%20-%20The%20Brief" style="color:#9a8e75;">Unsubscribe</a>.</div>
+    <div style="font-size:10px;color:#9a8e75;margin-top:20px;">You're getting this because you subscribed at thebrief.clauding-lab.com. <a href="mailto:{_esc(_mailto_encode(unsubscribe_email))}?subject=Unsubscribe%20-%20The%20Brief" style="color:#9a8e75;">Unsubscribe</a>.</div>
   </td></tr>
 </table>
 </body></html>"""
 
 
-def render_email(*, brief: BriefRow, lead_news: NewsRow | None) -> tuple[str, str, str]:
+def render_email(*, brief: BriefRow, lead_news: NewsRow | None, unsubscribe_email: str) -> tuple[str, str, str]:
     """Return (subject, html_body, text_body) for a brief release email.
 
     Pure function — no I/O, no env reads. Use for unit-testing and dry-run rendering.
+
+    `unsubscribe_email` is threaded through (not read from the environment
+    here) so the render layer stays pure; `notify()` is the only caller that
+    reads it from `UNSUBSCRIBE_EMAIL` (falling back to the owner address).
     """
     subject = render_subject(
         issue_no=brief.issue_no,
         brief_date=brief.brief_date,
         lens=brief.lens,
     )
-    html = render_html(brief=brief, lead_news=lead_news)
-    text = render_text(brief=brief, lead_news=lead_news)
+    html = render_html(brief=brief, lead_news=lead_news, unsubscribe_email=unsubscribe_email)
+    text = render_text(brief=brief, lead_news=lead_news, unsubscribe_email=unsubscribe_email)
     return subject, html, text
 
 
@@ -347,6 +407,7 @@ def send_via_brevo(
     subject: str,
     html_body: str,
     text_body: str,
+    list_unsubscribe_email: str | None = None,
 ) -> tuple[int, str | None, str | None]:
     """POST one email per subscriber to Brevo's transactional API.
 
@@ -359,19 +420,41 @@ def send_via_brevo(
       - sent_count: subscribers Brevo accepted (2xx response)
       - message_id: the Brevo messageId from the LAST successful send, or None
       - error: the FIRST failure tag encountered, or None if all sends succeeded
+
+    `list_unsubscribe_email`, when given, adds a `List-Unsubscribe` header to
+    every payload pointing at that address (H4, review round 1 — this is the
+    UNSUBSCRIBE mailbox, deliberately NOT `from_email`, since `from_email`
+    may not be a monitored inbox). Defaults to None (header omitted) — H3,
+    review round 1: Brevo's own documentation is not explicit that arbitrary
+    custom headers, including List-Unsubscribe, survive the transactional
+    send path unmodified; a wrong/unsupported header risks a 400 that would
+    kill EVERY send in the batch, not just degrade gracefully. `notify()`
+    only passes a value here when `BRIEF_LIST_UNSUB_HEADER` is explicitly
+    set — the plan is to verify with a real controlled send post-merge and
+    flip that flag on once it's confirmed safe.
+
+    IMPORTANT: a bare `mailto:` List-Unsubscribe value is NOT RFC 8058
+    "one-click" unsubscribe (that requires a `List-Unsubscribe-Post` header
+    and a POST endpoint, which this repo does not have). At most this lets a
+    compliant mail client pre-compose an unsubscribe email; it does not add
+    a true one-click button.
     """
     sent_count = 0
     last_message_id: str | None = None
     first_error: str | None = None
 
     for sub in subscribers:
-        payload = {
+        payload: dict[str, Any] = {
             "sender": {"email": from_email, "name": from_name},
             "to": [{"email": sub.email, "name": sub.name}],
             "subject": subject,
             "htmlContent": html_body,
             "textContent": text_body,
         }
+        if list_unsubscribe_email:
+            payload["headers"] = {
+                "List-Unsubscribe": f"<mailto:{_mailto_encode(list_unsubscribe_email)}?subject=Unsubscribe>",
+            }
         req = Request(
             _BREVO_URL,
             data=_stdjson.dumps(payload).encode("utf-8"),
@@ -389,12 +472,12 @@ def send_via_brevo(
                     last_message_id = body["messageId"]
         except urllib.error.HTTPError as e:
             err = f"HTTP {e.code}: {e.reason}"
-            logger.warning("notifier: send to %s failed: %s", sub.email, err)
+            logger.warning("notifier: send to %s failed: %s", _mask_email(sub.email), err)
             if first_error is None:
                 first_error = err
         except Exception as e:
             err = f"{type(e).__name__}: {e}"
-            logger.warning("notifier: send to %s failed: %s", sub.email, err)
+            logger.warning("notifier: send to %s failed: %s", _mask_email(sub.email), err)
             if first_error is None:
                 first_error = err
 
@@ -407,7 +490,8 @@ def send_via_brevo(
 def notify(brief_id: str) -> NotifyResult:
     """Top-level entry. Fail-open: any error logged and returned in NotifyResult.
 
-    Reads BREVO_API_KEY, FROM_EMAIL, SUPABASE_URL, SUPABASE_SERVICE_KEY from env.
+    Reads BREVO_API_KEY, FROM_EMAIL, UNSUBSCRIBE_EMAIL, BRIEF_LIST_UNSUB_HEADER,
+    SUPABASE_URL, SUPABASE_SERVICE_KEY from env.
     """
     api_key = os.environ.get("BREVO_API_KEY", "").strip()
     if not api_key:
@@ -422,6 +506,28 @@ def notify(brief_id: str) -> NotifyResult:
             "reject (sender not verified). Set FROM_EMAIL in /etc/brief.env.",
             from_email,
         )
+
+    # H4, review round 1: UNSUBSCRIBE_EMAIL is a SEPARATE address from
+    # FROM_EMAIL — the sending address may not be a monitored inbox at all
+    # (see the noreply@example.com fallback just above), so unsubscribe must
+    # never silently ride on whatever FROM_EMAIL happens to resolve to.
+    unsubscribe_email = os.environ.get("UNSUBSCRIBE_EMAIL", "").strip()
+    if not unsubscribe_email:
+        unsubscribe_email = _DEFAULT_UNSUBSCRIBE_EMAIL
+        logger.warning(
+            "notifier: UNSUBSCRIBE_EMAIL not set, falling back to the owner "
+            "address %s — swap to a branded inbox once one exists. Set "
+            "UNSUBSCRIBE_EMAIL in /etc/brief.env.",
+            unsubscribe_email,
+        )
+
+    # H3, review round 1: List-Unsubscribe stays OFF by default — Brevo's
+    # documented support for arbitrary custom headers on transactional sends
+    # is not explicit enough to risk a 400 that would kill EVERY send in the
+    # batch. Opt in only after a controlled real-send test confirms it's safe.
+    list_unsub_enabled = os.environ.get("BRIEF_LIST_UNSUB_HEADER", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
 
     try:
         brief, lead_news = fetch_brief_data(brief_id)
@@ -439,7 +545,9 @@ def notify(brief_id: str) -> NotifyResult:
         logger.info("notifier: no subscribers, skipping send")
         return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error="no_subscribers")
 
-    subject, html_body, text_body = render_email(brief=brief, lead_news=lead_news)
+    subject, html_body, text_body = render_email(
+        brief=brief, lead_news=lead_news, unsubscribe_email=unsubscribe_email,
+    )
 
     sent_count, message_id, error = send_via_brevo(
         api_key=api_key,
@@ -449,6 +557,7 @@ def notify(brief_id: str) -> NotifyResult:
         subject=subject,
         html_body=html_body,
         text_body=text_body,
+        list_unsubscribe_email=unsubscribe_email if list_unsub_enabled else None,
     )
 
     if error:
