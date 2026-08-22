@@ -61,6 +61,13 @@ interface BriefChartProps {
   section: Section;
   configKey: ChartConfigKey;
   height?: number;
+  /** Meaningful aria-label; falls back to "{section title} chart" when omitted. */
+  ariaLabel?: string;
+  /** id of the section's CHART READ block, wired to aria-describedby. */
+  describedById?: string;
+  /** When true, dims the canvas and shows `staleLabel` beneath it. */
+  stale?: boolean;
+  staleLabel?: string;
 }
 
 // Group SeriesPoint[] (where each point has a `key`) into the
@@ -81,7 +88,15 @@ function groupSeries(series: SeriesPoint[]): SeriesByKey {
   return out;
 }
 
-export function BriefChart({ section, configKey, height = 280 }: BriefChartProps) {
+export function BriefChart({
+  section,
+  configKey,
+  height = 280,
+  ariaLabel,
+  describedById,
+  stale = false,
+  staleLabel,
+}: BriefChartProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
 
@@ -116,11 +131,19 @@ export function BriefChart({ section, configKey, height = 280 }: BriefChartProps
         height: `${height}px`,
         position: "relative",
         width: "100%",
+        minWidth: 0,
       }}
+      className={`tb-chart-canvas-wrap${stale ? " is-stale-series" : ""}`}
       role="img"
-      aria-label={`${section.title} chart`}
+      aria-label={ariaLabel || `${section.title} chart`}
+      aria-describedby={describedById}
     >
       <canvas ref={canvasRef} />
+      {stale && staleLabel && (
+        <div className="tb-chart-stale-note" role="note">
+          {staleLabel}
+        </div>
+      )}
     </div>
   );
 }

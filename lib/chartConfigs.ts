@@ -1295,10 +1295,17 @@ export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
 };
 
 // Per-chart card-head metadata — mirrors EconDelta /macro's FIG.NN + title
-// + subtitle pattern. FIG numbers are stable across issues and assigned in
-// chart-addition order (NOT render order): fx=01, dse=02, tbond=03, comm=04,
-// iran=05, macro=06, remit=07, bb=08. When adding a chart, take the next free
-// number from this table rather than inferring from where the section renders.
+// + subtitle pattern.
+//
+// `fig` here is NOT what renders anymore. It used to be — assigned in
+// chart-addition order (fx=01, dse=02, tbond=03, comm=04, iran=05, macro=06,
+// remit=07, bb=08, fiscal=09) — which meant the printed sequence followed
+// the order charts were ADDED to this file, not the order sections actually
+// render in, so a reader saw "FIG.08, 01, 02, 03, 06, 07, 09, 05" top to
+// bottom with no FIG.04 (comm was retired, landmine 30). ClientApp.tsx now
+// computes a `chartOrd` per slug from the real render order and Section.tsx
+// uses that; `fig` is kept only as a defensive fallback for a charted
+// section this table hasn't been told the render position of.
 export interface ChartCardHead {
   fig: string;
   title: string;

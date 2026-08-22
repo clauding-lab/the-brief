@@ -6,15 +6,20 @@ import { BankerRead } from "./BankerRead";
 import { SignatureChart } from "./SignatureChart";
 import { BriefChart } from "./BriefChart";
 import { SECTION_TO_CHART, CHART_CARD_HEADS } from "@/lib/chartConfigs";
+import { getChartLatestCaption, getChartStaleness, getChartAriaLabel } from "@/lib/chartMeta";
 import { formatNewsMeta, cleanMetricValue, formatVintageDate } from "@/lib/format";
 
 interface SectionProps {
   section: SectionType;
   diffMode: boolean;
   displayOrd?: number;
+  /** Sequential FIG number (1, 2, 3, …) in reading order — only set for charted sections. */
+  chartOrd?: number;
+  /** The issue's brief_date (YYYY-MM-DD), used to judge chart staleness. */
+  issueDate?: string;
 }
 
-export function Section({ section, diffMode, displayOrd }: SectionProps) {
+export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: SectionProps) {
   const {
     slug,
     ord,
@@ -66,6 +71,12 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
   const hasChart = series && series.length > 1;
   const seriesKey = hasChart ? series[0].key : null;
   const filteredNotes = notes.filter((n) => n.series_key === seriesKey);
+  const configKey = SECTION_TO_CHART[slug] ?? null;
+  // Bound to the CHARTED series' own latest point — never metrics[0] (that
+  // bug captioned the bb/"FX Reserves" chart with "Overnight Call Money
+  // 9.31%", the section's first tile, which has no relation to the chart).
+  const chartLatest = hasChart ? getChartLatestCaption(section, configKey) : null;
+  const staleness = hasChart && configKey ? getChartStaleness(section, configKey, issueDate) : null;
   const isHero = (weight ?? 1) >= 2;
   const anySignal =
     metrics.some((m) => m.changed || m.held_from) ||
@@ -116,18 +127,23 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
           <div className="tb-chart-card">
             {(() => {
               const head = CHART_CARD_HEADS[slug];
-              const latest = metrics[0];
               if (head) {
+                // Sequential FIG numbering in reading order (chartOrd, computed
+                // in ClientApp from render order) — head.fig is a stable-but-
+                // wrong "chart-addition-order" number kept only as a defensive
+                // fallback for a charted section this table hasn't been told
+                // the render position of.
+                const figLabel = String(chartOrd ?? head.fig).padStart(2, "0");
                 return (
                   <div className="tb-chart-card-head">
-                    <span className="tb-chart-fig">FIG.{head.fig}</span>
+                    <span className="tb-chart-fig">FIG.{figLabel}</span>
                     <h3 className="tb-chart-title">{head.title}</h3>
                     {head.subtitle && (
                       <div className="tb-chart-sub">{head.subtitle}</div>
                     )}
-                    {latest && (
+                    {chartLatest && (
                       <div className="tb-chart-latest">
-                        Latest: {latest.label} {cleanMetricValue(latest.value)}
+                        Latest: {chartLatest.label} {cleanMetricValue(chartLatest.value)}
                       </div>
                     )}
                   </div>
@@ -139,13 +155,20 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
                 </div>
               );
             })()}
-            {SECTION_TO_CHART[slug] ? (
-              <BriefChart section={section} configKey={SECTION_TO_CHART[slug]!} />
+            {configKey ? (
+              <BriefChart
+                section={section}
+                configKey={configKey}
+                ariaLabel={getChartAriaLabel(section, configKey, CHART_CARD_HEADS[slug])}
+                describedById={chart_read ? `${slug}-chart-read` : undefined}
+                stale={staleness?.isStale ?? false}
+                staleLabel={staleness?.label}
+              />
             ) : (
               <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
             )}
             {chart_read && (
-              <div className="tb-analysis tb-chart-read">
+              <div className="tb-analysis tb-chart-read" id={`${slug}-chart-read`}>
                 <span className="label">Chart read</span>
                 <div className="body">
                   <p>{chart_read.signal}</p>
@@ -274,7 +297,7 @@ export function Section({ section, diffMode, displayOrd }: SectionProps) {
               <div className="tb-mover-row" key={m.ticker}>
                 <span className="tb-mover-tk">
                   {m.ticker}
-                  <span className="tb-mover-px">{`৳${m.price}`}</span>
+                  <span className="tb-mover-px">{`Tk ${m.price}`}</span>
                 </span>
                 <span className={`tb-mover-rt ${tone}`}>{fmtRet(m.return_pct)}</span>
               </div>
