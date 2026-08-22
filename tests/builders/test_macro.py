@@ -206,6 +206,31 @@ def test_real_policy_rate_is_none_when_no_repo_rate_existed_that_early() -> None
     assert m.value is None
 
 
+def test_at_or_before_warns_by_name_when_no_row_found(caplog) -> None:
+    """M3, review round 1: no silent darkness — a missing at_or_before row
+    logs a WARNING naming the metric id."""
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(_ctx(live=LIVE, at_or_before={}))
+    assert any("policy_rate_repo" in r.message for r in caplog.records)
+
+
+def test_at_or_before_warns_by_name_when_the_client_raises(caplog) -> None:
+    class _RaisingAtOrBefore:
+        def get_latest(self, metric_id, *, table=None):
+            return LIVE.get(metric_id)
+
+        def get_at_or_before(self, metric_id, as_of, *, table=None):
+            raise RuntimeError("supabase down")
+
+        def get_history_window(self, metric_ids, **kwargs):
+            return {mid: [] for mid in metric_ids}
+
+    ctx = BuilderContext(snapshot=_snap(), history=_RaisingAtOrBefore(), today=AUG3)
+    with caplog.at_level("WARNING", logger="brief.builders.macro"):
+        build(ctx)
+    assert any("policy_rate_repo" in r.message for r in caplog.records)
+
+
 def test_import_cover_is_reserves_over_one_month_of_official_imports() -> None:
     """37.578bn reserves / 5.8bn (official imports archive, mn->bn) = 6.48 months."""
     m = next(m for m in build(_ctx(live=LIVE, archive=IMPORTS_ARCHIVE)).metrics
@@ -213,12 +238,54 @@ def test_import_cover_is_reserves_over_one_month_of_official_imports() -> None:
     assert m.value == pytest.approx(6.4790, rel=1e-3)
 
 
-def test_import_cover_is_suppressed_when_imports_are_more_than_a_month_stale() -> None:
-    """The bug this fixes: a 31-Jul reserves read divided by a ~March import
-    bill printed "6.28 months" as if current. Reserves (Jun) vs a Mar imports
-    archive are 3 months apart — the honest output is no metric at all, not a
-    guessed ratio."""
-    stale_imports = {"imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5800.0, date(2026, 3, 31))}
+# ── H1, review round 1: the >1-month gate flipped an honest "stale" section
+# into a false "warming_up" one — see _import_cover's docstring. Replaced
+# with a 4-month gate, dated by the IMPORTS month, with a dual-period source. ──
+
+def test_import_cover_computes_at_the_real_production_gap_of_four_months() -> None:
+    """The exact 2026-08-22 audit #204 production shape: reserves 31 Jul
+    (36.4222bn) vs the official imports archive frozen at Mar (5826.2mn ->
+    5.8262bn) — 4 months apart. This USED to suppress under the old >1-month
+    rule; it must now compute, dated by the (older) imports month, with both
+    periods named in `source`."""
+    live = dict(LIVE, **{
+        "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 36.4222, date(2026, 7, 31)),
+    })
+    archive = {"imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 31))}
+    m = next(m for m in build(_ctx(live=live, archive=archive)).metrics
+             if m.id == "import_cover_months_monthly")
+    assert m.value == pytest.approx(6.25, abs=0.01)
+    assert m.as_of == date(2026, 3, 31)  # dated by the IMPORTS month, not reserves
+    assert "31 Jul" in m.source
+    assert "Mar" in m.source
+
+
+def test_import_cover_production_gap_keeps_macro_section_honestly_stale() -> None:
+    """The regression the review demanded: with the three still-archived
+    metrics (REER/CPI 12m avg/M2 YoY) genuinely 5+ months old, §03 must read
+    "stale" — NOT "warming_up". Import cover computing (rather than
+    suppressing) is what protects this: a suppressed metric would score
+    "unavailable", which macro's SECTIONS_WITHOUT_LEGACY_BACKFILL membership
+    promotes to the false "warming_up" badge."""
+    live = dict(LIVE, **{
+        "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 36.4222, date(2026, 7, 31)),
+    })
+    archive = {
+        "reer_monthly": _row("reer_monthly", 102.78, date(2026, 3, 1)),
+        "cpi_12m_avg_monthly": _row("cpi_12m_avg_monthly", 8.6, date(2026, 3, 1)),
+        "m2_growth_yoy_monthly": _row("m2_growth_yoy_monthly", 10.52, date(2026, 2, 1)),
+        "imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5826.2, date(2026, 3, 31)),
+    }
+    s = build(_ctx(live=live, archive=archive, at_or_before=LIVE_AT_OR_BEFORE))
+    assert s.freshness == "stale"
+    cover = next(m for m in s.metrics if m.id == "import_cover_months_monthly")
+    assert cover.value == pytest.approx(6.25, abs=0.01)
+
+
+def test_import_cover_is_suppressed_when_imports_are_more_than_four_months_stale() -> None:
+    """Beyond the 4-month gate, suppress rather than guess. Reserves (Jun) vs
+    a Jan imports archive are 5 months apart."""
+    stale_imports = {"imports_usd_mn_monthly": _row("imports_usd_mn_monthly", 5800.0, date(2026, 1, 31))}
     m = next(m for m in build(_ctx(live=LIVE, archive=stale_imports)).metrics
              if m.id == "import_cover_months_monthly")
     assert m.value is None
@@ -228,6 +295,14 @@ def test_import_cover_is_none_when_the_official_imports_archive_has_no_row() -> 
     m = next(m for m in build(_ctx(live=LIVE, archive={})).metrics
              if m.id == "import_cover_months_monthly")
     assert m.value is None
+
+
+def test_import_cover_source_defaults_to_bb_when_suppressed() -> None:
+    """No dual-period override when the metric can't compute — the spec's
+    plain "BB" source stays, rather than a stale/misleading note."""
+    m = next(m for m in build(_ctx(live=LIVE, archive={})).metrics
+             if m.id == "import_cover_months_monthly")
+    assert m.source == "BB"
 
 
 def test_a_derived_metric_is_dated_by_its_oldest_input() -> None:

@@ -75,8 +75,11 @@ def test_fx_trade_gap_emitted_when_exports_and_imports_share_a_month():
     s = build(ctx)
     by_id = {m.id: m for m in s.metrics}
     assert "fx_trade_gap" in by_id
-    # 4.20 - 5.83 = -1.63 (both mn->bn rounded to 2dp before subtraction)
-    assert by_id["fx_trade_gap"].value == round(4.2 - 5.83, 2)
+    # L1 (review round 1): mn->bn division stays FULL PRECISION until the
+    # final subtraction, rounded once at the end — 4202.69/1000 - 5826.2/1000
+    # = -1.62351 -> -1.62 (not -1.63, which is what rounding each leg to 2dp
+    # BEFORE subtracting would have given).
+    assert by_id["fx_trade_gap"].value == round(4202.69 / 1000 - 5826.2 / 1000, 2)
     assert by_id["fx_trade_gap"].as_of == date(2026, 6, 30)
     assert by_id["fx_trade_gap"].source == "EPB · BB"
 

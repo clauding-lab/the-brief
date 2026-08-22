@@ -85,10 +85,13 @@ def build(ctx: BuilderContext) -> SectionData:
     ))
 
     # ── Exports — official EPB final only, no flash fallback (P0 fix) ───────
+    # `official_monthly_bn` returns full precision (L1, review round 1) —
+    # round only here, at the final display value.
     exports_row = official_monthly_bn(ctx, _EXPORTS_OFFICIAL_ID)
     if exports_row is not None:
         metrics.append(Metric(
-            id="fx_monthly_exports", label="Monthly Exports", value=exports_row.value,
+            id="fx_monthly_exports", label="Monthly Exports",
+            value=round(exports_row.value, 2),
             unit="bn USD", as_of=exports_row.as_of, source="EPB", cadence="monthly",
         ))
 

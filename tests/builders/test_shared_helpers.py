@@ -42,7 +42,9 @@ def test_converts_mn_to_bn_and_normalizes_as_of_to_month_end():
     result = official_monthly_bn(_ctx(_FakeHistory({"exports_usd_mn_monthly": row})),
                                  "exports_usd_mn_monthly")
     assert result is not None
-    assert result.value == 4.2
+    # L1 (review round 1): full precision, no rounding at the read layer —
+    # callers round once, at their own final display value.
+    assert result.value == 4202.69 / 1000
     assert result.as_of == date(2026, 6, 30)
 
 
@@ -63,3 +65,32 @@ def test_returns_none_when_the_value_is_not_numeric():
 def test_returns_none_when_the_read_raises():
     """A dark archive read must not take the builder (or the issue) down."""
     assert official_monthly_bn(_ctx(_Boom()), "exports_usd_mn_monthly") is None
+
+
+# ── M3, review round 1: no silent darkness — every non-success path warns,
+# naming the metric id ────────────────────────────────────────────────────
+
+def test_warns_when_client_absent(caplog):
+    ctx = BuilderContext(snapshot=_snap(), history=None, today=date(2026, 8, 22))
+    with caplog.at_level("WARNING", logger="brief.builders"):
+        official_monthly_bn(ctx, "imports_usd_mn_monthly")
+    assert any("imports_usd_mn_monthly" in r.message for r in caplog.records)
+
+
+def test_warns_when_row_missing(caplog):
+    with caplog.at_level("WARNING", logger="brief.builders"):
+        official_monthly_bn(_ctx(_FakeHistory({})), "imports_usd_mn_monthly")
+    assert any("imports_usd_mn_monthly" in r.message for r in caplog.records)
+
+
+def test_warns_when_value_non_numeric(caplog):
+    row = HistoryRow(metric_id="imports_usd_mn_monthly", as_of=date(2026, 6, 1), value="n/a", source="EPB")
+    with caplog.at_level("WARNING", logger="brief.builders"):
+        official_monthly_bn(_ctx(_FakeHistory({"imports_usd_mn_monthly": row})), "imports_usd_mn_monthly")
+    assert any("imports_usd_mn_monthly" in r.message for r in caplog.records)
+
+
+def test_warns_when_read_raises(caplog):
+    with caplog.at_level("WARNING", logger="brief.builders"):
+        official_monthly_bn(_ctx(_Boom()), "imports_usd_mn_monthly")
+    assert any("imports_usd_mn_monthly" in r.message for r in caplog.records)
