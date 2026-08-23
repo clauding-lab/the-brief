@@ -19,6 +19,17 @@ data. Two things follow from that:
    counts here are an UPPER BOUND on real pipeline noise, not a precise
    measurement (see the bound's own comment below).
 
+3. `series_summary` IS reconstructible: the published row keeps each
+   section's full `series` point array, and `summarize_series_points` (the
+   very function the pipeline calls pre-editor) turns it back into the exact
+   digest the gate receives in production. So the CHART-GROUNDED
+   false-positive class is measured here for real, not approximated.
+   `history_facts` are NOT reconstructible — they are pre-editor input that
+   is never stored on the published row — so the HISTORY-FACT class
+   ("highest since Apr 2022 (10.9% then)") still shows up as WARNs in this
+   harness even though production clears them. Survivor counts here are
+   therefore an upper bound on that class too.
+
 These tests exist to prove the SEVERITY SPLIT (round-2 review): the
 count-claim check blocks ONLY the fiscal "fourteen reads/prints" phrasing
 that is genuinely present in this corpus, nothing else ever blocks, and the
@@ -35,6 +46,7 @@ from typing import Any
 
 import pytest
 
+from brief.pipeline_v6 import summarize_series_points
 from brief.v6_schema import BriefPayloadV6
 from brief.validators.prose_numbers import (
     ProseNumberViolationError,
@@ -48,6 +60,11 @@ from brief.validators.prose_numbers import (
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "real_issues"
 ISSUE_NUMBERS = (199, 200, 201, 202, 203, 204)
+# Issue #205 (2026-08-23) is the first fixture captured AFTER the chart-series
+# and history-fact grounding gap was found in production. It carries real
+# `series` arrays for all ten sections and contains NO count-claim phrase, so
+# it joins only the WARN-volume test, not the two count-gate tests above.
+WARN_ISSUE_NUMBERS = ISSUE_NUMBERS + (205,)
 
 # (section slug, label) -> (unit, cadence) — copied from the real builder
 # specs, not invented. Cross-referenced against bb.py, fx.py, dse.py,
@@ -152,7 +169,14 @@ def _build_raw_sections(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "cadence": cadence,
                 "as_of": m.get("held_from") or brief_date,
             })
-        raw.append({"slug": s["slug"], "metrics": metrics})
+        # The published row keeps the full chart point array, and this is the
+        # same digest function `_fetch_series_summaries` calls pre-editor —
+        # so this half of the grounding is ground truth, not reconstruction.
+        raw.append({
+            "slug": s["slug"],
+            "metrics": metrics,
+            "series_summary": summarize_series_points(s.get("series") or []),
+        })
     return raw
 
 
@@ -209,7 +233,7 @@ def test_orchestrator_blocks_via_count_claim_not_some_other_path(issue_no: int) 
     assert "count-claim" in str(exc_info.value)
 
 
-@pytest.mark.parametrize("issue_no", ISSUE_NUMBERS)
+@pytest.mark.parametrize("issue_no", WARN_ISSUE_NUMBERS)
 def test_warn_totals_per_issue_stay_within_a_sane_bound(issue_no: int) -> None:
     """WARN-mode volume across all four non-blocking checks, summed. See
     `_SANE_WARN_BOUND`'s comment — this catches a gross regression, it does
@@ -250,3 +274,69 @@ def test_issues_without_the_fiscal_phrase_would_not_block() -> None:
         if m.sub and "fourteen" in m.sub:
             m.sub = re.sub(r"(across|for|in) fourteen (reads|prints)", "unchanged", m.sub)
     check_count_claims(brief)  # must not raise once the phrase is gone
+
+
+def _warn_total(brief: BriefPayloadV6, raw: list[dict[str, Any]]) -> int:
+    raw_by_slug = {r["slug"]: r for r in raw}
+    return (
+        len(check_metric_sub_numbers(brief, raw_by_slug))
+        + len(check_metric_sub_periods(brief, raw_by_slug))
+        + len(check_metric_value_vs_raw(brief, raw_by_slug))
+        + len(check_lede_numbers_against_builder_values(brief, raw))
+    )
+
+
+def test_chart_grounding_clears_most_of_issue_205s_warn_volume() -> None:
+    """The regression this PR exists to prevent.
+
+    Production issue #205 threw 62 WARNs, 27 of them inside `chart_read`
+    blocks — prose citing the chart digest the editor was handed and the gate
+    could not see. Replayed here (65 without the digest, because this
+    harness's `as_of` reconstruction is coarser than the live pipeline's),
+    attaching the real digest clears more than half.
+
+    The assertion is a floor, not an equality: an exact count would break on
+    any unrelated tolerance tweak and teach whoever hits it to bump the
+    number rather than read it. What must not silently come back is the
+    CLASS — the digest going unread again.
+    """
+    brief, raw = _load_real_issue(205)
+    ungrounded = [{k: v for k, v in r.items() if k != "series_summary"} for r in raw]
+
+    before = _warn_total(brief, ungrounded)
+    after = _warn_total(brief, raw)
+
+    assert before >= 60, f"fixture drifted — expected the ungrounded WARN storm, got {before}"
+    assert after <= before / 2, (
+        f"chart grounding cleared only {before - after} of {before} WARNs on issue 205 — "
+        "the digest is being ignored again"
+    )
+
+
+def test_issue_205_survivors_are_the_classes_we_chose_not_to_clear() -> None:
+    """Pins the residual, so a future reader knows the leftovers are a
+    decision rather than an oversight. Each surviving figure is one a human
+    SHOULD eyeball:
+
+    * regulatory constants — "844bp under the 10% floor": the 10% CAR floor
+      is a rule, not a builder value, so 844bp has no partner to derive from;
+    * round rhetorical thresholds — "a second straight month under $3bn";
+    * history facts — "(10.9% then)": cleared in production by
+      `history_facts`, which a published row does not retain (module
+      docstring, note 3), so they still show up here;
+    * rounding beyond tolerance — "~10.25%" against a 10.16% print.
+
+    Clearing these would mean admitting arbitrary round numbers, which is
+    the point at which the gate stops meaning anything.
+    """
+    brief, raw = _load_real_issue(205)
+    raw_by_slug = {r["slug"]: r for r in raw}
+    warnings = (
+        check_metric_sub_numbers(brief, raw_by_slug)
+        + check_metric_sub_periods(brief, raw_by_slug)
+        + check_lede_numbers_against_builder_values(brief, raw)
+    )
+    text = " ".join(w.describe() for w in warnings)
+    assert "'$3bn'" in text          # round threshold, deliberately unmatched
+    assert "'844bp'" in text         # derived against the regulatory 10% floor
+    assert "'10%'" in text           # the floor itself
