@@ -85,3 +85,27 @@ def test_network_error_returns_false_never_raises(monkeypatch: pytest.MonkeyPatc
     )
     with patch("urllib.request.urlopen", side_effect=err):
         assert send_discord_alert("z") is False  # swallowed, reported as False
+
+
+def test_sends_explicit_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Discord's edge 403s urllib's default `Python-urllib/3.x` User-Agent.
+
+    Observed in production 2026-08-23: the prose-number gate's grouped alert
+    was the first real `send_discord_alert` call this module ever made, and it
+    came back `HTTP Error 403: Forbidden` — so the fail-loud path had been dead
+    since it shipped. The identical bug bit the econdelta OnFailure alerts on
+    exonhost in Aug 2026. This test pins the header so it cannot regress.
+    """
+    monkeypatch.setenv("DISCORD_ALERT_WEBHOOK_URL", "https://discord.test/hook-alerts")
+    captured = {}
+
+    def _capture(req, timeout=None):
+        # Request.get_header() title-cases keys; check via the same accessor.
+        captured["ua"] = req.get_header("User-agent")
+        return _resp(204)
+
+    with patch("urllib.request.urlopen", side_effect=_capture):
+        assert send_discord_alert("62 WARN-mode figures") is True
+
+    assert captured["ua"], "no User-Agent header set — Discord will 403"
+    assert "python-urllib" not in captured["ua"].lower()
