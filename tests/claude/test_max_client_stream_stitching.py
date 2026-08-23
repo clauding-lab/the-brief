@@ -186,7 +186,9 @@ class TestStitchesCutOffResponse:
                    return_value=_fake_completed(stdout)):
             r = run_max(prompt="hi")
         # Assert
-        assert r.tokens == {"input": 10, "output": 3456}
+        # `thinking` joins the dict unconditionally, 0 when this fixture's
+        # result event carries no output_tokens_details split.
+        assert r.tokens == {"input": 10, "output": 3456, "thinking": 0}
         assert r.total_cost_usd == pytest.approx(0.5)
         assert r.num_turns == 2
 

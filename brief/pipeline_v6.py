@@ -1121,6 +1121,13 @@ def _dump_raw_on_failure(label: str) -> str | None:
         log_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
         path = log_dir / f"{label}_raw_{stamp}.txt"
+        # Second-precision stamps collide when two failures land inside the same
+        # second, and the whole point of dumping per attempt is that attempt 2's
+        # evidence must not erase attempt 1's. Suffix rather than overwrite.
+        suffix = 2
+        while path.exists():
+            path = log_dir / f"{label}_raw_{stamp}-{suffix}.txt"
+            suffix += 1
         path.write_text(raw)
         return str(path)
     except Exception:  # noqa: BLE001 — never let the dumper eclipse the failure
@@ -1157,13 +1164,32 @@ def _call_with_retries(
                 # here never fired.
                 logger.warning(
                     "%s: response was CUT OFF and continued across %d assistant "
-                    "messages — stitched into %d chars (output_tokens=%s). The "
-                    "payload is at the per-response ceiling.",
+                    "messages — stitched into %d chars (output_tokens=%s of which "
+                    "thinking=%s). The per-response ceiling covers thinking too; "
+                    "compare the two before assuming the brief itself is too long.",
                     label, result.assistant_messages, len(result.raw_text or ""),
-                    result.tokens.get("output"),
+                    result.tokens.get("output"), result.tokens.get("thinking"),
                 )
             if result.parsed is None:
-                raise V6PublishError(f"{label}: result.parsed is None (raw: {result.raw_text[:200]!r})")
+                # Dump BEFORE raising. `_LAST_RAW[label]` was set two lines up
+                # and the next attempt overwrites it, so an un-dumped failure is
+                # gone for good — and the parse-failure path never called the
+                # dumper at all, only the schema-validation path below did. On
+                # 2026-08-23 two editor attempts died here with the full 32.5 KB
+                # response sitting in that stash; all that survived was the 200
+                # chars below, which are the same `{"brief": {"issue_no": ...`
+                # preamble on every attempt and say nothing about WHERE the JSON
+                # broke. Truncation failures are diagnosable only from the tail.
+                dump = _dump_raw_on_failure(label)
+                raise V6PublishError(
+                    f"{label}: result.parsed is None "
+                    f"(raw_len={len(result.raw_text or '')}, "
+                    f"assistant_messages={result.assistant_messages}, "
+                    f"output_tokens={result.tokens.get('output')} of which "
+                    f"thinking={result.tokens.get('thinking')}, "
+                    f"full response saved to {dump or 'nowhere — nothing stashed'}; "
+                    f"tail: {(result.raw_text or '')[-200:]!r})"
+                )
             return result.parsed  # type: ignore[no-any-return]
         except (MaxCallError, V6PublishError) as e:
             last_err = e

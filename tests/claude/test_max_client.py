@@ -117,7 +117,8 @@ def test_max_call_result_exposes_duration_and_tokens():
         r = run_max(prompt="hi")
     assert r.total_cost_usd == pytest.approx(0.0042)
     assert r.duration_s >= 0
-    assert r.tokens == {"input": 100, "output": 50}
+    # `thinking` is always present, 0 when the CLI reports no split.
+    assert r.tokens == {"input": 100, "output": 50, "thinking": 0}
 
 
 # ---------------------------------------------------------------------------
@@ -412,3 +413,74 @@ def test_run_max_returns_none_when_response_has_no_json_object():
     with patch("brief.claude.max_client.subprocess.run", return_value=fake_completed):
         result = run_max(prompt="ask")
     assert result.parsed is None
+
+
+# ---------------------------------------------------------------------------
+# Output-ceiling instrumentation (2026-08-23, issue 205)
+#
+# Three editor attempts hit the per-response ceiling that morning; two produced
+# unparseable JSON and the brief survived on the last attempt. The logs said
+# "output_tokens=65112 ... stitched into 32571 chars" and advised shortening the
+# payload — but a 32.5 KB JSON answer is at most ~11k tokens, so the great
+# majority of that ceiling went on thinking, not on the brief. These tests pin
+# the numbers that make that readable.
+# ---------------------------------------------------------------------------
+
+
+def test_thinking_tokens_are_reported_separately_from_output_tokens():
+    """`output_tokens` is the WHOLE budget — thinking counts against it. The
+    CLI reports the split under `usage.output_tokens_details.thinking_tokens`
+    (verified live: a one-line prompt spent 167 of 178 output tokens thinking).
+    Without surfacing it, a cut-off alarm shows a huge output next to a small
+    answer and invites exactly the wrong fix."""
+    fake_stdout = json.dumps({
+        "result": '{"x":1}',
+        "usage": {
+            "input_tokens": 2,
+            "output_tokens": 178,
+            "output_tokens_details": {"thinking_tokens": 167},
+        },
+    })
+    with patch("brief.claude.max_client.subprocess.run",
+               return_value=_fake_completed(fake_stdout)):
+        r = run_max(prompt="hi")
+    assert r.tokens["output"] == 178
+    assert r.tokens["thinking"] == 167
+
+
+def test_thinking_tokens_default_to_zero_when_the_cli_omits_the_split():
+    """A model or CLI version that doesn't report the breakdown must degrade to
+    0, never raise — instrumentation may not take the pipeline down."""
+    for usage in (
+        {"input_tokens": 1, "output_tokens": 9},
+        {"input_tokens": 1, "output_tokens": 9, "output_tokens_details": None},
+        {"input_tokens": 1, "output_tokens": 9, "output_tokens_details": {}},
+    ):
+        with patch("brief.claude.max_client.subprocess.run",
+                   return_value=_fake_completed(json.dumps({"result": '{"x":1}', "usage": usage}))):
+            r = run_max(prompt="hi")
+        assert r.tokens["thinking"] == 0
+
+
+def test_nonzero_exit_error_shows_the_tail_not_the_init_boilerplate():
+    """Under stream-json the FIRST line is always the `system/init` event — a
+    ~1.2 KB inventory of slash commands, identical every run. Slicing the head
+    spent the whole error budget on that and never reached the real payload,
+    which is why the 2026-08-19 3/3-attempt publish failure is undiagnosable.
+    The error must carry the END of the stream."""
+    init_noise = json.dumps({
+        "type": "system", "subtype": "init",
+        "slash_commands": ["graphify"] * 400,   # the real init event's bulk
+    })
+    real_error = json.dumps({
+        "type": "result", "is_error": True, "subtype": "error_during_execution",
+    })
+    stdout = init_noise + "\n" + real_error
+    assert len(init_noise) > 1200, "fixture must be big enough to bury the tail"
+
+    with patch("brief.claude.max_client.subprocess.run",
+               return_value=_fake_completed(stdout, returncode=1)):
+        with pytest.raises(MaxCallError) as ei:
+            run_max(prompt="hi", timeout_s=60)
+    message = str(ei.value)
+    assert "error_during_execution" in message, "the actual error must survive"

@@ -222,7 +222,9 @@ class MaxCallResult:
     usage: dict[str, Any]
     total_cost_usd: float | None
     duration_s: float = 0.0
-    tokens: dict[str, int] = field(default_factory=lambda: {"input": 0, "output": 0})
+    tokens: dict[str, int] = field(
+        default_factory=lambda: {"input": 0, "output": 0, "thinking": 0}
+    )
     num_turns: int = 0   # CLI-reported turn count; NOT a cut-off signal (see below)
     assistant_messages: int = 0  # >1 means the response was cut off and stitched
 
@@ -320,9 +322,18 @@ def run_max(
         # The CLI writes its error payload to STDOUT (stderr is frequently
         # empty) and exits non-zero. Surface BOTH so a failure is diagnosable
         # instead of an opaque "exited 1".
+        #
+        # Show the TAIL, not the head. Under --output-format stream-json the
+        # first line is always the `system/init` event — a ~1.2 KB inventory of
+        # slash commands and agent names, identical on every run. Slicing the
+        # head therefore spent the whole budget on boilerplate and never reached
+        # the error: the 2026-08-19 publish failed 3/3 attempts and all three
+        # log lines are pure init noise, so that outage cannot be diagnosed
+        # today. The real payload is always at the end of the stream.
         raise MaxCallError(
             f"Claude CLI exited {cp.returncode}: "
-            f"stderr={cp.stderr.strip()[:500]!r} stdout={cp.stdout.strip()[:1200]!r}"
+            f"stderr={cp.stderr.strip()[-500:]!r} "
+            f"stdout_tail={cp.stdout.strip()[-1200:]!r}"
         )
 
     raw_text, outer, _assistant_messages = _parse_cli_stdout(cp.stdout)
@@ -344,6 +355,22 @@ def run_max(
 
     _duration = time.monotonic() - _t0
     _num_turns = int(outer.get("num_turns") or 0)
+    _usage = outer.get("usage") or {}
+    # `output_tokens` is the WHOLE output budget: thinking blocks count against
+    # it even though `_collect_stream_messages` (correctly) drops them from the
+    # answer text. The CLI reports the split under
+    # `usage.output_tokens_details.thinking_tokens` — verified live 2026-08-23
+    # against a trivial one-line prompt, where 167 of 178 output tokens were
+    # thinking. Without this field the cut-off alarm is unreadable: it shows a
+    # 65k output next to a 33k-char answer and invites the wrong conclusion
+    # ("the brief got too long") when the answer is a small minority of the
+    # spend. Absent on a model or CLI that doesn't report it — 0, not a crash.
+    _details = _usage.get("output_tokens_details") or {}
+    _tokens = {
+        "input": int(_usage.get("input_tokens") or 0),
+        "output": int(_usage.get("output_tokens") or 0),
+        "thinking": int((_details or {}).get("thinking_tokens") or 0),
+    }
     if _assistant_messages > 1:
         # The response hit the per-response cap and continued in a new assistant
         # message. We stitched it — this is recovery, not failure — but it must
@@ -358,25 +385,21 @@ def run_max(
         logger.log(
             level,
             "run_max: response was CUT OFF and continued across %d assistant "
-            "messages — stitched into %d chars (parsed=%s, output_tokens=%s, "
-            "max_output_tokens=%d). The payload is at the model's hard "
-            "per-response ceiling; shorten it or split the call.",
+            "messages — stitched into %d chars (parsed=%s, output_tokens=%s of "
+            "which thinking=%s, max_output_tokens=%d). The ceiling is spent on "
+            "output_tokens as a WHOLE: thinking counts against it, and on this "
+            "workload it is the large majority. Read the thinking share before "
+            "concluding the answer is too long.",
             _assistant_messages, len(raw_text), parsed is not None,
-            (outer.get("usage") or {}).get("output_tokens"), max_output_tokens,
+            _tokens["output"], _tokens["thinking"], max_output_tokens,
         )
     elif parsed is None:
         logger.error(
             "run_max: response did not parse as JSON (raw_len=%d, "
-            "assistant_messages=%d, output_tokens=%s).",
+            "assistant_messages=%d, output_tokens=%s of which thinking=%s).",
             len(raw_text), _assistant_messages,
-            (outer.get("usage") or {}).get("output_tokens"),
+            _tokens["output"], _tokens["thinking"],
         )
-    _usage = outer.get("usage") or {}
-    _tokens = {
-        "input": int(_usage.get("input_tokens") or 0),
-        "output": int(_usage.get("output_tokens") or 0),
-    }
-
     return MaxCallResult(
         raw_text=raw_text,
         parsed=parsed,
