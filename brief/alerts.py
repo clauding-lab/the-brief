@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 _TIMEOUT_S = 10
 # Discord caps message content at 2000 chars; stay under with margin.
 _MAX_CONTENT = 1990
+# Discord's edge returns 403 Forbidden to urllib's default "Python-urllib/3.x"
+# User-Agent. Observed in production 2026-08-23, when the prose-number gate's
+# grouped alert became the first real call this module ever made and 403'd —
+# the fail-loud path had been dead since it shipped. The same bug bit the
+# econdelta OnFailure alerts on exonhost in Aug 2026 (their notifier.py avoids
+# it only because `requests` sets a UA for you). Any non-urllib UA satisfies it.
+_USER_AGENT = "the-brief-alerts/1.0 (+https://thebrief.clauding-lab.com)"
 
 
 def send_discord_alert(message: str) -> bool:
@@ -44,7 +51,7 @@ def send_discord_alert(message: str) -> bool:
     req = urllib.request.Request(
         url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "User-Agent": _USER_AGENT},
         method="POST",
     )
     try:
