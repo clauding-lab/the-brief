@@ -599,3 +599,206 @@ def test_orchestrator_clean_brief_returns_empty_warnings():
         "analysis": "The corridor holds at 9.50%.",
     }])
     assert run_prose_number_gate(brief, raw) == []
+
+
+# ─── Grounding: chart series + history facts (issue-205 false-positive class) ─
+#
+# Production issue #205 threw 62 WARNs, 27 of them in `chart_read` blocks. The
+# cause was scope, not arithmetic: the editor is handed a per-series digest
+# (`series_summary`) and a list of `history_facts` alongside the metric table,
+# is INSTRUCTED to cite both, and the gate only ever looked at the metric
+# table. These tests pin the fix and, just as importantly, pin its LIMITS —
+# an over-wide allowed set is a silently broken gate, which is worse than a
+# noisy one.
+
+
+def _digest(first_ts, first_value, last_ts, last_value, lo, hi, n=12):
+    return {
+        "n": n,
+        "first_ts": first_ts, "first_value": first_value,
+        "last_ts": last_ts, "last_value": last_value,
+        "min": lo, "max": hi,
+    }
+
+
+def test_series_key_unit_maps_the_real_key_shapes():
+    from brief.validators.prose_numbers import _series_key_unit
+
+    assert _series_key_unit("gross_reserves_usd_bn_monthly") == "USD bn"
+    assert _series_key_unit("remittance_usd_mn_monthly") == "USD mn"
+    assert _series_key_unit("nbr_revenue_monthly_cr") == "BDT cr"
+    assert _series_key_unit("cpi_12m_avg_monthly") == "%"
+    assert _series_key_unit("yield_10y_monthly") == "%"
+    assert _series_key_unit("tbill_91d_yield_monthly") == "%"
+    assert _series_key_unit("brent") == "USD"
+    assert _series_key_unit("dsex") == "index"
+
+
+def test_series_key_unit_admits_nothing_for_an_unknown_key():
+    """Fail toward the false positive. A key whose unit we cannot infer must
+    contribute NO allowed values — guessing scale 1.0 would, for a key that
+    is really billions, widen the allowed set a thousandfold and let an
+    invented figure sail through. A missed clearance is noise; a wrong
+    clearance is a broken gate."""
+    from brief.validators.prose_numbers import _series_key_unit, _series_summary_entries
+
+    assert _series_key_unit("some_new_series_nobody_mapped") is None
+    entries = _series_summary_entries(
+        {"some_new_series_nobody_mapped": _digest("2025-11-01", 31.09, "2026-08-01", 26.5, 26.5, 31.09)}
+    )
+    assert entries == []
+
+
+def test_series_summary_entries_admit_the_four_digest_values_only():
+    """first/last/min/max are the ONLY values the editor is shown. A
+    mid-series point it never saw must stay unmatched — if prose cites one,
+    that is a number the editor could not have read, and the WARN is right."""
+    from brief.validators.prose_numbers import _series_summary_entries
+
+    entries = _series_summary_entries(
+        {"gross_reserves_usd_bn_monthly": _digest("2025-11-01", 31.09, "2026-08-01", 26.5, 25.9, 31.09)}
+    )
+    # bn USD normalizes into the millions base the metric side uses.
+    values = sorted(e["normalized_value"] for e in entries)
+    # Four fields in, four entries out: 31.09 is BOTH first_value and max.
+    assert values == [25900.0, 26500.0, 31090.0, 31090.0]
+    assert all(e["category"] == "currency" and e["currency"] == "USD" for e in entries)
+
+
+def test_series_summary_entries_tolerate_junk():
+    from brief.validators.prose_numbers import _series_summary_entries, _series_summary_periods
+
+    assert _series_summary_entries(None) == []
+    assert _series_summary_entries({"k": "not-a-dict"}) == []
+    assert _series_summary_periods(None) == set()
+    assert _series_summary_periods({"k": {"first_ts": "garbage"}}) == set()
+
+
+def test_series_summary_periods_are_the_two_endpoints():
+    from brief.validators.prose_numbers import _series_summary_periods
+
+    assert _series_summary_periods(
+        {"dsex": _digest("2025-11-03", 4900.0, "2026-08-21", 5400.0, 4700.0, 5500.0)}
+    ) == {(11, 2025), (8, 2026)}
+
+
+def test_history_fact_entries_parse_the_display_string():
+    """`reference_value_formatted` is what the prompt tells the editor to
+    quote verbatim, so it is parsed with the SAME token extractor used on the
+    prose — round-tripping a phrase through both sides must normalize to the
+    same number or the clearance would not fire."""
+    from brief.validators.prose_numbers import _history_fact_entries
+
+    entries = _history_fact_entries([
+        {"metric_id": "cpi", "kind": "highest_since", "phrase": "highest since Apr 2022 (10.9% then)",
+         "reference_value_formatted": "10.9%", "reference_as_of": "2022-04-01"},
+        {"metric_id": "res", "kind": "highest_since", "phrase": "highest since Nov 2025 ($31.09bn then)",
+         "reference_value_formatted": "$31.09bn", "reference_as_of": "2025-11-01"},
+    ])
+    percent = [e for e in entries if e["category"] == "percent"]
+    money = [e for e in entries if e["category"] == "currency"]
+    assert [e["normalized_value"] for e in percent] == [10.9]
+    assert [e["normalized_value"] for e in money] == [31090.0]
+
+
+def test_history_fact_entries_skip_bare_numbers():
+    """A bare "103.55" yields no money/percent token — matching the prose
+    side, which does not police bare numbers either. Admitting it would mean
+    admitting a scale-free number into every category at once."""
+    from brief.validators.prose_numbers import _history_fact_entries
+
+    assert _history_fact_entries([{"reference_value_formatted": "103.55"}]) == []
+    assert _history_fact_entries(None) == []
+    assert _history_fact_entries(["not-a-dict"]) == []
+
+
+def test_history_fact_periods():
+    from brief.validators.prose_numbers import _history_fact_periods
+
+    assert _history_fact_periods([
+        {"reference_as_of": "2022-04-01"}, {"reference_as_of": "2025-11-30"},
+        {"reference_as_of": None}, {"no_key": 1},
+    ]) == {(4, 2022), (11, 2025)}
+
+
+def test_chart_window_low_in_a_metric_sub_is_cleared_by_the_digest():
+    """Issue #205, iran section, verbatim shape: "up from a $71.18 window
+    low" in a METRIC SUB — the sub checker needed the grounding too, not just
+    the lede checker."""
+    brief = _brief([{
+        "slug": "iran", "ord": 9, "title": "Oil", "group_key": "markets", "weight": 1,
+        "metrics": [{"label": "Brent spot", "value": "$76.40",
+                     "sub": "Up from a $71.18 window low."}],
+    }])
+    raw = _raw_section("iran", [
+        {"label": "Brent spot", "value": 76.40, "unit": "USD", "cadence": "daily", "as_of": "2026-08-22"},
+    ])
+    assert len(check_metric_sub_numbers(brief, {"iran": raw})) == 1
+
+    raw["series_summary"] = {"brent": _digest("2025-11-01", 63.2, "2026-08-22", 76.40, 71.18, 82.0)}
+    assert check_metric_sub_numbers(brief, {"iran": raw}) == []
+
+
+def test_history_fact_phrase_clears_both_its_value_and_its_month():
+    """Issue #205, macro section: "highest since Apr 2022 (10.9% then)" threw
+    TWO warnings — a sub_number for 10.9% and a sub_period for Apr 2022 — for
+    a phrase the prompt required be quoted verbatim."""
+    brief = _brief([{
+        "slug": "macro", "ord": 7, "title": "Macro", "group_key": "policy", "weight": 1,
+        "metrics": [{"label": "CPI Food (P-to-P)", "value": "11.00%",
+                     "sub": "Highest since Apr 2022 (10.9% then)."}],
+    }])
+    raw = _raw_section("macro", [
+        {"label": "CPI Food (P-to-P)", "value": 11.00, "unit": "%", "cadence": "monthly",
+         "as_of": "2026-07-01"},
+    ])
+    assert len(check_metric_sub_numbers(brief, {"macro": raw})) == 1
+    assert len(check_metric_sub_periods(brief, {"macro": raw})) == 1
+
+    raw["history_facts"] = [{
+        "metric_id": "cpi_p2p_food", "kind": "highest_since",
+        "phrase": "highest since Apr 2022 (10.9% then)",
+        "reference_value_formatted": "10.9%", "reference_as_of": "2022-04-01",
+    }]
+    assert check_metric_sub_numbers(brief, {"macro": raw}) == []
+    assert check_metric_sub_periods(brief, {"macro": raw}) == []
+
+
+def test_lede_prose_can_cite_the_chart_window_start():
+    """Issue #205, banking/reserves: "$31.09bn in Nov 2025" is the reserves
+    chart's `first_value` — real, editor-visible, and previously flagged."""
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking", "weight": 1,
+        "analysis": "Reserves have bled from $31.09bn in Nov 2025 to today's print.",
+    }])
+    raw = _raw_section("bb", [
+        {"label": "Gross Reserves", "value": 26.5, "unit": "bn USD", "cadence": "weekly",
+         "as_of": "2026-08-21"},
+    ])
+    assert len(check_lede_numbers_against_builder_values(brief, [raw])) == 1
+
+    raw["series_summary"] = {
+        "gross_reserves_usd_bn_monthly": _digest("2025-11-01", 31.09, "2026-08-01", 26.5, 25.9, 31.09)
+    }
+    assert check_lede_numbers_against_builder_values(brief, [raw]) == []
+
+
+def test_grounding_never_feeds_the_pairwise_diff_derivation():
+    """Deliberate scope boundary. `_build_allowed_values` derives every
+    pairwise difference between builder values so prose can say "up 12bp".
+    Chart digests carry hundreds of values; letting them into that derivation
+    would admit a combinatorial soup of differences and effectively disable
+    the gate. A chart-derived DELTA therefore still warns — correctly, since
+    the editor was never shown it as a number."""
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking", "weight": 1,
+        "analysis": "Reserves are down $4.59bn since the window opened.",  # 31.09 - 26.5
+    }])
+    raw = _raw_section("bb", [
+        {"label": "Gross Reserves", "value": 26.5, "unit": "bn USD", "cadence": "weekly",
+         "as_of": "2026-08-21"},
+    ])
+    raw["series_summary"] = {
+        "gross_reserves_usd_bn_monthly": _digest("2025-11-01", 31.09, "2026-08-01", 26.5, 25.9, 31.09)
+    }
+    assert len(check_lede_numbers_against_builder_values(brief, [raw])) == 1

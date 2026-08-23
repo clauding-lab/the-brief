@@ -240,6 +240,164 @@ def _normalize_metric_value(unit: str, value: Any) -> dict[str, Any] | None:
     return {"category": category, "currency": currency, "normalized_value": float(value) * scale}
 
 
+# ─── chart-series + history-fact grounding (2026-08-23) ────────────────────
+# Issue 205's run logged 62 WARNs and NOT ONE was a wrong number. 27 were
+# `chart_read.*` lines and the rest split between metric subs and
+# banker_read. The cause is that #167 shipped two halves that disagree:
+#
+#   - the editor half started sending `series_summary` (a per-series digest
+#     of {n, first_ts, first_value, last_ts, last_value, min, max}) and the
+#     prompt now REQUIRES chart_read be derived from it — "$31.09bn in Nov
+#     2025" is the reserves chart's own `first_value`/`first_ts`;
+#   - the validator half only ever collected `raw_metrics[].value` plus
+#     pairwise diffs, so every one of those honest citations was unmatched.
+#
+# The same disagreement covers `history_facts`, which the prompt requires be
+# woven in VERBATIM including the parenthetical ("highest since Apr 2022
+# (10.9% then)") — the phrase's value and its as-of month were both unknown
+# to this module, so following the prompt guaranteed a WARN.
+#
+# Scope boundary, deliberately narrow: ONLY the four digest values the
+# editor was actually handed (first/last/min/max) are admitted. A MID-series
+# point stays unmatched on purpose — the editor never received it, so citing
+# one is still an invention, which is exactly what the prompt's "never claim
+# a mid-series value" rule says. Series values also do NOT participate in
+# `_build_allowed_values`'s pairwise-diff derivation: that would widen the
+# allowed set combinatorially (4 values x every series x every metric) with
+# no corpus evidence that the editor derives spreads off chart endpoints.
+
+# Series-key -> the builder `unit` string its values are denominated in, so
+# they go through the SAME `_metric_category` normalization as metric values
+# rather than a parallel scale table. Keys follow `chart_series_fetcher`'s
+# naming convention; `tests/validators/test_prose_numbers_series_scope.py`
+# pins this map against that module's real key list so a new series cannot
+# be added there without being classified here.
+#
+# An UNKNOWN key is admitted as NOTHING — never guessed at scale 1.0. A
+# wrong scale would silently widen the allowed set by a factor of 1000 and
+# let a genuinely invented figure match; a missing key merely costs a WARN
+# that a human reads. Fail toward the false positive, never the false
+# negative.
+_SERIES_KEY_EXACT_UNITS: dict[str, str] = {
+    "brent": "USD",   # brent_crude_usd_barrel — a bare per-barrel price
+    "dsex": "index",  # plain: index points, never cited with $ or %
+}
+
+
+def _series_key_unit(key: str) -> str | None:
+    """The builder-style `unit` string for a chart series key, or None when
+    the key is unrecognised (see the fail-toward-false-positive note above)."""
+    if key in _SERIES_KEY_EXACT_UNITS:
+        return _SERIES_KEY_EXACT_UNITS[key]
+    k = key.lower()
+    if "usd_bn" in k:
+        return "USD bn"
+    if "usd_mn" in k:
+        return "USD mn"
+    if k.endswith("_cr") or "_cr_" in k:
+        return "BDT cr"
+    if k.startswith("cpi_"):
+        return "%"
+    if k.startswith("yield_") or k.startswith("tbill_"):
+        return "%"
+    return None
+
+
+# The digest fields the editor is actually shown — the complete set of
+# chart values it can honestly cite. See the scope-boundary note above.
+_SERIES_DIGEST_VALUE_FIELDS = ("first_value", "last_value", "min", "max")
+
+
+def _series_summary_entries(series_summary: Any) -> list[dict[str, Any]]:
+    """Normalized allowed-value entries for one section's `series_summary`."""
+    if not isinstance(series_summary, dict):
+        return []
+    entries: list[dict[str, Any]] = []
+    for key, digest in series_summary.items():
+        if not isinstance(digest, dict):
+            continue
+        unit = _series_key_unit(str(key))
+        if unit is None:
+            continue
+        for field in _SERIES_DIGEST_VALUE_FIELDS:
+            norm = _normalize_metric_value(unit, digest.get(field))
+            if norm is not None:
+                entries.append(norm)
+    return entries
+
+
+def _series_summary_periods(series_summary: Any) -> set[tuple[int, int]]:
+    """{(month, year)} for a section's chart endpoints — `first_ts`/`last_ts`
+    are the only two dates the digest exposes, so they are the only two a
+    chart sentence can honestly name."""
+    periods: set[tuple[int, int]] = set()
+    if not isinstance(series_summary, dict):
+        return periods
+    for digest in series_summary.values():
+        if not isinstance(digest, dict):
+            continue
+        for field in ("first_ts", "last_ts"):
+            d = _parse_iso_date(digest.get(field))
+            if d is not None:
+                periods.add((d.month, d.year))
+    return periods
+
+
+def _history_fact_entries(history_facts: Any) -> list[dict[str, Any]]:
+    """Normalized allowed-value entries for a section's `history_facts`.
+
+    `reference_value_formatted` is a DISPLAY string ("10.9%", "$3.61bn",
+    "103.55"), so it is parsed with the same `_extract_money_percent_tokens`
+    used on prose — that guarantees a phrase quoted verbatim normalizes
+    identically to the token extracted back out of it. Bare numbers ("103.55")
+    yield no token and are simply not admitted, matching the extractor's own
+    "bare numbers are out of scope" rule on the prose side.
+    """
+    entries: list[dict[str, Any]] = []
+    if not isinstance(history_facts, list):
+        return entries
+    for fact in history_facts:
+        if not isinstance(fact, dict):
+            continue
+        formatted = fact.get("reference_value_formatted")
+        if not isinstance(formatted, str):
+            continue
+        for token in _extract_money_percent_tokens(formatted):
+            entries.append({
+                "category": token["category"],
+                "currency": token["currency"],
+                "normalized_value": token["normalized_value"],
+            })
+    return entries
+
+
+def _history_fact_periods(history_facts: Any) -> set[tuple[int, int]]:
+    """{(month, year)} for each history fact's `reference_as_of` — the month
+    a "highest since <month>" phrase legitimately names."""
+    periods: set[tuple[int, int]] = set()
+    if not isinstance(history_facts, list):
+        return periods
+    for fact in history_facts:
+        if not isinstance(fact, dict):
+            continue
+        d = _parse_iso_date(fact.get("reference_as_of"))
+        if d is not None:
+            periods.add((d.month, d.year))
+    return periods
+
+
+def _grounding_entries(raw_section: Any) -> list[dict[str, Any]]:
+    """Every non-metric allowed value a section carries: chart digest + history
+    facts. Kept separate from `_build_allowed_values` so these never feed its
+    pairwise-diff derivation (see the scope-boundary note above)."""
+    if not isinstance(raw_section, dict):
+        return []
+    return (
+        _series_summary_entries(raw_section.get("series_summary"))
+        + _history_fact_entries(raw_section.get("history_facts"))
+    )
+
+
 def _build_allowed_values(raw_metrics: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Every raw metric's own normalized value, PLUS the pairwise |a−b| for
     any two metrics sharing a (category, currency) bucket — the "19bp under
@@ -445,7 +603,9 @@ def check_metric_sub_numbers(
         if raw_section is None:
             continue
         raw_metrics = raw_section.get("metrics") or []
-        allowed = _build_allowed_values(raw_metrics)
+        # Subs legitimately cite the chart ("up from a $71.18 window low")
+        # and quote history facts ("highest since Apr 2022 (10.9% then)").
+        allowed = _build_allowed_values(raw_metrics) + _grounding_entries(raw_section)
         for i, pub_metric in enumerate(section.metrics):
             if not pub_metric.sub:
                 continue
@@ -478,7 +638,15 @@ def check_metric_sub_periods(
         if raw_section is None:
             continue
         raw_metrics = raw_section.get("metrics") or []
-        periods = _section_periods(raw_metrics)
+        # A history fact's own as-of month is the month "highest since Apr
+        # 2022 (10.9% then)" names — and the prompt REQUIRES that phrase be
+        # woven in verbatim, so omitting it made following the prompt a
+        # guaranteed WARN. Chart endpoints are deliberately NOT added here:
+        # a metric's `sub` describes the metric, and no false positive in the
+        # issue-205 corpus came from a sub naming a chart endpoint's month.
+        periods = _section_periods(raw_metrics) | _history_fact_periods(
+            raw_section.get("history_facts")
+        )
         raw_by_label = _raw_metric_by_label(raw_metrics)
         if not periods:
             continue
@@ -589,7 +757,14 @@ def check_lede_numbers_against_builder_values(
     and escalates once, at the end, so all of them get the same
     `BRIEF_PROSE_VALIDATOR_STRICT=1` treatment rather than just this one."""
     all_raw_metrics = [m for s in raw_sections for m in (s.get("metrics") or [])]
+    # `chart_read.*` is BY DEFINITION about the chart, and #167's prompt
+    # requires it be derived from `series_summary` — so the digest values
+    # have to be in scope here or every chart line WARNs (27 of issue 205's
+    # 62 did). Union across sections, matching this check's existing
+    # cross-section scope for metric values.
     allowed = _build_allowed_values(all_raw_metrics)
+    for raw_section in raw_sections:
+        allowed = allowed + _grounding_entries(raw_section)
     warnings: list[NumberWarning] = []
 
     def _scan(section_slug: str, field_path: str, text: str | None) -> None:
