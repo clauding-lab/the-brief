@@ -648,6 +648,139 @@ def check_count_claims(final_brief: Any) -> None:
             )
 
 
+# ─── WARN-mode: hyphenated-attributive count claim (issue 206) ────────────
+# Round-2 (#204) narrowed `_COUNT_CLAIM_RE` to the PREPOSITIONAL shape
+# ("across ten sessions"). Issue 205/206 printed the SAME invented-count
+# defect in a different surface shape — the hyphenated ATTRIBUTIVE form ("a
+# ten-session low", "12-day streak") — which that regex cannot match at all
+# (no preposition, and "ten" ends in neither "teen" nor "ty"). Same root
+# cause: no count-of-observations field is ever supplied to the editor, so
+# any number named here is fabricated.
+#
+# Golden-corpus replay (tests/fixtures/real_issues/, issues #199-#205, the
+# same real published rows the BLOCK-mode check's corpus lives in): **3 true
+# positives, 0 false positives.** All 3 are the SAME real issue-205 defect
+# this pattern was built to catch, repeated three ways in one issue —
+# `dse.verdict` ("DSEX grinds to a ten-session low on drained turnover"),
+# `dse.banker_read.verdict` ("...5,769.71, a ten-session low but..."), and
+# `dse.metrics[].sub` ("last session (20 Aug) — a ten-session low"). Issues
+# #199-#204 (6 of the 7 fixtures) produce zero hits.
+#
+# WARN-only, deliberately, pending the same production-log-volume proof the
+# BLOCK-mode check earned before ITS corpus replay — 3 TPs across 1 issue is
+# real signal but not the sample size round 2's own discipline (AGENTS.md
+# landmine 34) requires before holding the publish on a regex. Cannot
+# collide with the plain-duration false positive round 2 already fixed
+# ("BB hasn't published reserves in 14 days") — that phrase has no hyphen at
+# all, so the two shapes are structurally disjoint, not just tuned apart.
+_HYPHENATED_COUNT_CLAIM_RE = re.compile(
+    r"\b(?:\w+|\d+)-(?:session|day|week|print|read)s?\s+(?:low|high|streak|run)\b",
+    re.IGNORECASE,
+)
+
+
+def check_hyphenated_count_claims(final_brief: Any) -> list[NumberWarning]:
+    """WARN-mode sibling of `check_count_claims` for the hyphenated-attributive
+    count-claim shape. See `_HYPHENATED_COUNT_CLAIM_RE`'s comment for the
+    corpus evidence behind shipping this WARN rather than BLOCK. Scans the
+    SAME prose surface as the BLOCK-mode check (`_collect_prose_fields`),
+    since it is the same invented-count defect wearing a different shape.
+    Never raises directly — WARN unless `BRIEF_PROSE_VALIDATOR_STRICT=1`
+    escalates it via the orchestrator, same as every other WARN-mode check
+    in this module."""
+    from brief.pipeline_v6 import _collect_prose_fields  # lazy: avoids the import cycle
+
+    warnings: list[NumberWarning] = []
+    for field_path, text in _collect_prose_fields(final_brief):
+        match = _HYPHENATED_COUNT_CLAIM_RE.search(text)
+        if match:
+            section = field_path.split(".", 1)[0]
+            warnings.append(NumberWarning(
+                kind="hyphenated_count_claim",
+                section=section,
+                field_path=field_path,
+                matched_text=match.group(0),
+                normalized_value=0.0,
+                category="count",
+                nearest_value=None,
+                nearest_delta=None,
+            ))
+    return warnings
+
+
+# ─── WARN-mode: card period vs its own chart series (issue 206, item 4) ────
+# The CPI honesty regression: `macro`'s food/non-food cards printed June
+# while the chart plotted UNDER them showed July's unofficial archive
+# figure — same section, same series key, two different months, and nothing
+# anywhere flagged the disagreement to a reader.
+#
+# WARN, not FAIL, for one cycle — a deliberate task decision, not the
+# original root-cause investigation's FAIL-mode recommendation. Promote to
+# BLOCK only after production WARN-log volume confirms this fires on real
+# defects and nothing else, matching `check_count_claims`'s own staging
+# discipline (AGENTS.md landmine 34) before IT was allowed to hold a
+# publish.
+_PROMOTE_CARD_VS_CHART_WARN_TO_BLOCK = False
+
+
+def check_card_period_vs_chart_series(
+    final_brief: Any, raw_sections_by_slug: dict[str, dict[str, Any]],
+) -> list[NumberWarning]:
+    """WARN when a published metric's own period (`as_of`, from the raw
+    builder metric — never the published row, which carries no `as_of` at
+    all) is OLDER than the newest point its OWN section's chart plots for
+    the SAME series key (the raw metric's `id`, matched against
+    `series_summary`'s digest keys).
+
+    Directional by design: a card NEWER than its chart (the chart
+    legitimately lagging — the two are separate fetches ~10-15 minutes
+    apart, see `_fetch_series_summaries`'s docstring) is not a lie about the
+    card's own period and must not warn. Only "older" is the honesty
+    violation this exists to catch — a reader believing a card describes a
+    more recent read than the chart under it actually supports.
+
+    Skips any metric whose id has no matching series_summary key (no chart,
+    or a digest fetch that degraded) — a disagreement check, not a presence
+    check, same convention as
+    `pipeline_v6._check_daily_as_of_vs_series_summary`'s daily-cadence
+    sibling."""
+    warnings: list[NumberWarning] = []
+    for section in final_brief.sections:
+        raw_section = raw_sections_by_slug.get(section.slug)
+        if raw_section is None:
+            continue
+        summary = raw_section.get("series_summary") or {}
+        raw_by_label = _raw_metric_by_label(raw_section.get("metrics") or [])
+        for i, pub_metric in enumerate(section.metrics):
+            raw_metric = raw_by_label.get(_normalize_label(pub_metric.label))
+            if raw_metric is None:
+                continue
+            mid = raw_metric.get("id")
+            digest = summary.get(mid)
+            if not digest:
+                continue
+            last_ts = digest.get("last_ts")
+            card_period = raw_metric.get("as_of")
+            if not last_ts or not card_period:
+                continue
+            if str(card_period) >= str(last_ts):  # ISO dates — lexicographic == chronological
+                continue
+            warnings.append(NumberWarning(
+                kind="card_vs_chart_period",
+                section=section.slug,
+                field_path=f"{section.slug}.metrics[{i}]",
+                matched_text=(
+                    f"card period {card_period} is older than its own chart's "
+                    f"newest plotted point {last_ts}"
+                ),
+                normalized_value=0.0,
+                category="period",
+                nearest_value=None,
+                nearest_delta=None,
+            ))
+    return warnings
+
+
 # ─── WARN-mode checks ───────────────────────────────────────────────────────
 
 
@@ -894,6 +1027,8 @@ def run_prose_number_gate(
     warnings.extend(check_metric_sub_periods(final_brief, raw_by_slug))
     warnings.extend(check_metric_value_vs_raw(final_brief, raw_by_slug))
     warnings.extend(check_lede_numbers_against_builder_values(final_brief, raw_sections))
+    warnings.extend(check_hyphenated_count_claims(final_brief))
+    warnings.extend(check_card_period_vs_chart_series(final_brief, raw_by_slug))
 
     if warnings and strict:
         raise ProseNumberViolationError(

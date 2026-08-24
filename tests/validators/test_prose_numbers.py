@@ -17,7 +17,9 @@ import pytest
 from brief.v6_schema import BriefPayloadV6
 from brief.validators.prose_numbers import (
     ProseNumberViolationError,
+    check_card_period_vs_chart_series,
     check_count_claims,
+    check_hyphenated_count_claims,
     check_lede_numbers_against_builder_values,
     check_metric_sub_numbers,
     check_metric_sub_periods,
@@ -93,6 +95,165 @@ def test_count_claim_narrowed_nouns_no_longer_flag_sessions():
         "tldr": "DSEX has drifted sideways across 14 sessions.",
     }])
     check_count_claims(brief)  # must not raise — "sessions" contributed zero TPs, dropped
+
+
+# ─── WARN: check_hyphenated_count_claims — issue 206's "ten-session low" ───
+
+
+def test_count_claim_catches_hyphenated_session_low():
+    """Issue 205/206 regression: '_COUNT_CLAIM_RE' only matches the
+    prepositional form ('across ten sessions'); the hyphenated ATTRIBUTIVE
+    form ('a ten-session low') is a different surface shape and passed
+    uncaught, printing a count nothing in the pipeline supplies. WARN-only —
+    see `_HYPHENATED_COUNT_CLAIM_RE`'s comment for the golden-corpus replay."""
+    brief = _brief([{
+        "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+        "weight": 1,
+        "verdict": "DSEX grinds to a ten-session low on drained turnover.",
+    }])
+    warnings = check_hyphenated_count_claims(brief)
+    assert len(warnings) == 1
+    assert warnings[0].kind == "hyphenated_count_claim"
+    assert "ten-session low" in warnings[0].matched_text
+
+
+def test_hyphenated_count_claim_catches_a_day_streak():
+    brief = _brief([{
+        "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
+        "weight": 1,
+        "tldr": "NBR collections have held flat on a 12-day streak.",
+    }])
+    warnings = check_hyphenated_count_claims(brief)
+    assert len(warnings) == 1
+    assert "12-day streak" in warnings[0].matched_text
+
+
+def test_hyphenated_count_claim_does_not_flag_the_plain_duration_form():
+    """The known-legit form round 2 already protected — 'in 14 days' has no
+    hyphen, so the two shapes can never collide by construction."""
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking",
+        "weight": 1,
+        "tldr": "BB hasn't published reserves in 14 days.",
+    }])
+    assert check_hyphenated_count_claims(brief) == []
+
+
+def test_hyphenated_count_claim_passes_clean_prose():
+    brief = _brief([{
+        "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+        "weight": 1,
+        "verdict": "Corridor holds at 9.50%, unchanged since the 30 Jul cut.",
+    }])
+    assert check_hyphenated_count_claims(brief) == []
+
+
+def test_orchestrator_includes_hyphenated_count_claims_in_warn_findings():
+    raw = [_raw_section("dse", [{"label": "DSEX close", "value": 5722.21, "unit": "index", "as_of": "2026-08-23"}])]
+    brief = _brief([{
+        "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+        "weight": 1,
+        "verdict": "DSEX grinds to a ten-session low on drained turnover.",
+    }])
+    warnings = run_prose_number_gate(brief, raw, strict=False)
+    kinds = {w.kind for w in warnings}
+    assert "hyphenated_count_claim" in kinds
+
+
+# ─── WARN: check_card_period_vs_chart_series — issue 206's CPI cards ──────
+
+
+def test_card_period_older_than_chart_produces_a_warning():
+    """Issue 206 regression: the CPI food card read June while its own
+    chart plotted July's unofficial archive figure — the reader sees a card
+    and the chart under it naming two different months for the same series,
+    with nothing flagging the disagreement. WARN, not FAIL, for one cycle."""
+    raw = [{
+        "slug": "macro",
+        "metrics": [{"id": "cpi_p2p_food_monthly", "label": "CPI Food (P-to-P)",
+                     "cadence": "monthly", "as_of": "2026-06-30"}],
+        "series_summary": {
+            "cpi_p2p_food_monthly": {"last_ts": "2026-07-01", "last_value": 7.16},
+        },
+    }]
+    raw_by_slug = {r["slug"]: r for r in raw}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "CPI Food (P-to-P)", "value": "8.6%"}],
+    }])
+    warnings = check_card_period_vs_chart_series(brief, raw_by_slug)
+    assert len(warnings) == 1
+    assert warnings[0].kind == "card_vs_chart_period"
+    assert warnings[0].section == "macro"
+
+
+def test_card_period_matching_chart_produces_no_warning():
+    raw = [{
+        "slug": "macro",
+        "metrics": [{"id": "cpi_p2p_food_monthly", "label": "CPI Food (P-to-P)",
+                     "cadence": "monthly", "as_of": "2026-06-30"}],
+        "series_summary": {"cpi_p2p_food_monthly": {"last_ts": "2026-06-30"}},
+    }]
+    raw_by_slug = {r["slug"]: r for r in raw}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "CPI Food (P-to-P)", "value": "8.6%"}],
+    }])
+    assert check_card_period_vs_chart_series(brief, raw_by_slug) == []
+
+
+def test_card_period_newer_than_chart_is_not_a_lie_and_produces_no_warning():
+    """A card NEWER than its own chart's newest point (the chart legitimately
+    lagging) is not what this check exists to catch — directional, per its
+    own name ('never OLDER than')."""
+    raw = [{
+        "slug": "macro",
+        "metrics": [{"id": "cpi_12m_avg_monthly", "label": "CPI 12m Avg",
+                     "cadence": "monthly", "as_of": "2026-07-01"}],
+        "series_summary": {"cpi_12m_avg_monthly": {"last_ts": "2026-06-01"}},
+    }]
+    raw_by_slug = {r["slug"]: r for r in raw}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "CPI 12m Avg", "value": "8.66%"}],
+    }])
+    assert check_card_period_vs_chart_series(brief, raw_by_slug) == []
+
+
+def test_card_period_check_skips_a_metric_with_no_matching_series_key():
+    raw = [{
+        "slug": "macro",
+        "metrics": [{"id": "reer_monthly", "label": "REER", "cadence": "monthly",
+                     "as_of": "2026-03-01"}],
+        "series_summary": {"cpi_p2p_food_monthly": {"last_ts": "2026-07-01"}},
+    }]
+    raw_by_slug = {r["slug"]: r for r in raw}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "REER", "value": "102.78"}],
+    }])
+    assert check_card_period_vs_chart_series(brief, raw_by_slug) == []
+
+
+def test_orchestrator_includes_card_period_vs_chart_series_in_warn_findings():
+    raw = [{
+        "slug": "macro",
+        "metrics": [{"id": "cpi_p2p_food_monthly", "label": "CPI Food (P-to-P)",
+                     "cadence": "monthly", "as_of": "2026-06-30"}],
+        "series_summary": {"cpi_p2p_food_monthly": {"last_ts": "2026-07-01"}},
+    }]
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "CPI Food (P-to-P)", "value": "8.6%"}],
+    }])
+    warnings = run_prose_number_gate(brief, raw, strict=False)
+    kinds = {w.kind for w in warnings}
+    assert "card_vs_chart_period" in kinds
 
 
 # ─── WARN: check_metric_sub_numbers ────────────────────────────────────────
@@ -542,6 +703,47 @@ def test_chart_read_figures_are_now_scanned():
     warnings = check_lede_numbers_against_builder_values(brief, raw)
     assert len(warnings) == 1
     assert warnings[0].field_path == "dse.chart_read.signal"
+
+
+def test_cpi_12m_avg_chart_read_survives_the_cpi_honesty_truncation():
+    """Regression noted in the issue 206 CPI investigation's risk notes: the
+    chart_read prose 'CPI 12m-avg eased to 8.66% as of the Jul 2026 print' is
+    TRUE — the July 12m-avg point is genuinely official — and must keep
+    passing every gate after `fetch_macro_cpi_series` truncates the OTHER
+    two CPI series' unofficial July points. `series_summary` here is the
+    POST-FIX shape: cpi_12m_avg_monthly still ends July (official, kept);
+    the food/non-food series end June (unofficial July, dropped)."""
+    raw = [{
+        "slug": "macro",
+        "metrics": [
+            {"label": "CPI 12m Avg", "value": 8.66, "unit": "%", "as_of": "2026-07-01"},
+            {"label": "CPI Food (P-to-P)", "value": 8.6, "unit": "%", "as_of": "2026-06-30"},
+            {"label": "CPI Non-Food (P-to-P)", "value": 9.61, "unit": "%", "as_of": "2026-06-30"},
+        ],
+        "series_summary": {
+            "cpi_12m_avg_monthly": {"n": 2, "first_ts": "2026-06-01", "first_value": 8.32,
+                                     "last_ts": "2026-07-01", "last_value": 8.66,
+                                     "min": 8.32, "max": 8.66},
+            "cpi_p2p_food_monthly": {"n": 1, "first_ts": "2026-06-01", "first_value": 8.6,
+                                      "last_ts": "2026-06-01", "last_value": 8.6,
+                                      "min": 8.6, "max": 8.6},
+            "cpi_p2p_nonfood_monthly": {"n": 1, "first_ts": "2026-06-01", "first_value": 9.61,
+                                         "last_ts": "2026-06-01", "last_value": 9.61,
+                                         "min": 9.61, "max": 9.61},
+        },
+    }]
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "chart_read": {
+            "signal": "CPI 12m-avg eased to 8.66% as of the Jul 2026 print.",
+            "context": "The trailing average has cooled from June's 8.32%.",
+            "implication": "Headline disinflation continues, food and non-food yet to confirm.",
+        },
+    }])
+    warnings = check_lede_numbers_against_builder_values(brief, raw)
+    chart_warnings = [w for w in warnings if w.field_path.startswith("macro.chart_read")]
+    assert chart_warnings == [], f"a TRUE chart_read figure warned: {[w.describe() for w in chart_warnings]}"
 
 
 # ─── orchestrator ────────────────────────────────────────────────────────────
