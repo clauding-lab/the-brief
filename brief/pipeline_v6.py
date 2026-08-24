@@ -1507,6 +1507,66 @@ def _format_prose_number_alert(warnings: list["_prose_numbers.NumberWarning"]) -
     return "\n".join(lines)
 
 
+# Issue 206 regression (defect a+b net): a section's own DAILY metric must
+# not silently disagree with the newest point its OWN plotted chart series
+# shows for the SAME series key. On 24 Aug the DSEX close tile carried
+# as_of=2026-08-24 (the RUN date — dse.py's own bug, fixed separately) while
+# the section's chart_read (driven by series_summary.last_ts) correctly said
+# 23 Aug — two contradictory dates in one section, and nothing checked that
+# they agreed.
+#
+# WARN-mode is deliberate, not provisional-by-oversight: a chart series can
+# legitimately lag its metric by one session (EconDelta's aggregate and this
+# pipeline's series_summary pre-fetch are two independent fetches ~10-15
+# minutes apart — see `_fetch_series_summaries`'s docstring), and BLOCKing on
+# that would fail the 08:00 BDT publish on an ordinary day. Promote to BLOCK
+# only after WARN-log volume in production shows a near-zero false-positive
+# rate, matching the staging discipline `check_count_claims` already earned
+# (AGENTS.md landmine 34) — this constant exists so that decision is a single
+# documented flip, not a rewrite.
+_PROMOTE_AS_OF_VS_SERIES_WARN_TO_BLOCK = False
+
+
+def _check_daily_as_of_vs_series_summary(
+    raw_sections: list[dict[str, Any]],
+) -> list[str]:
+    """WARN-mode tripwire: for every DAILY-cadence metric, compare its own
+    `as_of` against `last_ts` of the SAME series key in its section's
+    `series_summary` digest (present on `raw_sections[i]["series_summary"]`
+    since `_build_editor_input` stamps it — see item 3's tests above).
+
+    Only checks metrics whose id has a matching series_summary key — a daily
+    metric with no chart (or a digest fetch that degraded to `{}`) is simply
+    skipped, since this is a disagreement check, not a presence check.
+    Non-daily cadences are out of scope here by design: a monthly card's
+    period legitimately differing from its chart's newest point is defect
+    (4)'s concern (`prose_numbers.check_card_period_vs_chart_series`, also
+    WARN-mode), not this tripwire's.
+
+    Returns human-readable warning strings, never raises.
+    """
+    warnings: list[str] = []
+    for s in raw_sections:
+        slug = s.get("slug", "?")
+        summary = s.get("series_summary") or {}
+        for m in s.get("metrics", []):
+            if m.get("cadence") != "daily":
+                continue
+            mid = m.get("id")
+            digest = summary.get(mid)
+            if not digest:
+                continue
+            last_ts = digest.get("last_ts")
+            as_of = m.get("as_of")
+            if not last_ts or not as_of or last_ts == as_of:
+                continue
+            warnings.append(
+                f"{slug}.{mid}: metric as_of={as_of} disagrees with its own "
+                f"plotted chart series' newest point last_ts={last_ts}"
+            )
+    return warnings
+
+
 def _run_prose_number_gate(
     final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]],
 ) -> list["_prose_numbers.NumberWarning"]:
@@ -1786,6 +1846,22 @@ def run_publish(
     # and before publish. BLOCK-mode violations propagate (ProseNumberGateError
     # is a V6PublishError subclass); WARN-mode figures are logged and returned.
     _run_prose_number_gate(final_brief, editor_input["sections_raw"])
+
+    # Issue 206 tripwire (defect a+b net): a daily metric disagreeing with
+    # its own chart series' newest point. WARN-mode only — see
+    # `_PROMOTE_AS_OF_VS_SERIES_WARN_TO_BLOCK`'s docstring for why this must
+    # never hold the publish today.
+    as_of_warnings = _check_daily_as_of_vs_series_summary(editor_input["sections_raw"])
+    if as_of_warnings:
+        for w in as_of_warnings:
+            logger.warning("v6 as_of-vs-series gate (WARN): %s", w)
+        _alert(
+            "WARN: The Brief as_of-vs-series gate — "
+            f"{len(as_of_warnings)} daily metric(s) disagree with their own "
+            "chart series:\n" + "\n".join(f"  {w}" for w in as_of_warnings)
+        )
+    else:
+        logger.info("v6 as_of-vs-series gate: clean")
 
     if dry_run:
         logger.info("v6: dry_run=True, skipping Supabase publish")
