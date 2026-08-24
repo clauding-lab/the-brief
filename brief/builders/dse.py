@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from typing import Any
 
-from brief.cadence import section_freshness
+from brief.cadence import is_bd_trading_day, section_freshness
 from brief.history import HttpClient, UrllibHttp
 from brief.schema import Metric, SectionData
 from . import BuilderContext
@@ -291,6 +291,64 @@ def scrape_sector_heat(client: HttpClient | None = None) -> list[SectorPerf] | N
         return None
 
 
+def _last_trading_day_before(today: date) -> date:
+    """The most recent BD trading day strictly before `today`.
+
+    The publish fires before the 10:00 BDT DSE open (AGENTS.md landmine on
+    session-vs-run dating), so `today` itself is never a valid session date
+    even when it is a trading day — the day's own session has not happened
+    yet at publish time.
+    """
+    d = today - timedelta(days=1)
+    while not is_bd_trading_day(d):
+        d -= timedelta(days=1)
+    return d
+
+
+def _values_match(a: Any, b: Any) -> bool:
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(float(a) - float(b)) < 1e-6
+    return a == b
+
+
+def _resolve_fresh_as_of(ctx: BuilderContext, src_key: str, value: Any) -> date:
+    """Date a FRESH snapshot value by its trading SESSION, never by ctx.today.
+
+    Issue 206 regression: EconDelta's snapshot dict (`brief/econdelta.py`) has
+    no per-key session date, so dating every fresh value `as_of = ctx.today`
+    dates the number by when the pipeline RAN, not by the session it actually
+    describes. On 24 Aug the snapshot still held the 23 Aug close (DSE opens
+    10:00 BDT; the brief fires ~08:16 BDT), so every DSE tile printed the
+    label "24 Aug 2026" — a session that had not happened yet.
+
+    Prefer the history row's `as_of` when its value matches the snapshot
+    value (same confirmed session). If history is unreachable, has no row,
+    or its value doesn't match (can't be trusted as the SAME session), fall
+    back to the last BD trading day strictly before `ctx.today` — never the
+    run date itself, but NOT an unconditionally safe upper bound: both paths
+    are weekday-only (`is_bd_trading_day` has no BD public-holiday calendar,
+    AGENTS.md landmine), so on a holiday the fallback can still name a day
+    the market was closed, and a stale-but-coincidentally-equal history
+    value can match the snapshot and hand back an older session's date.
+    Strictly better than the `ctx.today` it replaces either way.
+    """
+    if ctx.history is not None:
+        try:
+            last = ctx.history.get_latest(src_key)
+        except Exception:  # noqa: BLE001 — a history outage must not crash the builder
+            _log.warning("DSE fresh as_of: get_latest(%s) failed, using trading-day fallback", src_key)
+            last = None
+        if last is not None:
+            if _values_match(last.value, value):
+                return last.as_of
+            _log.debug(
+                "DSE fresh as_of: get_latest(%s) value %r != snapshot value %r "
+                "(history as_of=%s) — using trading-day fallback instead",
+                src_key, last.value, value, last.as_of,
+            )
+    return _last_trading_day_before(ctx.today)
+
+
 def build(ctx: BuilderContext) -> SectionData:
     # On non-trading days (Fri/Sat/holidays in BD), today's snapshot is empty.
     # Fall back to the last trading-day reading from Supabase metric_history,
@@ -300,15 +358,18 @@ def build(ctx: BuilderContext) -> SectionData:
     any_stale = False
     for (mid, label, src_key, unit) in _SPEC:
         value: Any = ctx.snapshot.get(src_key)
-        as_of = ctx.today
         is_stale = False
-        if value is None and ctx.history is not None:
-            last = ctx.history.get_latest(src_key)
-            if last is not None:
-                value = last.value
-                as_of = last.as_of
-                is_stale = True
-                any_stale = True
+        if value is None:
+            as_of = ctx.today
+            if ctx.history is not None:
+                last = ctx.history.get_latest(src_key)
+                if last is not None:
+                    value = last.value
+                    as_of = last.as_of
+                    is_stale = True
+                    any_stale = True
+        else:
+            as_of = _resolve_fresh_as_of(ctx, src_key, value)
         metrics.append(Metric(
             id=mid, label=label, value=value, unit=unit,
             as_of=as_of, source="DSE",

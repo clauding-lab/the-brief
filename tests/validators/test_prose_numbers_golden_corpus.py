@@ -51,6 +51,7 @@ from brief.v6_schema import BriefPayloadV6
 from brief.validators.prose_numbers import (
     ProseNumberViolationError,
     check_count_claims,
+    check_hyphenated_count_claims,
     check_lede_numbers_against_builder_values,
     check_metric_sub_numbers,
     check_metric_sub_periods,
@@ -311,6 +312,21 @@ def test_chart_grounding_clears_most_of_issue_205s_warn_volume() -> None:
         f"chart grounding cleared only {before - after} of {before} WARNs on issue 205 — "
         "the digest is being ignored again"
     )
+
+
+def test_hyphenated_count_claim_corpus_replay_matches_only_issue_205() -> None:
+    """Golden-corpus replay for `check_hyphenated_count_claims` (issue 206
+    regression — the '_COUNT_CLAIM_RE' family's hyphenated-attributive
+    extension, 'a ten-session low'). Pins the replay documented in that
+    check's own module comment: 3 true positives, ALL of them issue #205's
+    real fabricated phrase repeated across 3 fields in one issue, 0 false
+    positives across the other 6 real issues (#199-#204)."""
+    hits_by_issue: dict[int, int] = {}
+    for issue_no in WARN_ISSUE_NUMBERS:
+        brief, _raw = _load_real_issue(issue_no)
+        hits_by_issue[issue_no] = len(check_hyphenated_count_claims(brief))
+    assert sum(n for issue_no, n in hits_by_issue.items() if issue_no != 205) == 0
+    assert hits_by_issue[205] == 3
 
 
 def test_issue_205_survivors_are_the_classes_we_chose_not_to_clear() -> None:

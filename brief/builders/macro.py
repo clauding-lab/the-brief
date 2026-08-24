@@ -198,6 +198,14 @@ class _MacroSpec:
     live_id: str | None = None
     derive: _Deriver | None = None
     archive_id: str | None = None
+    # Issue 206, item 4 — per-spec OPT-IN only (today: the CPI food/non-food
+    # pair). When True, both `live_id` (daily) and `archive_id` (monthly) are
+    # read and the NEWEST row that counts as OFFICIAL wins — see
+    # `_resolve_newest_official_cpi`. Every other live_id spec (private
+    # credit, etc.) is UNCHANGED: it stays on its single `metric_history`
+    # read, exactly as before this fix (review round-2 risk note — a blanket
+    # elif→resolver change would silently repoint specs nobody audited).
+    dual_source_official: bool = False
 
 
 _MACRO_METRICS: tuple[_MacroSpec, ...] = (
@@ -205,10 +213,17 @@ _MACRO_METRICS: tuple[_MacroSpec, ...] = (
     # 12-month average is a different published measure, not a transform of it.
     _MacroSpec("cpi_12m_avg_monthly", "CPI 12m Avg", "%", "BBS", "percent-1dp",
                archive_id="cpi_12m_avg_monthly"),
+    # Issue 206, item 4: both a live daily read AND the monthly archive —
+    # `dual_source_official=True` scopes the new resolver to just this pair.
+    # With today's real data (archive July unofficial for both legs of this
+    # pair) these still resolve to June's daily print; the card values do
+    # NOT change from before this fix.
     _MacroSpec("cpi_p2p_food_monthly", "CPI Food (P-to-P)", "%", "BBS", "percent-1dp",
-               live_id="food_inflation"),
+               live_id="food_inflation", archive_id="cpi_p2p_food_monthly",
+               dual_source_official=True),
     _MacroSpec("cpi_p2p_nonfood_monthly", "CPI Non-Food (P-to-P)", "%", "BBS", "percent-1dp",
-               live_id="non_food_inflation"),
+               live_id="non_food_inflation", archive_id="cpi_p2p_nonfood_monthly",
+               dual_source_official=True),
     _MacroSpec("real_policy_rate_monthly", "Real Policy Rate", "%", "BB+BBS", "percent-1dp",
                derive=_real_policy_rate),
     # No live source: REER appears in no table, ever. Needs a scraper.
@@ -260,6 +275,46 @@ def _latest(client, metric_id: str, *, table: str) -> HistoryRow | None:
     return row
 
 
+def _resolve_newest_official_cpi(
+    ctx: "BuilderContext", spec: "_MacroSpec",
+) -> tuple[float | None, date | None]:
+    """Newest OFFICIAL row across BOTH `metric_history` (`spec.live_id`,
+    daily) and `metric_history_monthly` (`spec.archive_id`, monthly) for ONE
+    CPI concept (issue 206, item 4). SCOPED to specs that opt in via
+    `dual_source_official=True` — today, only the CPI food/non-food pair.
+
+    The live daily leg is trusted as-is (EconDelta's own scrape, unfiltered
+    — the same contract every other `live_id` spec already has). The
+    monthly archive leg is filtered through `chart_series_fetcher`'s CPI
+    honesty gate (`is_official_cpi_point`) — the SAME predicate the chart
+    uses, so a card and its own chart can never independently disagree on
+    what counts as official for this pair.
+
+    With production's real 2026-08-24 shape (June daily official, July
+    archive unofficial for both legs of this pair) this resolves to the
+    JUNE daily row for both cards — the card values do not move to July.
+    """
+    from brief.chart_series_fetcher import is_official_cpi_point
+
+    candidates: list[HistoryRow] = []
+    if spec.live_id is not None and ctx.history is not None:
+        row = _latest(ctx.history, spec.live_id, table="metric_history")
+        if row is not None and isinstance(row.value, (int, float)):
+            candidates.append(row)
+    if spec.archive_id is not None and ctx.history_monthly is not None:
+        row = _latest(ctx.history_monthly, spec.archive_id, table="metric_history_monthly")
+        if (
+            row is not None
+            and isinstance(row.value, (int, float))
+            and is_official_cpi_point(spec.archive_id, row.as_of.isoformat(), row.source)
+        ):
+            candidates.append(row)
+    if not candidates:
+        return (None, None)
+    newest = max(candidates, key=lambda r: r.as_of)
+    return (newest.value, newest.as_of)
+
+
 def build(ctx: BuilderContext) -> SectionData:
     metrics: list[Metric] = []
     history_facts: list[HistoryFact] = []
@@ -273,6 +328,8 @@ def build(ctx: BuilderContext) -> SectionData:
             value, as_of, source_override = spec.derive(ctx)
             if source_override is not None:
                 source = source_override
+        elif spec.dual_source_official:
+            value, as_of = _resolve_newest_official_cpi(ctx, spec)
         elif spec.live_id is not None and ctx.history is not None:
             row = _latest(ctx.history, spec.live_id, table="metric_history")
             if row is not None:
@@ -303,8 +360,17 @@ def build(ctx: BuilderContext) -> SectionData:
         #     "lowest since" computed over it would be counting restamps as
         #     observations. MIN_DATA_POINTS for monthly is 6 real periods.
         # Revisit once the live series carry a year of genuine monthly points.
+        #
+        # Issue 206, item 4: `dual_source_official` specs (CPI food/non-food)
+        # now ALSO carry `archive_id`, but must NOT gain history facts here —
+        # that would be new behaviour beyond this fix's scope, and it would
+        # compute "lowest since" claims against an archive series that can
+        # include unofficial/derived points `is_official_cpi_point` filters
+        # out of the CHART but this block does not filter at all. Excluded
+        # explicitly so these two specs stay exactly as before this fix.
         if (
             spec.archive_id is not None
+            and not spec.dual_source_official
             and ctx.history_monthly is not None
             and value is not None
         ):

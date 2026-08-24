@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from brief.pipeline_v6 import (
     _build_editor_input,
+    _check_daily_as_of_vs_series_summary,
     _fetch_series_summaries,
     _to_v6_raw,
     summarize_series_points,
@@ -132,6 +133,68 @@ def test_build_editor_input_stamps_empty_series_summary_by_default():
             previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
         )
     assert editor_input["sections_raw"][0]["series_summary"] == {}
+
+
+# ─── daily as_of-vs-series tripwire (issue 206, defect a+b net) ────────────
+
+
+def test_daily_metric_as_of_matches_its_sections_series_last_ts():
+    """Issue 206 regression: the DSEX close tile's as_of (24 Aug, the RUN
+    date) disagreed with its own chart's newest plotted point (23 Aug, the
+    real session) — nothing anywhere flagged the two disagreeing. WARN-mode
+    only: a legitimately lagging chart series must never hold the publish.
+    """
+    raw_sections = [{
+        "slug": "dse",
+        "metrics": [{"id": "dsex", "label": "DSEX close", "cadence": "daily",
+                     "as_of": "2026-08-24"}],
+        "series_summary": {
+            "dsex": {"n": 5, "first_ts": "2026-08-19", "first_value": 5786.08,
+                      "last_ts": "2026-08-23", "last_value": 5722.21464,
+                      "min": 5722.21464, "max": 5786.08},
+        },
+    }]
+    warnings = _check_daily_as_of_vs_series_summary(raw_sections)
+    assert len(warnings) == 1
+    assert "dsex" in warnings[0]
+    assert "2026-08-24" in warnings[0]
+    assert "2026-08-23" in warnings[0]
+
+
+def test_daily_metric_as_of_matching_its_series_last_ts_produces_no_warning():
+    raw_sections = [{
+        "slug": "dse",
+        "metrics": [{"id": "dsex", "label": "DSEX close", "cadence": "daily",
+                     "as_of": "2026-08-23"}],
+        "series_summary": {"dsex": {"last_ts": "2026-08-23"}},
+    }]
+    assert _check_daily_as_of_vs_series_summary(raw_sections) == []
+
+
+def test_daily_as_of_check_ignores_non_daily_cadence():
+    """Only cadence='daily' metrics are checked — a monthly CPI card legitimately
+    naming a different month than its chart's newest point is defect (4)'s
+    concern (card-vs-chart honesty), a separate FAIL-mode check."""
+    raw_sections = [{
+        "slug": "macro",
+        "metrics": [{"id": "cpi_p2p_food_monthly", "label": "CPI Food (P-to-P)",
+                     "cadence": "monthly", "as_of": "2026-06-30"}],
+        "series_summary": {"cpi_p2p_food_monthly": {"last_ts": "2026-07-01"}},
+    }]
+    assert _check_daily_as_of_vs_series_summary(raw_sections) == []
+
+
+def test_daily_as_of_check_ignores_metric_with_no_matching_series_key():
+    """A daily metric whose id doesn't appear in series_summary (no chart for
+    it, or the pre-editor digest fetch degraded) is silently skipped — this
+    is a comparison check, not a presence check."""
+    raw_sections = [{
+        "slug": "dse",
+        "metrics": [{"id": "dse_turnover_crore", "label": "Turnover",
+                     "cadence": "daily", "as_of": "2026-08-24"}],
+        "series_summary": {"dsex": {"last_ts": "2026-08-23"}},
+    }]
+    assert _check_daily_as_of_vs_series_summary(raw_sections) == []
 
 
 def test_build_editor_input_stamps_provided_series_summary_per_slug():

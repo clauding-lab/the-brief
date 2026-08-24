@@ -324,6 +324,14 @@ Numbers with no currency symbol and no recognized unit suffix (`%`/`bp`/`bn`/`mn
 
 Golden-corpus regression tests live at `tests/validators/test_prose_numbers_golden_corpus.py`, built from the REAL published rows for issues #199–#204 (`tests/fixtures/real_issues/`) — not synthetic data.
 
+## 35. A snapshot value is dated by the SESSION, never by `ctx.today` — DSE opens 10:00 BDT, and the brief fires before that
+
+Issue 206 (2026-08-24). EconDelta's snapshot dict (`brief/econdelta.py`, `EconDeltaSnapshot.data`) is a flat key→value map with NO per-key session date, so a builder that stamps `as_of = ctx.today` on every fresh value dates the number by when the pipeline RAN, not by the trading session it actually describes. The brief publishes at 08:00 BDT (landmine 32) — DSE's own session does not open until 10:00 BDT — so on the fresh branch `ctx.today` is **never** a valid session date, not even on an ordinary trading day. `brief/builders/dse.py`'s fresh branch printed "24 Aug 2026" for a snapshot that still held the 23 Aug close, while the same section's `chart_read` (driven by `series_summary.last_ts`, a real session date) correctly said 23 Aug — two contradictory dates in one section, and nothing anywhere checked that they agreed.
+
+Fixed in `dse.py`: resolve `as_of` from `ctx.history.get_latest(src_key).as_of` when the history row's VALUE matches the snapshot value (same confirmed session); otherwise fall back to the last BD trading day strictly before `ctx.today` (`brief.cadence.is_bd_trading_day`) — never the run date itself. A new WARN-mode tripwire (`pipeline_v6._check_daily_as_of_vs_series_summary`) also flags any daily metric whose `as_of` disagrees with its own section's chart-series `last_ts`, as a backstop that would have caught this even without the root-cause fix.
+
+**OPEN follow-up, not yet fixed:** the identical pattern — `as_of = ctx.today` on a fresh snapshot read, no per-key session date available to check against — still lives in `brief/builders/iranwar.py` (Brent), `brief/builders/fx.py` (USD/BDT spot, gold), `brief/builders/bb.py` (reserves), and `brief/builders/headlines.py`. None of these were touched by this fix; each needs its own root-cause check (does the source actually carry a session/publish date the builder could read instead of stamping the clock?) before applying the same repoint. Do not assume the same fix mechanically transplants — dse.py's fix works because `ctx.history` carries a real per-session `as_of` for the SAME src_key; confirm that precondition holds for each sibling before repeating the pattern.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.

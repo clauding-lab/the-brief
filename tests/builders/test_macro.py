@@ -450,3 +450,91 @@ def test_history_facts_are_not_computed_for_live_metrics() -> None:
     s = build(ctx)
     assert s.history_facts == []
     assert not hasattr(client, "_window_calls")
+
+
+# ── CPI dual-source official resolver (issue 206, item 4) ───────────────────
+
+
+def test_dual_source_cpi_cards_stay_on_daily_official_when_archive_july_is_unofficial() -> None:
+    """Both p2p CPI specs now carry BOTH `live_id` and `archive_id`, but with
+    a July archive point that is NOT official (arithmetic-derived for food,
+    owner-pending for non-food — production's real 2026-08-24 shape), the
+    resolver must still land on June's daily print. Card values must NOT
+    change from before this fix."""
+    archive = {
+        "cpi_p2p_food_monthly": HistoryRow(
+            metric_id="cpi_p2p_food_monthly", as_of=date(2026, 7, 1), value=7.16,
+            source="derived_implied_weight_bb_inflation",
+        ),
+        "cpi_p2p_nonfood_monthly": HistoryRow(
+            metric_id="cpi_p2p_nonfood_monthly", as_of=date(2026, 7, 1), value=9.28,
+            source="bb_inflation_page",  # LOOKS official but is owner-pending-denylisted
+        ),
+    }
+    ctx = BuilderContext(
+        snapshot=_snap(), history=_FakeHistory(LIVE), today=AUG3,
+        history_monthly=_FakeHistory(archive, default_table="metric_history_monthly"),
+    )
+    s = build(ctx)
+    by_id = {m.id: m for m in s.metrics}
+    assert by_id["cpi_p2p_food_monthly"].value == 8.6
+    assert by_id["cpi_p2p_food_monthly"].as_of == JUN30
+    assert by_id["cpi_p2p_nonfood_monthly"].value == 9.61
+    assert by_id["cpi_p2p_nonfood_monthly"].as_of == JUN30
+
+
+def test_dual_source_cpi_cards_prefer_a_genuinely_newer_official_archive_row() -> None:
+    """If the archive DOES carry a newer OFFICIAL row than the daily table,
+    the resolver picks it — proving this is a real newest-official
+    comparison, not just 'always prefer the daily leg'."""
+    archive = {
+        "cpi_p2p_food_monthly": HistoryRow(
+            metric_id="cpi_p2p_food_monthly", as_of=date(2026, 7, 1), value=7.5,
+            source="bb_inflation_page",
+        ),
+    }
+    ctx = BuilderContext(
+        snapshot=_snap(), history=_FakeHistory(LIVE), today=AUG3,
+        history_monthly=_FakeHistory(archive, default_table="metric_history_monthly"),
+    )
+    s = build(ctx)
+    by_id = {m.id: m for m in s.metrics}
+    assert by_id["cpi_p2p_food_monthly"].value == 7.5
+    assert by_id["cpi_p2p_food_monthly"].as_of == date(2026, 7, 1)
+
+
+def test_private_credit_yoy_is_unaffected_by_the_cpi_dual_source_resolver() -> None:
+    """`dual_source_official` is opt-in, per-spec — private credit YoY (a
+    plain `live_id` spec with no `archive_id`) must resolve exactly as
+    before this fix, even when a `history_monthly` client is present."""
+    archive = {
+        "reer_monthly": _row("reer_monthly", 102.78, date(2026, 3, 1)),
+        "cpi_12m_avg_monthly": _row("cpi_12m_avg_monthly", 8.6, date(2026, 3, 1)),
+        "m2_growth_yoy_monthly": _row("m2_growth_yoy_monthly", 10.52, date(2026, 2, 1)),
+    }
+    ctx = BuilderContext(
+        snapshot=_snap(), history=_FakeHistory(LIVE), today=AUG3,
+        history_monthly=_FakeHistory(archive, default_table="metric_history_monthly"),
+    )
+    s = build(ctx)
+    by_id = {m.id: m for m in s.metrics}
+    assert by_id["private_credit_growth_yoy_monthly"].value == 4.98
+    assert by_id["private_credit_growth_yoy_monthly"].as_of == AUG3
+
+
+def test_dual_source_cpi_specs_get_no_history_facts() -> None:
+    """The two CPI dual-source specs must not gain history facts merely
+    because they now also carry `archive_id` — that would be new behaviour
+    this fix does not intend (see the guard's comment in macro.py)."""
+    archive = {
+        "cpi_p2p_food_monthly": HistoryRow(
+            metric_id="cpi_p2p_food_monthly", as_of=date(2026, 3, 1), value=8.1,
+            source="bb_inflation_page",
+        ),
+    }
+    ctx = BuilderContext(
+        snapshot=_snap(), history=_FakeHistory(LIVE), today=AUG3,
+        history_monthly=_FakeHistory(archive, default_table="metric_history_monthly"),
+    )
+    s = build(ctx)
+    assert s.history_facts == []

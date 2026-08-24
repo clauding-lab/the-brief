@@ -40,8 +40,8 @@ def _make_snapshot() -> EconDeltaSnapshot:
     )
 
 
-def _make_row(metric_id: str, as_of: str, value: float) -> HistoryRow:
-    return HistoryRow(metric_id=metric_id, as_of=date.fromisoformat(as_of), value=value, source="t")
+def _make_row(metric_id: str, as_of: str, value: float, *, source: str = "t") -> HistoryRow:
+    return HistoryRow(metric_id=metric_id, as_of=date.fromisoformat(as_of), value=value, source=source)
 
 
 def _history_monthly_with_values(value_map: dict[str, float]) -> MagicMock:
@@ -80,7 +80,17 @@ def _history_monthly_with_values(value_map: dict[str, float]) -> MagicMock:
 # Test 1 — the archive metrics still read metric_history_monthly
 # ---------------------------------------------------------------------------
 
-ARCHIVE_IDS = [spec.archive_id for spec in _MACRO_METRICS if spec.archive_id]
+# Issue 206, item 4: cpi_p2p_food_monthly / cpi_p2p_nonfood_monthly now ALSO
+# carry `archive_id` (a dual-source resolver, `dual_source_official=True`),
+# but they are not "the three with no live source anywhere" this test's
+# docstring means — they have a live_id too, and their archive leg is
+# filtered through the CPI honesty gate (`is_official_cpi_point`), which
+# this generic `source="t"` fixture never satisfies. Scope to the ORIGINAL,
+# still-true invariant: archive-only, no live alternative at all.
+ARCHIVE_IDS = [
+    spec.archive_id for spec in _MACRO_METRICS
+    if spec.archive_id and not spec.dual_source_official
+]
 
 
 def test_macro_builder_reads_archive_metrics_from_history_monthly():
@@ -180,9 +190,22 @@ def test_macro_section_series_populated_with_cpi_24_months():
     def _get_history_window(metric_ids, *, limit=None, days=None, today=None, table="metric_history"):
         result = {}
         for mid in metric_ids:
+            # Issue 206, item 4: fetch_macro_cpi_series now drops any point
+            # whose source isn't an official print (`is_official_cpi_point`)
+            # — use an official source here so this test still measures what
+            # it was written to measure (quantity/ordering), not the honesty
+            # filter (covered by its own dedicated tests). REPAIR NOTE: these
+            # 2024/2025 dates mirror production's real producer, which stamps
+            # `macro_observer_seed` (not `bb_inflation_page`) for every
+            # pre-2026-04 row — using the wrong source string here let the
+            # allowlist's blunt-truncation regression pass unnoticed; see
+            # test_fetch_macro_cpi_series_keeps_the_seeded_history_not_just_the_live_tail
+            # in tests/test_pipeline_v6_chart_series_propagation.py.
             # Production PostgREST returns most-recent-first (desc); match that ordering
-            rows = [_make_row(mid, f"2025-{m:02d}-01", 5.2 + m * 0.05) for m in range(12, 0, -1)]
-            rows += [_make_row(mid, f"2024-{m:02d}-01", 5.0 + m * 0.1) for m in range(12, 0, -1)]
+            rows = [_make_row(mid, f"2025-{m:02d}-01", 5.2 + m * 0.05, source="macro_observer_seed")
+                    for m in range(12, 0, -1)]
+            rows += [_make_row(mid, f"2024-{m:02d}-01", 5.0 + m * 0.1, source="macro_observer_seed")
+                     for m in range(12, 0, -1)]
             result[mid] = rows
         return result
 

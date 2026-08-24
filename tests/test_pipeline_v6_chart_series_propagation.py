@@ -25,13 +25,13 @@ Coverage:
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 import pytest
 
 from brief import chart_series_fetcher, pipeline_v6
-from brief.history import HttpClient
+from brief.history import HistoryRow, HttpClient
 from brief.v6_schema import (
     BriefPayloadV6,
     BriefV6,
@@ -912,3 +912,229 @@ def test_stamp_chart_series_dse_movers_failure_is_isolated(
     assert by_slug["dse"].movers is None
     messages = " ".join(r.getMessage().lower() for r in caplog.records)
     assert "movers" in messages, f"expected a warning mentioning movers; got {messages!r}"
+
+
+# ─── CPI card-vs-chart honesty (issue 206, item 4) ──────────────────────
+#
+# Fixture mirrors PRODUCTION on 2026-08-24: daily food_inflation/
+# non_food_inflation newest is 2026-06-30 = 8.6/9.61; the monthly archive
+# carries a July row for all three CPI series, but only cpi_12m_avg_monthly's
+# July point (8.66) is genuinely official (source=bb_inflation_page,
+# independently confirmed by the daily general_inflation row) — July food
+# (7.16) is arithmetic (source=derived_implied_weight_bb_inflation) and July
+# non-food (9.28) is labelled bb_inflation_page but acknowledged upstream
+# (econdelta's own backfill script) as never verified against a live page.
+
+
+class _CpiDailyHistoryStub:
+    """Minimal `metric_history` (daily) client stand-in for macro.build()."""
+
+    _ROWS: dict[str, HistoryRow] = {}  # populated below, after HistoryRow import
+
+    def get_latest(self, metric_id: str, *, table: str = "metric_history"):
+        return self._ROWS.get(metric_id)
+
+    def get_at_or_before(self, metric_id: str, as_of: date, *, table: str = "metric_history"):
+        return None  # real_policy_rate's repo leg — not under test here
+
+
+class _CpiMonthlyHistoryStub:
+    """Minimal `metric_history_monthly` client stand-in — serves both
+    `get_latest` (macro.py's archive_id reads) and `get_history_window`
+    (chart_series_fetcher's anchor-mode fetch), from the SAME seeded rows."""
+
+    _ARCHIVE_ROWS: dict[str, list[HistoryRow]] = {}  # populated below
+
+    def get_latest(self, metric_id: str, *, table: str = "metric_history_monthly"):
+        rows = self._ARCHIVE_ROWS.get(metric_id)
+        return max(rows, key=lambda r: r.as_of) if rows else None
+
+    def get_history_window(self, metric_ids, *, limit=None, table="metric_history_monthly", **_kw):
+        # PostgREST anchor mode returns most-recent-first.
+        return {
+            mid: sorted(self._ARCHIVE_ROWS.get(mid, []), key=lambda r: r.as_of, reverse=True)
+            for mid in metric_ids
+        }
+
+
+def _seed_cpi_fixture() -> None:
+    from brief.history import HistoryRow as _HistoryRow
+
+    _CpiDailyHistoryStub._ROWS = {
+        "food_inflation": _HistoryRow(
+            metric_id="food_inflation", as_of=date(2026, 6, 30), value=8.6, source="EconDelta",
+        ),
+        "non_food_inflation": _HistoryRow(
+            metric_id="non_food_inflation", as_of=date(2026, 6, 30), value=9.61, source="EconDelta",
+        ),
+    }
+    _CpiMonthlyHistoryStub._ARCHIVE_ROWS = {
+        "cpi_12m_avg_monthly": [
+            _HistoryRow(metric_id="cpi_12m_avg_monthly", as_of=date(2026, 6, 1),
+                        value=8.32, source="bb_inflation_page"),
+            _HistoryRow(metric_id="cpi_12m_avg_monthly", as_of=date(2026, 7, 1),
+                        value=8.66, source="bb_inflation_page"),
+        ],
+        "cpi_p2p_food_monthly": [
+            _HistoryRow(metric_id="cpi_p2p_food_monthly", as_of=date(2026, 6, 1),
+                        value=8.6, source="bb_inflation_page"),
+            _HistoryRow(metric_id="cpi_p2p_food_monthly", as_of=date(2026, 7, 1),
+                        value=7.16, source="derived_implied_weight_bb_inflation"),
+        ],
+        "cpi_p2p_nonfood_monthly": [
+            _HistoryRow(metric_id="cpi_p2p_nonfood_monthly", as_of=date(2026, 6, 1),
+                        value=9.61, source="bb_inflation_page"),
+            _HistoryRow(metric_id="cpi_p2p_nonfood_monthly", as_of=date(2026, 7, 1),
+                        value=9.28, source="bb_inflation_page"),
+        ],
+    }
+
+
+def test_macro_cpi_card_period_is_never_older_than_its_own_chart_series() -> None:
+    """Issue 206 regression. Must FAIL on base (pre-fix) for food + non-food
+    — their cards read June while their chart plots July's unofficial
+    figure — and PASS for 12m-avg, which was never wrong (its July point is
+    genuinely official)."""
+    from brief.builders import BuilderContext
+    from brief.builders.macro import build as macro_build
+    from brief.econdelta import EconDeltaSnapshot
+
+    _seed_cpi_fixture()
+    ctx = BuilderContext(
+        snapshot=EconDeltaSnapshot(
+            updated_at=datetime(2026, 8, 24, 3, 15, tzinfo=timezone.utc),
+            sources_status={}, data={},
+        ),
+        history=_CpiDailyHistoryStub(),
+        history_monthly=_CpiMonthlyHistoryStub(),
+        today=date(2026, 8, 24),
+    )
+    section = macro_build(ctx)
+    cards_by_id = {m.id: m for m in section.metrics}
+
+    chart_series = chart_series_fetcher.fetch_macro_cpi_series(ctx.history_monthly)
+    newest_plotted = {
+        mid: max((p.ts for p in pts), default=None) for mid, pts in chart_series.items()
+    }
+
+    for mid in ("cpi_p2p_food_monthly", "cpi_p2p_nonfood_monthly", "cpi_12m_avg_monthly"):
+        card_period = cards_by_id[mid].as_of.isoformat()
+        assert card_period >= newest_plotted[mid], (
+            f"{mid}: card period {card_period} is OLDER than its own chart's "
+            f"newest plotted point {newest_plotted[mid]}"
+        )
+
+
+def test_fetch_macro_cpi_series_keeps_the_official_12m_avg_july_point() -> None:
+    """The July 12m-avg point (8.66, genuinely official) must survive the
+    honesty filter — this is the point the earlier regression prose
+    ('CPI 12m-avg eased to 8.66% as of the Jul 2026 print') truthfully
+    describes, and truncating it would turn a TRUE statement into a FALSE
+    one."""
+    _seed_cpi_fixture()
+    out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
+    ts_values = {p.ts: p.value for p in out["cpi_12m_avg_monthly"]}
+    assert ts_values.get("2026-07-01") == 8.66
+
+
+def test_fetch_macro_cpi_series_drops_the_derived_july_food_point() -> None:
+    _seed_cpi_fixture()
+    out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
+    ts_values = {p.ts for p in out["cpi_p2p_food_monthly"]}
+    assert "2026-07-01" not in ts_values
+    assert "2026-06-01" in ts_values
+
+
+def test_fetch_macro_cpi_series_drops_the_owner_pending_july_nonfood_point() -> None:
+    """9.28 is labelled bb_inflation_page (which LOOKS official) but is
+    denylisted as owner-pending — a source-string whitelist alone cannot
+    catch this; the explicit pending entry is required (see its comment)."""
+    _seed_cpi_fixture()
+    out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
+    ts_values = {p.ts for p in out["cpi_p2p_nonfood_monthly"]}
+    assert "2026-07-01" not in ts_values
+    assert "2026-06-01" in ts_values
+
+
+# ─── CPI archive honesty gate must not truncate the whole history ────────
+#
+# Repair-agent regression (blocking review finding, post-merge of the "issue
+# 206, item 4" honesty gate). Production's `metric_history_monthly` CPI trio
+# carries `source='macro_observer_seed'` for every row before 2026-04-01 (the
+# Phase-1 seeded backfill later extended by live `bb_inflation_page`
+# appenders from April 2026 on) — confirmed live via anon Supabase read on
+# 2026-08-24: 513 of 525 CPI-trio rows are `macro_observer_seed`, spanning
+# 2012-01 through 2026-03; only 12 rows (the last 4 months per series) carry
+# `bb_inflation_page`/`derived_implied_weight_bb_inflation`.
+#
+# The two fixtures above only ever seed June+July, so they could not catch
+# `_OFFICIAL_CPI_SOURCES` excluding `macro_observer_seed` too — which is
+# exactly what shipped: `fetch_macro_cpi_series(months=24)` collapsed the
+# 24-month CPI Trend chart to 3-4 points, deleting ~20 months of real BB
+# CPI history the chart had shown since v2.0.0's frozen-charts fix. This
+# fixture mirrors the real producer's source mix (20 months seeded, 4
+# months live) so the truncation is caught by the suite, not just by
+# production.
+def _seed_cpi_fixture_realistic_24_months() -> None:
+    from brief.history import HistoryRow as _HistoryRow
+
+    seeded_rows: dict[str, list[_HistoryRow]] = {mid: [] for mid in (
+        "cpi_12m_avg_monthly", "cpi_p2p_food_monthly", "cpi_p2p_nonfood_monthly",
+    )}
+    # 20 months of the historical seed, oldest-looking id first (2024-08 .. 2026-03).
+    for i in range(20):
+        year, month = 2024 + (8 + i - 1) // 12, (8 + i - 1) % 12 + 1
+        as_of = date(year, month, 1)
+        for mid, base in (
+            ("cpi_12m_avg_monthly", 9.0), ("cpi_p2p_food_monthly", 8.5),
+            ("cpi_p2p_nonfood_monthly", 9.5),
+        ):
+            seeded_rows[mid].append(_HistoryRow(
+                metric_id=mid, as_of=as_of, value=base + i * 0.01,
+                source="macro_observer_seed",
+            ))
+    # 4 live official months (2026-04 .. 2026-07), matching production's
+    # per-series shape: 12m-avg has all 4 official; food/non-food each have
+    # 3 official (Apr/May/Jun) plus one excluded July point.
+    for mid, official_months in (
+        ("cpi_12m_avg_monthly", [(2026, 4, 8.6), (2026, 5, 8.63), (2026, 6, 8.66), (2026, 7, 8.69)]),
+        ("cpi_p2p_food_monthly", [(2026, 4, 8.4), (2026, 5, 8.5), (2026, 6, 8.6)]),
+        ("cpi_p2p_nonfood_monthly", [(2026, 4, 9.4), (2026, 5, 9.5), (2026, 6, 9.61)]),
+    ):
+        for year, month, value in official_months:
+            seeded_rows[mid].append(_HistoryRow(
+                metric_id=mid, as_of=date(year, month, 1), value=value,
+                source="bb_inflation_page",
+            ))
+    # The two known-unofficial July points stay excluded regardless.
+    seeded_rows["cpi_p2p_food_monthly"].append(_HistoryRow(
+        metric_id="cpi_p2p_food_monthly", as_of=date(2026, 7, 1), value=7.16,
+        source="derived_implied_weight_bb_inflation",
+    ))
+    seeded_rows["cpi_p2p_nonfood_monthly"].append(_HistoryRow(
+        metric_id="cpi_p2p_nonfood_monthly", as_of=date(2026, 7, 1), value=9.28,
+        source="bb_inflation_page",  # owner-pending denylisted despite the label
+    ))
+    _CpiMonthlyHistoryStub._ARCHIVE_ROWS = seeded_rows
+
+
+def test_fetch_macro_cpi_series_keeps_the_seeded_history_not_just_the_live_tail() -> None:
+    """The honesty gate must drop only genuinely unofficial POINTS (arithmetic
+    derivations, owner-pending rows) — not the entire pre-appender seeded
+    archive. `macro_observer_seed` is real historical BB CPI data, not a
+    fabrication; excluding it collapses the chart from 24 months to a stub."""
+    _seed_cpi_fixture_realistic_24_months()
+    out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub(), months=24)
+
+    # 12m-avg: 20 seeded + 4 official, nothing excluded → all 24 survive.
+    assert len(out["cpi_12m_avg_monthly"]) == 24
+    # food/non-food: 20 seeded + 3 official; the July point is excluded → 23.
+    assert len(out["cpi_p2p_food_monthly"]) == 23
+    assert len(out["cpi_p2p_nonfood_monthly"]) == 23
+
+    # The seeded history itself must still be present, not just the live tail.
+    food_ts = {p.ts for p in out["cpi_p2p_food_monthly"]}
+    assert "2024-08-01" in food_ts, (
+        "seeded history (source=macro_observer_seed) was dropped — the chart "
+        "would show only the last few months instead of a real 24-month trend"
+    )
