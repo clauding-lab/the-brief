@@ -324,9 +324,13 @@ def _resolve_fresh_as_of(ctx: BuilderContext, src_key: str, value: Any) -> date:
     Prefer the history row's `as_of` when its value matches the snapshot
     value (same confirmed session). If history is unreachable, has no row,
     or its value doesn't match (can't be trusted as the SAME session), fall
-    back to the last BD trading day strictly before `ctx.today` — always a
-    safe, honest upper bound on the true session date, and never the run
-    date itself.
+    back to the last BD trading day strictly before `ctx.today` — never the
+    run date itself, but NOT an unconditionally safe upper bound: both paths
+    are weekday-only (`is_bd_trading_day` has no BD public-holiday calendar,
+    AGENTS.md landmine), so on a holiday the fallback can still name a day
+    the market was closed, and a stale-but-coincidentally-equal history
+    value can match the snapshot and hand back an older session's date.
+    Strictly better than the `ctx.today` it replaces either way.
     """
     if ctx.history is not None:
         try:
@@ -334,8 +338,14 @@ def _resolve_fresh_as_of(ctx: BuilderContext, src_key: str, value: Any) -> date:
         except Exception:  # noqa: BLE001 — a history outage must not crash the builder
             _log.warning("DSE fresh as_of: get_latest(%s) failed, using trading-day fallback", src_key)
             last = None
-        if last is not None and _values_match(last.value, value):
-            return last.as_of
+        if last is not None:
+            if _values_match(last.value, value):
+                return last.as_of
+            _log.debug(
+                "DSE fresh as_of: get_latest(%s) value %r != snapshot value %r "
+                "(history as_of=%s) — using trading-day fallback instead",
+                src_key, last.value, value, last.as_of,
+            )
     return _last_trading_day_before(ctx.today)
 
 

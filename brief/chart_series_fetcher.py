@@ -402,16 +402,30 @@ def fetch_brent(
 # `is_official_cpi_point`'s docstring for the specific case that defeats a
 # plain whitelist.
 #
-# A row counts as OFFICIAL only when its source is on this allowlist. Every
-# CONFIRMED-official row across the three CPI series (the June food/non-food
-# prints, every 12m-avg print including July) carries `bb_inflation_page` —
-# BB's own live econdata/inflation page, econdelta PR #126. The one archive
-# source known NOT to be an official print is `derived_implied_weight_bb_inflation`
-# (econdelta's own `scripts/backfill_cpi_july_2026.py`: July food's 7.16 was
-# "SETTLED BY ARITHMETIC" — an implied weight backed out of June's known
-# triple, not read off any page) — it is simply absent from this set, so it
-# is excluded without needing its own denylist entry.
-_OFFICIAL_CPI_SOURCES: frozenset[str] = frozenset({"bb_inflation_page"})
+# A row counts as OFFICIAL only when its source is on this allowlist.
+#
+# REPAIR NOTE (post-merge blocking review finding): the first version of this
+# allowlist held only `bb_inflation_page` and silently dropped every row
+# before 2026-04-01 — `macro_observer_seed`, the Phase-1 backfill that seeds
+# the CPI trio's pre-appender history (confirmed live via anon Supabase read
+# 2026-08-24: 513 of 525 CPI-trio rows, spanning 2012-01 through 2026-03).
+# That is real historical BB CPI data, not a fabrication or an arithmetic
+# derivation — AGENT_LEARNINGS.md's 2026-08-08 entry backfilled it precisely
+# so the chart would show a genuine multi-year trend, and econdelta PRs
+# #123/#124 only ever extended it forward with live appenders, never
+# replaced or disowned it. Excluding it collapsed the 24-month CPI Trend
+# chart to a 3-4-point stub with no acknowledgement anywhere (CHANGELOG,
+# chart subtitle) that ~20 months of real history had vanished. The two
+# archive sources actually known NOT to be an official print are
+# `derived_implied_weight_bb_inflation` (econdelta's own
+# `scripts/backfill_cpi_july_2026.py`: July food's 7.16 was "SETTLED BY
+# ARITHMETIC" — an implied weight backed out of June's known triple, not
+# read off any page) and the owner-pending point denylisted below — both
+# stay excluded; the seeded archive does not.
+_OFFICIAL_CPI_SOURCES: frozenset[str] = frozenset({
+    "bb_inflation_page",
+    "macro_observer_seed",
+})
 
 # OWNER-PENDING (issue 206, item 4): this specific point is labelled
 # `bb_inflation_page` — i.e. it LOOKS official by source string alone — but

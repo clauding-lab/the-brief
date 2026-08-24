@@ -1054,3 +1054,87 @@ def test_fetch_macro_cpi_series_drops_the_owner_pending_july_nonfood_point() -> 
     ts_values = {p.ts for p in out["cpi_p2p_nonfood_monthly"]}
     assert "2026-07-01" not in ts_values
     assert "2026-06-01" in ts_values
+
+
+# ─── CPI archive honesty gate must not truncate the whole history ────────
+#
+# Repair-agent regression (blocking review finding, post-merge of the "issue
+# 206, item 4" honesty gate). Production's `metric_history_monthly` CPI trio
+# carries `source='macro_observer_seed'` for every row before 2026-04-01 (the
+# Phase-1 seeded backfill later extended by live `bb_inflation_page`
+# appenders from April 2026 on) — confirmed live via anon Supabase read on
+# 2026-08-24: 513 of 525 CPI-trio rows are `macro_observer_seed`, spanning
+# 2012-01 through 2026-03; only 12 rows (the last 4 months per series) carry
+# `bb_inflation_page`/`derived_implied_weight_bb_inflation`.
+#
+# The two fixtures above only ever seed June+July, so they could not catch
+# `_OFFICIAL_CPI_SOURCES` excluding `macro_observer_seed` too — which is
+# exactly what shipped: `fetch_macro_cpi_series(months=24)` collapsed the
+# 24-month CPI Trend chart to 3-4 points, deleting ~20 months of real BB
+# CPI history the chart had shown since v2.0.0's frozen-charts fix. This
+# fixture mirrors the real producer's source mix (20 months seeded, 4
+# months live) so the truncation is caught by the suite, not just by
+# production.
+def _seed_cpi_fixture_realistic_24_months() -> None:
+    from brief.history import HistoryRow as _HistoryRow
+
+    seeded_rows: dict[str, list[_HistoryRow]] = {mid: [] for mid in (
+        "cpi_12m_avg_monthly", "cpi_p2p_food_monthly", "cpi_p2p_nonfood_monthly",
+    )}
+    # 20 months of the historical seed, oldest-looking id first (2024-08 .. 2026-03).
+    for i in range(20):
+        year, month = 2024 + (8 + i - 1) // 12, (8 + i - 1) % 12 + 1
+        as_of = date(year, month, 1)
+        for mid, base in (
+            ("cpi_12m_avg_monthly", 9.0), ("cpi_p2p_food_monthly", 8.5),
+            ("cpi_p2p_nonfood_monthly", 9.5),
+        ):
+            seeded_rows[mid].append(_HistoryRow(
+                metric_id=mid, as_of=as_of, value=base + i * 0.01,
+                source="macro_observer_seed",
+            ))
+    # 4 live official months (2026-04 .. 2026-07), matching production's
+    # per-series shape: 12m-avg has all 4 official; food/non-food each have
+    # 3 official (Apr/May/Jun) plus one excluded July point.
+    for mid, official_months in (
+        ("cpi_12m_avg_monthly", [(2026, 4, 8.6), (2026, 5, 8.63), (2026, 6, 8.66), (2026, 7, 8.69)]),
+        ("cpi_p2p_food_monthly", [(2026, 4, 8.4), (2026, 5, 8.5), (2026, 6, 8.6)]),
+        ("cpi_p2p_nonfood_monthly", [(2026, 4, 9.4), (2026, 5, 9.5), (2026, 6, 9.61)]),
+    ):
+        for year, month, value in official_months:
+            seeded_rows[mid].append(_HistoryRow(
+                metric_id=mid, as_of=date(year, month, 1), value=value,
+                source="bb_inflation_page",
+            ))
+    # The two known-unofficial July points stay excluded regardless.
+    seeded_rows["cpi_p2p_food_monthly"].append(_HistoryRow(
+        metric_id="cpi_p2p_food_monthly", as_of=date(2026, 7, 1), value=7.16,
+        source="derived_implied_weight_bb_inflation",
+    ))
+    seeded_rows["cpi_p2p_nonfood_monthly"].append(_HistoryRow(
+        metric_id="cpi_p2p_nonfood_monthly", as_of=date(2026, 7, 1), value=9.28,
+        source="bb_inflation_page",  # owner-pending denylisted despite the label
+    ))
+    _CpiMonthlyHistoryStub._ARCHIVE_ROWS = seeded_rows
+
+
+def test_fetch_macro_cpi_series_keeps_the_seeded_history_not_just_the_live_tail() -> None:
+    """The honesty gate must drop only genuinely unofficial POINTS (arithmetic
+    derivations, owner-pending rows) — not the entire pre-appender seeded
+    archive. `macro_observer_seed` is real historical BB CPI data, not a
+    fabrication; excluding it collapses the chart from 24 months to a stub."""
+    _seed_cpi_fixture_realistic_24_months()
+    out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub(), months=24)
+
+    # 12m-avg: 20 seeded + 4 official, nothing excluded → all 24 survive.
+    assert len(out["cpi_12m_avg_monthly"]) == 24
+    # food/non-food: 20 seeded + 3 official; the July point is excluded → 23.
+    assert len(out["cpi_p2p_food_monthly"]) == 23
+    assert len(out["cpi_p2p_nonfood_monthly"]) == 23
+
+    # The seeded history itself must still be present, not just the live tail.
+    food_ts = {p.ts for p in out["cpi_p2p_food_monthly"]}
+    assert "2024-08-01" in food_ts, (
+        "seeded history (source=macro_observer_seed) was dropped — the chart "
+        "would show only the last few months instead of a real 24-month trend"
+    )

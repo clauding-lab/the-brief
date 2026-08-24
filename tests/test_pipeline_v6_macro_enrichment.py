@@ -194,11 +194,17 @@ def test_macro_section_series_populated_with_cpi_24_months():
             # whose source isn't an official print (`is_official_cpi_point`)
             # — use an official source here so this test still measures what
             # it was written to measure (quantity/ordering), not the honesty
-            # filter (covered by its own dedicated tests).
+            # filter (covered by its own dedicated tests). REPAIR NOTE: these
+            # 2024/2025 dates mirror production's real producer, which stamps
+            # `macro_observer_seed` (not `bb_inflation_page`) for every
+            # pre-2026-04 row — using the wrong source string here let the
+            # allowlist's blunt-truncation regression pass unnoticed; see
+            # test_fetch_macro_cpi_series_keeps_the_seeded_history_not_just_the_live_tail
+            # in tests/test_pipeline_v6_chart_series_propagation.py.
             # Production PostgREST returns most-recent-first (desc); match that ordering
-            rows = [_make_row(mid, f"2025-{m:02d}-01", 5.2 + m * 0.05, source="bb_inflation_page")
+            rows = [_make_row(mid, f"2025-{m:02d}-01", 5.2 + m * 0.05, source="macro_observer_seed")
                     for m in range(12, 0, -1)]
-            rows += [_make_row(mid, f"2024-{m:02d}-01", 5.0 + m * 0.1, source="bb_inflation_page")
+            rows += [_make_row(mid, f"2024-{m:02d}-01", 5.0 + m * 0.1, source="macro_observer_seed")
                      for m in range(12, 0, -1)]
             result[mid] = rows
         return result

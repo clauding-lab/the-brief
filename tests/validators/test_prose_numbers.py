@@ -712,13 +712,27 @@ def test_cpi_12m_avg_chart_read_survives_the_cpi_honesty_truncation():
     passing every gate after `fetch_macro_cpi_series` truncates the OTHER
     two CPI series' unofficial July points. `series_summary` here is the
     POST-FIX shape: cpi_12m_avg_monthly still ends July (official, kept);
-    the food/non-food series end June (unofficial July, dropped)."""
+    the food/non-food series end June (unofficial July, dropped).
+
+    Exercises all three relevant checks, not just `check_lede_numbers_
+    against_builder_values` — `check_card_period_vs_chart_series` and
+    `_check_daily_as_of_vs_series_summary` were only verified by hand
+    before (repair-agent finding); both are asserted here directly so the
+    docstring's "must keep passing every gate" claim is actually proven,
+    not just believed. `_check_daily_as_of_vs_series_summary` lives in
+    `brief.pipeline_v6` and only looks at daily-cadence metrics — these are
+    monthly, so it is expected to produce nothing for this fixture; the
+    import is local to keep this validator test file's imports scoped to
+    `brief.validators`."""
     raw = [{
         "slug": "macro",
         "metrics": [
-            {"label": "CPI 12m Avg", "value": 8.66, "unit": "%", "as_of": "2026-07-01"},
-            {"label": "CPI Food (P-to-P)", "value": 8.6, "unit": "%", "as_of": "2026-06-30"},
-            {"label": "CPI Non-Food (P-to-P)", "value": 9.61, "unit": "%", "as_of": "2026-06-30"},
+            {"id": "cpi_12m_avg_monthly", "label": "CPI 12m Avg", "cadence": "monthly",
+             "value": 8.66, "unit": "%", "as_of": "2026-07-01"},
+            {"id": "cpi_p2p_food_monthly", "label": "CPI Food (P-to-P)", "cadence": "monthly",
+             "value": 8.6, "unit": "%", "as_of": "2026-06-30"},
+            {"id": "cpi_p2p_nonfood_monthly", "label": "CPI Non-Food (P-to-P)", "cadence": "monthly",
+             "value": 9.61, "unit": "%", "as_of": "2026-06-30"},
         ],
         "series_summary": {
             "cpi_12m_avg_monthly": {"n": 2, "first_ts": "2026-06-01", "first_value": 8.32,
@@ -735,6 +749,11 @@ def test_cpi_12m_avg_chart_read_survives_the_cpi_honesty_truncation():
     brief = _brief([{
         "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
         "weight": 1,
+        "metrics": [
+            {"label": "CPI 12m Avg", "value": "8.66%"},
+            {"label": "CPI Food (P-to-P)", "value": "8.6%"},
+            {"label": "CPI Non-Food (P-to-P)", "value": "9.61%"},
+        ],
         "chart_read": {
             "signal": "CPI 12m-avg eased to 8.66% as of the Jul 2026 print.",
             "context": "The trailing average has cooled from June's 8.32%.",
@@ -744,6 +763,20 @@ def test_cpi_12m_avg_chart_read_survives_the_cpi_honesty_truncation():
     warnings = check_lede_numbers_against_builder_values(brief, raw)
     chart_warnings = [w for w in warnings if w.field_path.startswith("macro.chart_read")]
     assert chart_warnings == [], f"a TRUE chart_read figure warned: {[w.describe() for w in chart_warnings]}"
+
+    raw_by_slug = {r["slug"]: r for r in raw}
+    card_vs_chart_warnings = check_card_period_vs_chart_series(brief, raw_by_slug)
+    assert card_vs_chart_warnings == [], (
+        f"a card older-than-chart warning fired on a fixture where every card "
+        f"is >= its own chart's newest point: {[w.describe() for w in card_vs_chart_warnings]}"
+    )
+
+    from brief.pipeline_v6 import _check_daily_as_of_vs_series_summary
+    daily_warnings = _check_daily_as_of_vs_series_summary(raw)
+    assert daily_warnings == [], (
+        f"monthly-cadence CPI metrics should never trip the daily-only "
+        f"tripwire: {daily_warnings}"
+    )
 
 
 # ─── orchestrator ────────────────────────────────────────────────────────────
