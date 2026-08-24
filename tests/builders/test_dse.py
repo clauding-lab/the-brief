@@ -5,6 +5,7 @@ from brief.builders import BuilderContext
 from brief.builders.dse import build
 from brief.econdelta import EconDeltaSnapshot
 from brief.history import HistoryRow
+from brief.vintage import period_label
 
 
 def _snap():
@@ -139,6 +140,62 @@ def test_dse_stale_fallback_reads_live_series_for_other_six_tiles():
     for dead_id in ("dse_dsex_change_pct", "dse_ds30", "dse_dses",
                     "dse_turnover_crore", "dse_advancing", "dse_declining"):
         assert dead_id not in requested_ids
+
+
+def test_fresh_snapshot_dates_metrics_by_session_not_run_date():
+    """Issue 206 regression. The 24 Aug 08:16 BDT publish read a snapshot
+    holding the 23 AUG session (DSE opens 10:00; there was no 24 Aug
+    session yet) and stamped every metric as_of = the RUN date, so
+    period_label produced '24 Aug 2026' and editor_v6.txt:290 ordered the
+    editor to print it verbatim — while the same section's chart_read,
+    driven by series_summary.last_ts, correctly said 23 Aug.
+    """
+    snap = EconDeltaSnapshot(
+        updated_at=datetime(2026, 8, 23, 21, 15, tzinfo=timezone.utc),
+        sources_status={"dse_market": {"status": "ok"}},
+        data={"dsex": 5722.21464, "dsex_change_pct": -1.10379,
+              "ds30": 2145.48199, "dses": None, "turnover_crore": 711.1497,
+              "advancing": 32, "declining": 324, "unchanged": 0},
+    )
+    history = MagicMock()
+    history.get_latest.side_effect = lambda k: HistoryRow(
+        metric_id=k, as_of=date(2026, 8, 23), value=snap.get(k), source="EconDelta"
+    )
+    ctx = BuilderContext(snapshot=snap, history=history, today=date(2026, 8, 24))
+    dsex = next(m for m in build(ctx).metrics if m.id == "dsex")
+    assert dsex.as_of == date(2026, 8, 23)               # FAILS today: 2026-08-24
+    assert period_label(dsex.as_of, "daily") == "23 Aug 2026"  # FAILS: '24 Aug 2026'
+    assert dsex.as_of < ctx.today, "a session date may never be the run date"
+
+
+def test_fresh_snapshot_with_history_outage_falls_back_to_prior_trading_day_never_run_date():
+    """When history is unreachable (get_latest raises), the fresh branch must
+    NOT default to ctx.today — it must fall back to the last BD trading day
+    strictly before the run. ctx.today here is a Saturday (non-trading), so
+    the correct fallback skips Friday too and lands on Thursday.
+    """
+    snap = EconDeltaSnapshot(
+        updated_at=datetime(2026, 8, 22, 3, 0, tzinfo=timezone.utc),
+        sources_status={"dse_market": {"status": "ok"}},
+        data={"dsex": 5722.21464, "dsex_change_pct": -1.10379,
+              "ds30": 2145.48199, "dses": 1059.70, "turnover_crore": 711.1497,
+              "advancing": 32, "declining": 324, "unchanged": 0},
+    )
+    _spec_keys = {"dsex", "dsex_change_pct", "ds30", "dses", "turnover_crore",
+                  "advancing", "declining"}
+
+    def _get_latest(metric_id, **kwargs):
+        if metric_id in _spec_keys:
+            raise RuntimeError("Supabase unreachable")
+        return None  # sector-heat lookups outside this test's scope
+
+    history = MagicMock()
+    history.get_latest.side_effect = _get_latest
+
+    ctx = BuilderContext(snapshot=snap, history=history, today=date(2026, 8, 22))
+    dsex = next(m for m in build(ctx).metrics if m.id == "dsex")
+    assert dsex.as_of == date(2026, 8, 20)  # last BD trading day before Sat 22 Aug
+    assert dsex.as_of < ctx.today
 
 
 def test_dse_unavailable_when_dsex_missing():
