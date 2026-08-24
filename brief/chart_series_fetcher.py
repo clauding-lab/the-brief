@@ -396,6 +396,54 @@ def fetch_brent(
     return out
 
 
+# ─── CPI archive honesty gate (issue 206, item 4) ──────────────────────
+# `metric_history_monthly`'s CPI-trio rows carry a `source` string, but a
+# row's source alone cannot be trusted as "this is an official print" — see
+# `is_official_cpi_point`'s docstring for the specific case that defeats a
+# plain whitelist.
+#
+# A row counts as OFFICIAL only when its source is on this allowlist. Every
+# CONFIRMED-official row across the three CPI series (the June food/non-food
+# prints, every 12m-avg print including July) carries `bb_inflation_page` —
+# BB's own live econdata/inflation page, econdelta PR #126. The one archive
+# source known NOT to be an official print is `derived_implied_weight_bb_inflation`
+# (econdelta's own `scripts/backfill_cpi_july_2026.py`: July food's 7.16 was
+# "SETTLED BY ARITHMETIC" — an implied weight backed out of June's known
+# triple, not read off any page) — it is simply absent from this set, so it
+# is excluded without needing its own denylist entry.
+_OFFICIAL_CPI_SOURCES: frozenset[str] = frozenset({"bb_inflation_page"})
+
+# OWNER-PENDING (issue 206, item 4): this specific point is labelled
+# `bb_inflation_page` — i.e. it LOOKS official by source string alone — but
+# econdelta's own `scripts/backfill_cpi_july_2026.py` docstring states it was
+# NEVER independently verified against a live page: "non-food is subject to
+# the SAME 'BB's page carries no food/non-food split' caveat as food ...
+# and was not independently verified against a live page either. Left
+# unchanged here because the round-1 review named ONLY food explicitly."
+# This is why `_OFFICIAL_CPI_SOURCES` alone cannot exclude it — the fix has
+# to be this explicit, named entry. Flip it (delete the line) once Adnan
+# confirms the figure or econdelta relabels its source — a one-line change
+# either way, which is the whole point of keeping this list separate from
+# the source allowlist above.
+_PENDING_UNOFFICIAL_CPI_POINTS: frozenset[tuple[str, str]] = frozenset({
+    ("cpi_p2p_nonfood_monthly", "2026-07-01"),
+})
+
+
+def is_official_cpi_point(metric_id: str, ts: str, source: str | None) -> bool:
+    """True iff one `metric_history_monthly` CPI-trio row counts as an
+    OFFICIAL print — never a derived/arithmetic figure, and never a point
+    named on the owner-pending denylist even when its source string alone
+    would pass. Shared by `fetch_macro_cpi_series` (chart truncation) and
+    `brief.builders.macro`'s CPI card resolver, so the card and its own
+    chart can never independently drift on what counts as official."""
+    if source not in _OFFICIAL_CPI_SOURCES:
+        return False
+    if (metric_id, ts) in _PENDING_UNOFFICIAL_CPI_POINTS:
+        return False
+    return True
+
+
 def fetch_macro_cpi_series(
     history_monthly: MetricHistoryClient,
     *,
@@ -405,6 +453,11 @@ def fetch_macro_cpi_series(
 
     Returns a dict keyed by metric_id, each value a list of SeriesPointV6
     objects ordered chronologically (oldest-first) for the SPA chart renderer.
+
+    Drops any row that is not an official print per `is_official_cpi_point`
+    (issue 206, item 4) — a derived/arithmetic or owner-pending point is
+    never drawn on the chart as if it were a confirmed reading, even though
+    it may still be stored in the archive.
 
     AGENTS.md landmine #1: reads from metric_history_monthly, NOT tb_* tables.
     AGENTS.md landmine #6: uses _monthly-suffixed metric IDs.
@@ -421,6 +474,7 @@ def fetch_macro_cpi_series(
         points: list[SeriesPointV6] = [
             SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
             for r in reversed(rows)
+            if is_official_cpi_point(mid, r.as_of.isoformat(), r.source)
         ]
         out[mid] = points
     return out
