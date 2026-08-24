@@ -802,3 +802,154 @@ def test_grounding_never_feeds_the_pairwise_diff_derivation():
         "gross_reserves_usd_bn_monthly": _digest("2025-11-01", 31.09, "2026-08-01", 26.5, 25.9, 31.09)
     }
     assert len(check_lede_numbers_against_builder_values(brief, [raw])) == 1
+
+
+# ─── issue 206: unsuffixed "~" prices + cross-section corridor anchors ──────
+
+
+def test_approx_marker_now_survives_the_cap_on_an_unsuffixed_price():
+    """Issue 206: 'Brent-WTI spread ~$7' against a true 7.24 (Brent 94.09 -
+    WTI 86.85) was flagged despite being correct, honestly rounded, and
+    explicitly marked as rounded. The 1% cap ($0.07 here) crushed the widened
+    ulp, which made the '~' marker inert for every currency token."""
+    raw = {"iran": _raw_section("iran", [
+        {"label": "Brent spot", "value": 94.09, "unit": "USD", "as_of": "2026-08-22"},
+        {"label": "WTI spot", "value": 86.85, "unit": "USD", "as_of": "2026-08-22"},
+    ])}
+    brief = _brief([{
+        "slug": "iran", "ord": 12, "title": "Oil", "group_key": "markets", "weight": 1,
+        "metrics": [{"label": "WTI spot", "value": "$86.85", "sub": "Brent-WTI spread ~$7"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+def test_the_same_price_without_the_marker_is_still_capped():
+    """Either condition alone is unsafe, so both are required. '$7' with no
+    '~' reads as an exact figure and keeps its flag."""
+    raw = {"iran": _raw_section("iran", [
+        {"label": "Brent spot", "value": 94.09, "unit": "USD", "as_of": "2026-08-22"},
+        {"label": "WTI spot", "value": 86.85, "unit": "USD", "as_of": "2026-08-22"},
+    ])}
+    brief = _brief([{
+        "slug": "iran", "ord": 12, "title": "Oil", "group_key": "markets", "weight": 1,
+        "metrics": [{"label": "WTI spot", "value": "$86.85", "sub": "Brent-WTI spread $7"}],
+    }])
+    warnings = check_metric_sub_numbers(brief, raw)
+    assert len(warnings) == 1
+    assert "$7" in warnings[0].matched_text
+
+
+def test_the_approx_exemption_does_not_reach_suffixed_figures():
+    """The dangerous half: '~Tk3.5tn' against a true 3.61tn is a 110bn gap.
+    Exempting it would buy a +/-Tk1tn band (a full unit at 1e6 scale), so the
+    exemption is scoped to scale 1.0 and this still warns."""
+    raw = {"fiscal": _raw_section("fiscal", [
+        {"label": "NBR collected YTD", "value": 3_610_000.0, "unit": "mn BDT", "as_of": "2026-06-30"},
+    ])}
+    brief = _brief([{
+        "slug": "fiscal", "ord": 9, "title": "Fiscal", "group_key": "realeco", "weight": 1,
+        "metrics": [{"label": "NBR collected YTD", "value": "Tk3.61tn", "sub": "~Tk3.5tn on the year"}],
+    }])
+    warnings = check_metric_sub_numbers(brief, raw)
+    assert len(warnings) == 1
+    assert "Tk3.5tn" in warnings[0].matched_text
+
+
+def test_a_section_may_measure_against_the_policy_corridor():
+    """Issue 206: tbond's 'the front stays below the 9.5% policy' is correct -
+    9.5% is published in the SAME brief's bb section - but the per-section
+    checker had nothing to match it against."""
+    raw = {
+        "tbond": _raw_section("tbond", [
+            {"label": "364d T-Bill cut-off", "value": 9.17, "unit": "%", "as_of": "2026-08-21"},
+        ]),
+        "bb": _raw_section("bb", [
+            {"id": "bb_policy_rate", "label": "Policy Rate", "value": 9.5, "unit": "%",
+             "as_of": "2026-08-21"},
+        ]),
+    }
+    brief = _brief([{
+        "slug": "tbond", "ord": 8, "title": "Govt Bonds", "group_key": "markets", "weight": 1,
+        "metrics": [{"label": "364d T-Bill cut-off", "value": "9.17%",
+                     "sub": "the front stays below the 9.5% policy"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+def test_a_non_anchor_value_from_another_section_is_still_flagged():
+    """The allowlist is the whole point: gross reserves live in bb too, but
+    they are not a corridor anchor, so tbond may not silently cite them."""
+    raw = {
+        "tbond": _raw_section("tbond", [
+            {"label": "364d T-Bill cut-off", "value": 9.17, "unit": "%", "as_of": "2026-08-21"},
+        ]),
+        "bb": _raw_section("bb", [
+            {"id": "bb_gross_reserves", "label": "Gross Reserves", "value": 36420.0,
+             "unit": "mn USD", "as_of": "2026-07-01"},
+        ]),
+    }
+    brief = _brief([{
+        "slug": "tbond", "ord": 8, "title": "Govt Bonds", "group_key": "markets", "weight": 1,
+        "metrics": [{"label": "364d T-Bill cut-off", "value": "9.17%",
+                     "sub": "cover from $36.42bn reserves"}],
+    }])
+    warnings = check_metric_sub_numbers(brief, raw)
+    assert len(warnings) == 1
+    assert "$36.42bn" in warnings[0].matched_text
+
+
+def test_corridor_anchors_do_not_feed_the_pairwise_diff_derivation():
+    """Anchors ride alongside the grounding entries, never into
+    `_build_allowed_values`. If they fed the diff logic, tbond could derive
+    9.5 - 9.17 = 0.33 and '33bp' would pass with nothing behind it."""
+    raw = {
+        "tbond": _raw_section("tbond", [
+            {"label": "364d T-Bill cut-off", "value": 9.17, "unit": "%", "as_of": "2026-08-21"},
+        ]),
+        "bb": _raw_section("bb", [
+            {"id": "bb_policy_rate", "label": "Policy Rate", "value": 9.5, "unit": "%",
+             "as_of": "2026-08-21"},
+        ]),
+    }
+    brief = _brief([{
+        "slug": "tbond", "ord": 8, "title": "Govt Bonds", "group_key": "markets", "weight": 1,
+        "metrics": [{"label": "364d T-Bill cut-off", "value": "9.17%", "sub": "33bp under policy"}],
+    }])
+    warnings = check_metric_sub_numbers(brief, raw)
+    assert len(warnings) == 1
+    assert "33bp" in warnings[0].matched_text
+
+
+def test_bb_does_not_double_count_its_own_anchors():
+    """`exclude_slug` keeps bb's own corridor metrics from being appended
+    twice; the section still validates normally against them."""
+    raw = {"bb": _raw_section("bb", [
+        {"id": "bb_policy_rate", "label": "Policy Rate", "value": 9.5, "unit": "%",
+         "as_of": "2026-08-21"},
+        {"id": "bb_call_money", "label": "Overnight Call Money", "value": 9.26, "unit": "%",
+         "as_of": "2026-08-21"},
+    ])}
+    brief = _brief([{
+        "slug": "bb", "ord": 3, "title": "Bangladesh Bank", "group_key": "banking", "weight": 1,
+        "metrics": [{"label": "Overnight Call Money", "value": "9.26%",
+                     "sub": "24bp under the 9.5% policy"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+def test_round_rhetorical_threshold_still_warns_after_the_206_widenings():
+    """The three '$90' hits in issue 206 ('watch whether $94 holds above $90')
+    are a level to watch, not a reading. Neither issue-206 change touches
+    them - '$90' carries no '~' - and that is deliberate: a checker that
+    accepts round levels would also accept an invented figure."""
+    raw = [_raw_section("iran", [
+        {"label": "Brent spot", "value": 94.09, "unit": "USD", "as_of": "2026-08-22"},
+        {"label": "WTI spot", "value": 86.85, "unit": "USD", "as_of": "2026-08-22"},
+    ])]
+    brief = _brief([{
+        "slug": "iran", "ord": 12, "title": "Oil", "group_key": "markets", "weight": 1,
+        "metrics": [{"label": "Brent spot", "value": "$94.09", "sub": "near range top"}],
+        "analysis": "Position for a wider import bill if Brent holds above $90 into the next prints.",
+    }])
+    warnings = check_lede_numbers_against_builder_values(brief, raw)
+    assert [w.matched_text.strip() for w in warnings] == ["$90"]
