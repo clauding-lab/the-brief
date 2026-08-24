@@ -169,7 +169,16 @@ class RunwayV6(_Strict):
 
 
 class BankerReadV6(_Strict):
-    verdict: str = Field(min_length=20, max_length=400)
+    # 400 -> 1000 with the Daily Star voice change. Full sentences cost roughly
+    # 50% more characters than the telegraphic register they replace (a live
+    # issue-206 verdict went 231 -> 355 chars on rewrite), and a verdict that
+    # overruns this cap fails validation and holds the whole publish. This is a
+    # SAFETY limit, not a target: the length the Editor actually aims for is the
+    # "150-450 chars" in editor_v6.txt, and the SPA renders this field at 22px
+    # (30px in the hero), so a genuinely 1000-char verdict would be a wall of
+    # display type. The headroom exists so a good verdict is never truncated —
+    # not so the desk can write essays.
+    verdict: str = Field(min_length=20, max_length=1000)
     watch: list[str] = Field(default_factory=list, max_length=4)
     risk: list[str] = Field(default_factory=list, max_length=4)
     runway: Optional[RunwayV6] = None

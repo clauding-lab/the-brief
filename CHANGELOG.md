@@ -10,6 +10,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 _Nothing yet._
 
+## [2.2.0] — 2026-08-24
+
+One uniform editorial voice across the whole product, replacing four separate and mutually contradictory definitions of it.
+
+### Changed
+- **User-visible:** the brief's writing voice moves from a clipped, telegraphic register to the plain, direct register of the Daily Star business desk. Concretely: every clause now gets a subject and a verb, so a line that previously read "Reserves last read $36.42bn on the 31 Jul print, cover 5.96mo on the May read; exports $4.20bn on the Jun read, the taka firm at 122.32" now reads "Reserves stood at $36.42bn in the 31 Jul print and cover 5.96mo of imports on May data. Exports were $4.20bn in June and the taka has held at 122.32." The mechanism behind a number is explained in ordinary words before another number is added, and the facts are left to carry the judgment rather than the desk delivering a verdict on them. Sentence craft only — the brief keeps its own structure (implication first, not the news-lede recap the Daily Star uses) and its own number convention ("35.73%", "BDT 1.4tn"), which the downstream fact-checker reads as symbols and would be blinded by the spelled-out "35.73 percent" style.
+- **User-visible:** neutrality toward Bangladesh Bank, the NBR, the government and any regulator is now stated as non-negotiable in both editor prompts and enforced by the sub-editor as a `revise`-level fault. Where critique belongs it is expressed through the facts — what a rule does, what its effect on the system is, what desks should anticipate — never as a judgment on whether a policy is right, wrong or late. Two live examples this replaces: "the capital cushion isn't thin, it's gone" and a reserves line whose "refresh overdue" phrasing graded Bangladesh Bank's timekeeping rather than reporting the print date.
+- The `IRREVERENT, STRATEGICALLY` register dial is removed. It was the instruction that produced both examples above, and it directly contradicted `Master.md`'s standing requirement of neutral, diplomatic framing toward institutions. Removing it also fixes a long-standing off-by-one in all three prompts, which announced "four dials" and then listed three, leaving the model to invent the fourth.
+- Humour is now none, everywhere. `Master.md` had banned it outright while both editor prompts allowed "wit is earned, not sprinkled", so the sub-editor was being told not to flatten a joke the brand guide forbade. The prompts now match the brand guide, and both files that still quote the old allowance do so explicitly to withdraw it.
+- The `banker_read.verdict` length target rises from 80–300 to 150–450 characters, and its schema ceiling from 400 to 1000. Full sentences cost roughly 50% more characters than the telegrams they replace — a live issue-206 verdict measured 231 characters before the rewrite and 355 after — and the old 400 ceiling left almost no margin. Overrunning it fails validation and holds the entire publish rather than degrading gracefully, so the new ceiling is a safety valve; the length the Editor actually aims for is the prompt's 150–450.
+
+### Added
+- `tests/claude/test_prompt_voice_consistency.py` — the voice spec lives in four files (`editor_v6.txt`, `editor_v6_friday.txt`, `subeditor_v6.txt` §7, `Master.md`) and nothing had ever compared them, which is why three contradictions survived in production for months. The shared voice block must now be byte-identical in both editor prompts, every retired register term is banned across all four files at once, and the neutrality clause and the no-humour rule are each asserted wherever they have to appear. A partial revert — one file updated, the others left behind — now fails CI instead of shipping.
+
 ## [2.1.0] — 2026-08-22
 
 Consolidated release for the 2026-08-22 two-pass audit of issue #204 (PRs #165, #166, #167).

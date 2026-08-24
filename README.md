@@ -4,7 +4,7 @@
 
 [![Live site](https://img.shields.io/badge/live-thebrief.clauding--lab.com-1a1814?style=flat-square)](https://thebrief.clauding-lab.com/)
 [![Cadence](https://img.shields.io/badge/cadence-Daily%20%C2%B7%2008%3A00%20BDT-7a6f5c?style=flat-square)](#cadence)
-[![Version](https://img.shields.io/badge/version-1.6.9-a67c2e?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.2.0-a67c2e?style=flat-square)](./CHANGELOG.md)
 
 Numbers, news, and a banker's read on what matters. One brief. Every morning at 08:00 BDT. ~15 minutes.
 
@@ -249,7 +249,7 @@ The Brief uses semantic versioning. Releases are tagged on `main` with `v<MAJOR>
 - **Minor** — new section, new editorial feature, new visible UI surface
 - **Patch** — fixes, copy changes, deferred-cleanup commits
 
-See [CHANGELOG.md](./CHANGELOG.md) for the full release history. Current: **v1.6.9**.
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history. Current: **v2.2.0**.
 
 ## Related projects
 
