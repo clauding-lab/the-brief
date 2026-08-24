@@ -18,6 +18,32 @@ def _supabase_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
 
 
+@pytest.fixture(autouse=True)
+def _redirect_raw_dumps(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Test hygiene, not a behavior change: several tests below deliberately
+    trigger a malformed-review hold (e.g. `test_subeditor_malformed_twice_
+    holds_never_auto_pass`), which calls the REAL `_dump_raw_on_failure` —
+    production code that writes into the repo's tracked `logs/` dir by
+    design (issue 181, 2026-07-31). Left unpatched, every pytest run leaks a
+    handful of 6-byte `raw_text="<json>"` dump files into that real
+    directory. `_dump_raw_on_failure` itself is UNCHANGED — this only
+    redirects where THIS test file's calls land, to pytest's own per-test
+    `tmp_path` (auto-cleaned), preserving the same "stashed text → return a
+    path, or None when nothing was stashed" contract the callers depend on.
+    """
+    import brief.pipeline_v6 as _pv6
+
+    def _redirected(label: str) -> str | None:
+        raw = _pv6._LAST_RAW.get(label)
+        if not raw:
+            return None
+        path = tmp_path / f"{label}_raw_test.txt"
+        path.write_text(raw)
+        return str(path)
+
+    monkeypatch.setattr(_pv6, "_dump_raw_on_failure", _redirected)
+
+
 def _editor_output(issue_no: int = 89) -> dict:
     return {
         "brief": {
