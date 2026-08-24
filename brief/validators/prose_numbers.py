@@ -226,6 +226,11 @@ def _extract_money_percent_tokens(text: str) -> list[dict[str, Any]]:
             "currency": currency_norm,
             "normalized_value": value * scale,
             "tolerance": ulp_multiplier * (10 ** -decimals) * scale,
+            # Both are read by `_effective_tolerance`: `scale` distinguishes a
+            # raw price ("$7", 1.0) from a suffix-inflated one ("Tk3.5tn", 1e6),
+            # and `approx` records whether the writer marked their own rounding.
+            "scale": scale,
+            "approx": bool(m.group("approx")),
         })
     return out
 
@@ -398,6 +403,45 @@ def _grounding_entries(raw_section: Any) -> list[dict[str, Any]]:
     )
 
 
+# The policy corridor. These three are not "the BB section's numbers" — they
+# are the levels the WHOLE brief is written against, so any section may cite
+# them: "the front stays below the 9.5% policy" (tbond, issue 206) is correct
+# prose that the per-section checker had nothing to match it to.
+#
+# Scoped to an explicit id allowlist rather than "any section may cite any other
+# section's metrics". That looser rule would roughly tenfold the accepted set
+# (~38 metrics across 12 sections) and is exactly the widening #171 warned
+# against: a checker that accepts too much still LOOKS like it is working.
+# Anchors are appended alongside the grounding entries and therefore never feed
+# `_build_allowed_values`'s pairwise-diff derivation.
+_CORRIDOR_ANCHOR_IDS: frozenset[str] = frozenset({
+    "bb_policy_rate",  # the repo rate — the corridor's midpoint
+    "bb_sdf",          # standing deposit facility — the floor
+    "bb_slf",          # standing lending facility — the ceiling
+})
+
+
+def _corridor_anchor_entries(
+    raw_sections_by_slug: dict[str, dict[str, Any]], *, exclude_slug: str | None = None
+) -> list[dict[str, Any]]:
+    """Normalized values for the corridor anchors, wherever they live.
+
+    `exclude_slug` skips the section that already has them in its own metric
+    list (bb), so they are not counted twice for it.
+    """
+    out: list[dict[str, Any]] = []
+    for slug, raw_section in sorted(raw_sections_by_slug.items()):
+        if slug == exclude_slug or not isinstance(raw_section, dict):
+            continue
+        for m in raw_section.get("metrics") or []:
+            if m.get("id") not in _CORRIDOR_ANCHOR_IDS:
+                continue
+            norm = _normalize_metric_value(m.get("unit", ""), m.get("value"))
+            if norm is not None:
+                out.append(norm)
+    return out
+
+
 def _build_allowed_values(raw_metrics: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Every raw metric's own normalized value, PLUS the pairwise |a−b| for
     any two metrics sharing a (category, currency) bucket — the "19bp under
@@ -438,6 +482,22 @@ def _effective_tolerance(token: dict[str, Any], entry: dict[str, Any]) -> float:
     """
     base = token["tolerance"]
     if token["category"] != "currency":
+        return base
+    # Issue-206 fix: the cap exists to undo SUFFIX inflation — "$3bn" buying a
+    # ±500mn band purely because `bn` is a coarse unit. An UNSUFFIXED price
+    # (scale 1.0) has no such inflation to undo: half a dollar on "$7" is just
+    # half a dollar. Yet the cap (1% = $0.07) crushed the widened ulp anyway,
+    # which made the "~" approximation marker completely INERT for currency —
+    # we shipped a marker and then neutralised it. "Brent–WTI spread ~$7"
+    # against a true 7.24 was flagged despite being correct, honestly rounded,
+    # and explicitly marked as rounded.
+    #
+    # Deliberately requires BOTH conditions, because either alone is unsafe:
+    #   - "~Tk3.5tn" (approx, scale 1e6) would otherwise buy a ±Tk1tn band;
+    #   - "$7" with no "~" reads as exact, so it stays capped.
+    # "$3bn" (no marker, scale 1e3) keeps its flag — that is the round
+    # rhetorical-threshold class #171 chose to leave visible, unchanged here.
+    if token.get("approx") and token.get("scale") == 1.0:
         return base
     magnitude = abs(entry["normalized_value"])
     floor = 0.005 * magnitude
@@ -603,9 +663,14 @@ def check_metric_sub_numbers(
         if raw_section is None:
             continue
         raw_metrics = raw_section.get("metrics") or []
-        # Subs legitimately cite the chart ("up from a $71.18 window low")
-        # and quote history facts ("highest since Apr 2022 (10.9% then)").
-        allowed = _build_allowed_values(raw_metrics) + _grounding_entries(raw_section)
+        # Subs legitimately cite the chart ("up from a $71.18 window low"),
+        # quote history facts ("highest since Apr 2022 (10.9% then)"), and
+        # measure against the policy corridor ("below the 9.5% policy").
+        allowed = (
+            _build_allowed_values(raw_metrics)
+            + _grounding_entries(raw_section)
+            + _corridor_anchor_entries(raw_sections_by_slug, exclude_slug=section.slug)
+        )
         for i, pub_metric in enumerate(section.metrics):
             if not pub_metric.sub:
                 continue

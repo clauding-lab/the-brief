@@ -371,6 +371,23 @@ def run_max(
         "output": int(_usage.get("output_tokens") or 0),
         "thinking": int((_details or {}).get("thinking_tokens") or 0),
     }
+    # The headroom gauge. #172 wired the thinking split into the two FAILURE
+    # paths only (cut-off, parse failure), which measures the engine solely once
+    # it is already overheating — a clean run recorded nothing. The number that
+    # actually decides the effort/split/adaptive-retry question is how close a
+    # HEALTHY run gets to the ceiling, so log it unconditionally, at INFO (the
+    # service logs at INFO; DEBUG would keep it invisible).
+    logger.info(
+        "run_max: output_tokens=%s of which thinking=%s (%.1f%% of the "
+        "%d ceiling), answer=%d chars, assistant_messages=%d, %.1fs",
+        _tokens["output"],
+        _tokens["thinking"],
+        100.0 * _tokens["output"] / max_output_tokens,
+        max_output_tokens,
+        len(raw_text),
+        _assistant_messages,
+        _duration,
+    )
     if _assistant_messages > 1:
         # The response hit the per-response cap and continued in a new assistant
         # message. We stitched it — this is recovery, not failure — but it must

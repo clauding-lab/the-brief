@@ -1,4 +1,5 @@
 import json
+import logging
 import subprocess
 from unittest.mock import patch, MagicMock
 
@@ -484,3 +485,29 @@ def test_nonzero_exit_error_shows_the_tail_not_the_init_boilerplate():
             run_max(prompt="hi", timeout_s=60)
     message = str(ei.value)
     assert "error_during_execution" in message, "the actual error must survive"
+
+
+def test_healthy_runs_log_the_headroom_not_just_failing_ones(caplog):
+    """#172 wired the thinking split into the two FAILURE paths only, so a
+    clean run recorded nothing — a gauge that reads only once the engine is
+    already overheating. The question it has to answer ("how much headroom
+    does a NORMAL run leave?") is only answerable from successful runs."""
+    fake_stdout = json.dumps({
+        "result": '{"x":1}',
+        "usage": {
+            "input_tokens": 2,
+            "output_tokens": 32_000,
+            "output_tokens_details": {"thinking_tokens": 21_000},
+        },
+    })
+    with caplog.at_level(logging.INFO, logger="brief.claude.max_client"):
+        with patch("brief.claude.max_client.subprocess.run",
+                   return_value=_fake_completed(fake_stdout)):
+            r = run_max(prompt="hi", max_output_tokens=64_000)
+    assert r.parsed == {"x": 1}
+    logged = "\n".join(rec.getMessage() for rec in caplog.records)
+    assert "output_tokens=32000" in logged
+    assert "thinking=21000" in logged
+    # The share of the ceiling is the whole point — a raw count alone still
+    # leaves you doing the division in your head at 02:00.
+    assert "50.0%" in logged
