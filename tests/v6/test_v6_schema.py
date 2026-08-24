@@ -70,6 +70,37 @@ def test_banker_read_min_verdict_length() -> None:
         BankerReadV6(verdict="too short", watch=[], risk=[])
 
 
+def test_a_full_sentence_verdict_fits_the_widened_cap() -> None:
+    """The Daily Star voice trades characters for verbs.
+
+    The live issue-206 Policy & Rates verdict was 231 chars in the telegraphic
+    register and 355 rewritten as full sentences — a ~50% cost. The old 400-char
+    cap left almost no margin, and overrunning it fails validation and holds the
+    whole publish rather than degrading gracefully.
+    """
+    rewritten = (
+        "Short-term money remains cheap. Overnight call money is trading at "
+        "9.26% and the 7-day at 9.25%, both below the 9.5% policy rate set "
+        "after July's cut, though the 14-day has moved up to 9.88%. Reserves "
+        "were last published at $36.42bn for 1 Jul 2026 and have not been "
+        "updated since, so the cover ratio behind an easing front rests on a "
+        "seven-week-old print. Deposit rates have not yet followed the bill "
+        "curve down, which leaves bank margins carrying the gap into H2."
+    )
+    assert len(rewritten) > 400, "sample no longer exercises the widened cap"
+    assert BankerReadV6(verdict=rewritten, watch=[], risk=[]).verdict == rewritten
+
+
+def test_the_cap_is_still_a_cap() -> None:
+    """1000 is a safety limit, not an invitation — past it, still a hard stop.
+
+    The SPA renders this field at 22px (30px in the hero) with no line clamp,
+    so an unbounded verdict would run as a wall of display type.
+    """
+    with pytest.raises(ValidationError):
+        BankerReadV6(verdict="A. " * 400, watch=[], risk=[])
+
+
 def test_banker_read_full() -> None:
     br = BankerReadV6(
         verdict="NPLs at 35.73% are not a headline — they are the headline.",

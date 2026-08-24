@@ -25,11 +25,15 @@ These readers already know what NPL means, what CAR is, how a yield curve works,
 
 ## Tone
 
-The Brief's tone is **clinical, fact-based, and quietly analytical** — a senior analyst briefing the credit committee, management committee, and ALCO. Not a newspaper. Not a newsletter. Not a thread.
+The Brief's tone is **plain, fact-based, and quietly analytical** — a senior analyst briefing the credit committee, management committee, and ALCO in the register of the Daily Star business desk: direct sentences, ordinary words, one idea at a time. Not a newsletter. Not a thread.
+
+Plain is not the same as clipped. The brief writes **full sentences with subjects and verbs**; it never compresses a finding into a string of figures stacked behind commas and semicolons. "Reserves stood at $36.42bn in the 31 Jul print and cover 5.96mo of imports on May data," not "Reserves last read $36.42bn on the 31 Jul print, cover 5.96mo on the May read."
 
 ### Posture toward the reader
 
-The reader is a peer, not a novice. Do not explain. Do not warm up. Do not flatter. The brief assumes the reader has already seen this morning's terminal, knows the policy backdrop, and is here for the implication, not the recap. Open with the punchline, not the setup.
+The reader is a peer, not a novice. Do not explain what a repo rate is. Do not warm up. Do not flatter. The brief assumes the reader has already seen this morning's terminal, knows the policy backdrop, and is here for the implication, not the recap. Open with the implication, not the setup.
+
+Do explain the **mechanism**, though — how today's move produces tomorrow's consequence — in ordinary words. That is analysis, not hand-holding, and it is the difference between a number and a read.
 
 ### Posture toward the subject
 
@@ -47,7 +51,9 @@ When data is genuinely ambiguous or contested, say so plainly: "The sample is to
 
 ### Humor
 
-None in editorial copy. The Brief is a working document for people whose decisions cost money. Wit, if it ever appears, lives in the framing — never as an aside, never as an explicit joke. ("BB's Tk 60,000 cr stimulus leans 68% on commercial-bank refinancing" is a title that does the work by stating the structural fact; an explicit value judgment in the title would not.)
+None. Not as an aside, not as a joke, not as a knowing turn of phrase. The Brief is a working document for people whose decisions cost money; if a line would draw a smile rather than a decision, cut it. ("BB's Tk 60,000 cr stimulus leans 68% on commercial-bank refinancing" is a title that does the work by stating the structural fact; an explicit value judgment in the title would not.)
+
+This is binding on the generated brief as well as on hand-written copy. The editor and sub-editor prompts previously carried a "wit is earned, not sprinkled" allowance; that allowance is **withdrawn** and the prompts now match this section.
 
 ### Time horizon
 
@@ -59,6 +65,9 @@ The brief is written for **today's read with one-year implications.** Not for th
 
 ### Do
 
+- Write **full sentences**. Every clause gets a subject and a verb. Fragments belong only in `summary_pills` and small-caps labels.
+- **Let the facts carry the judgment.** State what happened and what follows from it; let the reader draw the conclusion the facts point to. Do not editorialise, do not puncture a consensus, do not perform candour. A sentence that reads as a verdict on someone's competence is out; the same fact stated plainly is in.
+- **Attribute a figure to its publisher** where one exists: "according to Bangladesh Bank", "in the 31 Jul print". Attribution is not hedging.
 - Use **banker-native vocabulary**: NPL, CAR, CRR, SLR, repo, SDF, MPS, BB, NBR, ALCO, Tier-1 capital, advance-deposit ratio, provisioning, ECL, P/B ratio, yield curve, T-bill, T-bond.
 - Lead with **concrete numbers** — and never round away precision the source provides. "Tk 3,220 cr," not "around Tk 3,000 cr."
 - Use **crore** for BD figures with `Tk` prefix. Use billion/trillion sparingly and only when the magnitude warrants it.
