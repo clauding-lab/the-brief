@@ -8,7 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- Issue 206: the DSEX card printed a session date that had not happened yet ("24 Aug" for a snapshot that still held the 23 Aug close — the brief fires before DSE's 10:00 BDT open) and a fabricated "a ten-session low" claim nothing in the pipeline supplies. The DSE builder now dates a fresh snapshot value by its confirmed trading session (from history) or the last trading day strictly before the run — never the run date itself. The count-claim fact-checker gained a WARN-mode extension for the hyphenated-attributive shape ("a ten-session low", "12-day streak"), corpus-verified against real published issues.
+- The macro section's CPI Food/Non-Food cards and their own chart were reading two different tables and could silently disagree on which month's print was current. `fetch_macro_cpi_series` now drops any monthly-archive point that isn't a confirmed official print (an arithmetic-derived figure, or one flagged owner-pending) before it reaches the chart; the two affected card specs now check both the live daily table and the monthly archive and take the newest OFFICIAL row. Card values are unchanged (still June's official print); only the chart's plotted endpoint moved to match. Two new WARN-mode checks flag a metric card whose own period disagrees with its own chart series — logged and Discord-alerted for one cycle, not yet holding the publish.
+
+### Chore
+- The pytest suite no longer leaks small raw-dump files into the repo's tracked `logs/` directory on every run; test-only fixture redirects those writes to a temp directory. No change to the production dump behavior itself.
 
 ## [2.2.0] — 2026-08-24
 
