@@ -6,52 +6,62 @@ import type { LongViewData } from "@/types/brief";
 // before merging to main. See docs/longview-workflow.md for the full recipe.
 
 export const longView: LongViewData | null = {
-  posted_at: "2026-08-05T17:35:00Z",
-  title: "Small Loans, Big Numbers, and the Default Barbell",
-  lead: "Borrowers in default on loans under Tk 1 crore more than doubled in a year — 21.63 lakh to 45.43 lakh by end-March 2026, per Bangladesh Bank data reported by Prothom Alo. The surge is a signal about household and micro-enterprise cash flow, not about where the sector's losses sit.",
+  posted_at: "2026-08-25T08:10:00Z",
+  title: "Nine in Ten Economic Units Hold No TIN",
+  lead: "Bangladesh has 1.17cr economic units. Only 10.22 lakh of them hold a Taxpayer Identification Number, and coverage thins sharply outside Dhaka and Chattogram.",
   blocks: [
     {
       kind: "stat",
-      value: "45.43",
+      value: "10.22",
       unit: "LAKH",
-      label: "DEFAULTED BORROWERS UNDER TK 1 CRORE · MAR 2026",
-      body: "Up from 21.63 lakh a year earlier — roughly 24 lakh newly defaulted households and micro-enterprises. Bangladesh Bank blames living costs, household leverage and sluggish SME activity.",
+      label: "TIN HOLDERS AGAINST 1.17CR ECONOMIC UNITS",
+      body: "More than 90% of the country's economic units sit outside the direct-tax register. That register is also the documentary base a lender would normally underwrite against, so the gap is a credit-file problem before it is a revenue one.",
       tone: "bear",
     },
     {
       kind: "bar-chart",
-      eyebrow: "NPL RATE BY TICKET BAND · END-MARCH 2026",
-      unit: "%",
-      reference: { value: 32.7, label: "Sector 32.7%" },
+      eyebrow: "SHARE OF ECONOMIC UNITS HOLDING A TIN, BY DIVISION",
+      unit: "% of units",
+      reference: { value: 8.7, label: "National 8.7%" },
       items: [
-        { label: "Under Tk 1 cr", value: 15.0, display: "15.0%", tone: "warn" },
-        { label: "Tk 1–10 cr", value: 26.5, display: "26.5%", tone: "bull" },
-        { label: "Tk 10–20 cr", value: 45.0, display: "45.0%", tone: "bear" },
-        { label: "Tk 20–30 cr", value: 36.0, display: "36.0%", tone: "bear" },
-        { label: "Tk 30–40 cr", value: 39.0, display: "39.0%", tone: "bear" },
-        { label: "Tk 40–50 cr", value: 45.0, display: "45.0%", tone: "bear" },
-        { label: "Above Tk 50 cr", value: 42.5, display: "42.5%", tone: "bear" },
+        { label: "Dhaka", value: 13.6, display: "13.6%", tone: "neu" },
+        { label: "Chattogram", value: 10.4, display: "10.4%", tone: "neu" },
+        { label: "Rajshahi", value: 5.5, display: "5.5%", tone: "bear" },
+        { label: "Mymensingh", value: 4.7, display: "4.7%", tone: "bear" },
+        { label: "Rangpur", value: 4.1, display: "4.1%", tone: "bear" },
       ],
     },
     {
       kind: "bullet-list",
-      eyebrow: "THE THREE READS",
+      eyebrow: "THE 1.17CR UNITS BY SIZE",
       items: [
         {
-          text: "**Count is not value.** The 45.43 lakh small defaulters imply about Tk 61,500 crore of impaired money; the 2,035 names above Tk 50 crore imply about Tk 2.45 lakh crore — four times as much.",
-          tone: "warn",
-        },
-        {
-          text: "**The salaried anomaly.** Consumer loans default at 7% against 32.7% sector-wide — income volatility, not income level, is doing the damage.",
+          text: "**Micro: 66.3 lakh.** The largest tier by some distance — more units than every other category combined.",
           tone: "neu",
         },
         {
-          text: "**The clean middle.** Tk 1–10 crore runs at 26.5% with defaulter growth of just 12%; at the other pole, cottage industry is 53% impaired.",
-          tone: "bear",
+          text: "**Cottage: 45.3 lakh.** Household-scale by definition. Cottage and micro together are 111.6 lakh units, or 95% of the entire base.",
+          tone: "neu",
         },
+        {
+          text: "**Small: 4.9 lakh.** 4.2% of units, and with medium the whole of what the SME mandate covers.",
+          tone: "neu",
+        },
+        { text: "**Medium: 40,000.** 0.3% of units.", tone: "neu" },
+        {
+          text: "**Large: 9,000.** 0.08% of units, and the corporate lending universe in its entirety.",
+          tone: "neu",
+        },
+      ],
+    },
+    {
+      kind: "prose",
+      paragraphs: [
+        "The revenue side sets the arithmetic. Tax-to-GDP stands at 6.73% against a target of 10.7% by FY29, and the NBR's revenue target for FY27 is Tk 6.04 lakh cr. BIN coverage, the VAT-side registration, reaches 3.3% of economic units.",
+        "Closing a gap of roughly 4 percentage points in three fiscal years, from a base where 10.22 lakh units carry a TIN, means the additional revenue has to come from units already inside the net, from higher effective rates, or from bringing new units in. The three routes land differently on a bank's book, and the composition above indicates which units are available to be brought in.",
       ],
     },
   ],
   banker_read:
-    "Underwrite for cash-flow volatility, not income level — the salaried are paying, the self-employed are not. The Tk 1–10 crore commercial mid-market (26.5% impaired, defaulters up just 12%) is the one large-ticket segment where risk-adjusted growth still pencils. The money stays with the two thousand names above Tk 50 crore, but the 24 lakh new small defaulters mark FY2025-26 as the year household and micro cash flow broke — a collections and deposit-quality problem before it is a write-off problem.",
+    "For a lender the TIN gap is a documentation problem before it is a tax problem. A borrower without a TIN has no filed return to verify declared income against, which pushes SME and retail underwriting back onto bank-statement analysis, trade references and collateral — the three inputs hardest to standardise and easiest to dispute at recovery. The regional spread carries the same point into branch strategy: Dhaka's 13.6% is roughly three times Rangpur's 4.1%, so a growth plan weighted toward the divisions is also a plan weighted toward thinner documentation, and the risk-adjusted pricing should say so. If formalisation accelerates toward the FY29 target, both effects arrive together — filing and VAT compliance land on the customer's cash flow before the improved credit file shows up in a rating. Desks pricing multi-year SME facilities now should assume the cost lands first and the underwriting benefit lands later.",
 };
