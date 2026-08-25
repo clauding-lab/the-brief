@@ -121,3 +121,45 @@ def test_no_file_reopens_the_humour_allowance(path: pathlib.Path) -> None:
 @pytest.mark.parametrize("path", [_EDITOR, _FRIDAY, _SUBEDITOR])
 def test_every_prompt_names_the_daily_star_register(path: pathlib.Path) -> None:
     assert "Daily Star" in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("path", [_EDITOR, _FRIDAY])
+def test_the_editor_prompts_forbid_carrying_prose_forward(path: pathlib.Path) -> None:
+    """Issue 207 measured why the voice change only half-landed.
+
+    `pipeline_v6._build_editor_input` hands the editor the previous issue with
+    every word intact and only the numbers scrubbed. Where the data had not
+    moved, the editor restated yesterday's sentence: comparing 206 to 207,
+    `macro` came back 100.0% byte-identical, with remit/tbond/iran/fiscal at
+    94-99%. Only the two genuinely-rewritten sections carried the new register,
+    so a prompt change reaches only the sections the editor chooses to rewrite.
+    """
+    text = path.read_text(encoding="utf-8")
+    assert "WRITE TODAY'S SENTENCES." in text
+    assert "not a draft to revise" in text
+
+
+def test_the_sub_editor_catches_carried_forward_prose() -> None:
+    """Defence in depth: the reviewer sees the same `previous_brief`.
+
+    Its numbers are blanked but its wording is not, which is precisely the
+    signal needed to spot reuse.
+    """
+    text = _SUBEDITOR.read_text(encoding="utf-8")
+    assert "CARRIED-FORWARD PROSE." in text
+    assert "compare the WORDING" in text
+
+
+def test_the_sub_editor_rule_count_matches_the_editor_rules() -> None:
+    """The off-by-one that started all of this.
+
+    All three prompts once announced "four dials" and listed three, leaving the
+    model to invent the fourth. The sub-editor summarises the editor's register
+    rules by COUNT, so adding a rule to the editors without updating that count
+    reintroduces exactly that bug.
+    """
+    block = _shared_voice_block(_EDITOR)
+    register = block[block.index("### Register") : block.index("### Neutrality")]
+    editor_rules = sum(1 for line in register.splitlines() if line.startswith("- "))
+    assert editor_rules == 4, "register bullets changed; update the sub-editor's count"
+    assert "held to five rules over that base" in _SUBEDITOR.read_text(encoding="utf-8")
