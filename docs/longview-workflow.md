@@ -1,10 +1,10 @@
-# The Long View — workflow (v1.2.0)
+# The Long View — workflow (v1.6.0)
 
 This file is the contract for the Long View workflow on The Brief. It has two halves: **Editorial** (what to write) and **Operational** (how to ship it). Both halves must be followed for every Long View pin.
 
 The Long View is a pinned editorial section between the Overview group and the Banking group on The Brief's SPA. It replaces whatever was previously pinned. Posted at most once per week. The output is composed from a small block vocabulary in the brief's visual language (mono + steel-crimson palette + tone tinting where it earns its keep).
 
-**v1.2.0 design philosophy:** *Be creative within the design theme.* The brief provides four block kinds (`prose`, `comparison`, `stat`, `bullet-list`) and a strict visual contract (mono typography, palette tokens only, small-caps eyebrows, optional tone tinting). Compose blocks to match the source slide's structure. Do not invent new block kinds, new typography, or new colors.
+**Design philosophy:** *Be creative within the design theme.* The brief provides five block kinds (`prose`, `comparison`, `stat`, `bullet-list`, `bar-chart`) and a strict visual contract (mono typography, palette tokens only, small-caps eyebrows, optional tone tinting). Compose blocks to match the source slide's structure. Do not invent new block kinds, new typography, or new colors.
 
 ---
 
@@ -56,7 +56,7 @@ export const longView: LongViewData | null = {
 
 ### Block kinds
 
-You compose `blocks: []` using these four kinds. Always pick the kind that matches the source slide's structure — do not force a structural block when prose carries the meaning.
+You compose `blocks: []` using these five kinds. Always pick the kind that matches the source slide's structure — do not force a structural block when prose carries the meaning.
 
 **1. Prose** — paragraphs of analysis. Use when the slide is text-driven (an argument, narrative, single-topic analysis) or when no clean structure can be extracted.
 
@@ -120,7 +120,41 @@ Keep `before_label` and `after_label` SHORT (1–2 words). They appear both at t
 }
 ```
 
+**5. Bar-chart** — ranked values across named categories, with an optional vertical reference line. Added in v1.3.0. Use when the slide ranks the *same* measure across 2–12 categories (divisions, banks, sectors, years) and the ranking itself is the point. Bars render horizontally, sorted in the order you supply — supply them already sorted, the component does not sort for you.
+
+```typescript
+{
+  kind: "bar-chart",
+  eyebrow: "<optional small-caps header>",   // e.g., "SHARE OF UNITS HOLDING A TIN, BY DIVISION"
+  unit: "<optional axis unit>",              // e.g., "% of units" | "Tk bn"
+  reference: {                               // optional vertical line across the plot
+    value: 8.7,                              // numeric position on the same scale as items
+    label: "National 8.7%",                  // short caption for the line
+  },
+  items: [
+    { label: "Dhaka", value: 13.6, display: "13.6%", tone: "neu" },
+    { label: "Rangpur", value: 4.1, display: "4.1%", tone: "bear" },
+    // 2–12 items
+  ],
+}
+```
+
+- `value` is the number that sets bar length and MUST be plain numeric (no `%`, no commas). `display` is the optional printed label on the bar — use it when the rendered form differs from the raw number (`13.6` → `"13.6%"`, `6040` → `"Tk 6,040cr"`). Omit `display` and the value prints via `toLocaleString()` (so `6040` renders as `6,040`, with no unit).
+- `reference` is for a benchmark the bars should be read against — a national average, a regulatory floor, a prior-year level. Skip it when there is no meaningful benchmark; a reference line that means nothing is visual noise.
+- `tone` per item tints the bar (`"bull"` / `"bear"` / `"neu"`). Tint to carry meaning (below the reference line = `bear`), not for decoration.
+
+**Bar-chart vs comparison — pick by what the slide is doing:**
+
+| The slide is… | Use |
+|---|---|
+| Ranking one measure across many named categories | `bar-chart` |
+| Setting two *states* of several measures side by side (before/after, us/them) | `comparison` |
+| Ranking, but only 2 categories | `comparison`, or `stat` if one number carries it |
+| Ranking, but the values are not on a common scale | `comparison` — bars are meaningless without a shared scale |
+
 ### Composition rules
+
+**The stat + bar-chart pair (v1.6.0).** Place a `stat` block *immediately* followed by a `bar-chart` block and the component automatically renders them side by side — stat ~60% left, chart ~40% right (`.tb-longview-pair`), stacking on narrow screens. This is driven purely by block order; there is no schema field to set and no way to opt out other than separating the two blocks. Use it when one headline number and its distribution belong to the same thought. If you want them full-width and stacked instead, put another block between them.
 
 | Slide shape | Primary block | Often paired with |
 |---|---|---|
@@ -128,6 +162,7 @@ Keep `before_label` and `after_label` SHORT (1–2 words). They appear both at t
 | Before/after comparison grid (3+ rows) | `comparison` | optional `prose` intro + `prose` closing thought |
 | Headline metric driving the slide | `stat` | `bullet-list` of supporting context, or `prose` for narrative |
 | Listed takeaways (e.g., "Three signals") | `bullet-list` | optional `prose` intro |
+| One measure ranked across categories | `bar-chart` | a `stat` placed immediately BEFORE it, to pair them side by side |
 | Mixed slide (intro + structure + closing) | composed (multiple blocks) | up to ~4 blocks per pin |
 | Slide that doesn't fit any of the above | `prose` with structural description | flag the gap in your reply to the user |
 
@@ -141,12 +176,13 @@ Keep `before_label` and `after_label` SHORT (1–2 words). They appear both at t
 - Comparison with only 1–2 rows → use prose.
 - Stat where the number is approximate or doesn't actually carry the slide → use prose.
 - Bullet-list of 1 item → use prose with that item as a paragraph.
+- Bar-chart where the categories aren't measured on one common scale → use `comparison`.
 - Slide where prose carries the meaning even with some numbers → use prose.
 
 ### Forbiddens
 
 - **Do not fabricate numbers** not in the source. If the slide is unclear, reply to the user and stop.
-- **Do not introduce block kinds outside the four shipped** (`prose`, `comparison`, `stat`, `bullet-list`).
+- **Do not introduce block kinds outside the five shipped** (`prose`, `comparison`, `stat`, `bullet-list`, `bar-chart`). The authority on what is shipped is `types/brief.ts`, not this file — if the two disagree, `types/brief.ts` wins and this file needs a PR.
 - **Do not specify colors, fonts, sizes, or styles in the data.** The component renders with palette tokens. Your job is structural data; the brief handles the visual contract.
 - **Do not add a source-attribution field** (no "Source: BB MPS, May 2026" line).
 - **Do not add a "view original" link.**
@@ -287,7 +323,7 @@ Reply: `Cancelled. Draft deleted.`
 | Vercel build fails on the preview | Runtime React error from the new data | Pull the failure summary from `gh pr checks`, fix locally, push. If still failing, hand back to user. |
 | `gh pr merge` fails | Merge conflict on `content/long-view.ts` | Surface the error verbatim. Rebase or ask the user. Don't auto-resolve. |
 | User goes silent after preview | Normal | Draft branch sits indefinitely. Leave it. |
-| Slide doesn't fit any block kind | Genuinely unique structure | Use `prose` with descriptive paragraphs; flag the gap in your reply so the user can design a new block kind in a future v1.2.x. |
+| Slide doesn't fit any block kind | Genuinely unique structure | Use `prose` with descriptive paragraphs; flag the gap in your reply so the user can design a new block kind in a future platform PR. |
 | User starts a second `longview` before resolving first | Pending draft conflict | Reply: "There's an open Long View draft on branch `longview/<previous>` (preview: …). Cancel or treat as redo?" |
 
 ---
