@@ -338,6 +338,9 @@ body { background: var(--paper); color: var(--ink); }
   max-width: 1280px; margin: 0 auto;
   padding: 12px 32px;
   padding-top: calc(12px + env(safe-area-inset-top)); /* §4.3: the bar sits under the iOS clock in standalone */
+  padding-left: max(32px, env(safe-area-inset-left));  /* the FIXED bar spans the physical viewport — it never
+                                                          inherits .tb-body's inset gutters (review-caught) */
+  padding-right: max(32px, env(safe-area-inset-right));
   display: grid; grid-template-columns: 1fr auto 1fr;
   align-items: center; gap: 16px;
 }
@@ -858,6 +861,12 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 /* ─── FOOTER ────────────────────────────────────────────── */
 .tb-foot {
   padding: 36px 32px 48px;
+  /* Outside .tb-body, so it needs its own insets (review-caught): sides
+     for the landscape cutout, bottom so the Archive link clears the iOS
+     home-indicator gesture band. */
+  padding-left: max(32px, env(safe-area-inset-left));
+  padding-right: max(32px, env(safe-area-inset-right));
+  padding-bottom: calc(48px + env(safe-area-inset-bottom));
   max-width: 1280px; margin: 0 auto;
   display: flex; justify-content: space-between; align-items: baseline;
   font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);
@@ -884,7 +893,11 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   padding: 8px 14px; background: var(--ink); color: var(--paper);
   font-size: 12px; letter-spacing: 0.12em;
 }
-.tb-skip:focus { left: 16px; top: 16px; z-index: 200; }
+.tb-skip:focus {
+  left: calc(16px + env(safe-area-inset-left)); /* §4.3: clear the status-bar/cutout regions under viewport-fit cover */
+  top: calc(16px + env(safe-area-inset-top));
+  z-index: 200;
+}
 
 /* ─── DELTA INDICATORS ─────────────────────────────────── */
 .tb-delta {
@@ -1067,6 +1080,8 @@ body.tb-diff .tb-statstack:not(.is-changed) {
     grid-template-columns: 1fr 1fr; gap: 8px;
     padding: 10px 20px;
     padding-top: calc(10px + env(safe-area-inset-top)); /* §4.3: this tier's shorthand would otherwise clobber the base inset */
+    padding-left: max(20px, env(safe-area-inset-left));  /* landscape sensor housing */
+    padding-right: max(20px, env(safe-area-inset-right));
   }
   .tb-stickybar .wordmark { display: none; }
   .tb-snapshot { padding: 18px 0 22px; }
@@ -1114,7 +1129,13 @@ body.tb-diff .tb-statstack:not(.is-changed) {
   .tb-cta-dark .head { font-size: 38px; }
   /* Single-column CTA: the panel/form seam runs horizontally here. */
   [data-theme="dark"] .tb-cta-dark { border-right: none; border-bottom: 1px solid var(--band-rule); }
-  .tb-foot { flex-direction: column; gap: 8px; padding: 24px 20px; }
+  .tb-foot {
+    flex-direction: column; gap: 8px;
+    padding: 24px 20px;
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
   .tb-statusbar { display: none; }
 }
 
