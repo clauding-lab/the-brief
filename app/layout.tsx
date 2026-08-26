@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -41,7 +41,25 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     title: "The Brief",
+    // Legacy iOS standalone flag — modern Safari keys on the manifest's
+    // display:standalone, older versions on this meta. Harmless on both.
+    capable: true,
+    // black-translucent + viewportFit cover below: the page draws under the
+    // iOS status bar in standalone mode; §4.3's safe-area insets keep the
+    // masthead meta row and the sticky bar clear of the clock.
+    statusBarStyle: "black-translucent",
   },
+};
+
+// PWA viewport (facelift spec §4.2, PR B). theme-color is fixed #0B0F12 in
+// BOTH themes — "the nameplate is always ink" extended to the browser
+// chrome; the theme toggle does not mutate this meta (owner veto §11.6).
+// Raw hex here is the Design.md carve-out (§10.3 item 8).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0B0F12",
 };
 
 export default function RootLayout({

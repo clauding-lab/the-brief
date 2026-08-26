@@ -217,8 +217,16 @@ body { background: var(--paper); color: var(--ink); }
 .tb-shell { min-height: 100vh; display: flex; flex-direction: column; }
 
 /* ─── EDITORIAL MASTHEAD ─────────────────────────────────── */
+/* Safe-area rules (facelift spec §4.3, PR B): every affected selector uses
+   LONGHANDS in one rule — a later `padding:` shorthand silently wipes an
+   earlier inset longhand. Insets are 0 outside standalone/notched contexts,
+   so desktop/tablet render byte-identical.
+   PR-B deviation, recorded: the spec's 24px top / 26px bottom / no border
+   for this selector is §6's band-era geometry — until PR C lands the band,
+   the current 36/28/border stays, with the top inset added on top. */
 .tb-masthead-full {
   padding: 36px 0 28px;
+  padding-top: calc(36px + env(safe-area-inset-top));
   border-bottom: 1px solid var(--rule);
 }
 .tb-masthead-meta {
@@ -329,6 +337,7 @@ body { background: var(--paper); color: var(--ink); }
 .tb-stickybar-inner {
   max-width: 1280px; margin: 0 auto;
   padding: 12px 32px;
+  padding-top: calc(12px + env(safe-area-inset-top)); /* §4.3: the bar sits under the iOS clock in standalone */
   display: grid; grid-template-columns: 1fr auto 1fr;
   align-items: center; gap: 16px;
 }
@@ -404,7 +413,7 @@ body { background: var(--paper); color: var(--ink); }
 
 /* ─── SECTION NAV ──────────────────────────────────────── */
 .tb-secnav {
-  position: sticky; top: 50px; z-index: 40;
+  position: sticky; top: calc(50px + env(safe-area-inset-top)); z-index: 40; /* §4.3: tracks the inset the sticky bar gains */
   background: var(--paper);
   border-bottom: 1px solid var(--rule-soft);
   margin: 0 -32px;
@@ -505,8 +514,19 @@ body { background: var(--paper); color: var(--ink); }
 /* ─── BODY GRID ─────────────────────────────────────────── */
 .tb-body {
   max-width: 1280px; margin: 0 auto;
-  padding: 0 32px;
+  padding-top: 0; padding-bottom: 0;
+  padding-left: max(32px, env(safe-area-inset-left));    /* §4.3: landscape notch; desktop gutter stays 32px */
+  padding-right: max(32px, env(safe-area-inset-right));
   width: 100%;
+}
+
+/* §4.3: side insets for the band wrapper. DORMANT until PR C's §5.1 adds
+   the .tb-band/.tb-band-inner structure around the masthead — §4.3 owns
+   these padding declarations, §5.1 owns the structure. */
+.tb-band-inner {
+  max-width: 1280px; margin: 0 auto;
+  padding-left: max(32px, env(safe-area-inset-left));
+  padding-right: max(32px, env(safe-area-inset-right));
 }
 
 /* ─── COVER ─────────────────────────────────────────────── */
@@ -1043,14 +1063,18 @@ body.tb-diff .tb-statstack:not(.is-changed) {
      scrollWidth 387 vs 375). Match the gutter here. */
   .tb-section.is-hero { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
   .tb-masthead-foot { flex-direction: column; gap: 12px; align-items: flex-start; }
-  .tb-stickybar-inner { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 20px; }
+  .tb-stickybar-inner {
+    grid-template-columns: 1fr 1fr; gap: 8px;
+    padding: 10px 20px;
+    padding-top: calc(10px + env(safe-area-inset-top)); /* §4.3: this tier's shorthand would otherwise clobber the base inset */
+  }
   .tb-stickybar .wordmark { display: none; }
   .tb-snapshot { padding: 18px 0 22px; }
   .tb-snapshot-row { grid-template-columns: repeat(2, 1fr); gap: 18px 0; padding-top: 12px; }
   .tb-snapshot-cell { padding: 12px 16px; border-right: none; border-bottom: 1px solid var(--rule-soft); }
   .tb-snapshot-cell:nth-child(odd) { border-right: 1px solid var(--rule-soft); }
   .tb-snapshot-cell:first-child, .tb-snapshot-cell:last-child { padding-left: 16px; padding-right: 16px; }
-  .tb-secnav { top: 48px; margin: 0 -20px; }
+  .tb-secnav { top: calc(48px + env(safe-area-inset-top)); margin: 0 -20px; } /* §4.3 */
   .tb-secnav-inner { padding: 8px 20px; }
   /* The sticky echo of the theme toggle comes off at phone widths: the bar's
      right cell wraps to two lines with it (measured 63px at 375 vs the
@@ -1058,7 +1082,15 @@ body.tb-diff .tb-statstack:not(.is-changed) {
      The masthead mount stays reachable; PR C's band restructure re-lays
      this surface anyway. */
   .tb-stickybar .tb-theme-toggle { display: none; }
-  .tb-body { padding: 0 20px; }
+  .tb-body {
+    padding-top: 0; padding-bottom: 0;
+    padding-left: max(20px, env(safe-area-inset-left));   /* §4.3: 20px gutter tier preserved */
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  .tb-band-inner {
+    padding-left: max(20px, env(safe-area-inset-left));   /* §4.3: dormant until PR C, see base rule */
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
   .tb-cover { grid-template-columns: 1fr; gap: 28px; padding: 32px 0 36px; }
   .tb-cover .bignum { font-size: 88px; }
   .tb-section { padding: 44px 0 36px; }
