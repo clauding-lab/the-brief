@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -41,7 +41,30 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     title: "The Brief",
+    // Next 16 emits only the modern <meta name="mobile-web-app-capable">
+    // for this flag (verified in next/dist/lib/metadata/metadata.js) — it
+    // buys nothing on pre-16.4 iOS, which only read the retired apple-
+    // prefixed tag. Kept for the standards-track tag current browsers read.
+    capable: true,
+    // "default" until PR C: the spec's black-translucent style forces
+    // WHITE status-bar glyphs over the page's own pixels, and until the
+    // ink band lands the top of the page in LIGHT theme is #E6E9EB paper —
+    // white-on-cream ~1.22:1, an invisible clock (review-caught). PR C
+    // flips this to "black-translucent" in the same PR that makes the top
+    // of the document ink in both themes.
+    statusBarStyle: "default",
   },
+};
+
+// PWA viewport (facelift spec §4.2, PR B). theme-color is fixed #0B0F12 in
+// BOTH themes — "the nameplate is always ink" extended to the browser
+// chrome; the theme toggle does not mutate this meta (owner veto §11.6).
+// Raw hex here is the Design.md carve-out (§10.3 item 8).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0B0F12",
 };
 
 export default function RootLayout({
