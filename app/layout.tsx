@@ -49,8 +49,31 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // suppressHydrationWarning: the head script below writes data-theme onto
+  // <html> before hydration; without it React 19 warns about the
+  // server/client attribute mismatch and could reconcile the attribute away.
+  // Scope is one level deep — it covers only <html>'s own attributes.
   return (
-    <html lang="en" data-palette="steel-crimson" className={jetbrainsMono.variable}>
+    <html
+      lang="en"
+      data-palette="steel-crimson"
+      suppressHydrationWarning
+      className={jetbrainsMono.variable}
+    >
+      <head>
+        {/* FOUC guard (facelift spec §2): blocking inline script, the
+            documented Next.js placement — runs before paint so a dark
+            visitor never flashes light. localStorage gets its own inner
+            try: with site data blocked the getter itself throws, and a
+            single catch would skip the OS-preference fallback entirely.
+            This is the app's first inline script: if a nonce-based CSP
+            ever lands it needs the nonce. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=null;try{t=localStorage.getItem("thebrief.theme")}catch(e){}if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){}`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

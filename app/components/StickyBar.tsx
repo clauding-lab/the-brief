@@ -1,5 +1,6 @@
 import type { Brief, DataSource } from "@/types/brief";
 import { formatBriefDate } from "@/lib/format";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface StickyBarProps {
   brief?: Brief;
@@ -13,8 +14,16 @@ export function StickyBar({ brief, source, visible }: StickyBarProps) {
   const vol = brief?.volume ?? 1;
   const sourceLabel = source === "live" ? "Live" : source === "cache" ? "Cached" : "Static";
 
+  // inert while hidden (facelift spec §2): the bar's hidden state is
+  // aria-hidden + pointer-events:none but its children stayed in tab
+  // order — inert removes the hidden ThemeToggle (and everything else)
+  // from keyboard focus. React 19 takes it as a plain boolean prop.
   return (
-    <header className={`tb-stickybar ${visible ? "is-visible" : ""}`} aria-hidden={!visible}>
+    <header
+      className={`tb-stickybar ${visible ? "is-visible" : ""}`}
+      aria-hidden={!visible}
+      inert={!visible}
+    >
       <div className="tb-stickybar-inner">
         <div className="meta">
           No. {String(issueNo).padStart(2, "0")} / Vol. {String(vol).padStart(2, "0")}
@@ -28,6 +37,9 @@ export function StickyBar({ brief, source, visible }: StickyBarProps) {
             <span className="pulse" />
             <span>{sourceLabel}</span>
           </span>
+          {/* Facelift PR A: StickyBar mount (spec §2). Paper styling until
+              the ink band lands in PR C, which flips this mount to onBand. */}
+          <ThemeToggle />
         </div>
       </div>
     </header>
