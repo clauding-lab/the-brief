@@ -42,6 +42,7 @@ import {
 } from "@/lib/chartConfigs";
 import type { PerSeriesStaleness } from "@/lib/chartMeta";
 import { useReducedMotion } from "@/lib/useReducedMotion";
+import { useTheme } from "@/lib/useTheme";
 
 // Selective registration trims ~25KB gzipped vs registerables.
 // Chart.register is idempotent so this is safe across HMR + re-mounts.
@@ -102,6 +103,11 @@ export function BriefChart({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
   const reducedMotion = useReducedMotion();
+  // Theme in the dep array (facelift spec §3): buildPalette() snapshots
+  // token values via getComputedStyle at chart-build time, so a data-theme
+  // flip must re-run this effect to repaint the canvas in the new theme's
+  // inks — otherwise a toggled page keeps charts drawn in the old palette.
+  const theme = useTheme();
 
   const staleKeys = new Set(staleSeries.filter((s) => s.isStale).map((s) => s.key));
 
@@ -132,9 +138,11 @@ export function BriefChart({
     };
     // staleKeys is rebuilt fresh every render (a `new Set` each time), so it
     // can't be a dependency without re-running on every render regardless of
-    // content — depend on the underlying staleSeries prop instead.
+    // content — depend on the underlying staleSeries prop instead. `theme`
+    // is deliberately here despite not being read inside the effect: the
+    // effect's builder reads theme-dependent computed styles (see above).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section.series, section.notes, configKey, reducedMotion, staleSeries]);
+  }, [section.series, section.notes, configKey, reducedMotion, staleSeries, theme]);
 
   const staleNotes = staleSeries.filter((s) => s.isStale);
 

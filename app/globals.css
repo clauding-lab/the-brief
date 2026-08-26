@@ -24,6 +24,18 @@
      readable text at this size. */
   --color-muted: var(--ink-3);
   --color-surface-2: var(--paper-2);
+
+  /* Band tokens (facelift PR A — docs/facelift-spec.md §1). The masthead
+     band is ink in BOTH themes; that is the point of the band, so these
+     are cross-palette constants, not per-theme values. Consumed today by
+     the Subscribe CTA panel (§7.8 pulled forward with dark mode) and the
+     toggle's .on-band variant; the full band lands in PR C. */
+  --band:        #0B0F12;
+  --band-ink:    #E6E9EB;
+  --band-ink-2:  rgba(230, 233, 235, 0.92);  /* Today's Call body on the band — 13.38:1 */
+  --band-mute:   rgba(230, 233, 235, 0.55);  /* 5.31:1 on --band — meta/labels */
+  --band-rule:   rgba(230, 233, 235, 0.40);  /* hairlines + control borders on the band — 3.33:1, clears the 3:1 non-text floor */
+  --band-accent: oklch(0.62 0.21 25);        /* 4.77:1 on --band */
 }
 
 :root,
@@ -65,6 +77,34 @@
   --warn:         oklch(0.62 0.14 75);
   --neu:          var(--ink-3);
 }
+
+/* Dark theme (facelift PR A — docs/facelift-spec.md §1). Steel-crimson
+   only, by decision: bone is the email identity and stays light forever.
+   The data-theme attribute lives on <html> alongside data-palette — set
+   pre-hydration by the FOUC script in layout.tsx, flipped by ThemeToggle.
+   The --color-muted/--color-surface-2 aliases follow the theme only
+   because :root and this block sit on the SAME element (<html>): a var()
+   inside a custom property substitutes where declared. */
+[data-palette="steel-crimson"][data-theme="dark"] {
+  --paper:        #101418;
+  --paper-2:      #161B20;
+  --paper-3:      #1D242A;   /* currently referenced nowhere — kept for table symmetry */
+  --ink:          #DEE3E6;
+  --ink-2:        #C3C9CD;
+  --ink-3:        #8A9195;   /* 5.78:1 on --paper */
+  --ink-4:        #848B90;   /* 5.35 on --paper, 5.01 on --paper-2, 4.54 on --paper-3 — AA on every surface */
+  --rule:         #AEB5B9;   /* 8.91:1 — rule stays dimmer than text, unlike a straight --ink copy */
+  --rule-soft:    rgba(222, 227, 230, 0.30);
+  --rule-faint:   rgba(222, 227, 230, 0.16); /* 0.10 was near-invisible; matters for chart gridlines */
+  --accent:       oklch(0.66 0.19 25);       /* 5.44:1 on --paper, 5.10:1 on --paper-2 */
+  --accent-soft:  oklch(0.66 0.19 25 / 0.16);
+  --bull:         oklch(0.62 0.10 150);      /* 5.31:1 */
+  --bear:         oklch(0.66 0.19 25);       /* bear always equals accent in this identity */
+  --warn:         oklch(0.70 0.13 75);       /* 6.79:1 */
+  --neu:          var(--ink-3);
+}
+html[data-palette="steel-crimson"][data-theme="dark"]  { color-scheme: dark; }
+html[data-palette="steel-crimson"][data-theme="light"] { color-scheme: light; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -304,6 +344,27 @@ body { background: var(--paper); color: var(--ink); }
 .tb-stickybar .pulse {
   width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
 }
+
+/* ─── THEME TOGGLE ─────────────────────────────────────── */
+/* Facelift PR A (docs/facelift-spec.md §2). Mounted in the masthead meta
+   row's right cell and the StickyBar's right cell. The visible label is
+   CSS-keyed on [data-theme] so the component renders identically on
+   server and client — no hydration dependency. */
+.tb-theme-toggle {
+  font: inherit; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 7px 12px; min-height: 24px;          /* WCAG 2.5.8 target floor */
+  border: 1px solid var(--ink-3);               /* --rule-soft measures 1.54:1 light / 2.35:1 dark — fails the 3:1
+                                                   component floor; --ink-3 is 6.20:1 light / 5.78:1 dark */
+  color: var(--ink-3); background: transparent; cursor: pointer;
+}
+/* .on-band variant: consumed when the ink band lands in PR C — the two
+   PR A mounts sit on paper until then, so neither passes onBand yet. */
+.tb-theme-toggle.on-band { color: var(--band-ink); border-color: var(--band-rule); }
+.tb-theme-toggle .when-dark { display: none; }
+[data-theme="dark"] .tb-theme-toggle .when-dark  { display: inline; }
+[data-theme="dark"] .tb-theme-toggle .when-light { display: none; }
+.tb-masthead-meta .tb-theme-toggle { margin-top: 8px; }
+.tb-stickybar .tb-theme-toggle { margin-left: 14px; }
 
 /* Pulse redrawn as an opacity throb (Design.md's only sanctioned animatable
    property) — it previously animated box-shadow, which Design.md forbids
@@ -729,14 +790,18 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   display: grid; grid-template-columns: 1fr 1fr;
   min-height: 360px;
 }
+/* Panel pinned to the band tokens, which hold in both themes (facelift
+   spec §7.8, pulled forward into PR A with dark mode): background:
+   var(--ink) would invert to a near-white panel in dark, collapsing the
+   old hardcoded cream rgba texts to 1.07–1.10:1. */
 .tb-cta-dark {
-  background: var(--ink); color: var(--paper);
+  background: var(--band); color: var(--band-ink);
   padding: 40px 36px; display: flex; flex-direction: column; justify-content: space-between;
 }
-.tb-cta-dark .eyebrow { color: rgba(244,239,230,0.55); }
+.tb-cta-dark .eyebrow { color: var(--band-mute); }
 .tb-cta-dark .head { font-size: 56px; font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-family: var(--mono); }
-.tb-cta-dark .head .accent { color: var(--accent); }
-.tb-cta-dark .body { margin-top: 22px; font-size: 13px; line-height: 1.55; color: rgba(244,239,230,0.78); max-width: 380px; text-wrap: pretty; }
+.tb-cta-dark .head .accent { color: var(--band-accent); }
+.tb-cta-dark .body { margin-top: 22px; font-size: 13px; line-height: 1.55; color: var(--band-ink-2); max-width: 380px; text-wrap: pretty; }
 .tb-cta-form { padding: 40px 36px; display: flex; flex-direction: column; gap: 18px; }
 .tb-cta-form label { display: flex; flex-direction: column; gap: 6px; }
 .tb-cta-form .lbl { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
@@ -806,6 +871,10 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 .tb-delta-bear { color: var(--bear); }
 .tb-delta-bull .tb-delta-pct,
 .tb-delta-bear .tb-delta-pct { color: inherit; opacity: 0.7; }
+/* Dark: 0.7 opacity on the tone colors lands ~3:1 — lift to 0.9
+   (4.52/4.60:1; docs/facelift-spec.md §1). */
+[data-theme="dark"] .tb-delta-bull .tb-delta-pct,
+[data-theme="dark"] .tb-delta-bear .tb-delta-pct { opacity: 0.9; }
 
 .tb-cover-asof {
   margin-top: 16px;
@@ -1037,6 +1106,7 @@ body.tb-print .tb-skip,
 body.tb-print .tb-masthead-actions,
 body.tb-print .tb-btn-cta,
 body.tb-print .tb-diff-toggle,
+body.tb-print .tb-theme-toggle,
 body.tb-print .tb-live {
   display: none !important;
 }
@@ -1070,7 +1140,7 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
      one-class selector, so `display: inline-flex` was WINNING the cascade
      over this rule's `display: none` regardless of source order. */
   .tb-stickybar, .tb-secnav, .tb-cta, .tb-statusbar, .tb-skip, .tb-diff-toggle,
-  .tb-btn-cta { display: none; }
+  .tb-btn-cta, .tb-theme-toggle { display: none; }
   .tb-live { display: none !important; }
   .tb-section { page-break-inside: avoid; padding: 24px 0; }
   .tb-cover { padding: 24px 0; }
