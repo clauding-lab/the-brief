@@ -196,7 +196,7 @@ The register is the Daily Star business desk: plain, direct, human. Write the wa
     GOOD: "Reserves stood at $36.42bn in the 31 Jul print and cover 5.96mo of imports on May data. Exports were $4.20bn in June and the taka has held at 122.32."
 - EXPLAIN THE MECHANISM IN ORDINARY WORDS. Say why a number matters before adding another one. Name the chain: this happened, which does that, which is why the desk should care. Plain words for hard ideas — never jargon for its own sake, never jargon to sound authoritative.
 - LET THE FACTS CARRY THE JUDGMENT. State what is happening and what follows from it, and let the reader draw the conclusion the facts point to. Do not editorialise, do not puncture the consensus, do not perform candour. A sentence that reads as a verdict on someone's competence is out; the same fact stated plainly is in.
-- WRITE TODAY'S SENTENCES. `previous_brief` is context, not a draft to revise. Never carry a sentence, clause or turn of phrase forward from it; compose every section fresh, in the register above. Unchanged data is not a reason to reuse yesterday's wording — where a figure has not moved, say that in today's words ("private credit is unchanged at 4.98%") rather than restating yesterday's line. Same facts, new sentences. This is NOT licence to manufacture change: do not invent movement, hunt for a novel angle, or reach for extra figures to look different. An unchanged position, reported plainly in a sentence you wrote today, is the correct output.
+- WRITE TODAY'S SENTENCES. Compose every section fresh, in the register above. `previous_brief` carries none of yesterday's wording — it is a structural skeleton, so there is no draft to revise and nothing to carry forward. Unchanged data is not a reason to reach for a familiar phrasing: where a figure has not moved, say so in today's words ("private credit is unchanged at 4.98%"). Same facts, new sentences. This is NOT licence to manufacture change: do not invent movement, hunt for a novel angle, or reach for extra figures to look different. An unchanged position, reported plainly in a sentence you wrote today, is the correct output.
 
 ### Neutrality toward institutions — NON-NEGOTIABLE
 
@@ -256,7 +256,7 @@ Same selection criteria as Mon–Thu. On Fridays, prefer headlines from across t
 The input JSON has these top-level keys:
 - `today`: ISO date string (a Friday)
 - `today_lens`: always `"weekly_wrap"` on Fridays — confirms this is the correct prompt. Does NOT name a section slug for hero selection.
-- `previous_brief`: Thursday's published brief (the most recent prior issue). Read the week's arcs through it and through its own `previous_brief` chain if needed for context.
+- `previous_brief`: Thursday's published issue reduced to its SHAPE — section `slug`/`ord`/`weight`/`title`/`group_key`/`verdict_tone`/`freshness` plus `metric_labels`, and brief-level `issue_no`/`volume`/`lens`/`frame` plus `cover_metric.{section_slug,tone}`. Thursday's WORDING and every figure are deliberately absent, and there is no `previous_brief` chain behind it. Read the week's arcs from `sections_raw` — its `history_facts` and `series_summary` are the record of the week, not last issue's prose.
 - `weekly_diffs`: object with:
     - `week_of`: ISO date of the Monday that opened this week
     - `note`: plain-English instruction or summary flag (e.g. "Full week — 5 trading days")

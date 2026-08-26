@@ -203,10 +203,14 @@ def _scrub_numbers(obj: Any, *, key: str | None = None) -> Any:
     subclass of `int` in Python so it must be checked before the numeric case.
 
     This function never mutates `obj` — every branch returns a NEW
-    dict/list/string. Apply it ONLY to the copy handed to the editor prompt;
-    any caller that needs the real values — `_index_previous_metrics`,
-    `stamp_changed`, `mark_held_overs` — must run against the unscrubbed
-    object, since `_build_editor_input` calls this after those, not before.
+    dict/list/string. Apply it ONLY to the copy handed to a prompt; any caller
+    that needs the real values — `_index_previous_metrics`, `stamp_changed`,
+    `mark_held_overs` — must run against the unscrubbed object, since
+    `_build_editor_input` calls this after those, not before.
+
+    As of 2026-08-26 this is the SUB-EDITOR's copy of `previous_brief` only.
+    The Editor gets `_previous_brief_skeleton` instead — see that function for
+    why scrubbing numbers proved insufficient on its own.
     """
     if isinstance(obj, str):
         return _NUMBER_RE.sub(_NUMBER_PLACEHOLDER, obj)
@@ -221,6 +225,80 @@ def _scrub_numbers(obj: Any, *, key: str | None = None) -> Any:
     if isinstance(obj, list):
         return [_scrub_numbers(v, key=key) for v in obj]
     return obj
+
+
+# The Editor's view of yesterday, 2026-08-26. Deliberately an ALLOWLIST of
+# structural fields rather than a denylist of prose ones: a field added to the
+# schema later is excluded by default, which is the safe direction. Every name
+# here is either a slug, an enum-ish label, or an int the pipeline itself owns
+# — nothing an editor could lift a sentence from.
+_PREV_BRIEF_KEEP = ("issue_no", "volume", "lens", "frame")
+_PREV_SECTION_KEEP = ("slug", "ord", "weight", "title", "group_key", "verdict_tone", "freshness")
+
+
+def _previous_brief_skeleton(previous_brief: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Yesterday's SHAPE, with none of yesterday's words.
+
+    Why this exists (issue 208, 2026-08-26). `_scrub_numbers` was the first
+    attempt at this problem and it fixed the half it was aimed at: no figure
+    from a previous issue can be copied forward. But it keeps every WORD, on
+    the theory that the editor needs yesterday's prose for narrative
+    continuity. Measured against real output, that theory cost more than it
+    bought — where the underlying data had not moved, the editor read
+    yesterday's sentence and restated it. Issue 207's `macro` section came
+    back 100.0% byte-identical to 206's; 208 still had `banking` at 97.4%
+    after a prompt rule (PR #178) explicitly forbade the reuse. Handing a
+    model a finished draft and instructing it not to revise the draft is not a
+    contest the instruction wins.
+
+    So the editor no longer receives the draft. What it receives is what it
+    demonstrably USES — which turned out to be almost entirely structural:
+
+      · `cover_metric.section_slug` + each section's `weight` → hero rotation,
+        the one use `editor_v6.txt` actually documents.
+      · `verdict_tone` per section → whether a section's stance flipped.
+      · `slug`/`ord`/`title`/`group_key`/`freshness` → the page's shape.
+      · `metric_labels` → which metrics were on the page (labels, never values
+        or their `sub` copy).
+
+    Everything else the editor needs from the previous issue already reaches
+    it by a path that reads the REAL, unscrubbed object earlier in
+    `_build_editor_input` — `is_held_over` via `_index_previous_metrics`,
+    headline de-duplication via `filter_headlines`/`recent_news`, lens
+    rotation via the separate `previous_lens` argument. None of those are
+    affected by this.
+
+    What is genuinely lost: the editor can no longer see that it already made
+    a point yesterday and pick a different angle. That is an acceptable trade.
+    Restating a true, unmoved fact in today's words is the correct output and
+    the voice rules say so explicitly; the alternative was measured above.
+
+    The SUB-EDITOR still receives the full number-scrubbed prose (see
+    `run_publish`), so the reviewer can still catch two issues landing
+    near-identical — now as convergence rather than copying, but just as
+    unwanted either way. Editor blind, reviewer sighted.
+
+    Returns None for None (first run), mutates nothing.
+    """
+    if not previous_brief:
+        return None
+    brief = previous_brief.get("brief") or {}
+    cover = brief.get("cover_metric") or {}
+    skeleton_brief: dict[str, Any] = {k: brief.get(k) for k in _PREV_BRIEF_KEEP}
+    # Only the two cover fields that carry no prose — `label`/`value`/`sub`/
+    # `as_of` are exactly the figures and copy this function exists to drop.
+    skeleton_brief["cover_metric"] = {
+        "section_slug": cover.get("section_slug"),
+        "tone": cover.get("tone"),
+    }
+    sections = []
+    for s in previous_brief.get("sections") or []:
+        row: dict[str, Any] = {k: s.get(k) for k in _PREV_SECTION_KEEP}
+        row["metric_labels"] = [
+            m.get("label") for m in (s.get("metrics") or []) if m.get("label")
+        ]
+        sections.append(row)
+    return {"brief": skeleton_brief, "sections": sections}
 
 
 def _build_editor_input(
@@ -306,10 +384,13 @@ def _build_editor_input(
     return {
         "today": today.isoformat(),
         "today_lens": lens,
-        # Scrubbed AFTER prev_metrics_idx/is_held_over above ran against the
-        # real values — this copy is for narrative continuity only, never a
-        # source of figures the editor can copy forward (P0 fix, audit #204).
-        "previous_brief": _scrub_numbers(previous_brief),
+        # Built AFTER prev_metrics_idx/is_held_over above ran against the real
+        # values. Structure only — no figures (P0 fix, audit #204) and, since
+        # 2026-08-26, no prose either: yesterday's wording was the draft the
+        # editor kept revising instead of writing. See
+        # `_previous_brief_skeleton`. The SUB-EDITOR's copy is rebuilt with the
+        # prose restored in `run_publish` — it needs the wording to review it.
+        "previous_brief": _previous_brief_skeleton(previous_brief),
         "scraped_headlines": filtered_headlines,
         "sections_raw": raw_sections,
         "meta": {
@@ -1708,7 +1789,15 @@ def run_publish(
     # ── Call 2: Sub-editor ─────────────────────────────────────────
     # Retry-once-then-hold; NEVER auto-pass a malformed review (see _run_subeditor).
     subeditor_prompt = _pipeline._load_prompt("subeditor_v6.txt")
-    subeditor_input = {"editor_output": editor_brief.model_dump(mode="json"), "raw_data": editor_input}
+    # The Sub-Editor's `previous_brief` is NOT the Editor's. The Editor got a
+    # structural skeleton so it could not copy yesterday's sentences; the
+    # reviewer gets yesterday's full wording (figures scrubbed) because
+    # comparing WORDING is the whole point of §7's CARRIED-FORWARD PROSE
+    # check, and a reviewer that cannot see the previous text cannot run it.
+    subeditor_input = {
+        "editor_output": editor_brief.model_dump(mode="json"),
+        "raw_data": {**editor_input, "previous_brief": _scrub_numbers(previous)},
+    }
     review = _run_subeditor(subeditor_prompt, subeditor_input)
 
     if review.verdict == "fail":
