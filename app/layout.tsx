@@ -63,11 +63,14 @@ export default function RootLayout({
       <head>
         {/* FOUC guard (facelift spec §2): blocking inline script, the
             documented Next.js placement — runs before paint so a dark
-            visitor never flashes light. This is the app's first inline
-            script: if a nonce-based CSP ever lands it needs the nonce. */}
+            visitor never flashes light. localStorage gets its own inner
+            try: with site data blocked the getter itself throws, and a
+            single catch would skip the OS-preference fallback entirely.
+            This is the app's first inline script: if a nonce-based CSP
+            ever lands it needs the nonce. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("thebrief.theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=null;try{t=localStorage.getItem("thebrief.theme")}catch(e){}if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){}`,
           }}
         />
       </head>

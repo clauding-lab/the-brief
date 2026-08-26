@@ -364,7 +364,12 @@ body { background: var(--paper); color: var(--ink); }
 [data-theme="dark"] .tb-theme-toggle .when-dark  { display: inline; }
 [data-theme="dark"] .tb-theme-toggle .when-light { display: none; }
 .tb-masthead-meta .tb-theme-toggle { margin-top: 8px; }
-.tb-stickybar .tb-theme-toggle { margin-left: 14px; }
+/* Inside the sticky bar the button's vertical padding drops so min-height's
+   24px floor binds: 12+24+12+1 keeps the bar at 49px, inside the 50px the
+   .tb-secnav { top: 50px } reservation gives it (lib/useNavOffset.ts
+   documents that invariant). 7px padding made a 28.5px button and a 53.5px
+   bar that painted 3.5px over the section nav. */
+.tb-stickybar .tb-theme-toggle { margin-left: 14px; padding-top: 4px; padding-bottom: 4px; }
 
 /* Pulse redrawn as an opacity throb (Design.md's only sanctioned animatable
    property) — it previously animated box-shadow, which Design.md forbids
@@ -799,6 +804,11 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   padding: 40px 36px; display: flex; flex-direction: column; justify-content: space-between;
 }
 .tb-cta-dark .eyebrow { color: var(--band-mute); }
+/* Dark: band panel (#0B0F12) against dark paper (#101418) is ~1.06:1 — the
+   same accepted band≈paper collision §5.1 records, and the same remedy: a
+   band-rule edge keeps the panel legible as a panel. Light needs nothing
+   (band on light paper is high-contrast by construction). */
+[data-theme="dark"] .tb-cta-dark { border-right: 1px solid var(--band-rule); }
 .tb-cta-dark .head { font-size: 56px; font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-family: var(--mono); }
 .tb-cta-dark .head .accent { color: var(--band-accent); }
 .tb-cta-dark .body { margin-top: 22px; font-size: 13px; line-height: 1.55; color: var(--band-ink-2); max-width: 380px; text-wrap: pretty; }
@@ -1042,6 +1052,12 @@ body.tb-diff .tb-statstack:not(.is-changed) {
   .tb-snapshot-cell:first-child, .tb-snapshot-cell:last-child { padding-left: 16px; padding-right: 16px; }
   .tb-secnav { top: 48px; margin: 0 -20px; }
   .tb-secnav-inner { padding: 8px 20px; }
+  /* The sticky echo of the theme toggle comes off at phone widths: the bar's
+     right cell wraps to two lines with it (measured 63px at 375 vs the
+     48px .tb-secnav reservation — 15px of the nav covered and un-clickable).
+     The masthead mount stays reachable; PR C's band restructure re-lays
+     this surface anyway. */
+  .tb-stickybar .tb-theme-toggle { display: none; }
   .tb-body { padding: 0 20px; }
   .tb-cover { grid-template-columns: 1fr; gap: 28px; padding: 32px 0 36px; }
   .tb-cover .bignum { font-size: 88px; }
@@ -1064,6 +1080,8 @@ body.tb-diff .tb-statstack:not(.is-changed) {
   .tb-banker-runway .num { font-size: 64px; }
   .tb-cta { grid-template-columns: 1fr; }
   .tb-cta-dark .head { font-size: 38px; }
+  /* Single-column CTA: the panel/form seam runs horizontally here. */
+  [data-theme="dark"] .tb-cta-dark { border-right: none; border-bottom: 1px solid var(--band-rule); }
   .tb-foot { flex-direction: column; gap: 8px; padding: 24px 20px; }
   .tb-statusbar { display: none; }
 }

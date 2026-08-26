@@ -43,13 +43,18 @@ export function ThemeToggle({ onBand = false }: { onBand?: boolean }) {
     }
   };
 
+  // Accessible name = the rendered visible text ("Dark" in light mode,
+  // "Light" in dark): display:none content is excluded from the accname
+  // computation, so the CSS-keyed swap names the button correctly in every
+  // state with zero hydration dependency. This replaces the spec's fixed
+  // aria-label "Toggle dark mode", which failed WCAG 2.5.3 Label in Name in
+  // dark ("click Light" had no match for voice-control users) — and the
+  // spec's staleness rationale doesn't apply to rendered-text naming, since
+  // the CSS keys on the pre-hydration [data-theme] attribute.
   return (
     <button
       type="button"
       className={`tb-theme-toggle${onBand ? " on-band" : ""}`}
-      // State-independent accessible name: a state-dependent one would be
-      // stale for the first client pass on dark loads.
-      aria-label="Toggle dark mode"
       onClick={flip}
     >
       <span aria-hidden="true">◐ </span>
