@@ -17,6 +17,10 @@ const eslintConfig = defineConfig([
     // errors and made `npm run lint` exit 1 (unusable as a gate).
     ".venv/**",
     "docs/**",
+    // Agent worktrees (git worktree checkouts under .claude/worktrees/) are
+    // whole nested repo copies — linting them re-reports every historical
+    // finding and breaks `npm run lint` as a local gate. Absent in CI.
+    ".claude/**",
   ]),
 ]);
 

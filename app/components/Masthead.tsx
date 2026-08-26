@@ -5,6 +5,7 @@ import type { Brief, DataSource } from "@/types/brief";
 import { Hair } from "./Hair";
 import { formatBriefDate, formatPublishedAt } from "@/lib/format";
 import { MastheadLensPill } from "./MastheadLensPill";
+import { ThemeToggle } from "./ThemeToggle";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const LIVE_WINDOW_MS = 10 * 60 * 1000; // "Live" claim expires 10 min after fetch
@@ -93,6 +94,9 @@ export function Masthead({ brief, source, fetchedAt, sectionCount, historical }:
             </span>
           </div>
           {publishedLabel && <div className="tb-published">Published {publishedLabel}</div>}
+          {/* Facelift PR A: meta-row mount (spec §2). Paper styling until the
+              ink band lands in PR C, which flips this mount to onBand. */}
+          <ThemeToggle />
         </div>
       </div>
 

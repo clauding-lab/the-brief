@@ -86,13 +86,13 @@ export function SubscribeCTA({ volume, issueNo }: SubscribeCTAProps = {}) {
             gap: 16,
             alignItems: "center",
             fontSize: 10.5,
-            color: "rgba(244,239,230,0.6)",
+            color: "var(--band-mute)",
             letterSpacing: "0.12em",
             textTransform: "uppercase",
           }}
         >
           <span>{volLabel}</span>
-          <span style={{ width: 18, height: 1, background: "rgba(244,239,230,0.3)" }} />
+          <span style={{ width: 18, height: 1, background: "var(--band-rule)" }} />
           <span>{issueLabel}</span>
         </div>
       </div>

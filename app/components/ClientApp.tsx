@@ -93,6 +93,46 @@ export function ClientApp(props: ClientAppProps) {
     document.body.classList.toggle("tb-diff", diffMode);
   }, [printMode, diffMode]);
 
+  // Print renders light regardless of the visitor's theme (interim slice of
+  // facelift spec §9.1c, pulled into PR A alongside dark mode): dark tokens
+  // on white print paper measure 1.29:1 — invisible. Forcing the data-theme
+  // ATTRIBUTE (not CSS overrides) also makes §3's useTheme consumers rebuild
+  // every chart in light inks — canvases can't be recolored by print
+  // stylesheets. The full §9 print token contract ships in PR C; this keeps
+  // print output identical to pre-dark main. Native Cmd+P is best-effort:
+  // the async chart rebuild may not beat the print snapshot (spec §11.12) —
+  // ?print=1 is the documented path. The prior theme is parked in
+  // data-theme-resume so both paths share one save/restore slot.
+  useEffect(() => {
+    const de = document.documentElement;
+    const forceLight = () => {
+      if (de.dataset.theme === "dark") {
+        de.dataset.themeResume = "dark";
+        de.dataset.theme = "light";
+      }
+    };
+    const restore = () => {
+      if (de.dataset.themeResume) {
+        de.dataset.theme = de.dataset.themeResume;
+        delete de.dataset.themeResume;
+      }
+    };
+    // afterprint must NOT restore dark while ?print=1 is still active —
+    // a Cmd+P from an already-forced ?print=1 page would otherwise flip
+    // the visible page back to dark mid-print-mode.
+    const onAfterPrint = () => {
+      if (!printMode) restore();
+    };
+    if (printMode) forceLight();
+    window.addEventListener("beforeprint", forceLight);
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", forceLight);
+      window.removeEventListener("afterprint", onAfterPrint);
+      if (printMode) restore();
+    };
+  }, [printMode]);
+
   // Persist diff toggle
   useEffect(() => {
     try {
