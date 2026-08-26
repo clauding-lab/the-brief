@@ -127,16 +127,19 @@ def test_every_prompt_names_the_daily_star_register(path: pathlib.Path) -> None:
 def test_the_editor_prompts_forbid_carrying_prose_forward(path: pathlib.Path) -> None:
     """Issue 207 measured why the voice change only half-landed.
 
-    `pipeline_v6._build_editor_input` hands the editor the previous issue with
-    every word intact and only the numbers scrubbed. Where the data had not
-    moved, the editor restated yesterday's sentence: comparing 206 to 207,
-    `macro` came back 100.0% byte-identical, with remit/tbond/iran/fiscal at
-    94-99%. Only the two genuinely-rewritten sections carried the new register,
-    so a prompt change reaches only the sections the editor chooses to rewrite.
+    `_build_editor_input` used to hand the editor the previous issue with every
+    word intact and only the numbers scrubbed. Where the data had not moved,
+    the editor restated yesterday's sentence: comparing 206 to 207, `macro`
+    came back 100.0% byte-identical, with remit/tbond/iran/fiscal at 94-99%.
+
+    The rule alone was not enough — issue 208 still had `banking` at 97.4%,
+    "complying" by nudging "hold 32.26%" to "hold at 32.26%". The input fix
+    (`_previous_brief_skeleton`) removes the prose the rule was arguing with,
+    and this assertion tracks the wording that describes it.
     """
     text = path.read_text(encoding="utf-8")
     assert "WRITE TODAY'S SENTENCES." in text
-    assert "not a draft to revise" in text
+    assert "carries none of yesterday's wording" in text
 
 
 def test_the_sub_editor_catches_carried_forward_prose() -> None:
