@@ -45,12 +45,14 @@ class _FakeHistory:
         self.tables_seen: list[str] = []
         self._at_or_before = at_or_before_by_id or {}
         self.at_or_before_calls: list[tuple[str, date]] = []
+        self.window_calls = 0
 
     def get_latest(self, metric_id: str, *, table: str | None = None) -> HistoryRow | None:
         self.tables_seen.append(table or self.default_table)
         return self._latest.get(metric_id)
 
     def get_history_window(self, metric_ids: list[str], **kwargs) -> dict:
+        self.window_calls += 1
         return {mid: [] for mid in metric_ids}
 
     def get_at_or_before(self, metric_id: str, as_of: date, *, table: str | None = None) -> HistoryRow | None:
@@ -61,6 +63,7 @@ class _FakeHistory:
 # Live values good enough to exercise every path, dated 2026-08-03 unless the
 # real series is genuinely older (the inflation family publishes at month end).
 JUN30 = date(2026, 6, 30)
+JUL31 = date(2026, 7, 31)
 AUG3 = date(2026, 8, 3)
 
 # `policy_rate_repo`'s LATEST read is post the 30-Jul cut (9.50); the rate IN
@@ -173,43 +176,231 @@ def test_archive_metrics_still_read_the_monthly_table() -> None:
 
 
 # ── the derived pair (P0 honesty fix, 2026-08-22 audit #204) ────────────────
+# All four take the at_or_before branch, which since the 2026-08-26 restamp-
+# lag guard is only reached when the MPC decision is LATER than the inflation
+# reading — so they pin the decision date too (review fix 5). Unpinned, an
+# MPC move earlier than 30 Jun would silently reroute them through the guard.
 
-def test_real_policy_rate_pairs_the_repo_rate_in_force_on_the_inflation_date() -> None:
+def test_real_policy_rate_pairs_the_repo_rate_in_force_on_the_inflation_date(mpc) -> None:
     """The bug this fixes: pairing the LATEST repo rate (9.50, post the 30-Jul
     cut) with June's inflation print (9.16) gives 0.34% — a rate that never
     coexisted with that inflation reading. The June-consistent value is the
     rate in force ON 30 Jun (10.00, pre-cut) minus 9.16 = 0.84%."""
-    m = next(m for m in build(_ctx(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE)).metrics
-             if m.id == "real_policy_rate_monthly")
-    assert m.value == pytest.approx(0.84)
+    mpc(JUL30)
+    assert _rpr(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE).value == pytest.approx(0.84)
 
 
-def test_real_policy_rate_as_of_is_the_inflation_date() -> None:
-    m = next(m for m in build(_ctx(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE)).metrics
-             if m.id == "real_policy_rate_monthly")
-    assert m.as_of == JUN30
+def test_real_policy_rate_as_of_is_the_inflation_date(mpc) -> None:
+    mpc(JUL30)
+    assert _rpr(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE).as_of == JUN30
 
 
-def test_real_policy_rate_looks_up_the_repo_rate_at_the_inflation_date() -> None:
+def test_real_policy_rate_looks_up_the_repo_rate_at_the_inflation_date(mpc) -> None:
     """Regression guard for the mechanism, not just the number: the repo
     lookup must be anchored on the inflation reading's date, not "today"."""
+    mpc(JUL30)
     history = _FakeHistory(LIVE, at_or_before_by_id=LIVE_AT_OR_BEFORE)
     ctx = BuilderContext(snapshot=_snap(), history=history, today=AUG3)
     build(ctx)
     assert ("policy_rate_repo", JUN30) in history.at_or_before_calls
 
 
-def test_real_policy_rate_is_none_when_no_repo_rate_existed_that_early() -> None:
+def test_real_policy_rate_is_none_when_no_repo_rate_existed_that_early(mpc) -> None:
     """The corridor's `at_or_before` read finding nothing (e.g. history starts
     after the inflation date) is a missing input, not an invented rate."""
-    m = next(m for m in build(_ctx(live=LIVE, at_or_before={})).metrics
-             if m.id == "real_policy_rate_monthly")
+    mpc(JUL30)
+    assert _rpr(live=LIVE, at_or_before={}).value is None
+
+
+# ── the restamp-lag guard (2026-08-26) ─────────────────────────────────────
+# Production shipped 1.68% ("BB's real policy rate after the July cut") on
+# 2026-08-26. That number is 10.00 − 8.32, and 10.00 is the PRE-cut rate: the
+# 30 Jul MPC cut (10.00 → 9.50) was not restamped onto `policy_rate_repo`
+# until 03 Aug (landmine 24 — `as_of` is the restamp date, never the decision
+# date), so the row `at_or_before` 31 Jul still read 10.00. The rate actually
+# in force on 31 Jul was 9.50, and the honest figure is 1.18%.
+#
+# REVIEW FIX 5 — every test below PINS `bb._LAST_MPC_DECISION` via the `mpc`
+# fixture instead of leaning on whatever today's constant happens to be. The
+# guard's contract is an ORDERING (did the corridor move on or before this
+# CPI print?), not a fact about August 2026. Left unpinned, the next MPC
+# bump silently flips these tests to the at_or_before branch, and the
+# tempting "fix" is to edit 1.18 → 1.68 — i.e. to re-bless the exact bug
+# this module exists to prevent.
+
+JUL30 = date(2026, 7, 30)  # the real 2026 MPC cut date; pinned, not assumed
+
+
+@pytest.fixture
+def mpc(monkeypatch):
+    """Pin the MPC decision date the guard keys on.
+
+    `macro._real_policy_rate` imports `_LAST_MPC_DECISION` from `bb` INSIDE
+    the function, so it re-reads the module attribute on every call and this
+    patch takes effect without reloading anything.
+    """
+    def _set(decision: date) -> None:
+        monkeypatch.setattr("brief.builders.bb._LAST_MPC_DECISION", decision)
+    return _set
+
+
+RESTAMP_LAG_LIVE = {
+    **LIVE,
+    # July's p2p CPI print, the reading the metric is dated by.
+    "point_to_point_inflation": _row("point_to_point_inflation", 8.32, JUL31),
+    # The corridor's LATEST restamp — post-cut, and the rate really in force.
+    "policy_rate_repo": _row("policy_rate_repo", 9.5, AUG3),
+}
+
+# What `get_at_or_before(policy_rate_repo, 31 Jul)` really returns in
+# production: the 31 Jul restamp, still carrying the PRE-cut 10.00.
+RESTAMP_LAG_AT_OR_BEFORE = {
+    "policy_rate_repo": _row("policy_rate_repo", 10.0, JUL31),
+}
+
+
+def _rpr(**kwargs):
+    return next(m for m in build(_ctx(**kwargs)).metrics
+                if m.id == "real_policy_rate_monthly")
+
+
+def test_real_policy_rate_uses_the_rate_in_force_not_the_restamp_lag(mpc) -> None:
+    """A cut on or before the inflation reading's own date means the
+    `at_or_before` row may still carry the pre-decision rate — the corridor
+    moved but EconDelta had not restamped it yet. Resolve the repo leg from
+    the LATEST row instead: 9.50 − 8.32 = 1.18, not 10.00 − 8.32 = 1.68."""
+    mpc(JUL30)
+    m = _rpr(live=RESTAMP_LAG_LIVE, at_or_before=RESTAMP_LAG_AT_OR_BEFORE)
+    assert m.value == pytest.approx(1.18)
+    assert "9.50" in (m.source or "")
+    assert "10.00" not in (m.source or "")
+
+
+def test_real_policy_rate_unchanged_when_no_decision_since_the_inflation_date(mpc) -> None:
+    """The guard must be narrow. June's print (30 Jun) is EARLIER than the
+    30 Jul decision, so no cut had happened by then and the `at_or_before`
+    row (10.00) is genuinely the rate in force: 10.00 − 9.16 = 0.84."""
+    mpc(JUL30)
+    m = _rpr(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE)
+    assert m.value == pytest.approx(0.84)
+    assert "10.00" in (m.source or "")
+
+
+def test_real_policy_rate_guard_still_dates_the_metric_by_the_inflation_reading(mpc) -> None:
+    """Landmine 27(b): the repo leg moving to the latest restamp must not drag
+    the metric's `as_of` onto that restamp date. It stays July's CPI date."""
+    mpc(JUL30)
+    assert _rpr(live=RESTAMP_LAG_LIVE, at_or_before=RESTAMP_LAG_AT_OR_BEFORE).as_of == JUL31
+
+
+def test_real_policy_rate_is_none_when_the_guard_finds_no_latest_repo_row(mpc) -> None:
+    """Landmine 27(b): half a derivation is not a number. The guard path has
+    the same missing-input discipline as the `at_or_before` path."""
+    mpc(JUL30)
+    no_repo = {k: v for k, v in RESTAMP_LAG_LIVE.items() if k != "policy_rate_repo"}
+    m = _rpr(live=no_repo, at_or_before=RESTAMP_LAG_AT_OR_BEFORE)
     assert m.value is None
+    assert m.source == "BB+BBS"
 
 
-def test_at_or_before_warns_by_name_when_no_row_found(caplog) -> None:
+def test_real_policy_rate_source_names_both_legs(mpc) -> None:
+    """`MetricV6` has no `source` field, so this note only reaches the reader
+    via `pipeline_v6._stamp_real_policy_rate_sub`, which finds it by the
+    marker substring. The builder's job is to record BOTH legs — the repo
+    rate it actually used and the CPI print it subtracted — plus the
+    inflation month, using Master.md's minus GLYPH (−, U+2212).
+
+    REVIEW FIX 4: on the GUARD branch the repo leg is dated by the MPC
+    DECISION ("30 Jul cut"), never by `repo.as_of` — that is a restamp date,
+    and landmine 24 forbids presenting it as when the rate changed."""
+    mpc(JUL30)
+    m = _rpr(live=RESTAMP_LAG_LIVE, at_or_before=RESTAMP_LAG_AT_OR_BEFORE)
+    assert m.source == "BB+BBS (9.50% repo (30 Jul cut) − 8.32% Jul p2p CPI)"
+    assert "-" not in m.source  # the ASCII hyphen must not sneak in
+    assert "3 Aug" not in m.source  # never the restamp date
+
+
+def test_real_policy_rate_note_on_the_at_or_before_branch_carries_no_cut_date(mpc) -> None:
+    """REVIEW FIX 4: the else branch's two legs match by construction, so the
+    note stays in its plain undated form — no decision parenthetical to add,
+    because no decision sits between the two vintages."""
+    mpc(JUL30)
+    m = _rpr(live=LIVE, at_or_before=LIVE_AT_OR_BEFORE)
+    assert m.source == "BB+BBS (10.00% repo − 9.16% Jun p2p CPI)"
+    assert "cut)" not in m.source
+
+
+def test_real_policy_rate_guard_reads_the_latest_repo_row_not_a_second_window(mpc) -> None:
+    """Landmine 23: the guard resolves the repo leg with `get_latest`, never
+    a second `get_history_window` from inside a builder."""
+    mpc(JUL30)
+    history = _FakeHistory(RESTAMP_LAG_LIVE,
+                           at_or_before_by_id=RESTAMP_LAG_AT_OR_BEFORE)
+    ctx = BuilderContext(snapshot=_snap(), history=history, today=AUG3)
+    build(ctx)
+    assert history.window_calls == 0
+
+
+# ── REVIEW FIX 3: the guard branch needs a staleness bound ──────────────────
+# `get_latest` returns the freshest restamp no matter HOW far it has drifted
+# from the inflation reading. Without a bound, a corridor that keeps being
+# restamped while the CPI feed dies pairs a 2027 rate with a 2026 print and
+# prints the difference as if it described July 2026. Same shape, same
+# remedy, same constant as `_import_cover`'s 4-month gate.
+
+def test_real_policy_rate_suppressed_when_the_latest_repo_restamp_is_months_stale(mpc) -> None:
+    """Reviewer's row G: CPI stuck at 8.32 @ 31 Jul 2026 while the corridor
+    restamps on to 6.00 @ 26 Aug 2027. The old code printed −2.32% dated
+    31 Jul 2026 with no warning. Thirteen months apart is not a period-
+    consistent pair — suppress (landmine 27(b))."""
+    mpc(JUL30)
+    stale = {
+        **RESTAMP_LAG_LIVE,
+        "policy_rate_repo": _row("policy_rate_repo", 6.0, date(2027, 8, 26)),
+    }
+    assert _rpr(live=stale, at_or_before=RESTAMP_LAG_AT_OR_BEFORE).value is None
+
+
+def test_real_policy_rate_guard_accepts_the_live_one_month_gap(mpc) -> None:
+    """The bound must not suppress production's ordinary shape: the corridor
+    restamps daily (late Aug) while July's CPI print is the freshest reading.
+    One month apart — well inside the gate — still yields 1.18."""
+    mpc(JUL30)
+    live_shape = {
+        **RESTAMP_LAG_LIVE,
+        "policy_rate_repo": _row("policy_rate_repo", 9.5, date(2026, 8, 26)),
+    }
+    assert _rpr(live=live_shape,
+                at_or_before=RESTAMP_LAG_AT_OR_BEFORE).value == pytest.approx(1.18)
+
+
+# ── REVIEW FIX 5: the guard's known bound, pinned deliberately ──────────────
+
+def test_real_policy_rate_after_a_newer_decision_reverts_to_the_at_or_before_branch(mpc) -> None:
+    """DOCUMENTED BEHAVIOUR, not an endorsement (reviewer's row E).
+
+    When a NEWER MPC decision lands (28 Oct) while the CPI feed is still
+    stalled on July's print, `_LAST_MPC_DECISION <= inflation.as_of` is False
+    again, so the guard stands down and the at_or_before branch re-reads the
+    31 Jul restamp — reprinting 10.00 − 8.32 = 1.68, the very number this
+    fix removed.
+
+    That is the honest limit of a guard keyed on a SINGLE decision date: it
+    can only reason about the most recent move, so it cannot tell that the
+    31 Jul row was already stale relative to an EARLIER one. Closing it needs
+    a real corridor effective-date series in EconDelta, not more logic here.
+    This test exists so that behaviour can never change by accident — if a
+    future change alters it, this assertion fails and the change is a
+    deliberate one."""
+    mpc(date(2026, 10, 28))
+    assert _rpr(live=RESTAMP_LAG_LIVE,
+                at_or_before=RESTAMP_LAG_AT_OR_BEFORE).value == pytest.approx(1.68)
+
+
+def test_at_or_before_warns_by_name_when_no_row_found(caplog, mpc) -> None:
     """M3, review round 1: no silent darkness — a missing at_or_before row
     logs a WARNING naming the metric id."""
+    mpc(JUL30)
     with caplog.at_level("WARNING", logger="brief.builders.macro"):
         build(_ctx(live=LIVE, at_or_before={}))
     assert any("policy_rate_repo" in r.message for r in caplog.records)
@@ -359,10 +550,11 @@ def test_import_cover_source_defaults_to_bb_when_suppressed() -> None:
     assert m.source == "BB"
 
 
-def test_a_derived_metric_is_dated_by_its_oldest_input() -> None:
+def test_a_derived_metric_is_dated_by_its_oldest_input(mpc) -> None:
     """The #184 failure was a March REER printed beside that day's spot rate with
     nothing recording the gap. A figure made of a fresh input and a stale one is
     as old as the stale one."""
+    mpc(JUL30)
     s = build(_ctx(live=LIVE, archive=IMPORTS_ARCHIVE, at_or_before=LIVE_AT_OR_BEFORE))
     by_id = {m.id: m for m in s.metrics}
 
@@ -372,12 +564,11 @@ def test_a_derived_metric_is_dated_by_its_oldest_input() -> None:
     assert by_id["import_cover_months_monthly"].as_of == JUN30
 
 
-def test_derived_metric_is_none_when_an_input_is_missing() -> None:
+def test_derived_metric_is_none_when_an_input_is_missing(mpc) -> None:
     """Half a derivation is not a number. Better unavailable than invented."""
+    mpc(JUL30)
     partial = {k: v for k, v in LIVE.items() if k != "point_to_point_inflation"}
-    m = next(m for m in build(_ctx(live=partial, at_or_before=LIVE_AT_OR_BEFORE)).metrics
-             if m.id == "real_policy_rate_monthly")
-    assert m.value is None
+    assert _rpr(live=partial, at_or_before=LIVE_AT_OR_BEFORE).value is None
 
 
 def test_derived_metric_survives_a_zero_denominator() -> None:

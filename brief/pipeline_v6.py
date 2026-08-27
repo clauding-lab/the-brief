@@ -843,6 +843,14 @@ def _reconcile_metrics(
 # builder's dual-period note and the published `sub` field are both checked
 # against, so a re-run never double-appends.
 _IMPORT_COVER_SUB_MARKER = "import bill"
+# Review round 2026-08-27: both stampers match labels with `_normalize_label`,
+# the SAME normalization `_reconcile_metrics` and the prose-number validator
+# already use. Exact `!=` was a real hole: `_reject_invented_and_dedupe` keeps
+# the EDITOR'S casing, so an editor writing "Import cover" got no stamp at all
+# — and for Real Policy Rate that was doubly bad, because the validator's
+# source-marker exemption still fired, leaving the sub both unstamped AND
+# unchecked. Constants are pre-normalized so the comparison stays cheap.
+_IMPORT_COVER_LABEL = _normalize_label("Import Cover")
 
 
 def _stamp_import_cover_sub(
@@ -873,7 +881,10 @@ def _stamp_import_cover_sub(
         if s.get("slug") != "macro":
             continue
         for m in s.get("metrics", []) or []:
-            if m.get("label") != "Import Cover" or m.get("value") is None:
+            if (
+                _normalize_label(str(m.get("label") or "")) != _IMPORT_COVER_LABEL
+                or m.get("value") is None
+            ):
                 continue
             src = m.get("source") or ""
             if "reserves" in src and _IMPORT_COVER_SUB_MARKER in src:
@@ -889,10 +900,81 @@ def _stamp_import_cover_sub(
         if section.slug != "macro":
             continue
         for pub in section.metrics:
-            if pub.label != "Import Cover":
+            if _normalize_label(pub.label) != _IMPORT_COVER_LABEL:
                 continue
             current = pub.sub or ""
             if _IMPORT_COVER_SUB_MARKER not in current:
+                pub.sub = f"{current} · {note}" if current else note
+        break
+
+
+# The marker substring `macro._real_policy_rate`'s provenance note, this
+# stamper and the published `sub` are all checked against, so a re-run never
+# double-appends. Mirrors `_IMPORT_COVER_SUB_MARKER` exactly.
+_REAL_POLICY_RATE_SUB_MARKER = "p2p CPI"
+_REAL_POLICY_RATE_LABEL = _normalize_label("Real Policy Rate")
+
+
+def _stamp_real_policy_rate_sub(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]
+) -> None:
+    """Force the published Real Policy Rate metric's `sub` to show its own
+    arithmetic — which repo rate, minus which CPI print (2026-08-26).
+
+    Same mechanism as `_stamp_import_cover_sub`, and for the same reason:
+    `MetricV6` has no `source` field, so the builder's note (set on the RAW
+    metric's `source` by `macro._real_policy_rate`) is dropped the moment the
+    editor's output is validated. `sub` is the only free-text field that
+    reaches the reader.
+
+    Why this metric needs it. Real Policy Rate is the one macro figure whose
+    published number appears NOWHERE in its own inputs: the reader sees
+    "1.2%" and has no way to tell whether the repo leg was the pre-cut 10.00
+    or the post-cut 9.50 — which is exactly the 50bp error the 2026-08-26
+    review found live in production. Printing "9.50% repo − 8.32%
+    Jul p2p CPI" beside it makes the same class of mistake self-evident on
+    the page instead of only in the builder.
+
+    The note is read from the BUILDER's raw output every run, never
+    hardcoded, so it always names the leg the restamp-lag guard actually
+    resolved. A no-op when the raw metric has no value (a leg was missing
+    this issue), when its `source` carries no note (the derivation did not
+    take its success path), or when the published `sub` already contains the
+    marker phrase.
+    """
+    note: str | None = None
+    for s in raw_sections:
+        if s.get("slug") != "macro":
+            continue
+        for m in s.get("metrics", []) or []:
+            if (
+                _normalize_label(str(m.get("label") or "")) != _REAL_POLICY_RATE_LABEL
+                or m.get("value") is None
+            ):
+                continue
+            src = m.get("source") or ""
+            if "repo" in src and _REAL_POLICY_RATE_SUB_MARKER in src:
+                # Strip the leading source prefix and trailing bracket:
+                # "BB+BBS (9.50% repo − 8.32% Jul p2p CPI)" → the inner note.
+                start = src.find("(") + 1
+                end = src.find(_REAL_POLICY_RATE_SUB_MARKER) + len(
+                    _REAL_POLICY_RATE_SUB_MARKER
+                )
+                if start > 0 and end > start:
+                    note = src[start:end]
+        break
+
+    if not note:
+        return
+
+    for section in final_brief.sections:
+        if section.slug != "macro":
+            continue
+        for pub in section.metrics:
+            if _normalize_label(pub.label) != _REAL_POLICY_RATE_LABEL:
+                continue
+            current = pub.sub or ""
+            if _REAL_POLICY_RATE_SUB_MARKER not in current:
                 pub.sub = f"{current} · {note}" if current else note
         break
 
@@ -2058,6 +2140,10 @@ def run_publish(
     # metric's `sub` with its dual-period note — MetricV6 has no `source`
     # field, so nothing upstream of this call guarantees the note survives.
     _stamp_import_cover_sub(final_brief, editor_input["sections_raw"])
+    # Same mechanism, same reason (2026-08-26): the Real Policy Rate's own
+    # arithmetic — which repo rate minus which CPI print — is the only thing
+    # that makes a restamp-lag error visible on the page.
+    _stamp_real_policy_rate_sub(final_brief, editor_input["sections_raw"])
 
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
