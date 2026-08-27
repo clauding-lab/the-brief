@@ -94,6 +94,13 @@ export function ClientApp(props: ClientAppProps) {
     document.body.classList.toggle("tb-print", printMode);
     document.documentElement.classList.toggle("tb-print-root", printMode);
     document.body.classList.toggle("tb-diff", diffMode);
+    // Cleanup on unmount: body/html outlive this component, so a client-side
+    // navigation away from a ?print=1 page (e.g. to /archive) must not carry
+    // the print classes with it (review-caught).
+    return () => {
+      document.body.classList.remove("tb-print", "tb-diff");
+      document.documentElement.classList.remove("tb-print-root");
+    };
   }, [printMode, diffMode]);
 
   // Print renders light regardless of the visitor's theme (interim slice of
@@ -274,8 +281,11 @@ export function ClientApp(props: ClientAppProps) {
   }
 
   // The lead section (weight >= 2 — same flag that drives is-hero) gets an
-  // accented SecNav item (spec §7.7).
-  const leadSlug = flatRenderOrder.find((s) => (s.weight ?? 1) >= 2)?.slug;
+  // accented SecNav item (spec §7.7). Production carries one lead per issue;
+  // first-match is the tiebreak, and a collapsed dead section never leads.
+  const leadSlug = flatRenderOrder.find(
+    (s) => (s.weight ?? 1) >= 2 && s.freshness !== "unavailable"
+  )?.slug;
 
   return (
     <div className="tb-shell">

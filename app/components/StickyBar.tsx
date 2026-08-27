@@ -18,8 +18,14 @@ export function StickyBar({ brief, source, visible }: StickyBarProps) {
   // aria-hidden + pointer-events:none but its children stayed in tab
   // order — inert removes the hidden ThemeToggle (and everything else)
   // from keyboard focus. React 19 takes it as a plain boolean prop.
+  //
+  // A <div>, not a <header>: since PR C the Masthead's own <header> sits
+  // outside <main> and maps to role=banner — a second top-level <header>
+  // here would put two banner landmarks in the tree whenever the bar is
+  // visible (axe landmark-no-duplicate-banner). The bar is a UI echo of
+  // the masthead, not a document header.
   return (
-    <header
+    <div
       className={`tb-stickybar ${visible ? "is-visible" : ""}`}
       aria-hidden={!visible}
       inert={!visible}
@@ -41,6 +47,6 @@ export function StickyBar({ brief, source, visible }: StickyBarProps) {
           <ThemeToggle onBand />
         </div>
       </div>
-    </header>
+    </div>
   );
 }

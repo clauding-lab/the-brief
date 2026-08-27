@@ -463,6 +463,9 @@ body { background: var(--paper); color: var(--ink); }
 /* The lead section's item mirrors the hero flag (spec §7.7). */
 .tb-secnav-item.is-lead { color: var(--accent); }
 .tb-secnav-item.active { color: var(--ink); border-bottom-color: var(--accent); }
+/* Both jobs are accent (§8 job 4) — the lead signal must not vanish exactly
+   when the reader reaches the lead section. */
+.tb-secnav-item.active.is-lead { color: var(--accent); }
 .tb-secnav-item.active .num { color: var(--accent); }
 .tb-secnav-item.active .num::after {
   content: '·'; color: var(--accent); margin-left: 2px; font-size: 13px; line-height: 0;
@@ -536,8 +539,13 @@ body { background: var(--paper); color: var(--ink); }
 }
 
 /* ─── SECTION GROUP ────────────────────────────────────── */
-/* (Cover retired — spec §7.5; its whole CSS family went with Cover.tsx.) */
+/* (Cover retired — spec §7.5; its whole CSS family went with Cover.tsx.)
+   The .tb-longview sibling variant lives HERE, not in the Long View block
+   at the end of the file — both selectors are (0,2,0), so a late base copy
+   would win the source-order tie against the ≤920 and print overrides
+   downstream (review-caught: the 22px tier rule was dead). */
 .tb-group + .tb-group { margin-top: 26px; }
+.tb-longview + .tb-group { margin-top: 26px; }
 .tb-group-header {
   display: flex; align-items: center;
   padding-top: 4px;
@@ -685,6 +693,10 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   border: 1px solid var(--rule-faint);
 }
 .tb-kpi-row { background: var(--paper); padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+/* Headlines: the full-bleed news rail spans both grid columns, so a
+   pills-only tile rail after it must span too — auto-placement would
+   otherwise orphan it into a half-width column (review-caught). */
+.tb-news-rail.is-headlines ~ .tb-kpi-rail { grid-column: 1 / -1; }
 .tb-kpi-label { font-size: 9px; font-weight: 500; color: var(--ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
 .tb-kpi-sub { font-size: 11px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
 .tb-kpi-value { font-size: 16px; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
@@ -1121,11 +1133,11 @@ body.tb-diff .tb-statstack:not(.is-changed) {
 }
 
 /* ─── PRINT MODE ───────────────────────────────────────── */
-/* .tb-btn-cta and .tb-diff-toggle listed explicitly, not just via their
-   hidden ancestors (.tb-masthead-actions, .tb-secnav) — review round 1, H2:
-   getComputedStyle on a DESCENDANT of a display:none element still reports
-   that descendant's own specified display value, not "none", so a check
-   that reads .tb-btn-cta's own computed display directly needs .tb-btn-cta
+/* Controls are listed explicitly, not just via hidden ancestors (the
+   .tb-secnav's .tb-diff-toggle, the band's .tb-band-link/.tb-theme-toggle)
+   — review round 1, H2: getComputedStyle on a DESCENDANT of a display:none
+   element still reports that descendant's own specified display value, so
+   a check reading a control's own computed display needs the control
    itself in the hide list, not just its parent. */
 body.tb-print .tb-stickybar,
 body.tb-print .tb-secnav,
@@ -1178,18 +1190,26 @@ body.tb-print .tb-section.is-hero { background: transparent; margin: 0; padding-
 body.tb-print .tb-section.is-unavailable { page-break-inside: avoid; opacity: 1; }
 body.tb-print .tb-section-title { font-size: 24px; }
 body.tb-print .tb-group + .tb-group { margin-top: 20px; }
+body.tb-print .tb-longview + .tb-group { margin-top: 20px; }
 body.tb-print .tb-group-header { padding-top: 0; margin-top: 12px; }
 body.tb-print .tb-masthead-full { padding: 14px 0 12px; }
 body.tb-print .tb-masthead-hero { padding: 10px 0; }
 body.tb-print .tb-wordmark-big { font-size: 44px; }
+/* Paper drops backgrounds by default: the grout grids get real borders,
+   and the white-on-crimson chips flip to outline treatment — accent
+   background gone means accent text, not invisible text (review-caught,
+   the same failure class §9.2 fixes for the band). */
+body.tb-print .tb-kpi-rail, body.tb-print .tb-snapshot-row { background: transparent; border: none; gap: 0; }
+body.tb-print .tb-kpi-row, body.tb-print .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
+body.tb-print .tb-hero-flag,
+body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 
 @media print {
   /* This native browser-print rule (Cmd/Ctrl+P) is separate from the app's
      own `?print=1` tb-print class mode above, and fires for anyone printing
-     the page directly — it named .tb-cta (the bottom subscribe section) but
-     not .tb-btn-cta (the masthead's small "Subscribe →" link) or .tb-live
-     (the page-load clock + pulse), so both printed into PDFs regardless of
-     which print path was used.
+     the page directly — its hide list must stay in parity with the
+     body.tb-print list above (today: .tb-band-link, the theme toggle, the
+     diff toggle, .tb-live).
      !important on .tb-live specifically (review round 1, H2): its own base
      rules — .tb-masthead-meta .tb-live and .tb-stickybar .tb-live, both
      two-class selectors — outrank this block's original bare `.tb-live`
@@ -1211,6 +1231,18 @@ body.tb-print .tb-wordmark-big { font-size: 44px; }
     --color-muted: var(--ink-3); --color-surface-2: var(--paper-2);
     background: white; color: black;
   }
+  /* §9.4 scale parity: a native Cmd+P without ?print=1 must produce the
+     same document as the documented path (review-caught — this block
+     previously carried only section padding). */
+  .tb-section-title { font-size: 24px; }
+  .tb-group + .tb-group { margin-top: 20px; }
+  .tb-longview + .tb-group { margin-top: 20px; }
+  .tb-masthead-full { padding: 14px 0 12px; }
+  .tb-masthead-hero { padding: 10px 0; }
+  .tb-wordmark-big { font-size: 44px; }
+  .tb-kpi-rail, .tb-snapshot-row { background: transparent; border: none; gap: 0; }
+  .tb-kpi-row, .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
+  .tb-hero-flag, .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
   /* §9.2: band prints as paper on the native path too. */
   .tb-band { background: white; border-bottom: 1px solid var(--rule); color: var(--ink); }
   .tb-band .hair { background: var(--rule-soft); }
@@ -1313,8 +1345,8 @@ body.tb-print .tb-wordmark-big { font-size: 44px; }
 
 /* --- Comparison block --- */
 .tb-longview-cmp-header {
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
+  font-size: 10px;
+  letter-spacing: 0.16em; /* §7.6's list missed this fifth 0.22em label — same tier as its siblings */
   color: var(--ink-3);
   font-weight: 600;
   text-transform: uppercase;
@@ -1594,12 +1626,8 @@ body.tb-print .tb-wordmark-big { font-size: 44px; }
   transition: opacity 200ms ease, filter 200ms ease;
 }
 
-/* Sibling-margin restore — Banking group sits after LongView, not after
-   a .tb-group, so the existing .tb-group + .tb-group rule doesn't match.
-   (Kept from v1.1.0; compacted to the §6 scale.) */
-.tb-longview + .tb-group {
-  margin-top: 26px;
-}
+/* (.tb-longview + .tb-group moved up beside .tb-group + .tb-group — see
+   the SECTION GROUP block; a copy here would out-order the tier rules.) */
 
 /* ─── ARCHIVE (app/archive) ────────────────────────────────────────
    Newest-first list of published issues. Matches the section/news-rail

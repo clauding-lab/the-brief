@@ -243,8 +243,11 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate, gr
           const norm = (v: string | undefined | null) =>
             cleanMetricValue(v).trim().toLowerCase();
           const metricValues = new Set(metrics.map((m) => norm(m.value)));
+          // An empty pill value never counts as a duplicate — "" matching a
+          // blank metric would silently drop a pill whose key still carries
+          // information.
           const survivingPills = (summary_pills || []).filter(
-            (p) => !metricValues.has(norm(p.value))
+            (p) => norm(p.value) === "" || !metricValues.has(norm(p.value))
           );
           if (metrics.length === 0 && survivingPills.length === 0) return null;
           return (

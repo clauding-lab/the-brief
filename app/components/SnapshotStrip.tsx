@@ -28,9 +28,16 @@ function deriveFallbackItems(sections: Section[]): Metric[] {
   const items: Metric[] = [];
   for (const cell of FALLBACK_CELLS) {
     for (const slug of cell.slugs) {
-      const metric = bySlug
-        .get(slug)
-        ?.metrics?.find((m) => m.label.toLowerCase().includes(cell.label));
+      // Preference order — exact label, then prefix, then substring — so a
+      // section carrying e.g. both "DSEX Close" and "DSEX Turnover" resolves
+      // deterministically instead of by editor metric order (review-caught).
+      const candidates = (bySlug.get(slug)?.metrics || []).filter((m) =>
+        m.label.toLowerCase().includes(cell.label)
+      );
+      const metric =
+        candidates.find((m) => m.label.toLowerCase() === cell.label) ??
+        candidates.find((m) => m.label.toLowerCase().startsWith(cell.label)) ??
+        candidates[0];
       if (metric) {
         items.push(metric);
         break;

@@ -69,8 +69,10 @@ export function StatStack({
         </div>
       )}
       {sub && !delta && <div style={{ fontSize: 10.5, color: "var(--ink-3)" }}>{sub}</div>}
+      {/* --ink-3, not --ink-4: the sub-line is load-bearing text (§1 label
+          tier), on a surface the §7.2 fallback has just made visible. */}
       {sub && delta && (
-        <div style={{ fontSize: 10, color: "var(--ink-4)", letterSpacing: "0.02em" }}>{sub}</div>
+        <div style={{ fontSize: 10.5, color: "var(--ink-3)", letterSpacing: "0.02em" }}>{sub}</div>
       )}
     </div>
   );
