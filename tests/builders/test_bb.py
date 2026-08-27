@@ -17,6 +17,16 @@ _LIVE_RESERVES = 34.5478
 
 TODAY = date(2026, 7, 9)
 
+# ── Reserves dating ground truth (issues 207/208, probed 2026-08-25) ────────
+# One figure, two dates: EconDelta's snapshot carries `reserves_date` as a
+# MONTH LABEL that parses to the 1st, while metric_history's
+# `gross_reserves_usd_bn` row — the id fx.py reads for the SAME figure —
+# carries the real month-END session date.
+_AUG_TODAY = date(2026, 8, 25)
+_RESERVES_SESSION = date(2026, 7, 31)   # metric_history's own as_of (what fx.py prints)
+_RESERVES_MONTH_LABEL = "2026-07-01"    # the snapshot's month label (what bb.py printed)
+_RESERVES_VALUE = 36.4222
+
 
 def _snap(**overrides):
     data = {
@@ -232,6 +242,75 @@ def test_reserves_malformed_date_falls_back_to_today():
     s = build(ctx)
     res = _m(s, "bb_gross_reserves")
     assert res.as_of == TODAY
+
+
+def _reserves_ctx(today=_AUG_TODAY):
+    """One shared context carrying the real issue-207/208 reserves shape: the
+    snapshot holds the VALUE plus a month LABEL, metric_history holds the same
+    value under its real month-END session date."""
+    hist = _FakeHistory(latest={
+        **_live_rate_rows(as_of=today),
+        "gross_reserves_usd_bn": HistoryRow(
+            "gross_reserves_usd_bn", _RESERVES_SESSION, _RESERVES_VALUE, "BB"
+        ),
+    })
+    return BuilderContext(
+        snapshot=_snap(
+            gross_reserves_usd_bn=_RESERVES_VALUE,
+            reserves_date=_RESERVES_MONTH_LABEL,
+        ),
+        history=hist,
+        today=today,
+    )
+
+
+def test_reserves_as_of_comes_from_history_not_the_snapshot_month_label():
+    """Issues 207/208: §02 printed "the 1 Jul print" for the SAME 36.4222bn
+    figure §05 dated 31 Jul. The snapshot's `reserves_date` is a month LABEL
+    (parsed to the 1st), not the session the figure describes — metric_history's
+    `gross_reserves_usd_bn` row carries the real month-END date, and that is
+    the one to print. The VALUE still comes from the snapshot; only the date
+    moves (AGENTS.md landmine 35's open bb.py follow-up)."""
+    s = build(_reserves_ctx())
+    res = _m(s, "bb_gross_reserves")
+
+    assert res.as_of == _RESERVES_SESSION
+    assert res.as_of != date(2026, 7, 1)     # the month label must not resurface
+    assert res.value == _RESERVES_VALUE      # value logic unchanged: still the snapshot's
+    assert res.stale is False                # a live snapshot read, not a fallback
+
+
+def test_reserves_as_of_matches_fx_builder():
+    """The cross-section contract this fix exists to restore: §02 (bb) and §05
+    (fx) read the same reserves figure and MUST date it identically. Both
+    builders are run off ONE shared context so a divergence can only come from
+    the builders themselves."""
+    from brief.builders.fx import build as build_fx
+
+    ctx = _reserves_ctx()
+    bb_res = _m(build(ctx), "bb_gross_reserves")
+    fx_res = next(m for m in build_fx(ctx).metrics if m.id == "fx_gross_reserves")
+
+    assert bb_res.label == fx_res.label == "Gross Reserves"
+    assert bb_res.value == fx_res.value == _RESERVES_VALUE
+    assert bb_res.as_of == fx_res.as_of == _RESERVES_SESSION
+
+
+def test_reserves_as_of_falls_back_to_the_snapshot_label_when_history_has_no_row():
+    """History reachable but carrying no reserves row: the snapshot's month
+    label is still the best date available, and stays the fallback. Only the
+    PREFERENCE order changed, not the degradation path."""
+    hist = _FakeHistory(latest=_live_rate_rows(as_of=_AUG_TODAY))  # no reserves row
+    ctx = BuilderContext(
+        snapshot=_snap(
+            gross_reserves_usd_bn=_RESERVES_VALUE, reserves_date=_RESERVES_MONTH_LABEL
+        ),
+        history=hist,
+        today=_AUG_TODAY,
+    )
+    res = _m(build(ctx), "bb_gross_reserves")
+    assert res.as_of == date(2026, 7, 1)
+    assert res.value == _RESERVES_VALUE
 
 
 # ── Structural invariants ────────────────────────────────────────────────────

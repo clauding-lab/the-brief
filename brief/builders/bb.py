@@ -5,8 +5,10 @@ EconDelta re-stamps them daily, so their as_of is a restamp date, NOT a decision
 date — the section must never present it as "the rate changed on this date"
 (AGENTS.md landmine 24). Freshness therefore does not age these off the decision
 date; it checks that the WRITER is still alive (a restamp inside the last week)
-and falls to "stale" when it is not. Reserves is weekly from the EconDelta
-snapshot, with metric_history as the backfill.
+and falls to "stale" when it is not. Reserves takes its VALUE from the EconDelta
+snapshot and its DATE from metric_history's `gross_reserves_usd_bn` row — the
+same row fx.py reads — so §02 and §05 can never date one figure two ways
+(issues 207/208; AGENTS.md landmine 35's bb.py follow-up).
 """
 from __future__ import annotations
 
@@ -145,25 +147,47 @@ def build(ctx: BuilderContext) -> SectionData:
         metrics.append(call_money)
 
     reserves_val = ctx.snapshot.get("gross_reserves_usd_bn")
-    reserves_as_of_str = ctx.snapshot.get("reserves_date")
-    try:
-        reserves_as_of = (
-            date.fromisoformat(reserves_as_of_str) if reserves_as_of_str else ctx.today
-        )
-    except ValueError:
-        reserves_as_of = ctx.today
 
-    # Snapshot empty? Fall back to the last LIVE reading from metric_history.
+    # ── Reserves as_of: the SESSION the figure describes, not a month label ──
     # The live id is `gross_reserves_usd_bn` (matches fx.py); the legacy
     # `bb_gross_reserves` id has had no writer since 2026-03-01 — do NOT read it.
-    # A value sourced from history is marked stale=True.
+    #
+    # Issues 207/208: §02 printed "the 1 Jul print" for the SAME 36.4222bn
+    # figure §05 dated 31 Jul. EconDelta's snapshot carries `reserves_date` as
+    # a MONTH LABEL, which `date.fromisoformat` parses to the 1st, while this
+    # metric_history row — the one fx.py reads for the identical number —
+    # carries the real month-END date. One figure, two dates, in one issue.
+    # So the history row's own `as_of` is now PREFERRED for the date, and the
+    # snapshot stays the VALUE source (value logic is unchanged below).
+    #
+    # This is AGENTS.md landmine 35's open bb.py follow-up, and its precondition
+    # holds: `ctx.history` carries a real per-period `as_of` for the SAME series
+    # the snapshot value came from. ONE extra `get_latest` — landmine 23 governs
+    # `get_history_window` only, and this single call also REPLACES the second
+    # `get_latest` the snapshot-empty fallback below used to issue.
+    reserves_hist = (
+        ctx.history.get_latest("gross_reserves_usd_bn") if ctx.history is not None else None
+    )
+    if reserves_hist is not None:
+        reserves_as_of = reserves_hist.as_of
+    else:
+        # History unreachable, or carrying no reserves row: the snapshot's month
+        # label is still the best date available, then ctx.today for a missing or
+        # malformed one — the pre-fix path, unchanged, now as the fallback.
+        reserves_as_of_str = ctx.snapshot.get("reserves_date")
+        try:
+            reserves_as_of = (
+                date.fromisoformat(reserves_as_of_str) if reserves_as_of_str else ctx.today
+            )
+        except ValueError:
+            reserves_as_of = ctx.today
+
+    # Snapshot empty? Fall back to the last LIVE reading from metric_history —
+    # already fetched above. A value sourced from history is marked stale=True.
     is_stale = False
-    if reserves_val is None and ctx.history is not None:
-        last = ctx.history.get_latest("gross_reserves_usd_bn")
-        if last is not None:
-            reserves_val = last.value
-            reserves_as_of = last.as_of
-            is_stale = True
+    if reserves_val is None and reserves_hist is not None:
+        reserves_val = reserves_hist.value
+        is_stale = True
 
     # No WoW delta: `gross_reserves_usd_bn` is re-stamped, so get_latest() returns
     # TODAY's value (a fabricated ~0 delta). An honest week-ago prior would need a

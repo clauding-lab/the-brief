@@ -231,6 +231,10 @@ def _extract_money_percent_tokens(text: str) -> list[dict[str, Any]]:
             # and `approx` records whether the writer marked their own rounding.
             "scale": scale,
             "approx": bool(m.group("approx")),
+            # Character span within `text` — only `check_year_ago_claims` reads
+            # it, to pick the token NEAREST a phrase rather than any token in
+            # the field. Every other caller ignores it.
+            "span": m.span(),
         })
     return out
 
@@ -310,7 +314,11 @@ def _series_key_unit(key: str) -> str | None:
 
 # The digest fields the editor is actually shown — the complete set of
 # chart values it can honestly cite. See the scope-boundary note above.
-_SERIES_DIGEST_VALUE_FIELDS = ("first_value", "last_value", "min", "max")
+# `value_1y_ago` joined in the issues-207/208 fix: `summarize_series_points`
+# now hands the editor the point one year before `last_ts`, so it is a number
+# the editor legitimately received and may cite (and the honest replacement
+# for the `first_value` misread `check_year_ago_claims` catches below).
+_SERIES_DIGEST_VALUE_FIELDS = ("first_value", "last_value", "min", "max", "value_1y_ago")
 
 
 def _series_summary_entries(series_summary: Any) -> list[dict[str, Any]]:
@@ -332,16 +340,16 @@ def _series_summary_entries(series_summary: Any) -> list[dict[str, Any]]:
 
 
 def _series_summary_periods(series_summary: Any) -> set[tuple[int, int]]:
-    """{(month, year)} for a section's chart endpoints — `first_ts`/`last_ts`
-    are the only two dates the digest exposes, so they are the only two a
-    chart sentence can honestly name."""
+    """{(month, year)} for a section's chart endpoints plus its year-ago point
+    — `first_ts`/`last_ts`/`ts_1y_ago` are the only three dates the digest
+    exposes, so they are the only three a chart sentence can honestly name."""
     periods: set[tuple[int, int]] = set()
     if not isinstance(series_summary, dict):
         return periods
     for digest in series_summary.values():
         if not isinstance(digest, dict):
             continue
-        for field in ("first_ts", "last_ts"):
+        for field in ("first_ts", "last_ts", "ts_1y_ago"):
             d = _parse_iso_date(digest.get(field))
             if d is not None:
                 periods.add((d.month, d.year))
@@ -503,6 +511,20 @@ def _effective_tolerance(token: dict[str, Any], entry: dict[str, Any]) -> float:
     floor = 0.005 * magnitude
     cap = 0.01 * magnitude
     return min(max(base, floor), cap)
+
+
+def _same_bucket(token: dict[str, Any], entry: dict[str, Any]) -> bool:
+    """Whether a prose token and a normalized candidate are comparable at all:
+    same category, and same currency when BOTH sides name one. The rule
+    `_best_match` applies inline; named here so `check_year_ago_claims` shares
+    it rather than restating it."""
+    if entry["category"] != token["category"]:
+        return False
+    return not (
+        token["currency"] is not None
+        and entry["currency"] is not None
+        and token["currency"] != entry["currency"]
+    )
 
 
 def _best_match(
@@ -781,6 +803,172 @@ def check_card_period_vs_chart_series(
     return warnings
 
 
+# ─── WARN-mode: "a year earlier" naming the window start (issues 207/208) ──
+# The defect is a LABEL, not a number. `summarize_series_points` used to hand
+# the editor only {n, first/last, min, max}, so the only backward-looking
+# figure it had was `first_value` — the START of the window. On
+# `cpi_12m_avg_monthly` that window is 24 MONTHS long, so "down from 9.95% a
+# year earlier" cited an Aug-2024 figure as a Jul-2025 one; the true year-ago
+# point was 9.77. Every existing check passed it, correctly: 9.95 really is in
+# the digest. Nothing was comparing the figure to the PERIOD claimed for it.
+#
+# The pipeline half of this fix adds `value_1y_ago`/`ts_1y_ago` to the digest,
+# so there is now an honest number to cite. This check catches prose that
+# still points at the window start.
+#
+# Deliberately narrow, for precision: it fires ONLY when the nearest figure in
+# the same clause matches `first_value` AND fails `value_1y_ago`. A digest with
+# no year-ago point says nothing (no honest alternative exists to name), and a
+# digest whose two values coincide says nothing (nothing to distinguish).
+# WARN-mode, like every check here except `check_count_claims` — AGENTS.md
+# landmine 34.
+#
+# Golden-corpus replay (tests/fixtures/real_issues/, issues #199-#205): 1 true
+# positive, 0 false positives. The hit is issue #205's real
+# `macro.chart_read.signal` — "CPI 12m-avg eased to 8.66% as of the Jul 2026
+# print — down from 9.95% a year earlier" — against a digest whose window
+# starts 2024-08-01 at 9.95 and whose year-ago point is 9.77 at 2025-07-01.
+# #199-#203 carry the phrase zero times; #204 carries it zero times.
+#
+# KNOWN SCOPE LIMIT, inherited not introduced: the same issue's
+# `dse.chart_read.signal` ("up from 5,389.17 a year earlier") is NOT checked,
+# because a bare index number carries no currency symbol and no unit suffix and
+# `_extract_money_percent_tokens` skips those by design (module docstring). A
+# bare digit is far more often a year or a count than a value assertion;
+# widening the extractor for this check would trade one wrong number for a lot
+# of noise everywhere else.
+_YEAR_AGO_PHRASE_RE = re.compile(r"\ba year (?:earlier|ago|back)\b", re.IGNORECASE)
+
+# Clause separators. A decimal point never matches: `[.;:!?]` must be followed
+# by whitespace, and "9.95" has a digit there. The em/en dashes are Master.md's
+# sentence separators, always spaced.
+_CLAUSE_BOUNDARY_RE = re.compile(r"[.;:!?]\s+|\s+[—–]\s+")
+
+
+def _clause_bounds(text: str, at: int) -> tuple[int, int]:
+    """(start, end) of the clause containing offset `at`."""
+    start, end = 0, len(text)
+    for m in _CLAUSE_BOUNDARY_RE.finditer(text):
+        if m.end() <= at:
+            start = m.end()
+        elif m.start() >= at:
+            end = m.start()
+            break
+    return start, end
+
+
+def _nearest_token(clause: str, phrase_at: int) -> dict[str, Any] | None:
+    """The currency/percent token closest to `phrase_at` within `clause`."""
+    tokens = _extract_money_percent_tokens(clause)
+    if not tokens:
+        return None
+    return min(
+        tokens,
+        key=lambda t: min(abs(t["span"][0] - phrase_at), abs(t["span"][1] - phrase_at)),
+    )
+
+
+def _section_prose_fields(section: Any) -> list[tuple[str, str]]:
+    """(field_path, text) for one section's prose surfaces — the same set
+    `check_lede_numbers_against_builder_values` scans, minus `brief.todays_call`
+    which belongs to no section and therefore has no digest to check against.
+
+    Deliberately a separate list rather than a refactor of that check's inline
+    `_scan` calls: it is the module's most corpus-tested function and rewiring
+    its traversal for an unrelated check is not worth the regression risk (the
+    same reasoning `_fetch_series_summaries` records for not refactoring
+    `_stamp_chart_series`)."""
+    fields: list[tuple[str, str]] = []
+    for name in _LEDE_SIMPLE_FIELDS:
+        text = getattr(section, name, None)
+        if text:
+            fields.append((f"{section.slug}.{name}", text))
+    banker_read = getattr(section, "banker_read", None)
+    if banker_read is not None:
+        if banker_read.verdict:
+            fields.append((f"{section.slug}.banker_read.verdict", banker_read.verdict))
+        for i, w in enumerate(banker_read.watch or []):
+            if w:
+                fields.append((f"{section.slug}.banker_read.watch[{i}]", w))
+        for i, r in enumerate(banker_read.risk or []):
+            if r:
+                fields.append((f"{section.slug}.banker_read.risk[{i}]", r))
+    chart_read = getattr(section, "chart_read", None)
+    if chart_read is not None:
+        for name in ("signal", "context", "implication"):
+            text = getattr(chart_read, name, None)
+            if text:
+                fields.append((f"{section.slug}.chart_read.{name}", text))
+    return fields
+
+
+def check_year_ago_claims(
+    final_brief: Any, raw_sections_by_slug: dict[str, dict[str, Any]]
+) -> list[NumberWarning]:
+    """WARN when a figure labelled "a year earlier/ago/back" is the section
+    chart's WINDOW START rather than its year-ago point. See the block comment
+    above for the corpus story and the deliberate narrowness."""
+    warnings: list[NumberWarning] = []
+    for section in final_brief.sections:
+        raw_section = raw_sections_by_slug.get(section.slug)
+        if not isinstance(raw_section, dict):
+            continue
+        summary = raw_section.get("series_summary")
+        if not isinstance(summary, dict):
+            continue
+
+        # (first_value_entry, year_ago_entry, first_ts, ts_1y_ago) per series
+        pairs: list[tuple[dict[str, Any], dict[str, Any], Any, Any]] = []
+        for key, digest in summary.items():
+            if not isinstance(digest, dict):
+                continue
+            unit = _series_key_unit(str(key))
+            if unit is None:
+                continue
+            first = _normalize_metric_value(unit, digest.get("first_value"))
+            year_ago = _normalize_metric_value(unit, digest.get("value_1y_ago"))
+            if first is None or year_ago is None:
+                continue
+            if first["normalized_value"] == year_ago["normalized_value"]:
+                # The window start IS the year-ago point — nothing to mislabel.
+                continue
+            pairs.append((first, year_ago, digest.get("first_ts"), digest.get("ts_1y_ago")))
+        if not pairs:
+            continue
+
+        for field_path, text in _section_prose_fields(section):
+            for phrase in _YEAR_AGO_PHRASE_RE.finditer(text):
+                start, end = _clause_bounds(text, phrase.start())
+                token = _nearest_token(text[start:end], phrase.start() - start)
+                if token is None:
+                    continue
+                for first, year_ago, first_ts, ts_1y_ago in pairs:
+                    if not _same_bucket(token, first):
+                        continue
+                    first_delta = abs(token["normalized_value"] - first["normalized_value"])
+                    if first_delta > _effective_tolerance(token, first):
+                        continue
+                    ago_delta = abs(token["normalized_value"] - year_ago["normalized_value"])
+                    if ago_delta <= _effective_tolerance(token, year_ago):
+                        continue  # it matches the honest point too — not a mislabel
+                    warnings.append(NumberWarning(
+                        kind="year_ago_mislabel",
+                        section=section.slug,
+                        field_path=field_path,
+                        matched_text=(
+                            f"{token['matched_text']} labelled {phrase.group(0)!r} is the "
+                            f"chart's window START ({first_ts}), not its year-ago point "
+                            f"({ts_1y_ago})"
+                        ),
+                        normalized_value=token["normalized_value"],
+                        category=token["category"],
+                        nearest_value=year_ago["normalized_value"],
+                        nearest_delta=ago_delta,
+                    ))
+                    break
+    return warnings
+
+
 # ─── WARN-mode checks ───────────────────────────────────────────────────────
 
 
@@ -1029,6 +1217,7 @@ def run_prose_number_gate(
     warnings.extend(check_lede_numbers_against_builder_values(final_brief, raw_sections))
     warnings.extend(check_hyphenated_count_claims(final_brief))
     warnings.extend(check_card_period_vs_chart_series(final_brief, raw_by_slug))
+    warnings.extend(check_year_ago_claims(final_brief, raw_by_slug))
 
     if warnings and strict:
         raise ProseNumberViolationError(
