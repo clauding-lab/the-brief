@@ -37,6 +37,22 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-27 — v2.3.0+ | Real Policy Rate printed a pre-cut rate's arithmetic: `at_or_before` on a restamped series is not "the value in force"
+
+**Trigger:** an adversarial review of issues 207/208 flagged that the published Real Policy Rate 1.68% implied a 7.82% deflator appearing nowhere in the edition. An Opus investigation against live `metric_history` found there was no 7.82 at all — the real arithmetic was 10.00 − 8.32, and the 10.00 leg was wrong.
+
+**What went wrong:** `brief/builders/macro.py::_real_policy_rate` paired the latest `point_to_point_inflation` (8.32 @ 31 Jul) with the `policy_rate_repo` row `at_or_before` the inflation date. But `policy_rate_repo` is daily-restamped (landmine 24: `as_of` is a restamp date, not a decision date), and EconDelta did not restamp the 30 Jul MPC cut (10.00 → 9.50) until 03 Aug — so `at_or_before(31 Jul)` returned the pre-cut 10.00 and the brief printed 1.68% while attributing it to "after the July cut." The rate in force on 31 Jul was 9.50; the honest figure is 1.18% — a 50bp overstatement of the desk's real-stance read, live across multiple editions, with neither leg of the subtraction visible anywhere in the edition.
+
+**A second lesson from the fix's own review round:** the first cut of the validator exemption for the new machine-stamped provenance sub skipped the WHOLE `sub` field — but the stamper *appends* to the editor's sentence, so the exemption would have un-checked real editor prose riding in the same field (probe: an invented "0.34%" and a wrong "September" sailed through). An exemption keyed on a metric must be scoped to the text the machine actually wrote, because stampers append.
+
+**Lesson:** on a daily-restamped series, `at_or_before(date)` returns the restamp *lag*, not the value in force on that date — whenever a decision date sits between the fetched row and the reading being paired with it, the fetched row is stale by construction.
+
+**Prevention:** (1) the restamp-lag guard in `_real_policy_rate` — when `bb._LAST_MPC_DECISION <= inflation.as_of`, the repo leg resolves from the latest row, bounded by `_REAL_POLICY_MAX_MONTHS_APART = 4` (suppress past it, landmine 27b); (2) the published metric's `sub` is machine-stamped with both legs and the decision date — "9.50% repo (30 Jul cut) − 8.32% Jul p2p CPI" — via the landmine-34 source-marker mechanism, labels normalized on both sides; (3) the validator exemption covers ONLY the reconstructed machine segment, verified end-to-end on live data (editor's invented tokens still caught beside the exempt machine legs); (4) guard tests monkeypatch `_LAST_MPC_DECISION` so they pin ordering logic, not the August-2026 calendar, and the guard's known bound (a newer decision + a stalled CPI print reverts to the at_or_before branch) is pinned as documented behavior. **Residual live hole, on the record:** `_LAST_MPC_DECISION` is hand-maintained; nothing yet detects it going stale against production corridor movement — a tripwire is the open follow-up.
+
+**Hotfix:** `fix(macro)` (owner-approved — the fix moves a published financial figure and was explicitly signed off before shipping).
+
+**Cross-references:** AGENTS.md landmine 24 (amended with the `at_or_before` corollary in this same PR); auto-memory `project_card_honesty_fix_2026_08_24`; investigation + designs first recorded in PR #185's "withheld for owner decision" section.
+
 ## 2026-08-24 — unreleased | Repair: the CPI honesty gate's allowlist deleted 20 months of real chart history it was never meant to touch
 
 **Trigger:** two adversarial reviewers, before merge, independently ran the just-shipped `fetch_macro_cpi_series` allowlist (the issue-206 CPI fix, same day) against live production Supabase and got 4 chart points instead of 24 for every CPI series but one.
