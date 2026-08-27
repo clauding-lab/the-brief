@@ -72,6 +72,14 @@ def _at_or_before(client, metric_id: str, as_of: date, *, table: str) -> History
     return row
 
 
+# Review round 2026-08-27: the guard branch resolves the repo leg from the
+# LATEST restamp, which is unbounded in time — same failure shape the import
+# cover gate below already guards against, so it takes the same 4-month
+# bound. Past it the pair is not period-consistent and the metric is
+# suppressed (landmine 27(b)) rather than printed with an invented vintage.
+_REAL_POLICY_MAX_MONTHS_APART = 4
+
+
 def _real_policy_rate(ctx: "BuilderContext") -> tuple[float | None, date | None, str | None]:
     """Real policy rate = the repo rate IN FORCE on the inflation reading's
     date, minus that same reading (period-consistent; P0 honesty fix, 2026-08-22
@@ -93,21 +101,129 @@ def _real_policy_rate(ctx: "BuilderContext") -> tuple[float | None, date | None,
     by construction. Before #126 the two ids carried the same p2p number, so
     this repoint changes nothing retroactively; after it, each id has one
     well-defined meaning. Owner veto invited (landmine 49(a) pairing).
+
+    THE RESTAMP-LAG GUARD (2026-08-26)
+    ----------------------------------
+    "The repo rate at_or_before the inflation date" is only the rate in force
+    if EconDelta had already restamped the corridor by then. It hadn't. The
+    30 Jul MPC cut (10.00 -> 9.50) did not reach `policy_rate_repo` until
+    03 Aug, so every restamped row from 25 Jul through 02 Aug still carried
+    10.00 — including the 31 Jul row this function reads for July's CPI
+    print. Landmine 24 in one line: `as_of` on a `policy_rate_*` row is the
+    day EconDelta re-upserted it, never the day the corridor moved.
+
+    Production shipped the consequence on 2026-08-26: 10.00 - 8.32 = 1.68%,
+    presented as the real rate "after the July cut" while being computed
+    entirely from the PRE-cut rate. The honest figure is 9.50 - 8.32 = 1.18%,
+    a 50bp overstatement of how restrictive policy actually is.
+
+    So: when the latest MPC decision landed ON or BEFORE the inflation
+    reading's own date (`bb._LAST_MPC_DECISION <= inflation.as_of`), the
+    corridor had already moved by the time that CPI print was taken, and the
+    `at_or_before` row is suspect — resolve the repo leg from the LATEST row
+    instead. That row is safe *precisely because* `_LAST_MPC_DECISION` is the
+    most recent decision: if it is not after the inflation date, then no
+    decision is, so today's standing corridor IS the rate that was in force.
+    When the decision is LATER than the inflation date (June's print vs the
+    30 Jul cut) the guard stays out of the way and `at_or_before` remains
+    correct — that case still reads 10.00 - 9.16 = 0.84%.
+
+    `_LAST_MPC_DECISION` is imported rather than re-declared so there is one
+    decision date in the codebase; `tests/builders/test_bb.py::
+    test_fallback_constants_match_the_latest_mpc_decision` pins it, and
+    landmine 24 already requires bumping it in the PR that reacts to a move.
+    The guard reads with `get_latest`, never `get_history_window` — landmine
+    23 forbids a builder opening a second window fetch.
+
+    Either leg missing returns all-None: half a derivation is not a number
+    (landmine 27(b)). The third element is a provenance note naming BOTH legs
+    and the inflation month; `pipeline_v6._stamp_real_policy_rate_sub` is what
+    carries it to the reader, since `MetricV6` has no `source` field.
+
+    THE GUARD'S OWN BOUNDS (review round, 2026-08-27)
+    -------------------------------------------------
+    (1) STALENESS. `get_latest` returns the freshest restamp however far it
+    has drifted from the CPI print. A corridor that keeps restamping while
+    the inflation feed dies would otherwise pair, say, a 2027 rate with a
+    2026 reading and date the difference by the 2026 reading. The guard
+    branch is bounded by `_REAL_POLICY_MAX_MONTHS_APART`, the same 4-month
+    shape (and same rationale) as `_IMPORT_COVER_MAX_MONTHS_APART`; past it
+    the metric is suppressed rather than invented.
+
+    (2) SINGLE DECISION DATE — a known, documented limit, not an oversight.
+    `_LAST_MPC_DECISION` records only the MOST RECENT move, so once a NEWER
+    decision lands while the CPI feed is still stalled on an older print, the
+    comparison goes False again and the at_or_before branch resumes — which
+    can re-print the very restamp-lag value this fix removes. Pinned by
+    `test_real_policy_rate_after_a_newer_decision_reverts_to_the_at_or_before_branch`
+    so it can only ever change deliberately. Closing it properly needs a real
+    corridor EFFECTIVE-DATE series from EconDelta (each rate carrying the day
+    it began to apply), not more inference here.
     """
+    # Local import: `bb` and `macro` are sibling builders with no import
+    # relationship otherwise, and this keeps the decision date single-sourced.
+    from brief.builders.bb import _LAST_MPC_DECISION
+
     if ctx.history is None:
         return (None, None, None)
     inflation = _latest(ctx.history, "point_to_point_inflation", table="metric_history")
     if inflation is None or not isinstance(inflation.value, (int, float)):
         logger.warning("macro: real_policy_rate suppressed — point_to_point_inflation unavailable")
         return (None, None, None)
-    repo = _at_or_before(ctx.history, "policy_rate_repo", inflation.as_of, table="metric_history")
-    if repo is None or not isinstance(repo.value, (int, float)):
-        logger.warning(
-            "macro: real_policy_rate suppressed — no policy_rate_repo at or before %s",
-            inflation.as_of,
+
+    if _LAST_MPC_DECISION <= inflation.as_of:
+        # Corridor moved on or before this CPI print — the at_or_before row
+        # may still be a pre-decision restamp. Take the standing corridor.
+        repo = _latest(ctx.history, "policy_rate_repo", table="metric_history")
+        if repo is None or not isinstance(repo.value, (int, float)):
+            logger.warning(
+                "macro: real_policy_rate suppressed — no latest policy_rate_repo to "
+                "resolve the rate in force on %s (MPC decision %s)",
+                inflation.as_of, _LAST_MPC_DECISION,
+            )
+            return (None, None, None)
+        gap = months_apart(repo.as_of, inflation.as_of)
+        if gap > _REAL_POLICY_MAX_MONTHS_APART:
+            logger.warning(
+                "macro: real_policy_rate suppressed — the latest policy_rate_repo "
+                "restamp (%s) is %d months from the %s inflation print (max %d); "
+                "pairing them would date a much later rate by a much older reading",
+                repo.as_of, gap, inflation.as_of, _REAL_POLICY_MAX_MONTHS_APART,
+            )
+            return (None, None, None)
+        logger.info(
+            "macro: real_policy_rate repo leg taken from the LATEST restamp (%.2f) — "
+            "the %s MPC decision predates the %s inflation print, so the at_or_before "
+            "row can still carry the pre-decision rate",
+            repo.value, _LAST_MPC_DECISION, inflation.as_of,
         )
-        return (None, None, None)
-    return (repo.value - inflation.value, inflation.as_of, None)
+        # The repo leg is dated by the DECISION, never by `repo.as_of` — that
+        # is a restamp date, and landmine 24 forbids presenting it as the day
+        # the rate changed. This is the branch where the two differ.
+        repo_leg = f"{repo.value:.2f}% repo ({_LAST_MPC_DECISION:%-d %b} cut)"
+    else:
+        repo = _at_or_before(
+            ctx.history, "policy_rate_repo", inflation.as_of, table="metric_history"
+        )
+        if repo is None or not isinstance(repo.value, (int, float)):
+            logger.warning(
+                "macro: real_policy_rate suppressed — no policy_rate_repo at or before %s",
+                inflation.as_of,
+            )
+            return (None, None, None)
+        # No decision sits between the two vintages, so there is no cut to
+        # name and nothing the undated form could mislead about.
+        repo_leg = f"{repo.value:.2f}% repo"
+
+    # "repo" + "p2p CPI" is the marker pair `pipeline_v6._stamp_real_policy_
+    # rate_sub` and `validators.prose_numbers._is_machine_stamped_real_policy_
+    # rate` both key on — change the wording here and both must move with it.
+    # Minus is Master.md's GLYPH (−, U+2212), never the ASCII hyphen.
+    note = (
+        f"BB+BBS ({repo_leg} − {inflation.value:.2f}% "
+        f"{inflation.as_of:%b} p2p CPI)"
+    )
+    return (repo.value - inflation.value, inflation.as_of, note)
 
 
 # ORCHESTRATOR DECISION (2026-08-22 audit #204, review round 1, H1): import
@@ -256,7 +372,9 @@ def _latest(client, metric_id: str, *, table: str) -> HistoryRow | None:
     A macro metric going dark must not take the section — or the issue — down;
     a missing row already renders as "unavailable". Feeds 5 of the section's
     8 published metrics (the 3 direct `live_id` reads, plus `point_to_point_inflation`
-    inside `_real_policy_rate` and `gross_reserves_usd_bn` inside
+    inside `_real_policy_rate` — which since 2026-08-26 also reads
+    `policy_rate_repo` through here on its restamp-lag branch — and
+    `gross_reserves_usd_bn` inside
     `_import_cover`), so a silent swallow here was a wide blind spot — logs a
     WARNING naming the metric id on both non-success paths (M-C, review
     round 2, matching the M3 treatment already given to `official_monthly_bn`

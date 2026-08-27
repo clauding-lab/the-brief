@@ -654,6 +654,159 @@ def test_stamp_import_cover_sub_is_a_noop_when_no_macro_section_in_raw() -> None
     assert brief.sections[0].metrics[0].sub is None
 
 
+# ── _stamp_real_policy_rate_sub (2026-08-26) — same mechanism as the import
+# cover stamp: the builder records "which repo rate minus which CPI print" on
+# the RAW metric's `source`, and this pass is the only thing that carries it
+# to the reader, because MetricV6 has no `source` field. ────────────────────
+
+_RPR_NOTE = "BB+BBS (9.50% repo (30 Jul cut) − 8.32% Jul p2p CPI)"
+_RPR_SUB = "9.50% repo (30 Jul cut) − 8.32% Jul p2p CPI"
+
+
+def _macro_raw_sections_with_real_policy_rate(
+    source: str | None, value: float | None = 1.18,
+) -> list[dict]:
+    return [{
+        "slug": "macro",
+        "metrics": [{"label": "Real Policy Rate", "value": value, "source": source}],
+    }]
+
+
+def _macro_brief_with_real_policy_rate_sub(
+    sub: str | None, *, label: str = "Real Policy Rate",
+) -> BriefPayloadV6:
+    return BriefPayloadV6.model_validate({
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-05-05"},
+        "sections": [{
+            "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+            "weight": 1,
+            "metrics": [{"label": label, "value": "1.2%", "sub": sub}],
+        }],
+    })
+
+
+def test_stamp_real_policy_rate_sub_appends_the_note_when_the_editor_dropped_it() -> None:
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = _macro_raw_sections_with_real_policy_rate(_RPR_NOTE)
+    brief = _macro_brief_with_real_policy_rate_sub(None)
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == _RPR_SUB
+
+
+def test_stamp_real_policy_rate_sub_appends_to_existing_editor_prose_not_replaces_it() -> None:
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = _macro_raw_sections_with_real_policy_rate(_RPR_NOTE)
+    brief = _macro_brief_with_real_policy_rate_sub("Positive real rates, barely.")
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == f"Positive real rates, barely. · {_RPR_SUB}"
+
+
+def test_stamp_real_policy_rate_sub_is_a_noop_when_already_present() -> None:
+    """Never double-appends on a re-run."""
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = _macro_raw_sections_with_real_policy_rate(_RPR_NOTE)
+    brief = _macro_brief_with_real_policy_rate_sub(_RPR_SUB)
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == _RPR_SUB
+
+
+def test_stamp_real_policy_rate_sub_is_a_noop_when_the_metric_is_suppressed() -> None:
+    """A missing leg suppressed the derivation — the spec's plain default
+    source survives and there is no arithmetic to disclose."""
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = _macro_raw_sections_with_real_policy_rate("BB+BBS", value=None)
+    brief = _macro_brief_with_real_policy_rate_sub(None)
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub is None
+
+
+def test_stamp_real_policy_rate_sub_is_a_noop_when_no_macro_section_in_raw() -> None:
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    brief = _macro_brief_with_real_policy_rate_sub(None)
+    _stamp_real_policy_rate_sub(brief, [])
+    assert brief.sections[0].metrics[0].sub is None
+
+
+def test_stamp_real_policy_rate_sub_carries_the_repo_leg_the_builder_actually_used() -> None:
+    """Never a hardcoded corridor rate: whatever the builder resolved is what
+    the reader sees. Pre-cut shape (June, at_or_before branch) stamps 10.00,
+    not 9.50, and carries no decision parenthetical."""
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = _macro_raw_sections_with_real_policy_rate(
+        "BB+BBS (10.00% repo − 9.16% Jun p2p CPI)", value=0.84,
+    )
+    brief = _macro_brief_with_real_policy_rate_sub(None)
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == "10.00% repo − 9.16% Jun p2p CPI"
+
+
+# ── REVIEW FIX 2: both stampers must match labels the way every other
+# post-editor pass does. `_reject_invented_and_dedupe` keeps the EDITOR'S
+# casing, so an editor writing "Real policy rate" (one lowercase letter)
+# previously got NO provenance stamp at all — and, worse, still tripped the
+# validator's source-marker exemption, leaving its prose unchecked. ────────
+
+def test_stamp_real_policy_rate_sub_matches_a_label_the_editor_recased() -> None:
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = _macro_raw_sections_with_real_policy_rate(_RPR_NOTE)
+    brief = _macro_brief_with_real_policy_rate_sub(None, label="Real policy rate")
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == _RPR_SUB
+
+
+def test_stamp_import_cover_sub_matches_a_label_the_editor_recased() -> None:
+    from brief.pipeline_v6 import _stamp_import_cover_sub
+
+    raw = _macro_raw_sections_with_import_cover("BB (reserves 31 Jul ÷ Mar import bill)")
+    brief = BriefPayloadV6.model_validate({
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-05-05"},
+        "sections": [{
+            "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+            "weight": 1,
+            "metrics": [{"label": "Import cover", "value": "6.25", "sub": None}],
+        }],
+    })
+
+    _stamp_import_cover_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == "reserves 31 Jul ÷ Mar import bill"
+
+
+def test_stamp_real_policy_rate_sub_reads_a_raw_label_the_builder_recased() -> None:
+    """Normalization must apply to the RAW side of the lookup too, not only
+    the published side."""
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = [{
+        "slug": "macro",
+        "metrics": [{"label": "  REAL POLICY RATE ", "value": 1.18, "source": _RPR_NOTE}],
+    }]
+    brief = _macro_brief_with_real_policy_rate_sub(None)
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == _RPR_SUB
+
+
 # ── P2 fact-checker (2026-08-22 audit #204) — prose-number gate wiring ──────
 
 

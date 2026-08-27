@@ -591,6 +591,157 @@ def test_import_cover_exemption_does_not_leak_to_other_macro_metrics():
     assert "September" in warnings[0].matched_text
 
 
+# ─── the Real Policy Rate machine stamp (2026-08-26) ───────────────────────
+# `pipeline_v6._stamp_real_policy_rate_sub` writes the metric's own
+# arithmetic into `sub` ("9.50% repo − 8.32% Jul p2p CPI"). Neither leg is a
+# macro raw value — the repo rate lives in the BB section and the p2p CPI
+# print is an INPUT to the derivation, never published as its own macro
+# metric — and the month it names is the inflation reading's, not necessarily
+# the metric's own period. Deterministic pipeline output must never WARN, so
+# the exemption keys on the same raw `source` marker the stamper itself uses.
+
+_RPR_RAW_SOURCE = "BB+BBS (9.50% repo (30 Jul cut) − 8.32% Jul p2p CPI)"
+_RPR_STAMPED_SUB = "9.50% repo (30 Jul cut) − 8.32% Jul p2p CPI"
+
+
+def _real_policy_rate_raw_and_brief(
+    source: str, *, as_of: str = "2026-07-31", sub: str = _RPR_STAMPED_SUB,
+):
+    raw = {"macro": _raw_section("macro", [
+        {"label": "Real Policy Rate", "value": 1.18, "unit": "%", "as_of": as_of,
+         "cadence": "monthly", "source": source},
+        {"label": "CPI 12m Avg", "value": 5.2, "unit": "%", "as_of": as_of,
+         "cadence": "monthly"},
+    ])}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Real Policy Rate", "value": "1.2%", "sub": sub}],
+    }])
+    return raw, brief
+
+
+def test_machine_stamped_real_policy_rate_segment_is_exempt_from_the_number_check():
+    raw, brief = _real_policy_rate_raw_and_brief(_RPR_RAW_SOURCE)
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
+def test_machine_stamped_real_policy_rate_segment_is_exempt_from_the_period_check():
+    """The stamped segment names the CPI month and the MPC decision month by
+    construction. Fixture forces a divergence from the metric's own period so
+    the assertion is not vacuous."""
+    raw, brief = _real_policy_rate_raw_and_brief(_RPR_RAW_SOURCE, as_of="2026-08-31")
+    assert check_metric_sub_periods(brief, raw) == []
+
+
+def test_real_policy_rate_period_exemption_needs_the_marker_not_the_label():
+    raw, brief = _real_policy_rate_raw_and_brief("BB+BBS", as_of="2026-08-31")
+    assert check_metric_sub_periods(brief, raw) != []
+
+
+def test_real_policy_rate_exemption_needs_the_marker_not_the_label():
+    """Without the stamper's marker on the raw `source`, the same sub is
+    editor prose again and warns normally — the exemption tracks the
+    MECHANISM that produced the text, not the metric's display name."""
+    raw, brief = _real_policy_rate_raw_and_brief("BB+BBS")
+    assert check_metric_sub_numbers(brief, raw) != []
+
+
+# ── REVIEW FIX 1: the exemption is scoped to the MACHINE SEGMENT ────────────
+# `_stamp_real_policy_rate_sub` APPENDS its note to whatever the editor
+# already wrote (" · " separator). A whole-field exemption therefore stopped
+# checking the EDITOR'S OWN prose in the same `sub` — a strictly worse
+# outcome than before the stamp existed, since the editor's numbers are
+# exactly what the gate is for. Only the deterministic segment is removed;
+# the remainder is checked normally.
+
+_EDITOR_PROSE = "Positive but thin, up from 0.34% in June and 99.9% off the 2023 peak."
+
+
+def test_editor_prose_beside_the_machine_stamp_is_still_checked():
+    """The reviewer's probe, as a fixture. `0.34%` and `99.9%` are the
+    editor's own inventions and trace to nothing in the macro section — they
+    must warn even though the same `sub` carries a machine segment."""
+    raw, brief = _real_policy_rate_raw_and_brief(
+        _RPR_RAW_SOURCE, sub=f"{_EDITOR_PROSE} · {_RPR_STAMPED_SUB}",
+    )
+    matched = {w.matched_text for w in check_metric_sub_numbers(brief, raw)}
+    assert "0.34%" in matched
+    assert "99.9%" in matched
+
+
+def test_the_machine_segments_own_legs_never_warn_beside_editor_prose():
+    """The other half of the same fixture: the stamp's two legs are removed
+    before checking, so neither the repo leg nor the CPI leg contributes a
+    warning even when the field also carries editor prose."""
+    raw, brief = _real_policy_rate_raw_and_brief(
+        _RPR_RAW_SOURCE, sub=f"{_EDITOR_PROSE} · {_RPR_STAMPED_SUB}",
+    )
+    matched = {w.matched_text for w in check_metric_sub_numbers(brief, raw)}
+    assert "8.32%" not in matched
+    assert "9.50%" not in matched
+
+
+def test_editor_month_beside_the_machine_stamp_is_still_checked():
+    """Same scoping for the period check: the editor's invented September
+    warns; the segment's own Jul tokens do not."""
+    raw, brief = _real_policy_rate_raw_and_brief(
+        _RPR_RAW_SOURCE, as_of="2026-08-31",
+        sub=f"September print eases further. · {_RPR_STAMPED_SUB}",
+    )
+    warnings = check_metric_sub_periods(brief, raw)
+    assert len(warnings) == 1
+    assert "September" in warnings[0].matched_text
+
+
+def test_import_cover_editor_prose_is_checked_on_a_production_shaped_sub():
+    """The commit's original "provable no-op for import cover" claim was
+    FALSE for production shapes — the golden corpus simply carries no
+    `source` key, so the exemption could not fire there at all. Against a
+    production-shaped raw metric it did fire, and it silenced the editor's
+    own numbers. This pins them back."""
+    raw = {"macro": _raw_section("macro", [
+        {"label": "Import Cover", "value": 6.25, "unit": "months", "as_of": "2026-03-31",
+         "cadence": "monthly", "source": "BB (reserves 31 Jul ÷ Mar import bill)"},
+    ])}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Import Cover", "value": "6.25",
+                     "sub": "Reserves would cover $99.9bn at 12.5% cover. "
+                            "· reserves 31 Jul ÷ Mar import bill"}],
+    }])
+    matched = {w.matched_text for w in check_metric_sub_numbers(brief, raw)}
+    assert "$99.9bn" in matched
+    assert "12.5%" in matched
+
+
+def test_import_cover_machine_segment_alone_still_warns_nothing():
+    """The scoping must not regress the original exemption: a `sub` that is
+    ONLY the machine segment stays clean on both checks."""
+    raw = {"macro": _raw_section("macro", [
+        {"label": "Import Cover", "value": 6.25, "unit": "months", "as_of": "2026-03-31",
+         "cadence": "monthly", "source": "BB (reserves 31 Jul ÷ Mar import bill)"},
+    ])}
+    brief = _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "metrics": [{"label": "Import Cover", "value": "6.25",
+                     "sub": "reserves 31 Jul ÷ Mar import bill"}],
+    }])
+    assert check_metric_sub_numbers(brief, raw) == []
+    assert check_metric_sub_periods(brief, raw) == []
+
+
+def test_machine_segment_exemption_survives_a_label_the_editor_recased():
+    """Review fix 2's other half: the validator already normalizes labels, so
+    a recased published label must still find its raw metric — otherwise the
+    machine segment is checked as if it were editor prose."""
+    raw, brief = _real_policy_rate_raw_and_brief(_RPR_RAW_SOURCE)
+    brief.sections[0].metrics[0].label = "Real policy rate"
+    assert check_metric_sub_numbers(brief, raw) == []
+
+
 # ─── WARN: check_metric_value_vs_raw (new, item 4) ─────────────────────────
 
 

@@ -628,6 +628,97 @@ def _is_machine_stamped_dual_period(raw_metric: dict[str, Any]) -> bool:
     return "reserves" in src and _IMPORT_COVER_SOURCE_MARKER in src
 
 
+# Matches pipeline_v6._REAL_POLICY_RATE_SUB_MARKER exactly — the same
+# mechanism as the import-cover marker above, one metric later.
+# `_stamp_real_policy_rate_sub` deterministically stamps the macro Real
+# Policy Rate metric's `sub` with its own arithmetic ("9.50% repo (30 Jul
+# cut) − 8.32% Jul p2p CPI"), sourced from the raw builder metric's OWN
+# `source`.
+#
+# CORRECTED in the 2026-08-27 review round. An earlier version of this
+# comment claimed BOTH legs are untraceable "because the corridor anchor
+# entries only reach *other* sections". That is wrong:
+# `_corridor_anchor_entries` is called with `exclude_slug=section.slug`, so
+# for the macro section it INCLUDES the bb section's repo/SDF/SLF anchors —
+# the repo leg is already reachable and needs no exemption. The leg that
+# genuinely needs one is the p2p CPI print: it is an INPUT to the
+# derivation, published by macro under no metric of its own, so it traces to
+# nothing. The month tokens ("30 Jul cut", "Jul p2p CPI") need the same
+# treatment — a stamp the pipeline wrote itself is not a hallucination to
+# catch.
+_REAL_POLICY_RATE_SOURCE_MARKER = "p2p cpi"
+
+# The exact-cased markers the pipeline stampers slice on. Detection stays
+# case-insensitive (the predicates above); the SLICE mirrors what
+# `pipeline_v6` actually wrote, and any case drift returns None — which
+# checks the whole field, the safe direction.
+_IMPORT_COVER_SLICE_MARKER = "import bill"
+_REAL_POLICY_RATE_SLICE_MARKER = "p2p CPI"
+# The separator both stampers join their note on when the editor already
+# wrote something (`f"{current} · {note}"`).
+_MACHINE_SUB_SEPARATOR = " · "
+
+
+def _is_machine_stamped_real_policy_rate(raw_metric: dict[str, Any]) -> bool:
+    src = str(raw_metric.get("source") or "").lower()
+    return "repo" in src and _REAL_POLICY_RATE_SOURCE_MARKER in src
+
+
+def _machine_stamped_note(raw_metric: dict[str, Any]) -> str | None:
+    """Reconstruct the EXACT segment a `pipeline_v6` stamper derives from
+    this raw metric's `source`, mirroring that stamper's own slicing.
+
+    Returns None when no stamper applies, so the caller checks the whole
+    field. Detection is by the raw `source` marker (never the display label)
+    so it tracks the mechanism that produces the text.
+    """
+    src = str(raw_metric.get("source") or "")
+    if _is_machine_stamped_dual_period(raw_metric):
+        start = src.find("reserves")
+        end = src.find(_IMPORT_COVER_SLICE_MARKER)
+        if start >= 0 and end > start:
+            return src[start:end + len(_IMPORT_COVER_SLICE_MARKER)]
+    if _is_machine_stamped_real_policy_rate(raw_metric):
+        start = src.find("(") + 1
+        end = src.find(_REAL_POLICY_RATE_SLICE_MARKER)
+        if start > 0 and end > start:
+            return src[start:end + len(_REAL_POLICY_RATE_SLICE_MARKER)]
+    return None
+
+
+def _editor_written_sub(pub_sub: str, raw_metric: dict[str, Any] | None) -> str:
+    """The part of a published `sub` the EDITOR wrote.
+
+    REVIEW FIX (2026-08-27). Both stampers APPEND — `f"{current} · {note}"` —
+    so a whole-field exemption stopped checking the editor's own prose in any
+    sub that also carried a stamp. That is strictly worse than having no
+    stamp at all: the editor's numbers are exactly what this gate exists to
+    check, and the machine's are the only ones that never needed checking.
+    Probe that found it: an editor sub reading "…up from 0.34% in June and
+    99.9% off the 2023 peak. · 9.50% repo − 8.32% Jul p2p CPI" produced ZERO
+    warnings under the whole-field exemption; 0.34%, 99.9% and an invented
+    month all sailed through.
+
+    So: remove exactly the machine segment (plus the separator it was joined
+    with) and hand the remainder back to be checked normally. When the
+    published text does not contain the reconstructed segment — the editor
+    wrote its own version rather than the stamper appending one — nothing is
+    removed and the whole field is checked.
+    """
+    if raw_metric is None:
+        return pub_sub
+    note = _machine_stamped_note(raw_metric)
+    if not note:
+        return pub_sub
+    idx = pub_sub.find(note)
+    if idx < 0:
+        return pub_sub
+    start = idx
+    if pub_sub[:idx].endswith(_MACHINE_SUB_SEPARATOR):
+        start = idx - len(_MACHINE_SUB_SEPARATOR)
+    return (pub_sub[:start] + pub_sub[idx + len(note):]).strip()
+
+
 # ─── count-claim pattern ───────────────────────────────────────────────────
 # Round-2 corpus replay (25 real issues, #180-#204): narrowed from
 # (reads|prints|sessions|days) to (reads|prints) — "days" and "sessions"
@@ -992,10 +1083,17 @@ def check_metric_sub_numbers(
             + _grounding_entries(raw_section)
             + _corridor_anchor_entries(raw_sections_by_slug, exclude_slug=section.slug)
         )
+        raw_by_label = _raw_metric_by_label(raw_metrics)
         for i, pub_metric in enumerate(section.metrics):
             if not pub_metric.sub:
                 continue
-            for token in _extract_money_percent_tokens(pub_metric.sub):
+            raw_metric = raw_by_label.get(_normalize_label(pub_metric.label))
+            # Only the deterministic machine segment is dropped — the
+            # editor's own prose in the same field is still checked.
+            sub_text = _editor_written_sub(pub_metric.sub, raw_metric)
+            if not sub_text:
+                continue
+            for token in _extract_money_percent_tokens(sub_text):
                 matched, nearest_value, nearest_delta = _best_match(token, allowed)
                 if not matched:
                     warnings.append(NumberWarning(
@@ -1046,11 +1144,16 @@ def check_metric_sub_periods(
                 # decision date ("held since the 30 Jul cut") which has
                 # nothing to do with its daily-restamped `as_of` — landmine 24.
                 continue
-            if raw_metric is not None and _is_machine_stamped_dual_period(raw_metric):
-                # `_stamp_import_cover_sub` deliberately names TWO different
-                # months by construction — not a hallucination to catch.
+            # `_stamp_import_cover_sub` deliberately names TWO different
+            # months by construction, and `_stamp_real_policy_rate_sub` names
+            # the CPI month and the MPC decision month — deterministic
+            # pipeline output, not hallucinations to catch. Only that segment
+            # is dropped; an invented month in the editor's own half of the
+            # same field still warns.
+            sub_text = _editor_written_sub(pub_metric.sub, raw_metric)
+            if not sub_text:
                 continue
-            for match in _MONTH_TOKEN_RE.finditer(pub_metric.sub):
+            for match in _MONTH_TOKEN_RE.finditer(sub_text):
                 month_num = _MONTH_NAMES.get(match.group(1).lower())
                 if month_num is None:
                     continue
