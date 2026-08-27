@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- The fabricated session-count claim that shipped four editions in a row now HOLDS the publish instead of logging a warning — scoped to the DSE section, and owner-approved. "A ten-session low" appeared byte-identical across issues 205, 206, 207 and 208 while the real rank ran 38 → 41 → 42; the check that catches it has been warn-only since it was written. Two things changed that. The four fabricated editions are on the record, and the pipeline now computes the real rank itself and hands it to the editor as a history fact (the 2026-08-27 session-low anchor). So the check first asks whether a claim's number matches a machine-supplied count for that same section: if it does, the claim is the honest output the anchor exists to produce and nothing fires at all. If it does not — including when no fact was available, which is a legitimate pipeline state the rank guards produce deliberately — then in the DSE section the number was invented, and the publish is held with the same error and the same exit code as the existing sourceless count-claim block. Every other section still only warns, because none of them has a machine-supplied count to have used instead, so a finding there means "unverifiable", not "invented".
+
+  The hold is deliberately narrow, after an adversarial review demonstrated three honest sentences being held by a first cut. Only a session, print, or read **low** can hold a publish. A "52-week low" is ordinary market prose anyone can compute from a price series; a "five-session high" or a "three-day run" has no possible machine counterpart, because the only rank the pipeline computes is how far back the last LOWER close sits — so blocking those would hold the morning on a sentence the editor has no correct way to rewrite. Those all warn, as does a phrase naming no number at all ("a multi-session low"). Count words are read whole, compounds included, so "a forty-two-session low" clears a rank of 42 rather than being misread as two. An integer rank still gets no tolerance: 40 against a true 42 is simply wrong.
+
+  One asymmetry worth naming: the supply side fails open (a chart-fetch hiccup yields no facts and the brief still runs) while the claim side now fails closed, so a fetch failure plus a habitual phrase would hold that morning's edition. A rank only exists on roughly 31% of mornings anyway — on the rest there is no honest count to print either — and a held publish is visible and recoverable in a way that four editions of a fabricated figure were not.
+
+  Verified read-only against the live edition on the front page (issue 209, 27 Aug 2026): zero count claims anywhere in it, so it would have published untouched.
+
 ## [2.3.0] — 2026-08-27
 
 The 1c facelift, shipped as four PRs against the twice-verified build contract in `docs/facelift-spec.md` (in-repo since #179).
