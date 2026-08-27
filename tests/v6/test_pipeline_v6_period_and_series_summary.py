@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from brief.pipeline_v6 import (
@@ -264,6 +264,185 @@ def test_daily_as_of_check_ignores_metric_with_no_matching_series_key():
         "series_summary": {"dsex": {"last_ts": "2026-08-23"}},
     }]
     assert _check_daily_as_of_vs_series_summary(raw_sections) == []
+
+
+# ─── dse session-low history fact (issues 205-208) ────────────────────────
+#
+# `dse` emits NO history_facts, so "a ten-session low" was editor-invented —
+# byte-identical across issues 205-208 while the true rank ran 38 / 41 / 42.
+# The rank is computable from the dsex series the pipeline already fetches.
+
+
+def _daily_points(key: str, start: date, values: list[float]) -> list[SeriesPointV6]:
+    """One point per calendar day from `start`, ascending. Calendar gaps are
+    irrelevant to a SESSION count — the rank counts points, not days."""
+    return [
+        SeriesPointV6(key=key, ts=(start + timedelta(days=i)).isoformat(), value=v)
+        for i, v in enumerate(values)
+    ]
+
+
+def _dsex_points_for_a_42_session_low() -> list[SeriesPointV6]:
+    """The real DSEX tail from issues 206-208 (20-25 Aug 2026 closes) sitting on
+    top of a run of higher closes, arranged so the most recent LOWER close sits
+    EXACTLY 42 points back from the 25 Aug endpoint — the rank the investigation
+    measured for that session.
+
+    Walking back from 5,640.09: 5,643.57 / 5,722.21 / 5,786.08 (k=1..3), then
+    38 higher padded closes (k=4..41), then 5,601.44 at k=42.
+    """
+    padding = _daily_points("dsex", date(2026, 6, 15), [5900.0] * 5)
+    last_lower = [SeriesPointV6(key="dsex", ts="2026-06-22", value=5601.44)]
+    higher_run = _daily_points(
+        "dsex", date(2026, 6, 23), [5800.0 + i for i in range(38)]
+    )
+    tail = [
+        SeriesPointV6(key="dsex", ts="2026-08-20", value=5786.08),
+        SeriesPointV6(key="dsex", ts="2026-08-23", value=5722.21),
+        SeriesPointV6(key="dsex", ts="2026-08-24", value=5643.57),
+        SeriesPointV6(key="dsex", ts="2026-08-25", value=5640.09),
+    ]
+    return padding + last_lower + higher_run + tail
+
+
+def test_sessions_since_lower_counts_back_to_the_last_lower_close():
+    from brief.pipeline_v6 import _point_field, _sessions_since_lower
+
+    points = _dsex_points_for_a_42_session_low()
+    assert len(points) == 48
+    assert _sessions_since_lower(points, _point_field) == 42
+
+
+def test_sessions_since_lower_is_none_at_a_window_low():
+    """A window low has NO lower predecessor — that must produce None, and
+    therefore no fact, never a fabricated rank."""
+    from brief.pipeline_v6 import _point_field, _sessions_since_lower
+
+    points = _daily_points("dsex", date(2026, 6, 1), [6000.0 + i for i in range(40)][::-1])
+    assert points[-1].value == 6000.0
+    assert _sessions_since_lower(points, _point_field) is None
+
+
+def test_dsex_session_low_fact_reads_like_a_history_anchor():
+    from brief.pipeline_v6 import _dsex_session_low_fact
+
+    fact = _dsex_session_low_fact(_dsex_points_for_a_42_session_low())
+    assert fact is not None
+    assert fact.metric_id == "dsex"
+    assert fact.kind == "since_lower"
+    assert fact.phrase == "a 42-session low (5,601.44 on 22 Jun the last lower close)"
+    assert fact.reference_value == 5601.44
+    assert fact.reference_value_formatted == "5,601.44"
+    assert fact.reference_as_of == "2026-06-22"
+
+
+def test_no_fact_when_rank_below_min():
+    """Rank 1 — the immediately preceding close was lower — is a degenerate
+    anchor that fires on any single-session move. Same LOOKBACK_MIN floor
+    `history_anchors.last_lower_than` applies."""
+    from brief.pipeline_v6 import _dsex_session_low_fact
+
+    points = _daily_points("dsex", date(2026, 6, 1), [5900.0] * 38 + [5600.0, 5640.09])
+    assert _dsex_session_low_fact(points) is None
+
+
+def test_no_fact_at_window_low():
+    from brief.pipeline_v6 import _dsex_session_low_fact
+
+    points = _daily_points("dsex", date(2026, 6, 1), [6000.0 + i for i in range(40)][::-1])
+    assert _dsex_session_low_fact(points) is None
+
+
+def test_no_fact_when_the_window_is_too_short():
+    """Under MIN_DATA_POINTS['daily'] a "since" claim is nominal, not
+    statistical — history_anchors' own threshold, applied here too."""
+    from brief.pipeline_v6 import _dsex_session_low_fact
+
+    points = _daily_points("dsex", date(2026, 8, 1), [5900.0] * 10 + [5640.09])
+    assert _dsex_session_low_fact(points) is None
+
+
+def test_dse_raw_section_carries_the_session_low_fact():
+    """The fact must ride the EXISTING history-facts-verbatim contract — the
+    same `history_facts` field macro's anchors travel in, so no editor-prompt
+    change is needed for the editor to see it."""
+    from brief.pipeline_v6 import _dsex_session_low_fact
+
+    fact = _dsex_session_low_fact(_dsex_points_for_a_42_session_low())
+    sections = [SectionData(id="dse", title="DSE Markets", freshness="fresh", metrics=[])]
+    raw = _to_v6_raw(
+        sections, today=date(2026, 8, 25), extra_history_facts={"dse": [fact]}
+    )
+
+    facts = raw[0]["history_facts"]
+    assert len(facts) == 1
+    assert facts[0]["metric_id"] == "dsex"
+    assert facts[0]["kind"] == "since_lower"
+    assert facts[0]["phrase"] == "a 42-session low (5,601.44 on 22 Jun the last lower close)"
+    assert facts[0]["reference_value_formatted"] == "5,601.44"
+    assert facts[0]["reference_as_of"] == "2026-06-22"
+
+
+def test_fetch_series_summaries_emits_the_dse_fact_from_the_series_it_already_fetched():
+    """No second fetch: the rank is computed off the SAME dsex point array the
+    dse digest is built from (landmine 23's spirit — one fetch, many uses)."""
+    facts: dict[str, list] = {}
+    with patch("brief.pipeline_v6.chart_series_fetcher.fetch_macro_cpi_series", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_remit_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_reserves_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_yield_ladder_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fx_balance_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fiscal_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_dsex",
+               return_value=(_dsex_points_for_a_42_session_low(), [])) as fetch_dsex, \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_brent", return_value=[]):
+        out = _fetch_series_summaries(
+            today=date(2026, 8, 25), http=object(),
+            supabase_url="https://test.supabase.co", service_key="key",
+            history_facts_out=facts,
+        )
+
+    fetch_dsex.assert_called_once()
+    assert out["dse"]["dsex"]["last_value"] == 5640.09
+    assert [f.phrase for f in facts["dse"]] == [
+        "a 42-session low (5,601.44 on 22 Jun the last lower close)"
+    ]
+
+
+def test_fetch_series_summaries_emits_no_dse_fact_at_a_window_low():
+    facts: dict[str, list] = {}
+    window_low = _daily_points("dsex", date(2026, 6, 1), [6000.0 + i for i in range(40)][::-1])
+    with patch("brief.pipeline_v6.chart_series_fetcher.fetch_macro_cpi_series", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_remit_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_reserves_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_yield_ladder_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fx_balance_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fiscal_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_dsex", return_value=(window_low, [])), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_brent", return_value=[]):
+        _fetch_series_summaries(
+            today=date(2026, 8, 25), http=object(),
+            supabase_url="https://test.supabase.co", service_key="key",
+            history_facts_out=facts,
+        )
+    assert facts == {}
+
+
+def test_build_editor_input_passes_derived_history_facts_to_the_raw_section():
+    from brief.pipeline_v6 import _dsex_session_low_fact
+
+    fact = _dsex_session_low_fact(_dsex_points_for_a_42_session_low())
+    sections = [SectionData(id="dse", title="DSE Markets", freshness="fresh", metrics=[])]
+    with patch("brief.pipeline_v6.fetch_max_issue_no", return_value=1):
+        editor_input, _lens = _build_editor_input(
+            sections, date(2026, 8, 25), [],
+            previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
+            derived_history_facts={"dse": [fact]},
+        )
+    dse_raw = next(s for s in editor_input["sections_raw"] if s["slug"] == "dse")
+    assert [f["phrase"] for f in dse_raw["history_facts"]] == [
+        "a 42-session low (5,601.44 on 22 Jun the last lower close)"
+    ]
 
 
 def test_build_editor_input_stamps_provided_series_summary_per_slug():

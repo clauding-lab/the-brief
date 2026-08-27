@@ -92,7 +92,10 @@ VALID_V6_SLUGS: frozenset[str] = frozenset(slug for slug, _ord, _group in V5_TO_
 
 
 def _to_v6_raw(
-    sections: list[SectionData], *, today: date_t | None = None
+    sections: list[SectionData],
+    *,
+    today: date_t | None = None,
+    extra_history_facts: dict[str, list[Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Convert V5 SectionData → JSON shape the editor prompt expects.
 
@@ -110,12 +113,21 @@ def _to_v6_raw(
     help there: it is worst-of, so it says a section contains something old
     without saying WHICH metric, and it says nothing at all when the stale
     number is borrowed into a different section's prose.
+
+    `extra_history_facts` (issues 205-208) appends slug-keyed facts computed
+    OUTSIDE the builders — today the dse session-low anchor, which needs the
+    chart series a builder never sees. They are serialised through the exact
+    same path as a builder's own `SectionData.history_facts`, so the editor
+    cannot tell the two apart and needs no prompt change to use them.
     """
     out: list[dict[str, Any]] = []
     for s in sections:
         if s.id not in V5_TO_V6:
             continue
         slug, ord_v6, group = V5_TO_V6[s.id]
+        history_facts = list(s.history_facts or []) + list(
+            (extra_history_facts or {}).get(slug, [])
+        )
         metrics_raw: list[dict[str, Any]] = []
         for m in s.metrics:
             dumped = m.model_dump(mode="json")
@@ -150,7 +162,7 @@ def _to_v6_raw(
                         "reference_value_formatted": f.reference_value_formatted,
                         "reference_as_of": f.reference_as_of,
                     }
-                    for f in (s.history_facts or [])
+                    for f in history_facts
                 ],
             }
         )
@@ -311,6 +323,7 @@ def _build_editor_input(
     recent_news: list[dict[str, Any]],
     metric_definitions: list[dict[str, Any]],
     series_summaries: dict[str, dict[str, dict[str, Any]]] | None = None,
+    derived_history_facts: dict[str, list[Any]] | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Build editor input + return chosen lens.
 
@@ -324,13 +337,19 @@ def _build_editor_input(
     `series` — it never has (`_stamp_chart_series` stamps the full series
     onto the FINAL brief, post-editor, for payload-size reasons; see that
     function's docstring). `chart_read` must derive only from this summary.
+
+    `derived_history_facts` (issues 205-208) — slug-keyed `HistoryFact`s
+    computed from those same series by `_fetch_series_summaries`, merged into
+    each raw section's existing `history_facts` list by `_to_v6_raw`.
     """
     from brief.builders.lens import score_lens
     from brief.builders.dedup import filter_headlines
     from brief.builders.diff import _index_previous_metrics
 
     next_issue = fetch_max_issue_no() + 1
-    raw_sections = _to_v6_raw(sections, today=today)
+    raw_sections = _to_v6_raw(
+        sections, today=today, extra_history_facts=derived_history_facts
+    )
     for s in raw_sections:
         s["series_summary"] = (series_summaries or {}).get(s["slug"], {})
 
@@ -909,6 +928,12 @@ _SUMMARY_MONTHLY_FETCHERS: dict[str, str] = {
 _YEAR_AGO_TOLERANCE_DAYS = 45
 
 
+def _point_field(p: Any, name: str) -> Any:
+    """One field off a SeriesPointV6-like object — an attribute on the model,
+    a key on a plain dict. Shared by every series reducer below."""
+    return getattr(p, name) if hasattr(p, name) else p[name]
+
+
 def _coerce_ts(raw: Any) -> date_t | None:
     """A series point's `ts` as a date — accepts the ISO strings the fetchers
     emit and a bare `date`, returns None for anything unparseable."""
@@ -970,9 +995,7 @@ def summarize_series_points(points: list[Any]) -> dict[str, dict[str, Any]]:
     A key whose points are ALL None-valued is dropped from the output rather
     than emitting an empty/nonsensical digest.
     """
-    def _get(p: Any, name: str) -> Any:
-        return getattr(p, name) if hasattr(p, name) else p[name]
-
+    _get = _point_field
     by_key: dict[str, list[Any]] = {}
     for p in points:
         if _get(p, "value") is None:
@@ -1002,8 +1025,92 @@ def summarize_series_points(points: list[Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
+# ─── dse session-low anchor (issues 205-208) ──────────────────────────────
+# `dse` is the one charted section that emits NO `history_facts`, so when the
+# editor wanted a "lowest since" line it had nothing to inline verbatim and
+# invented one: "a ten-session low" appeared BYTE-IDENTICAL across issues
+# 205, 206, 207 and 208 while the real rank moved 38 -> 41 -> 42. The
+# hyphenated count-claim catcher in `brief/validators/prose_numbers.py` sees
+# it, but only WARNs — a catcher is not a source.
+#
+# The rank is computable from the dsex point array the pipeline ALREADY
+# fetches for the dse digest, so this costs no extra request (landmine 23's
+# spirit: one fetch, many uses). It is emitted as a `HistoryFact`, in the same
+# shape `macro.py` produces, so it rides the existing history-facts-verbatim
+# contract through `_to_v6_raw` — no editor-prompt change is needed.
+#
+# Both guards come from `history_anchors` rather than fresh constants, because
+# they encode the same judgement: LOOKBACK_MIN (a rank under 3 is degenerate —
+# it fires on any single-session move) and MIN_DATA_POINTS["daily"] (under 30
+# points a "since" claim is nominal, not statistical). A window LOW produces
+# NO fact at all — never a fabricated rank.
+_DSEX_SERIES_KEY = "dsex"
+
+
+def _sessions_since_lower(ordered: list[Any], get: Any) -> int | None:
+    """How many points back from the newest the most recent LOWER value sits.
+
+    `ordered` must be ascending by ts. Returns 1 when the immediately
+    preceding point is lower, and None when NO point in the window is lower —
+    i.e. the newest value is the window low, which is a fact this function
+    deliberately refuses to rank.
+    """
+    if len(ordered) < 2:
+        return None
+    current = get(ordered[-1], "value")
+    if not isinstance(current, (int, float)):
+        return None
+    for back, point in enumerate(reversed(ordered[:-1]), start=1):
+        value = get(point, "value")
+        if isinstance(value, (int, float)) and value < current:
+            return back
+    return None
+
+
+def _dsex_session_low_fact(points: list[Any]) -> Any | None:
+    """A `HistoryFact` naming how many sessions back the last lower DSEX close
+    sits, or None when the window is too short, the rank is degenerate, or the
+    newest close is the window low. See the block comment above."""
+    from brief.history_anchors import LOOKBACK_MIN, MIN_DATA_POINTS, HistoryFact
+
+    ordered = [
+        p for p in sorted(points, key=lambda p: _point_field(p, "ts"))
+        if _point_field(p, "value") is not None
+    ]
+    if len(ordered) < MIN_DATA_POINTS["daily"]:
+        return None
+
+    rank = _sessions_since_lower(ordered, _point_field)
+    if rank is None or rank < LOOKBACK_MIN:
+        return None
+
+    prior = ordered[-1 - rank]
+    prior_value = float(_point_field(prior, "value"))
+    prior_date = _coerce_ts(_point_field(prior, "ts"))
+    if prior_date is None:
+        return None
+
+    formatted = f"{prior_value:,.2f}"
+    return HistoryFact(
+        metric_id=_DSEX_SERIES_KEY,
+        kind="since_lower",
+        phrase=(
+            f"a {rank}-session low ({formatted} on "
+            f"{prior_date:%d %b} the last lower close)"
+        ),
+        reference_value=prior_value,
+        reference_value_formatted=formatted,
+        reference_as_of=prior_date.isoformat(),
+    )
+
+
 def _fetch_series_summaries(
-    *, today: date_t, http: HttpClient, supabase_url: str, service_key: str,
+    *,
+    today: date_t,
+    http: HttpClient,
+    supabase_url: str,
+    service_key: str,
+    history_facts_out: dict[str, list[Any]] | None = None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Pre-editor lightweight chart-series digest, keyed by V6 section slug
     (P2 fact-checker, 2026-08-22 audit #204, item 3 — "the prompt FALSELY
@@ -1026,6 +1133,15 @@ def _fetch_series_summaries(
     failing logs a WARNING and that slug's summary is simply absent from the
     result (the editor input then carries `series_summary: {}` for it —
     treated as "no chart data available", never a fatal error).
+
+    `history_facts_out` (issues 205-208) is an OUT-parameter, filled with
+    `{slug: [HistoryFact, ...]}` for facts derivable from the series fetched
+    here — today just the dse session-low anchor. An out-parameter rather than
+    a second return value so this function's own return SHAPE stays exactly
+    what every existing caller and test already reads; the caller forwards the
+    collected facts to `_build_editor_input`, which merges them into the raw
+    sections' existing `history_facts` field. Omit it (the default) and no
+    facts are computed at all.
     """
     from brief.history import MetricHistoryClient as _MetricHistoryClient
 
@@ -1052,6 +1168,11 @@ def _fetch_series_summaries(
             http=http, supabase_url=supabase_url, service_key=service_key, today=today,
         )
         out["dse"] = summarize_series_points(dsex_series)
+        if history_facts_out is not None:
+            # Same point array the digest above was built from — no second fetch.
+            session_low = _dsex_session_low_fact(dsex_series)
+            if session_low is not None:
+                history_facts_out.setdefault("dse", []).append(session_low)
     except Exception:  # noqa: BLE001 — graceful degradation
         logger.warning("v6: series_summary pre-fetch failed for slug=dse", exc_info=True)
 
@@ -1799,6 +1920,10 @@ def run_publish(
     # chart digest. Resolved separately from the post-editor supabase_cfg below
     # — this is an earlier, smaller fetch, not a substitute for `_stamp_chart_series`.
     series_summaries: dict[str, dict[str, dict[str, Any]]] = {}
+    # Facts derivable from those same series that no builder can see (issues
+    # 205-208 — the dse session-low rank). Filled by `_fetch_series_summaries`,
+    # merged into the raw sections by `_build_editor_input`.
+    derived_history_facts: dict[str, list[Any]] = {}
     pre_editor_supabase_cfg = _resolve_supabase_config()
     if pre_editor_supabase_cfg is None:
         logger.warning(
@@ -1809,6 +1934,7 @@ def run_publish(
         try:
             series_summaries = _fetch_series_summaries(
                 today=today, http=UrllibHttp(), supabase_url=pre_url, service_key=pre_key,
+                history_facts_out=derived_history_facts,
             )
         except Exception:  # noqa: BLE001 — the editor still runs without chart grounding
             logger.warning(
@@ -1826,6 +1952,7 @@ def run_publish(
         recent_news=recent_news,
         metric_definitions=metric_definitions,
         series_summaries=series_summaries,
+        derived_history_facts=derived_history_facts,
     )
 
     issue_no = editor_input["meta"]["issue_no"]
