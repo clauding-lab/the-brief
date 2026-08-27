@@ -1287,12 +1287,31 @@ def _run_subeditor(
     malformed SubeditorReview, then HOLDING — never auto-passing.
 
     Two retry layers, different failure modes:
-      - `_call_with_retries` (attempts=5) rides out transient Anthropic failures
-        (529 "Overloaded" spells at the 04:00-06:00 BDT window; AGENTS.md #13, #120).
+      - `_call_with_retries` rides out transient Anthropic failures (529
+        "Overloaded" spells at the 04:00-06:00 BDT window; AGENTS.md #13, #120).
         2026-06-22 (issue 144): the sub-editor lost a whole edition to a 529 spell
-        that 3 quick retries couldn't outlast — hence 5 x 600s + the longer backoff,
-        which still fits under brief.service's 90-min TimeoutStartSec after the
-        editor's ~9-min draft.
+        that 3 quick retries couldn't outlast — hence the longer backoff.
+
+        The per-attempt timeout was 600s until 2026-08-27, when issue 209 was lost
+        to FIVE consecutive 600s timeouts. That was not a transient spell: the
+        deadline had been set at roughly the job's own median runtime, so about
+        half of all attempts were failing by construction. Measured successes:
+        589.2s (issue 207), 585.9s (issue 208) — 98% and 97.7% of the 600s budget.
+        A retry cannot rescue a call that is slow rather than broken, so five
+        attempts at a too-short deadline bought nothing; the fix is headroom, not
+        more tries.
+
+        Sized against brief.service's 90-min TimeoutStartSec: 3 x 1200s plus the
+        15s + 45s backoff is 61 min, which leaves ~18 min of margin after a
+        typical ~11-min editor draft. Raising attempts back to 5 at this timeout
+        does NOT fit (103 min) — it needs TimeoutStartSec raised first.
+
+        Two known gaps deliberately left alone here, because neither was the
+        failure mode and both want their own change: the editor gets 1800s for a
+        job that measures 530-670s (over-generous where this one was starved),
+        and the malformed-review loop below can run `_call_with_retries` twice,
+        so the true worst case is 2 x 61 min and already exceeded the systemd cap
+        before this change.
       - THIS loop re-runs the whole sub-editor when it returns well-formed JSON that
         is NOT a valid SubeditorReview. Previously such output silently became
         `verdict="pass"` and shipped an UNREVIEWED brief. Now: one retry, then a
@@ -1305,8 +1324,8 @@ def _run_subeditor(
             label="subeditor_v6",
             prompt_template=subeditor_prompt,
             input_obj=subeditor_input,
-            timeout_s=600,
-            attempts=5,
+            timeout_s=1200,
+            attempts=3,
         )
         try:
             return SubeditorReview.model_validate(review_raw)
