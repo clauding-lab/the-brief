@@ -46,13 +46,11 @@ export const metadata: Metadata = {
     // buys nothing on pre-16.4 iOS, which only read the retired apple-
     // prefixed tag. Kept for the standards-track tag current browsers read.
     capable: true,
-    // "default" until PR C: the spec's black-translucent style forces
-    // WHITE status-bar glyphs over the page's own pixels, and until the
-    // ink band lands the top of the page in LIGHT theme is #E6E9EB paper —
-    // white-on-cream ~1.22:1, an invisible clock (review-caught). PR C
-    // flips this to "black-translucent" in the same PR that makes the top
-    // of the document ink in both themes.
-    statusBarStyle: "default",
+    // black-translucent draws WHITE status-bar glyphs over the page's own
+    // pixels — sound ONLY because the ink band (#0B0F12, both themes) is
+    // the top of the document as of PR C; PR B shipped "default" while the
+    // top was still light paper. §4.3's top insets keep content clear.
+    statusBarStyle: "black-translucent",
   },
 };
 

@@ -94,21 +94,36 @@ export function Masthead({ brief, source, fetchedAt, sectionCount, historical }:
             </span>
           </div>
           {publishedLabel && <div className="tb-published">Published {publishedLabel}</div>}
-          {/* Facelift PR A: meta-row mount (spec §2). Paper styling until the
-              ink band lands in PR C, which flips this mount to onBand. */}
-          <ThemeToggle />
+          {/* On the band since PR C (spec §2/§5.2). */}
+          <ThemeToggle onBand />
         </div>
       </div>
 
       <Hair style={{ marginTop: 14 }} />
 
+      {/* Nameplate row (spec §5.3): wordmark left, read-time + Subscribe link
+          right. The old tag chips, foot row, tagline block and the second
+          Hair are gone — the tagline's first sentence moved to the footer,
+          the section count relocated into the read-time line. */}
       <div className="tb-masthead-hero">
         <h1 className="tb-wordmark-big">
           The Brief<span className="dot">.</span>
         </h1>
-        <div className="tb-tagline">
-          Daily macro &amp; markets read for Bangladesh banking professionals. One brief.
-          Numbers, news, and a banker&rsquo;s read on what matters.
+        <div className="tb-masthead-aside">
+          <div className="tb-readtime">
+            READ TIME · {readMin} MIN · {sectionCount ?? 15} SECTIONS
+          </div>
+          <a
+            href="#subscribe"
+            className="tb-band-link"
+            onClick={(e) => {
+              e.preventDefault();
+              const el = document.getElementById("subscribe");
+              if (el) el.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+            }}
+          >
+            Subscribe →
+          </a>
         </div>
       </div>
 
@@ -121,31 +136,6 @@ export function Masthead({ brief, source, fetchedAt, sectionCount, historical }:
           </div>
         </div>
       )}
-
-      <Hair />
-
-      <div className="tb-masthead-foot">
-        <div className="tb-tag-row">
-          <span className="tag">Macro</span>
-          <span className="tag">Markets</span>
-          <span className="tag">Banking</span>
-          <span className="tag tag-soft">{sectionCount ?? 15} sections</span>
-        </div>
-        <div className="tb-masthead-actions">
-          <span className="tb-readtime">Read time · {readMin} min</span>
-          <a
-            href="#subscribe"
-            className="tb-btn-cta"
-            onClick={(e) => {
-              e.preventDefault();
-              const el = document.getElementById("subscribe");
-              if (el) el.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
-            }}
-          >
-            Subscribe →
-          </a>
-        </div>
-      </div>
     </header>
   );
 }

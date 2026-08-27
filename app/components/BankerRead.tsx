@@ -17,7 +17,7 @@ export function BankerRead({ read, hero = false }: BankerReadProps) {
         {runway ? (
           <div className="tb-banker-runway">
             {/* splitBigNum only colors an ACTUAL decimal point in the value
-                (matching Cover.tsx's bignum treatment) instead of always
+                (matching the retired Cover's bignum treatment) instead of always
                 appending a decorative "." — the old unconditional dot
                 rendered a bare "0." for a zero/near-zero runway (the
                 Banking hero's "BP OF CAR BUFFER" stat) and would have done

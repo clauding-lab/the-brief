@@ -53,7 +53,8 @@ export function StatStack({
       >
         <div
           className="bignum"
-          style={{ fontSize: 26, fontWeight: 300, letterSpacing: "-0.03em" }}
+          // 18px = the §6 snapshot-value step (was 26 pre-facelift).
+          style={{ fontSize: 18, fontWeight: 300, letterSpacing: "-0.02em" }}
         >
           {value}
         </div>

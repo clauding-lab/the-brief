@@ -37,9 +37,8 @@ export function StickyBar({ brief, source, visible }: StickyBarProps) {
             <span className="pulse" />
             <span>{sourceLabel}</span>
           </span>
-          {/* Facelift PR A: StickyBar mount (spec §2). Paper styling until
-              the ink band lands in PR C, which flips this mount to onBand. */}
-          <ThemeToggle />
+          {/* On the band since PR C (spec §2/§5.4). */}
+          <ThemeToggle onBand />
         </div>
       </div>
     </header>
