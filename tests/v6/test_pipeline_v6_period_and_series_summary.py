@@ -70,11 +70,14 @@ def test_summarize_series_points_reduces_to_digest():
         SeriesPointV6(key="dsex", ts="2026-08-01", value=5100.0),
     ]
     out = summarize_series_points(points)
+    # A 3-month window does not reach back a year, so the year-ago pair is
+    # None — the digest's full shape, pinned exactly.
     assert out == {
         "dsex": {
             "n": 3, "first_ts": "2026-06-01", "first_value": 5000.0,
             "last_ts": "2026-08-01", "last_value": 5100.0,
             "min": 5000.0, "max": 5200.0,
+            "value_1y_ago": None, "ts_1y_ago": None,
         }
     }
 
@@ -91,6 +94,72 @@ def test_summarize_series_points_sorts_before_reducing():
     assert out["brent"]["first_value"] == 80.0
     assert out["brent"]["last_ts"] == "2026-08-01"
     assert out["brent"]["last_value"] == 90.0
+
+
+def _monthly_points(key: str, start: date, values: list[float]) -> list[SeriesPointV6]:
+    """One point per calendar month from `start`, ascending."""
+    points: list[SeriesPointV6] = []
+    y, m = start.year, start.month
+    for v in values:
+        points.append(SeriesPointV6(key=key, ts=date(y, m, 1).isoformat(), value=v))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return points
+
+
+def test_summarize_series_points_adds_year_ago_point():
+    """Issue 207/208's "a year earlier" defect: the digest exposed only
+    first/last/min/max, so the editor reached for `first_value` — the START of
+    a 24-month window (9.95, Aug 2024) — and called it "a year earlier". The
+    true 12-months-back point is 9.77 (Jul 2025). Both must now be citable,
+    and they must stay DISTINCT."""
+    values = [
+        9.95, 9.90, 9.86, 9.84, 9.82, 9.80,   # Aug 2024 - Jan 2025
+        9.79, 9.78, 9.78, 9.77, 9.77, 9.77,   # Feb 2025 - Jul 2025
+        9.70, 9.62, 9.55, 9.48, 9.40, 9.33,   # Aug 2025 - Jan 2026
+        9.25, 9.18, 9.10, 9.02, 8.95, 8.88,   # Feb 2026 - Jul 2026
+    ]
+    points = _monthly_points("cpi_12m_avg_monthly", date(2024, 8, 1), values)
+    assert len(points) == 24
+
+    digest = summarize_series_points(points)["cpi_12m_avg_monthly"]
+
+    assert digest["first_value"] == 9.95           # the window START, unchanged
+    assert digest["first_ts"] == "2024-08-01"
+    assert digest["last_ts"] == "2026-07-01"
+    # The honest "a year earlier" point — Jul 2025, exactly 365 days back.
+    assert digest["value_1y_ago"] == 9.77
+    assert digest["ts_1y_ago"] == "2025-07-01"
+    assert digest["value_1y_ago"] != digest["first_value"]
+
+
+def test_year_ago_is_none_when_window_too_short():
+    """A window that does not reach back a year yields NO year-ago point —
+    never the nearest-available substitute, which is exactly the first_value
+    misread this field exists to replace."""
+    points = _monthly_points("cpi_12m_avg_monthly", date(2026, 2, 1), [9.4, 9.3, 9.2, 9.1, 9.0, 8.9])
+    digest = summarize_series_points(points)["cpi_12m_avg_monthly"]
+
+    assert digest["n"] == 6
+    assert digest["value_1y_ago"] is None
+    assert digest["ts_1y_ago"] is None
+
+
+def test_year_ago_point_tolerates_a_ragged_monthly_grid():
+    """Real monthly series are stamped month-START or month-END inconsistently,
+    so an exact 365-day hit is not guaranteed — a point within the tolerance
+    window still counts, one far outside it does not."""
+    near = [
+        SeriesPointV6(key="k", ts="2025-07-31", value=4.4),   # 30 days off target
+        SeriesPointV6(key="k", ts="2026-01-31", value=4.1),
+        SeriesPointV6(key="k", ts="2026-06-30", value=3.9),
+    ]
+    assert summarize_series_points(near)["k"]["value_1y_ago"] == 4.4
+
+    far = [
+        SeriesPointV6(key="k", ts="2025-01-31", value=4.4),   # ~150 days off target
+        SeriesPointV6(key="k", ts="2026-06-30", value=3.9),
+    ]
+    assert summarize_series_points(far)["k"]["value_1y_ago"] is None
 
 
 def test_summarize_series_points_groups_multiple_keys_separately():

@@ -56,6 +56,7 @@ from brief.validators.prose_numbers import (
     check_metric_sub_numbers,
     check_metric_sub_periods,
     check_metric_value_vs_raw,
+    check_year_ago_claims,
     run_prose_number_gate,
 )
 
@@ -327,6 +328,27 @@ def test_hyphenated_count_claim_corpus_replay_matches_only_issue_205() -> None:
         hits_by_issue[issue_no] = len(check_hyphenated_count_claims(brief))
     assert sum(n for issue_no, n in hits_by_issue.items() if issue_no != 205) == 0
     assert hits_by_issue[205] == 3
+
+
+def test_year_ago_claim_corpus_replay_matches_only_issue_205() -> None:
+    """Golden-corpus replay for `check_year_ago_claims` (issues 207/208 — a
+    figure labelled "a year earlier" that is really the chart's WINDOW START).
+
+    1 true positive, 0 false positives. The hit is issue #205's real
+    `macro.chart_read.signal`: "CPI 12m-avg eased to 8.66% as of the Jul 2026
+    print - down from 9.95% a year earlier", against a digest whose window
+    starts 2024-08-01 at 9.95 while its true year-ago point is 9.77 at
+    2025-07-01. Reconstructed from the published row's own `series` array, so
+    this half is ground truth (module docstring, note 3), not a stand-in."""
+    hits_by_issue: dict[int, list[str]] = {}
+    for issue_no in WARN_ISSUE_NUMBERS:
+        brief, raw = _load_real_issue(issue_no)
+        raw_by_slug = {r["slug"]: r for r in raw}
+        hits_by_issue[issue_no] = [
+            w.field_path for w in check_year_ago_claims(brief, raw_by_slug)
+        ]
+    assert all(not paths for no, paths in hits_by_issue.items() if no != 205)
+    assert hits_by_issue[205] == ["macro.chart_read.signal"]
 
 
 def test_issue_205_survivors_are_the_classes_we_chose_not_to_clear() -> None:

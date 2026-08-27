@@ -17,7 +17,7 @@ import os
 import re
 import time
 import unicodedata
-from datetime import date as date_t
+from datetime import date as date_t, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -894,10 +894,70 @@ _SUMMARY_MONTHLY_FETCHERS: dict[str, str] = {
 }
 
 
+# Issues 207/208: the digest exposed only first/last/min/max, so an editor
+# asked for "a year earlier" reached for the only backward-looking number it
+# had — `first_value`, the START of the window. On `cpi_12m_avg_monthly` that
+# is a 24-MONTH-old figure (9.95, Aug 2024) printed as a 12-month-old one; the
+# true year-ago point was 9.77 (Jul 2025). The window start and the year-ago
+# point are different facts, and the digest now carries both.
+#
+# Real monthly series are stamped month-START or month-END inconsistently, so
+# an exact 365-day hit is not guaranteed — the nearest point inside this
+# tolerance counts, and anything outside it yields NO year-ago point at all.
+# Substituting the nearest-available point on a short window would recreate
+# exactly the misread this field exists to end.
+_YEAR_AGO_TOLERANCE_DAYS = 45
+
+
+def _coerce_ts(raw: Any) -> date_t | None:
+    """A series point's `ts` as a date — accepts the ISO strings the fetchers
+    emit and a bare `date`, returns None for anything unparseable."""
+    if isinstance(raw, date_t):
+        return raw
+    if not isinstance(raw, str):
+        return None
+    try:
+        return date_t.fromisoformat(raw[:10])
+    except ValueError:
+        return None
+
+
+def _prior_year_point(
+    ordered: list[Any], last_ts: Any, get: Any
+) -> tuple[Any, Any] | None:
+    """`(value, ts)` for the point closest to ONE YEAR before `last_ts`, or
+    None when the window does not reach back that far (nearest candidate more
+    than `_YEAR_AGO_TOLERANCE_DAYS` off) or the timestamps are unparseable."""
+    newest = _coerce_ts(last_ts)
+    if newest is None:
+        return None
+    target = newest - timedelta(days=365)
+
+    best: Any = None
+    best_gap: int | None = None
+    for p in ordered:
+        stamped = _coerce_ts(get(p, "ts"))
+        if stamped is None:
+            continue
+        gap = abs((stamped - target).days)
+        if best_gap is None or gap < best_gap:
+            best, best_gap = p, gap
+
+    if best is None or best_gap > _YEAR_AGO_TOLERANCE_DAYS:
+        return None
+    return get(best, "value"), get(best, "ts")
+
+
 def summarize_series_points(points: list[Any]) -> dict[str, dict[str, Any]]:
     """Reduce a flat list of SeriesPointV6-like objects (`.key`/`.ts`/`.value`
     attributes, or dicts with the same keys) into a compact per-series-key
-    digest: `{n, first_ts, first_value, last_ts, last_value, min, max}`.
+    digest: `{n, first_ts, first_value, last_ts, last_value, min, max,
+    value_1y_ago, ts_1y_ago}`.
+
+    `value_1y_ago`/`ts_1y_ago` (issues 207/208) are the point nearest one year
+    before `last_ts`, both None when the window does not reach back a year —
+    see `_prior_year_point`. They exist so "a year earlier" has an honest
+    number to cite that is NOT the window's `first_value`.
 
     Groups by `key` (points with no key fall into `"series"`), sorts each
     group by `ts` before reducing — callers don't need to pre-sort, and the
@@ -926,14 +986,18 @@ def summarize_series_points(points: list[Any]) -> dict[str, dict[str, Any]]:
             continue
         ordered = sorted(pts, key=lambda p: _get(p, "ts"))
         values = [_get(p, "value") for p in ordered]
+        last_ts = _get(ordered[-1], "ts")
+        year_ago = _prior_year_point(ordered, last_ts, _get)
         out[key] = {
             "n": len(ordered),
             "first_ts": _get(ordered[0], "ts"),
             "first_value": values[0],
-            "last_ts": _get(ordered[-1], "ts"),
+            "last_ts": last_ts,
             "last_value": values[-1],
             "min": min(values),
             "max": max(values),
+            "value_1y_ago": year_ago[0] if year_ago else None,
+            "ts_1y_ago": year_ago[1] if year_ago else None,
         }
     return out
 

@@ -1188,3 +1188,103 @@ def test_round_rhetorical_threshold_still_warns_after_the_206_widenings():
     }])
     warnings = check_lede_numbers_against_builder_values(brief, raw)
     assert [w.matched_text.strip() for w in warnings] == ["$90"]
+
+
+# ─── WARN: "a year earlier" naming the window start (issues 207/208) ────────
+
+
+def _year_ago_digest(**overrides):
+    """A 24-month CPI digest: the window STARTS at 9.95 (Aug 2024) and the
+    honest 12-months-back point is 9.77 (Jul 2025) — the exact production
+    shape behind the defect."""
+    digest = {
+        "n": 24,
+        "first_ts": "2024-08-01", "first_value": 9.95,
+        "last_ts": "2026-07-01", "last_value": 8.88,
+        "min": 8.88, "max": 9.95,
+        "value_1y_ago": 9.77, "ts_1y_ago": "2025-07-01",
+    }
+    digest.update(overrides)
+    return digest
+
+
+def _year_ago_brief(context: str):
+    return _brief([{
+        "slug": "macro", "ord": 9, "title": "Macro & Inflation", "group_key": "markets",
+        "weight": 1,
+        "chart_read": {
+            "signal": "The trailing average keeps grinding lower.",
+            "context": context,
+            "implication": "Real rates stay positive into the next MPC.",
+        },
+    }])
+
+
+def _year_ago_raw():
+    return [{
+        "slug": "macro",
+        "metrics": [{"label": "CPI 12m Avg", "value": 8.88, "unit": "%",
+                     "cadence": "monthly", "as_of": "2026-07-01"}],
+        "series_summary": {"cpi_12m_avg_monthly": _year_ago_digest()},
+    }]
+
+
+def test_year_ago_claim_warns_when_it_names_the_window_start():
+    """Issues 207/208: "a year earlier" carried 9.95 — the START of a 24-MONTH
+    window (Aug 2024), not the 12-months-back point (9.77, Jul 2025). The
+    figure is real and it clears every value check, because `first_value` is
+    genuinely in the digest — the LIE is the label attached to it."""
+    from brief.validators.prose_numbers import check_year_ago_claims
+
+    brief = _year_ago_brief("CPI 12m-avg is down from 9.95% a year earlier.")
+    warnings = check_year_ago_claims(brief, {r["slug"]: r for r in _year_ago_raw()})
+
+    assert len(warnings) == 1
+    assert warnings[0].kind == "year_ago_mislabel"
+    assert warnings[0].section == "macro"
+    assert warnings[0].field_path == "macro.chart_read.context"
+    assert "9.95" in warnings[0].matched_text
+    # the honest number is reported so a human can see the correction
+    assert warnings[0].nearest_value == 9.77
+
+
+def test_year_ago_claim_is_clean_when_it_names_the_real_year_ago_point():
+    from brief.validators.prose_numbers import check_year_ago_claims
+
+    brief = _year_ago_brief("CPI 12m-avg is down from 9.77% a year earlier.")
+    assert check_year_ago_claims(brief, {r["slug"]: r for r in _year_ago_raw()}) == []
+
+
+def test_year_ago_claim_is_silent_when_the_window_has_no_year_ago_point():
+    """No `value_1y_ago` means there is no honest alternative to point at, so
+    the check says nothing rather than guessing — same fail-quiet convention
+    the rest of the module uses."""
+    from brief.validators.prose_numbers import check_year_ago_claims
+
+    raw = _year_ago_raw()
+    raw[0]["series_summary"]["cpi_12m_avg_monthly"] = _year_ago_digest(
+        value_1y_ago=None, ts_1y_ago=None
+    )
+    brief = _year_ago_brief("CPI 12m-avg is down from 9.95% a year earlier.")
+    assert check_year_ago_claims(brief, {r["slug"]: r for r in raw}) == []
+
+
+def test_year_ago_claim_ignores_a_number_in_a_different_clause():
+    """Precision guard: only the number in the SAME clause as the phrase is
+    the one being labelled "a year earlier". A window-start figure quoted in
+    a neighbouring sentence is not a mislabel."""
+    from brief.validators.prose_numbers import check_year_ago_claims
+
+    brief = _year_ago_brief(
+        "The series opened at 9.95% back in Aug 2024. It is down from 9.77% a year earlier."
+    )
+    assert check_year_ago_claims(brief, {r["slug"]: r for r in _year_ago_raw()}) == []
+
+
+def test_year_ago_claim_never_blocks_and_rides_the_orchestrator():
+    """WARN-mode only — `run_prose_number_gate` must return the finding, never
+    raise on it (`check_count_claims` stays the only unconditional BLOCK,
+    AGENTS.md landmine 34)."""
+    brief = _year_ago_brief("CPI 12m-avg is down from 9.95% a year earlier.")
+    warnings = run_prose_number_gate(brief, _year_ago_raw())
+    assert any(w.kind == "year_ago_mislabel" for w in warnings)
