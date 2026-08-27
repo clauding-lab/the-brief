@@ -11,6 +11,8 @@ interface SecNavProps {
   diffMode: boolean;
   onToggleDiff: () => void;
   displayOrdBySlug?: Map<string, number>;
+  /** Slug of the lead section (weight >= 2) — its item gets is-lead accent (spec §7.7). */
+  leadSlug?: string;
 }
 
 export function SecNav({
@@ -20,6 +22,7 @@ export function SecNav({
   diffMode,
   onToggleDiff,
   displayOrdBySlug,
+  leadSlug,
 }: SecNavProps) {
   const ref = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
@@ -49,7 +52,7 @@ export function SecNav({
               <a
                 href={`#${s.slug}`}
                 data-slug={s.slug}
-                className={`tb-secnav-item ${activeSlug === s.slug ? "active" : ""}`}
+                className={`tb-secnav-item ${activeSlug === s.slug ? "active" : ""}${s.slug === leadSlug ? " is-lead" : ""}`}
                 onClick={(e) => {
                   e.preventDefault();
                   onJump(s.slug);

@@ -163,20 +163,6 @@ a { color: inherit; text-decoration: none; }
 .mark-warn { color: var(--warn); }
 .mark-neu  { color: var(--neu); }
 
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-2);
-  padding: 3px 8px;
-  border: 1px solid var(--rule);
-}
-.tag-soft { border-color: var(--rule-soft); color: var(--ink-3); }
-.tag-accent { border-color: var(--accent); color: var(--accent); }
-
 .bignum {
   font-family: var(--mono);
   font-weight: 200;
@@ -216,18 +202,42 @@ body { background: var(--paper); color: var(--ink); }
 
 .tb-shell { min-height: 100vh; display: flex; flex-direction: column; }
 
+/* ─── THE INK BAND (facelift spec §5.1/§5.2) ─────────────── */
+/* True full-bleed identity band around the masthead — ink in BOTH themes;
+   that is the point of the band. In dark, band (#0B0F12) vs paper (#101418)
+   is ~1.04:1 — accepted ("dark reads as all band"); the border keeps the
+   edge legible. */
+.tb-band {
+  background: var(--band);
+  color: var(--band-ink);
+  border-bottom: 1px solid var(--band-rule);
+}
+/* .tb-band-inner padding: the §4.3 safe-area rules own those declarations. */
+
+/* Band-scoped descendant overrides (§5.2) — the block v1 was missing. */
+.tb-band .hair                        { background: var(--band-rule); }
+.tb-band .tb-masthead-meta            { color: var(--band-mute); }
+.tb-band .tb-masthead-meta .pulse     { background: var(--band-accent); }  /* light --accent is a visibly darker red on the band (3.56:1) */
+.tb-band .tb-published                { color: var(--band-mute); }   /* v2.1.0 honesty stamp — KEPT */
+.tb-band .tb-readtime                 { color: var(--band-mute); font-size: 10.5px; }
+.tb-band .tb-todays-call              { border-top: 1px solid var(--band-rule); }  /* its only divider from the nameplate row */
+.tb-band .tb-todays-call .label       { color: var(--band-accent); }
+.tb-band .tb-todays-call .body        { color: var(--band-ink-2); }
+.tb-band .tb-todays-call .byline      { color: var(--band-mute); }
+.tb-band .tb-wordmark-big .dot        { color: var(--band-accent); }
+.tb-band .tb-masthead-lens-pill       { background: none; padding: 0; border-radius: 0; color: var(--band-mute); }
+.tb-band .tb-masthead-lens-pill .tb-mlp-day { color: var(--band-ink); }
+
 /* ─── EDITORIAL MASTHEAD ─────────────────────────────────── */
-/* Safe-area rules (facelift spec §4.3, PR B): every affected selector uses
+/* Safe-area rules (facelift spec §4.3): every affected selector uses
    LONGHANDS in one rule — a later `padding:` shorthand silently wipes an
-   earlier inset longhand. Insets are 0 outside standalone/notched contexts,
-   so desktop/tablet render byte-identical.
-   PR-B deviation, recorded: the spec's 24px top / 26px bottom / no border
-   for this selector is §6's band-era geometry — until PR C lands the band,
-   the current 36/28/border stays, with the top inset added on top. */
+   earlier inset longhand. Insets are 0 outside standalone/notched contexts.
+   Band-era geometry (§6): 24px top / 26px bottom, no own border — the
+   .tb-band wrapper carries the bottom rule now. */
 .tb-masthead-full {
-  padding: 36px 0 28px;
-  padding-top: calc(36px + env(safe-area-inset-top));
-  border-bottom: 1px solid var(--rule);
+  padding-top: calc(24px + env(safe-area-inset-top));
+  padding-bottom: 26px;
+  border-bottom: none;
 }
 .tb-masthead-meta {
   display: flex; justify-content: space-between; align-items: center;
@@ -246,21 +256,31 @@ body { background: var(--paper); color: var(--ink); }
   color: var(--color-muted);
 }
 
-/* Single column since the "In this issue" rail was retired in v2.0.2 — the
-   wordmark + tagline now own the full hero width. */
+/* Nameplate row (spec §5.3): wordmark left, read-time + Subscribe link
+   right, baseline-aligned. */
 .tb-masthead-hero {
-  padding: 28px 0;
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 24px;
+  padding: 18px 0;
 }
+.tb-masthead-aside { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+@media (max-width: 480px) {
+  .tb-masthead-hero { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .tb-masthead-aside { align-items: flex-start; }
+}
+/* Floor 40px, not 38: below 760px the clamp pins to its floor, and the §6
+   ceiling rule (nothing renders larger than the wordmark, at ANY viewport)
+   must clear the ≤920 runway's 36px. */
 .tb-wordmark-big {
   font-family: var(--mono);
-  font-size: clamp(96px, 14vw, 168px);
-  font-weight: 200; letter-spacing: -0.05em; line-height: 0.85;
+  font-size: clamp(40px, 5vw, 54px);
+  font-weight: 200; letter-spacing: -0.04em; line-height: 0.9;
 }
 .tb-wordmark-big .dot { color: var(--accent); }
-.tb-tagline {
-  margin-top: 18px;
-  font-size: 13px; line-height: 1.55; color: var(--ink-2);
-  max-width: 520px; text-wrap: pretty;
+.tb-band-link {
+  font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--band-ink);
+  border-bottom: 1px solid var(--band-accent);
+  padding-bottom: 2px;
 }
 
 /* V6 enrichment — Today's Call paragraph in masthead */
@@ -280,21 +300,13 @@ body { background: var(--paper); color: var(--ink); }
   font-weight: 600;
 }
 .tb-todays-call .body {
-  /* This is the issue's thesis — it was rendering smaller than the per-
-     section verdicts it's supposed to frame (13.5px vs .tb-section-verdict's
-     13px and .tb-banker-verdict's 22px) at an ~129ch measure with no cap.
-     17px sits at the top of Design.md's existing "Comparison row value:
-     17-19px" scale step without exceeding it (review round 1, MED-8: picked
-     the conservative end of the same step rather than its ceiling); 70ch
-     keeps the paragraph readable. Kept italic mono per the existing
-     contract. A dedicated Today's Call scale row belongs in Design.md
-     itself as a separate docs PR (AGENTS.md landmine 8) — not proposed here. */
-  font-size: 17px;
+  /* §6: the compact band scale — clamp keeps the thesis readable without
+     out-scaling the 54px wordmark ceiling; italic dropped with the 1c pass. */
+  font-size: clamp(13px, 1.6vw, 15px);
   line-height: 1.5;
   max-width: 70ch;
   color: var(--ink);
   text-wrap: pretty;
-  font-style: italic;
 }
 .tb-todays-call .byline {
   margin-top: 10px;
@@ -305,30 +317,16 @@ body { background: var(--paper); color: var(--ink); }
   font-style: normal;
 }
 
-.tb-masthead-foot {
-  display: flex; justify-content: space-between; align-items: center;
-  padding-top: 14px;
-}
-.tb-tag-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.tb-masthead-actions { display: flex; align-items: center; gap: 14px; }
 .tb-readtime { font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; }
-.tb-btn-cta {
-  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
-  padding: 10px 18px;
-  background: var(--ink); color: var(--paper);
-  border: 1px solid var(--ink);
-  cursor: pointer;
-  font-family: inherit;
-  display: inline-flex; align-items: center; gap: 8px;
-  transition: background 120ms;
-}
-.tb-btn-cta:hover { background: var(--accent); border-color: var(--accent); color: var(--paper); }
 
 /* ─── STICKY BAR ───────────────────────────────────────── */
+/* Band-colored since PR C (spec §5.4) — the identity anchor keeps its shape
+   on scroll now that the masthead sits on the same ink. */
 .tb-stickybar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-  background: var(--paper);
-  border-bottom: 1px solid var(--rule);
+  background: var(--band);
+  border-bottom: 1px solid var(--band-rule);
+  color: var(--band-ink);
   transform: translateY(-100%);
   transition: transform 200ms ease-out;
   pointer-events: none;
@@ -344,17 +342,18 @@ body { background: var(--paper); color: var(--ink); }
   display: grid; grid-template-columns: 1fr auto 1fr;
   align-items: center; gap: 16px;
 }
-.tb-stickybar .meta { font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-3); }
+/* (0,2,0) selector — must be explicit or it outranks the band color (§5.4). */
+.tb-stickybar .meta { font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--band-mute); }
 .tb-stickybar .meta-right { text-align: right; }
 .tb-stickybar .wordmark {
   font-family: var(--mono);
   font-size: 18px; font-weight: 300;
   letter-spacing: -0.02em; text-align: center;
 }
-.tb-stickybar .wordmark .dot { color: var(--accent); }
+.tb-stickybar .wordmark .dot { color: var(--band-accent); }
 .tb-stickybar .tb-live { display: inline-flex; align-items: center; gap: 8px; }
 .tb-stickybar .pulse {
-  width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
+  width: 6px; height: 6px; border-radius: 999px; background: var(--band-accent);
 }
 
 /* ─── THEME TOGGLE ─────────────────────────────────────── */
@@ -403,16 +402,16 @@ body { background: var(--paper); color: var(--ink); }
   padding: 22px 0 28px;
   border-bottom: 1px solid var(--rule);
 }
+/* Grout grid (spec §7.2): auto-fit cells over a rule-faint ground — the 1px
+   gaps read as hairlines without per-cell border bookkeeping. Stretched
+   orphan cells at intermediate widths (6 cells → 4+2 at 768/834) are
+   accepted (spec §10.3 item 10). */
 .tb-snapshot-row {
-  display: grid; grid-template-columns: repeat(6, 1fr);
-  padding-top: 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px; background: var(--rule-faint); border: 1px solid var(--rule-faint);
+  padding-top: 0;
 }
-.tb-snapshot-cell {
-  padding: 0 22px;
-  border-right: 1px solid var(--rule-soft);
-}
-.tb-snapshot-cell:first-child { padding-left: 0; }
-.tb-snapshot-cell:last-child  { padding-right: 0; border-right: 0; }
+.tb-snapshot-cell { background: var(--paper); padding: 10px 14px; border-right: none; }
 
 /* ─── SECTION NAV ──────────────────────────────────────── */
 .tb-secnav {
@@ -458,8 +457,15 @@ body { background: var(--paper); color: var(--ink); }
   display: inline-flex; align-items: baseline; gap: 8px;
   position: relative;
 }
-.tb-secnav-item .num { font-size: 9.5px; color: var(--ink-4); transition: color 120ms; }
+/* --ink-3, not --ink-4: a load-bearing label at ≤10.5px never sits on the
+   decorative tier (§1 label-tier rule). */
+.tb-secnav-item .num { font-size: 9.5px; color: var(--ink-3); transition: color 120ms; }
+/* The lead section's item mirrors the hero flag (spec §7.7). */
+.tb-secnav-item.is-lead { color: var(--accent); }
 .tb-secnav-item.active { color: var(--ink); border-bottom-color: var(--accent); }
+/* Both jobs are accent (§8 job 4) — the lead signal must not vanish exactly
+   when the reader reaches the lead section. */
+.tb-secnav-item.active.is-lead { color: var(--accent); }
 .tb-secnav-item.active .num { color: var(--accent); }
 .tb-secnav-item.active .num::after {
   content: '·'; color: var(--accent); margin-left: 2px; font-size: 13px; line-height: 0;
@@ -532,34 +538,23 @@ body { background: var(--paper); color: var(--ink); }
   padding-right: max(32px, env(safe-area-inset-right));
 }
 
-/* ─── COVER ─────────────────────────────────────────────── */
-.tb-cover {
-  padding: 48px 0 56px;
-  border-bottom: 1px solid var(--rule);
-  display: grid; grid-template-columns: 1fr;
-  gap: 48px; align-items: end;
-}
-.tb-cover:empty { display: none; }
-.tb-cover .lede { font-size: 13px; line-height: 1.55; color: var(--ink-2); max-width: 460px; text-wrap: pretty; }
-.tb-cover .bignum {
-  font-size: clamp(96px, 13vw, 200px);
-  font-weight: 200;
-  letter-spacing: -0.06em;
-  line-height: 0.85;
-}
-.tb-cover .bignum .dot { color: var(--accent); }
-
 /* ─── SECTION GROUP ────────────────────────────────────── */
-.tb-group + .tb-group { margin-top: 64px; }
+/* (Cover retired — spec §7.5; its whole CSS family went with Cover.tsx.)
+   The .tb-longview sibling variant lives HERE, not in the Long View block
+   at the end of the file — both selectors are (0,2,0), so a late base copy
+   would win the source-order tie against the ≤920 and print overrides
+   downstream (review-caught: the 22px tier rule was dead). */
+.tb-group + .tb-group { margin-top: 26px; }
+.tb-longview + .tb-group { margin-top: 26px; }
 .tb-group-header {
   display: flex; align-items: center;
   padding-top: 4px;
 }
 .tb-group-label {
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink-4);
+  color: var(--ink-3); /* §1 label-tier rule: load-bearing, so never --ink-4 */
   font-weight: 500;
 }
 .tb-group-rule {
@@ -574,21 +569,23 @@ body { background: var(--paper); color: var(--ink); }
    rows at wide viewports, so its real height (plus its own sticky `top`)
    varies; a hardcoded 110px landed a section 18-65px under the nav
    depending on how many rows it wrapped to (review round 1, H1). */
-.tb-section { padding: 64px 0 56px; border-bottom: 1px solid var(--rule); scroll-margin-top: var(--nav-offset, 110px); }
+.tb-section { padding: 28px 0 24px; border-bottom: 1px solid var(--rule); scroll-margin-top: var(--nav-offset, 110px); }
 .tb-section:last-of-type { border-bottom: 0; }
 
-/* V6 Phase D.2 — collapsed one-liner for sections with freshness="unavailable" */
+/* V6 Phase D.2 — collapsed one-liner for sections with freshness="unavailable".
+   §6: a dead section must occupy LESS than a live one (the old 56px vs 52px
+   was an inversion). */
 .tb-section.is-unavailable {
-  padding: 28px 0 28px;
+  padding: 16px 0 16px;
   opacity: 0.55;
 }
 .tb-section.is-unavailable .tb-section-title {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 500;
 }
 .tb-unavailable-note {
   font-size: 13px;
-  color: var(--ink-4);
+  color: var(--ink-3); /* §1 label-tier rule */
   font-style: italic;
   margin-top: 8px;
   letter-spacing: 0.01em;
@@ -599,65 +596,35 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   display: flex; justify-content: space-between; align-items: flex-end;
   margin-bottom: 18px; gap: 24px; flex-wrap: wrap;
 }
+/* §6: eyebrow inline-baseline with the title. The eyebrow respec is SCOPED
+   here — the shared .eyebrow class is also used by SnapshotStrip and
+   chart-card fallbacks and stays 10px there. */
+.tb-section-titlerow { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tb-section-head .eyebrow { font-size: 9.5px; font-weight: 500; letter-spacing: 0.16em; }
 .tb-section-title {
-  font-size: 48px; font-weight: 200; letter-spacing: -0.04em;
-  margin-top: 4px; line-height: 1;
+  font-size: 28px; font-weight: 300; letter-spacing: -0.04em;
+  margin-top: 0; line-height: 1;
 }
 .tb-section-verdict {
   text-align: right;
   font-size: 13px; font-weight: 500;
   display: inline-flex; align-items: center; gap: 8px;
 }
-.tb-section-verdict .label {
-  font-size: 11px; color: var(--ink-3);
-  letter-spacing: 0.12em; text-transform: uppercase;
-  margin-bottom: 6px; display: block; text-align: right;
-}
 
-/* V6 enrichment — TL;DR line under section title */
+/* V6 enrichment — TL;DR line under section title. KEPT as its own block
+   (§6, owner veto §11.10): pipeline-generated per-section paragraph. */
 .tb-tldr {
   margin-top: 14px;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--ink-2);
-  font-style: italic;
   max-width: 720px;
   text-wrap: pretty;
 }
 
-/* V6 enrichment — Summary pills row under tldr */
-.tb-summary-pills {
-  display: flex; flex-wrap: wrap; gap: 0;
-  margin-top: 18px;
-  border-top: 1px solid var(--rule-soft);
-  border-bottom: 1px solid var(--rule-soft);
-}
-.tb-summary-pill {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 12px 18px 12px 0;
-  border-right: 1px solid var(--rule-soft);
-  display: flex; flex-direction: column; gap: 4px;
-}
-.tb-summary-pill:last-child { border-right: 0; padding-right: 0; }
-.tb-summary-pill:not(:first-child) { padding-left: 18px; }
-.tb-summary-pill .key {
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-.tb-summary-pill .val {
-  font-size: 18px;
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-.tb-summary-pill.tone-bull .val { color: var(--bull); }
-.tb-summary-pill.tone-bear .val { color: var(--bear); }
-.tb-summary-pill.tone-warn .val { color: var(--warn); }
-.tb-summary-pill.tone-neu  .val { color: var(--ink); }
+/* (.tb-summary-pills retired — spec §7.1: pills merged into the KPI tile
+   grid; the old .tb-section-verdict .label rule was already dead — the
+   label span was never a descendant of .tb-section-verdict.) */
 
 .tb-section-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 32px; padding-top: 28px; }
 .tb-section-grid.no-chart { grid-template-columns: 1fr 1fr; }
@@ -691,10 +658,10 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 }
 .tb-chart-fig {
   font-family: var(--mono), 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink-3); /* §8 crimson budget: FIG labels come off accent */
   font-weight: 600;
 }
 .tb-chart-title {
@@ -715,13 +682,26 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   margin-top: 6px;
 }
 
-.tb-kpi-rail { display: flex; flex-direction: column; }
-.tb-kpi-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 14px 0; align-items: baseline; }
-.tb-kpi-label { font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase; }
-.tb-kpi-sub { font-size: 11px; color: var(--ink-2); margin-top: 4px; display: flex; align-items: center; gap: 6px; }
-.tb-kpi-value { font-size: 26px; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+/* KPI tile grid (spec §7.1) — replaces the vertical rail; grout gap over a
+   rule-faint ground replaces the old Hair separators. The cell class stays
+   .tb-kpi-row: is-changed/is-held-over and the diff selectors target it. */
+.tb-kpi-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1px;
+  background: var(--rule-faint);
+  border: 1px solid var(--rule-faint);
+}
+.tb-kpi-row { background: var(--paper); padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+/* Headlines: the full-bleed news rail spans both grid columns, so a
+   pills-only tile rail after it must span too — auto-placement would
+   otherwise orphan it into a half-width column (review-caught). */
+.tb-news-rail.is-headlines ~ .tb-kpi-rail { grid-column: 1 / -1; }
+.tb-kpi-label { font-size: 9px; font-weight: 500; color: var(--ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
+.tb-kpi-sub { font-size: 11px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.tb-kpi-value { font-size: 16px; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 
-.tb-news-rail { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 36px; padding-top: 22px; }
+.tb-news-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 28px 36px; padding-top: 22px; }
 .tb-news-item { display: block; color: inherit; text-decoration: none; }
 .tb-news-item > div { min-width: 0; }
 .tb-news-item[href]:hover .tb-news-headline {
@@ -729,9 +709,9 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   text-decoration-color: var(--ink-3);
   text-underline-offset: 3px;
 }
-.tb-news-headline { font-size: 13px; line-height: 1.45; text-wrap: pretty; }
-.tb-news-detail { font-size: 11.5px; line-height: 1.5; color: var(--ink-2); margin-top: 4px; text-wrap: pretty; }
-.tb-news-meta { font-size: 10.5px; color: var(--ink-3); margin-top: 6px; letter-spacing: 0.08em; }
+.tb-news-headline { font-size: 12.5px; font-weight: 500; line-height: 1.45; text-wrap: pretty; }
+.tb-news-detail { font-size: 11px; line-height: 1.5; color: var(--ink-2); margin-top: 4px; text-wrap: pretty; }
+.tb-news-meta { font-size: 9.5px; color: var(--ink-3); margin-top: 6px; letter-spacing: 0.08em; }
 
 /* Headlines section: 4-col grid spanning full outer-grid width
    (no metrics rail to fill the right side, so headlines uses both columns).
@@ -769,22 +749,24 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 .tb-mover-rt.tone-bear { color: var(--bear); }
 
 /* ─── BANKER'S READ ────────────────────────────────────── */
-.tb-banker { padding-top: 28px; display: grid; grid-template-columns: 0.4fr 1fr; gap: 36px; }
+.tb-banker { padding-top: 14px; display: grid; grid-template-columns: 0.4fr 1fr; gap: 36px; }
 .tb-banker-runway { display: flex; flex-direction: column; gap: 10px; }
-.tb-banker-runway .num { font-size: 84px; font-weight: 200; letter-spacing: -0.05em; line-height: 0.85; font-family: var(--mono); }
+/* §6: runway 44 — under the 54px wordmark ceiling at every viewport. */
+.tb-banker-runway .num { font-size: 44px; font-weight: 200; letter-spacing: -0.05em; line-height: 0.85; font-family: var(--mono); }
 .tb-banker-runway .num .dot { color: var(--accent); }
 .tb-banker-runway .label { font-size: 11px; color: var(--ink-3); letter-spacing: 0.12em; text-transform: uppercase; }
 .tb-banker-body { display: flex; flex-direction: column; gap: 24px; }
-.tb-banker-verdict { font-size: 22px; line-height: 1.35; font-weight: 300; letter-spacing: -0.01em; text-wrap: pretty; }
-.tb-banker-verdict em { font-style: italic; color: var(--accent); font-weight: 300; }
+.tb-banker-verdict { font-size: 17px; line-height: 1.55; font-weight: 300; letter-spacing: -0.01em; text-wrap: pretty; }
+/* §8: emphasis comes off accent — weight, not color, carries it. */
+.tb-banker-verdict em { font-style: normal; color: var(--ink); font-weight: 500; }
 .tb-banker-section-eyebrow {
   font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600;
   display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
 }
 .tb-banker-section-eyebrow .rule { flex: 1; height: 1px; background: var(--rule-soft); }
 .tb-banker-watchrisk { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.tb-banker-watchrisk h4 { font-size: 10.5px; letter-spacing: 0.18em; color: var(--ink-3); font-weight: 600; margin-bottom: 8px; }
-.tb-banker-watchrisk ul { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.5; }
+.tb-banker-watchrisk h4 { font-size: 9.5px; letter-spacing: 0.18em; color: var(--ink-3); font-weight: 600; margin-bottom: 8px; }
+.tb-banker-watchrisk ul { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 11px; line-height: 1.5; color: var(--ink-2); }
 .tb-banker-watchrisk li { display: grid; grid-template-columns: 14px 1fr; gap: 8px; }
 
 /* V6 enrichment — Analysis paragraph block (banking, fx, iran) */
@@ -832,7 +814,7 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
    band-rule edge keeps the panel legible as a panel. Light needs nothing
    (band on light paper is high-contrast by construction). */
 [data-theme="dark"] .tb-cta-dark { border-right: 1px solid var(--band-rule); }
-.tb-cta-dark .head { font-size: 56px; font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-family: var(--mono); }
+.tb-cta-dark .head { font-size: 30px; font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-family: var(--mono); }
 .tb-cta-dark .head .accent { color: var(--band-accent); }
 .tb-cta-dark .body { margin-top: 22px; font-size: 13px; line-height: 1.55; color: var(--band-ink-2); max-width: 380px; text-wrap: pretty; }
 .tb-cta-form { padding: 40px 36px; display: flex; flex-direction: column; gap: 18px; }
@@ -854,7 +836,13 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   border: 1px solid var(--ink); cursor: pointer;
   font-family: inherit;
 }
-.tb-btn-submit:hover { background: var(--accent); border-color: var(--accent); }
+/* §8 crimson budget: hover stays an ink fill; the accent job is the label
+   underline (job 5), not a background flood. */
+.tb-btn-submit:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
 .tb-btn-submit[disabled] { opacity: 0.5; cursor: progress; }
 .tb-cta-helper { font-size: 10.5px; color: var(--ink-3); max-width: 220px; line-height: 1.4; }
 
@@ -919,19 +907,6 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
 [data-theme="dark"] .tb-delta-bull .tb-delta-pct,
 [data-theme="dark"] .tb-delta-bear .tb-delta-pct { opacity: 0.9; }
 
-.tb-cover-asof {
-  margin-top: 16px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  display: inline-block;
-  padding: 4px 10px;
-  border: 1px solid var(--rule-soft);
-  background: var(--paper-2, transparent);
-}
-
 /* ─── CHANGED INDICATORS ───────────────────────────────── */
 .tb-changed-dot {
   display: inline-block;
@@ -941,8 +916,7 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   background: var(--accent);
   vertical-align: 1px;
 }
-.tb-news-item.is-changed .tb-news-meta,
-.tb-cover-line.is-changed .tb-news-meta {
+.tb-news-item.is-changed .tb-news-meta {
   color: var(--accent);
   font-weight: 500;
 }
@@ -952,7 +926,6 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   position: absolute; left: -14px; top: 4px; bottom: 4px;
   width: 2px; background: var(--accent);
 }
-.tb-cover-line.is-changed { position: relative; }
 
 /* ─── DIFF MODE ────────────────────────────────────────── */
 body.tb-diff .tb-section.is-quiet {
@@ -960,14 +933,18 @@ body.tb-diff .tb-section.is-quiet {
   transition: opacity 200ms;
 }
 body.tb-diff .tb-section.is-quiet:hover { opacity: 0.65; }
-body.tb-diff .tb-section .tb-news-item:not(.is-changed):not(.is-held-over),
-body.tb-diff .tb-section .tb-kpi-row:not(.is-changed):not(.is-held-over),
-body.tb-diff .tb-cover-line:not(.is-changed):not(.is-held-over) {
+body.tb-diff .tb-section .tb-news-item:not(.is-changed):not(.is-held-over) {
   opacity: 0.34;
   transition: opacity 200ms;
 }
-body.tb-diff .tb-section .tb-news-item.is-changed,
-body.tb-diff .tb-section .tb-kpi-row.is-changed {
+/* Tile grid dims the CONTENT, not the tile surface (spec §7.1): a 0.34 tile
+   composites its paper toward the grout and reads as a filled block — the
+   same compounding problem the held-over comment below records. */
+body.tb-diff .tb-section .tb-kpi-row:not(.is-changed):not(.is-held-over) > * {
+  opacity: 0.34;
+  transition: opacity 200ms;
+}
+body.tb-diff .tb-section .tb-news-item.is-changed {
   opacity: 1;
 }
 body.tb-diff .tb-statstack:not(.is-changed) {
@@ -1021,19 +998,16 @@ body.tb-diff .tb-statstack:not(.is-changed) {
 
 .tb-banker.is-hero {
   position: relative;
-  padding-top: 36px;
+  padding-top: 20px;
   margin-top: 8px;
 }
 .tb-banker.is-hero::before {
   content: '';
   position: absolute; top: 0; left: 0; right: 0;
-  height: 3px; background: var(--accent);
+  height: 2px; background: var(--accent);
 }
 .tb-banker.is-hero .tb-banker-verdict {
-  font-size: 30px;
-  line-height: 1.25;
-  font-weight: 300;
-  letter-spacing: -0.015em;
+  font-size: 19px;
 }
 .tb-banker-leadflag {
   display: inline-block;
@@ -1066,8 +1040,9 @@ body.tb-diff .tb-statstack:not(.is-changed) {
 /* ─── RESPONSIVE ───────────────────────────────────────── */
 @media (max-width: 920px) {
   .tb-masthead-meta { flex-wrap: wrap; gap: 8px; }
-  .tb-masthead-hero { padding: 24px 0; }
-  .tb-wordmark-big { font-size: 72px; }
+  .tb-masthead-hero { padding: 14px 0; }
+  /* No wordmark override: the base clamp() pins to its 40px floor here,
+     which the §6 ceiling rule needs (runway is 36px at this tier). */
   .tb-todays-call { grid-template-columns: 1fr; gap: 12px; }
   /* .tb-section.is-hero's base rule assumes the 32px desktop gutter
      (margin: 0 -32px; padding-left/right: 32px), but .tb-body drops to a
@@ -1075,7 +1050,6 @@ body.tb-diff .tb-statstack:not(.is-changed) {
      exactly the 12px horizontal overflow measured at 375 (documentElement
      scrollWidth 387 vs 375). Match the gutter here. */
   .tb-section.is-hero { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
-  .tb-masthead-foot { flex-direction: column; gap: 12px; align-items: flex-start; }
   .tb-stickybar-inner {
     grid-template-columns: 1fr 1fr; gap: 8px;
     padding: 10px 20px;
@@ -1085,10 +1059,8 @@ body.tb-diff .tb-statstack:not(.is-changed) {
   }
   .tb-stickybar .wordmark { display: none; }
   .tb-snapshot { padding: 18px 0 22px; }
-  .tb-snapshot-row { grid-template-columns: repeat(2, 1fr); gap: 18px 0; padding-top: 12px; }
-  .tb-snapshot-cell { padding: 12px 16px; border-right: none; border-bottom: 1px solid var(--rule-soft); }
-  .tb-snapshot-cell:nth-child(odd) { border-right: 1px solid var(--rule-soft); }
-  .tb-snapshot-cell:first-child, .tb-snapshot-cell:last-child { padding-left: 16px; padding-right: 16px; }
+  /* Snapshot: the base auto-fit grout grid handles this tier (spec §7.2) —
+     the old fixed 2-col + per-cell border rules are gone. */
   .tb-secnav { top: calc(48px + env(safe-area-inset-top)); margin: 0 -20px; } /* §4.3 */
   .tb-secnav-inner { padding: 8px 20px; }
   /* The sticky echo of the theme toggle comes off at phone widths: the bar's
@@ -1106,27 +1078,25 @@ body.tb-diff .tb-statstack:not(.is-changed) {
     padding-left: max(20px, env(safe-area-inset-left));   /* §4.3: dormant until PR C, see base rule */
     padding-right: max(20px, env(safe-area-inset-right));
   }
-  .tb-cover { grid-template-columns: 1fr; gap: 28px; padding: 32px 0 36px; }
-  .tb-cover .bignum { font-size: 88px; }
-  .tb-section { padding: 44px 0 36px; }
-  .tb-section-title { font-size: 32px; }
-  .tb-section.is-unavailable { padding: 20px 0 20px; }
-  .tb-section.is-unavailable .tb-section-title { font-size: 19px; }
-  .tb-group + .tb-group { margin-top: 44px; }
+  .tb-section { padding: 24px 0 20px; }
+  .tb-section-title { font-size: 24px; }
+  .tb-section.is-unavailable { padding: 14px 0 14px; }
+  .tb-section.is-unavailable .tb-section-title { font-size: 18px; }
+  .tb-group + .tb-group { margin-top: 22px; }
+  .tb-longview + .tb-group { margin-top: 22px; }
   .tb-section-grid, .tb-section-grid.no-chart { grid-template-columns: 1fr; gap: 24px; }
-  .tb-news-rail { grid-template-columns: 1fr; gap: 20px; }
+  /* Keep the tier's tighter gap; the base auto-fit handles the column count
+     (deleting the whole line would revert phones to the desktop 28/36 gap). */
+  .tb-news-rail { gap: 20px; }
   .tb-news-rail.is-headlines { grid-template-columns: repeat(2, 1fr); }
   .tb-movers-grid { grid-template-columns: 1fr; gap: 18px; }
-  .tb-summary-pills { flex-direction: column; }
-  .tb-summary-pill { border-right: 0; border-bottom: 1px solid var(--rule-soft); padding: 10px 0; }
-  .tb-summary-pill:last-child { border-bottom: 0; }
-  .tb-summary-pill:not(:first-child) { padding-left: 0; }
   .tb-analysis { grid-template-columns: 1fr; gap: 12px; }
   .tb-banker { grid-template-columns: 1fr; gap: 20px; }
   .tb-banker-watchrisk { grid-template-columns: 1fr; }
-  .tb-banker-runway .num { font-size: 64px; }
+  /* 36, not 40: must stay under the wordmark's 40px floor on phones (§6). */
+  .tb-banker-runway .num { font-size: 36px; }
   .tb-cta { grid-template-columns: 1fr; }
-  .tb-cta-dark .head { font-size: 38px; }
+  .tb-cta-dark .head { font-size: 26px; }
   /* Single-column CTA: the panel/form seam runs horizontally here. */
   [data-theme="dark"] .tb-cta-dark { border-right: none; border-bottom: 1px solid var(--band-rule); }
   .tb-foot {
@@ -1163,59 +1133,126 @@ body.tb-diff .tb-statstack:not(.is-changed) {
 }
 
 /* ─── PRINT MODE ───────────────────────────────────────── */
-/* .tb-btn-cta and .tb-diff-toggle listed explicitly, not just via their
-   hidden ancestors (.tb-masthead-actions, .tb-secnav) — review round 1, H2:
-   getComputedStyle on a DESCENDANT of a display:none element still reports
-   that descendant's own specified display value, not "none", so a check
-   that reads .tb-btn-cta's own computed display directly needs .tb-btn-cta
+/* Controls are listed explicitly, not just via hidden ancestors (the
+   .tb-secnav's .tb-diff-toggle, the band's .tb-band-link/.tb-theme-toggle)
+   — review round 1, H2: getComputedStyle on a DESCENDANT of a display:none
+   element still reports that descendant's own specified display value, so
+   a check reading a control's own computed display needs the control
    itself in the hide list, not just its parent. */
 body.tb-print .tb-stickybar,
 body.tb-print .tb-secnav,
 body.tb-print .tb-cta,
 body.tb-print .tb-statusbar,
 body.tb-print .tb-skip,
-body.tb-print .tb-masthead-actions,
-body.tb-print .tb-btn-cta,
+body.tb-print .tb-band-link,
 body.tb-print .tb-diff-toggle,
 body.tb-print .tb-theme-toggle,
 body.tb-print .tb-live {
   display: none !important;
 }
-body.tb-print { background: white; }
+/* §9.1a: the FULL light token set forced at BODY level — a property declared
+   on body beats the value inherited from html's dark block for every body
+   descendant. The two alias tokens MUST be redeclared too: a var() inside a
+   custom property substitutes where DECLARED, so a body-level --ink-3 never
+   reaches a --color-muted defined on :root (browser-verified — without this,
+   held-over text and the lens pill print with dark values). */
+body.tb-print {
+  --paper: #E6E9EB; --paper-2: #D9DDE0; --paper-3: #C8CDD0;
+  --ink: #0B0F12; --ink-2: #1F2428; --ink-3: #4F5559; --ink-4: #7A8084;
+  --rule: #0B0F12; --rule-soft: rgba(11, 15, 18, 0.20); --rule-faint: rgba(11, 15, 18, 0.09);
+  --accent: oklch(0.55 0.21 25); --accent-soft: oklch(0.55 0.21 25 / 0.16);
+  --bull: oklch(0.45 0.10 150); --bear: oklch(0.55 0.21 25); --warn: oklch(0.62 0.14 75);
+  --neu: var(--ink-3);
+  --color-muted: var(--ink-3); --color-surface-2: var(--paper-2);
+  background: white;
+}
+/* §9.2: the band prints as paper — print-background suppression would
+   otherwise leave near-white band-ink text on white (invisible nameplate). */
+body.tb-print .tb-band { background: white; border-bottom: 1px solid var(--rule); color: var(--ink); }
+body.tb-print .tb-band .hair { background: var(--rule-soft); }
+body.tb-print .tb-band .tb-masthead-meta,
+body.tb-print .tb-band .tb-published,
+body.tb-print .tb-band .tb-readtime,
+body.tb-print .tb-band .tb-todays-call .byline,
+body.tb-print .tb-band .tb-masthead-lens-pill { color: var(--ink-3); }
+body.tb-print .tb-band .tb-masthead-lens-pill .tb-mlp-day { color: var(--ink); } /* (0,3,0) — outranks the reset above; must be explicit */
+body.tb-print .tb-band .tb-todays-call { border-top-color: var(--rule-soft); }
+body.tb-print .tb-band .tb-todays-call .body { color: var(--ink); }
+body.tb-print .tb-band .tb-todays-call .label { color: var(--accent); }
+body.tb-print .tb-band .tb-wordmark-big .dot { color: var(--accent); }
 body.tb-print .tb-shell { max-width: 880px; margin: 0 auto; }
 body.tb-print .tb-section {
-  padding: 28px 0;
+  padding: 24px 0;
   border-bottom: 1px solid var(--rule-soft);
   page-break-inside: avoid;
 }
 body.tb-print .tb-section.is-hero { background: transparent; margin: 0; padding-left: 0; padding-right: 0; }
 body.tb-print .tb-section.is-unavailable { page-break-inside: avoid; opacity: 1; }
-body.tb-print .tb-section-title { font-size: 32px; }
-body.tb-print .tb-group + .tb-group { margin-top: 24px; }
+body.tb-print .tb-section-title { font-size: 24px; }
+body.tb-print .tb-group + .tb-group { margin-top: 20px; }
+body.tb-print .tb-longview + .tb-group { margin-top: 20px; }
 body.tb-print .tb-group-header { padding-top: 0; margin-top: 12px; }
-body.tb-print .tb-cover { padding: 24px 0; }
-body.tb-print .tb-cover .bignum { font-size: 96px; }
-body.tb-print .tb-masthead-full { padding: 18px 0 14px; }
-body.tb-print .tb-wordmark-big { font-size: 64px; }
+body.tb-print .tb-masthead-full { padding: 14px 0 12px; }
+body.tb-print .tb-masthead-hero { padding: 10px 0; }
+body.tb-print .tb-wordmark-big { font-size: 44px; }
+/* Paper drops backgrounds by default: the grout grids get real borders,
+   and the white-on-crimson chips flip to outline treatment — accent
+   background gone means accent text, not invisible text (review-caught,
+   the same failure class §9.2 fixes for the band). */
+body.tb-print .tb-kpi-rail, body.tb-print .tb-snapshot-row { background: transparent; border: none; gap: 0; }
+body.tb-print .tb-kpi-row, body.tb-print .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
+body.tb-print .tb-hero-flag,
+body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 
 @media print {
   /* This native browser-print rule (Cmd/Ctrl+P) is separate from the app's
      own `?print=1` tb-print class mode above, and fires for anyone printing
-     the page directly — it named .tb-cta (the bottom subscribe section) but
-     not .tb-btn-cta (the masthead's small "Subscribe →" link) or .tb-live
-     (the page-load clock + pulse), so both printed into PDFs regardless of
-     which print path was used.
+     the page directly — its hide list must stay in parity with the
+     body.tb-print list above (today: .tb-band-link, the theme toggle, the
+     diff toggle, .tb-live).
      !important on .tb-live specifically (review round 1, H2): its own base
      rules — .tb-masthead-meta .tb-live and .tb-stickybar .tb-live, both
      two-class selectors — outrank this block's original bare `.tb-live`
      one-class selector, so `display: inline-flex` was WINNING the cascade
      over this rule's `display: none` regardless of source order. */
   .tb-stickybar, .tb-secnav, .tb-cta, .tb-statusbar, .tb-skip, .tb-diff-toggle,
-  .tb-btn-cta, .tb-theme-toggle { display: none; }
+  .tb-band-link, .tb-theme-toggle { display: none; }
   .tb-live { display: none !important; }
   .tb-section { page-break-inside: avoid; padding: 24px 0; }
-  .tb-cover { padding: 24px 0; }
-  body { background: white; color: black; }
+  /* §9.1a: same forced light token block as body.tb-print — native print
+     must not depend on the ?print=1 class being present. */
+  body {
+    --paper: #E6E9EB; --paper-2: #D9DDE0; --paper-3: #C8CDD0;
+    --ink: #0B0F12; --ink-2: #1F2428; --ink-3: #4F5559; --ink-4: #7A8084;
+    --rule: #0B0F12; --rule-soft: rgba(11, 15, 18, 0.20); --rule-faint: rgba(11, 15, 18, 0.09);
+    --accent: oklch(0.55 0.21 25); --accent-soft: oklch(0.55 0.21 25 / 0.16);
+    --bull: oklch(0.45 0.10 150); --bear: oklch(0.55 0.21 25); --warn: oklch(0.62 0.14 75);
+    --neu: var(--ink-3);
+    --color-muted: var(--ink-3); --color-surface-2: var(--paper-2);
+    background: white; color: black;
+  }
+  /* §9.4 scale parity: a native Cmd+P without ?print=1 must produce the
+     same document as the documented path (review-caught — this block
+     previously carried only section padding). */
+  .tb-section-title { font-size: 24px; }
+  .tb-group + .tb-group { margin-top: 20px; }
+  .tb-longview + .tb-group { margin-top: 20px; }
+  .tb-masthead-full { padding: 14px 0 12px; }
+  .tb-masthead-hero { padding: 10px 0; }
+  .tb-wordmark-big { font-size: 44px; }
+  .tb-kpi-rail, .tb-snapshot-row { background: transparent; border: none; gap: 0; }
+  .tb-kpi-row, .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
+  .tb-hero-flag, .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  /* §9.2: band prints as paper on the native path too. */
+  .tb-band { background: white; border-bottom: 1px solid var(--rule); color: var(--ink); }
+  .tb-band .hair { background: var(--rule-soft); }
+  .tb-band .tb-masthead-meta, .tb-band .tb-published, .tb-band .tb-readtime,
+  .tb-band .tb-todays-call .byline, .tb-band .tb-masthead-lens-pill { color: var(--ink-3); }
+  .tb-band .tb-masthead-lens-pill .tb-mlp-day { color: var(--ink); }
+  .tb-band .tb-todays-call { border-top-color: var(--rule-soft); }
+  .tb-band .tb-todays-call .body { color: var(--ink); }
+  .tb-band .tb-todays-call .label { color: var(--accent); }
+  .tb-band .tb-wordmark-big .dot { color: var(--accent); }
 }
 
 /* ── Masthead lens pill ──────────────────────────────────────────── */
@@ -1255,7 +1292,7 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
    serif inheritance bug where headings rendered in browser-default serif. */
 
 .tb-longview {
-  padding: 56px 0 48px;
+  padding: 32px 0 28px;
   margin-top: 12px;
   margin-bottom: 12px;
   scroll-margin-top: var(--nav-offset, 110px);
@@ -1266,15 +1303,15 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
 .tb-longview * { font-family: var(--mono); }
 
 .tb-longview-eyebrow {
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
+  font-size: 10px;
+  letter-spacing: 0.16em; /* §7.6: the 0.22em tracked-caps set joins the §6 label tier */
   color: var(--ink-3);
   font-weight: 600;
   text-transform: uppercase;
 }
 
 .tb-longview-title {
-  font-size: clamp(24px, 2.8vw, 36px);
+  font-size: clamp(20px, 2.4vw, 26px);
   line-height: 1.12;
   font-weight: 400;
   letter-spacing: -0.02em;
@@ -1284,9 +1321,8 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
 }
 
 .tb-longview-lead {
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.55;
-  font-style: italic;
   color: var(--ink-2);
   margin: 0 0 24px;
   max-width: 62ch;
@@ -1309,8 +1345,8 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
 
 /* --- Comparison block --- */
 .tb-longview-cmp-header {
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
+  font-size: 10px;
+  letter-spacing: 0.16em; /* §7.6's list missed this fifth 0.22em label — same tier as its siblings */
   color: var(--ink-3);
   font-weight: 600;
   text-transform: uppercase;
@@ -1403,7 +1439,7 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   }
 }
 .tb-longview-stat-num {
-  font-size: clamp(40px, 5vw, 64px);
+  font-size: clamp(30px, 3.5vw, 44px); /* §7.6: runway scale, under the wordmark ceiling */
   font-weight: 200;
   letter-spacing: -0.03em;
   line-height: 0.95;
@@ -1436,8 +1472,8 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
 
 /* --- Bullet-list block --- */
 .tb-longview-bullets-eyebrow {
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
+  font-size: 10px;
+  letter-spacing: 0.16em;
   color: var(--ink-3);
   font-weight: 600;
   text-transform: uppercase;
@@ -1484,8 +1520,8 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   font-family: var(--mono);
 }
 .tb-longview-bar-eyebrow {
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
+  font-size: 10px;
+  letter-spacing: 0.16em;
   color: var(--ink-3);
   font-weight: 600;
   text-transform: uppercase;
@@ -1566,8 +1602,8 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   padding: 12px 0;
 }
 .tb-longview-takeaway-label {
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
+  font-size: 10px;
+  letter-spacing: 0.16em;
   color: var(--ink-3);
   font-weight: 600;
   margin-bottom: 10px;
@@ -1590,12 +1626,8 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
   transition: opacity 200ms ease, filter 200ms ease;
 }
 
-/* Sibling-margin restore — Banking group sits after LongView, not after
-   a .tb-group, so the existing .tb-group + .tb-group rule doesn't match.
-   (Kept from v1.1.0.) */
-.tb-longview + .tb-group {
-  margin-top: 64px;
-}
+/* (.tb-longview + .tb-group moved up beside .tb-group + .tb-group — see
+   the SECTION GROUP block; a copy here would out-order the tier rules.) */
 
 /* ─── ARCHIVE (app/archive) ────────────────────────────────────────
    Newest-first list of published issues. Matches the section/news-rail
@@ -1651,5 +1683,35 @@ body.tb-print .tb-wordmark-big { font-size: 64px; }
     grid-template-columns: 1fr;
     gap: 4px;
     padding: 14px 0;
+  }
+}
+
+/* ─── PRINT — html-level token force (spec §9.1b) ─────────────
+   Fixes html's own `background: var(--paper)` (dark gutters behind
+   ?print=1) and any getComputedStyle(documentElement) token read. These sit
+   at the END of the file ON PURPOSE: both selectors tie the dark block's
+   (0,2,0) specificity, so source order breaks the tie toward print. The
+   .tb-print-root class is toggled alongside body.tb-print by ClientApp's
+   printMode effect. */
+:root.tb-print-root {
+  --paper: #E6E9EB; --paper-2: #D9DDE0; --paper-3: #C8CDD0;
+  --ink: #0B0F12; --ink-2: #1F2428; --ink-3: #4F5559; --ink-4: #7A8084;
+  --rule: #0B0F12; --rule-soft: rgba(11, 15, 18, 0.20); --rule-faint: rgba(11, 15, 18, 0.09);
+  --accent: oklch(0.55 0.21 25); --accent-soft: oklch(0.55 0.21 25 / 0.16);
+  --bull: oklch(0.45 0.10 150); --bear: oklch(0.55 0.21 25); --warn: oklch(0.62 0.14 75);
+  --neu: var(--ink-3);
+  --color-muted: var(--ink-3); --color-surface-2: var(--paper-2);
+  background: white;
+}
+@media print {
+  :root[data-theme="dark"] {
+    --paper: #E6E9EB; --paper-2: #D9DDE0; --paper-3: #C8CDD0;
+    --ink: #0B0F12; --ink-2: #1F2428; --ink-3: #4F5559; --ink-4: #7A8084;
+    --rule: #0B0F12; --rule-soft: rgba(11, 15, 18, 0.20); --rule-faint: rgba(11, 15, 18, 0.09);
+    --accent: oklch(0.55 0.21 25); --accent-soft: oklch(0.55 0.21 25 / 0.16);
+    --bull: oklch(0.45 0.10 150); --bear: oklch(0.55 0.21 25); --warn: oklch(0.62 0.14 75);
+    --neu: var(--ink-3);
+    --color-muted: var(--ink-3); --color-surface-2: var(--paper-2);
+    background: white;
   }
 }

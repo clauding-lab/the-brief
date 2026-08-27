@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from "react";
+import { useMemo } from "react";
 import type { Section as SectionType, Mover } from "@/types/brief";
 import { Hair } from "./Hair";
 import { Mark } from "./Mark";
@@ -29,9 +29,11 @@ interface SectionProps {
   chartOrd?: number;
   /** The issue's brief_date (YYYY-MM-DD), used to judge chart staleness. */
   issueDate?: string;
+  /** Display label of the section's group (spec §6: the eyebrow reads "§NN · Group"). */
+  groupLabel?: string;
 }
 
-export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: SectionProps) {
+export function Section({ section, diffMode, displayOrd, chartOrd, issueDate, groupLabel }: SectionProps) {
   const {
     slug,
     ord,
@@ -89,8 +91,11 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
         data-screen-label={`§${ordLabel} ${title}`}
       >
         <div className="tb-section-head">
-          <div>
-            <div className="eyebrow">§{ordLabel}</div>
+          <div className="tb-section-titlerow">
+            <span className="eyebrow">
+              §{ordLabel}
+              {groupLabel ? ` · ${groupLabel}` : ""}
+            </span>
             <h2 className="tb-section-title">{title}</h2>
           </div>
         </div>
@@ -122,36 +127,24 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
       data-section-slug={slug}
       data-screen-label={`§${ordLabel} ${title}`}
     >
+      {/* Head row (spec §6): eyebrow inline-baseline with the title. */}
       <div className="tb-section-head">
-        <div>
-          <div className="eyebrow">
+        <div className="tb-section-titlerow">
+          <span className="eyebrow">
             §{ordLabel}
+            {groupLabel ? ` · ${groupLabel}` : ""}
             {isHero && <span className="tb-hero-flag">Today&rsquo;s Lead</span>}
-          </div>
+          </span>
           <h2 className="tb-section-title">{title}</h2>
         </div>
         {verdict && (
-          <div>
-            <span className="label">Verdict</span>
-            <div className="tb-section-verdict">
-              <Mark kind={verdict_tone || "neu"} /> {verdict}
-            </div>
+          <div className="tb-section-verdict">
+            <Mark kind={verdict_tone || "neu"} /> {verdict}
           </div>
         )}
       </div>
 
       {tldr && <p className="tb-tldr">{tldr}</p>}
-
-      {summary_pills && summary_pills.length > 0 && (
-        <div className="tb-summary-pills">
-          {summary_pills.map((p, i) => (
-            <div key={i} className={`tb-summary-pill tone-${p.tone || "neu"}`}>
-              <span className="key">{p.key}</span>
-              <span className="val">{p.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       <Hair style={{ marginTop: 18 }} />
 
@@ -240,49 +233,66 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate }: 
           </div>
         )}
 
-        {metrics.length > 0 && (
-          <div className="tb-kpi-rail">
-            {/* Render every stored metric — the tile rail is a vertical
-                flex column (.tb-kpi-rail, app/globals.css) with no fixed
-                row count, so nothing here needs truncation. A prior
-                slice(0, 5) silently dropped any section storing more than
-                5 metrics (e.g. macro's 8-metric editor carve-out), which
-                is a render-layer constraint leaking into the data layer —
-                see AGENTS.md landmine 25. */}
-            {metrics.map((m, i, arr) => (
-              <Fragment key={i}>
+        {(() => {
+          // Pills merge into the tile grid (spec §7.1): a pill duplicating a
+          // same-section metric VALUE (exact string after cleanMetricValue +
+          // trim + case-fold — 22/29 fixture pills do) is dropped; its
+          // information is already on screen as a metric tile. Surviving
+          // pills render as tiles after the metrics; a pills-only grid
+          // happens when the metric count is zero (headlines).
+          const norm = (v: string | undefined | null) =>
+            cleanMetricValue(v).trim().toLowerCase();
+          const metricValues = new Set(metrics.map((m) => norm(m.value)));
+          // An empty pill value never counts as a duplicate — "" matching a
+          // blank metric would silently drop a pill whose key still carries
+          // information.
+          const survivingPills = (summary_pills || []).filter(
+            (p) => norm(p.value) === "" || !metricValues.has(norm(p.value))
+          );
+          if (metrics.length === 0 && survivingPills.length === 0) return null;
+          return (
+            <div className="tb-kpi-rail">
+              {/* Render every stored metric — no truncation (AGENTS.md
+                  landmine 25). Tile order: label → value → sub → vintage
+                  footer (spec §7.1's JSX reorder for the column-flex tile);
+                  the old Hair separators are replaced by the grout gap. */}
+              {metrics.map((m, i) => (
                 <div
+                  key={i}
                   className={`tb-kpi-row${
                     m.changed ? " is-changed" : m.held_from ? " is-held-over" : ""
                   }`}
                 >
-                  <div>
-                    <div className="tb-kpi-label">
-                      {m.label}
-                      {m.changed && (
-                        <span className="tb-changed-dot" title="Updated since yesterday" />
-                      )}
-                    </div>
-                    {m.sub && <div className="tb-kpi-sub">{m.sub}</div>}
-                    {/* Vintage footer. Shown even when `changed` is true: a
-                        number can move and still be five months old — the
-                        first issue after a source repoint is exactly that
-                        case, and that is precisely when the reader needs the
-                        date most. */}
-                    {m.held_from && (
-                      <div className="tb-held-footer">
-                        As of {formatVintageDate(m.held_from)}
-                        {m.next_print ? ` · next print ${m.next_print}` : ""}
-                      </div>
+                  <div className="tb-kpi-label">
+                    {m.label}
+                    {m.changed && (
+                      <span className="tb-changed-dot" title="Updated since yesterday" />
                     )}
                   </div>
                   <div className="tb-kpi-value">{cleanMetricValue(m.value)}</div>
+                  {m.sub && <div className="tb-kpi-sub">{m.sub}</div>}
+                  {/* Vintage footer. Shown even when `changed` is true: a
+                      number can move and still be five months old — the
+                      first issue after a source repoint is exactly that
+                      case, and that is precisely when the reader needs the
+                      date most. */}
+                  {m.held_from && (
+                    <div className="tb-held-footer">
+                      As of {formatVintageDate(m.held_from)}
+                      {m.next_print ? ` · next print ${m.next_print}` : ""}
+                    </div>
+                  )}
                 </div>
-                {i < arr.length - 1 && <Hair tone="faint" />}
-              </Fragment>
-            ))}
-          </div>
-        )}
+              ))}
+              {survivingPills.map((p, i) => (
+                <div key={`pill-${i}`} className="tb-kpi-row">
+                  <div className="tb-kpi-label">{p.key}</div>
+                  <div className="tb-kpi-value">{cleanMetricValue(p.value)}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {hasChart && news.length > 0 && (

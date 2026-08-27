@@ -11,7 +11,6 @@ import { Masthead } from "./Masthead";
 import { StickyBar } from "./StickyBar";
 import { SnapshotStrip } from "./SnapshotStrip";
 import { SecNav } from "./SecNav";
-import { Cover } from "./Cover";
 import { Section } from "./Section";
 import { SubscribeCTA } from "./SubscribeCTA";
 import { StatusBar } from "./StatusBar";
@@ -87,10 +86,21 @@ export function ClientApp(props: ClientAppProps) {
     }
   }, []);
 
-  // Apply body classes for diff/print modes
+  // Apply body classes for diff/print modes. tb-print-root mirrors tb-print
+  // onto <html> (spec §9.1b): html's own `background: var(--paper)` and any
+  // getComputedStyle(documentElement) token read need the print tokens too —
+  // body-level overrides can't reach either.
   useEffect(() => {
     document.body.classList.toggle("tb-print", printMode);
+    document.documentElement.classList.toggle("tb-print-root", printMode);
     document.body.classList.toggle("tb-diff", diffMode);
+    // Cleanup on unmount: body/html outlive this component, so a client-side
+    // navigation away from a ?print=1 page (e.g. to /archive) must not carry
+    // the print classes with it (review-caught).
+    return () => {
+      document.body.classList.remove("tb-print", "tb-diff");
+      document.documentElement.classList.remove("tb-print-root");
+    };
   }, [printMode, diffMode]);
 
   // Print renders light regardless of the visitor's theme (interim slice of
@@ -241,7 +251,6 @@ export function ClientApp(props: ClientAppProps) {
     [reducedMotion]
   );
 
-  const snapshotSection = data.sections.find((s) => s.slug === "snapshot");
   const bodySections = data.sections.filter(
     (s) => s.slug !== "snapshot" && s.slug !== "nbr"
   );
@@ -271,6 +280,13 @@ export function ClientApp(props: ClientAppProps) {
     }
   }
 
+  // The lead section (weight >= 2 — same flag that drives is-hero) gets an
+  // accented SecNav item (spec §7.7). Production carries one lead per issue;
+  // first-match is the tiebreak, and a collapsed dead section never leads.
+  const leadSlug = flatRenderOrder.find(
+    (s) => (s.weight ?? 1) >= 2 && s.freshness !== "unavailable"
+  )?.slug;
+
   return (
     <div className="tb-shell">
       {preview && (
@@ -298,19 +314,29 @@ export function ClientApp(props: ClientAppProps) {
           PREVIEW MODE · fixture-loaded · NOT live data
         </div>
       )}
-      <a href="#cover" className="tb-skip">
+      {/* #content: <main> always renders; the old #cover target was already
+          dead on null-cover issues (spec §5.1) and Cover is retired (§7.5). */}
+      <a href="#content" className="tb-skip">
         Skip to content
       </a>
       <StickyBar brief={data.brief} source={data._source} visible={stickyVisible} />
+      {/* The ink band (spec §5.1): a true full-bleed wrapper — a <div>, not a
+          <header> (Masthead's root already is one, and a second top-level
+          header would add a spurious banner landmark next to StickyBar's).
+          .tb-band-inner's gutters are owned by the §4.3 safe-area rules. */}
+      <div className="tb-band">
+        <div className="tb-band-inner">
+          <Masthead
+            brief={data.brief}
+            source={data._source}
+            fetchedAt={data._fetchedAt}
+            sectionCount={flatRenderOrder.length}
+            historical={historical}
+          />
+        </div>
+      </div>
       <main id="content" className="tb-body">
-        <Masthead
-          brief={data.brief}
-          source={data._source}
-          fetchedAt={data._fetchedAt}
-          sectionCount={flatRenderOrder.length}
-          historical={historical}
-        />
-        <SnapshotStrip section={snapshotSection} />
+        <SnapshotStrip sections={data.sections} />
         <SecNav
           sections={flatRenderOrder}
           activeSlug={active}
@@ -318,8 +344,8 @@ export function ClientApp(props: ClientAppProps) {
           diffMode={diffMode}
           onToggleDiff={() => setDiffMode((v) => !v)}
           displayOrdBySlug={displayOrdBySlug}
+          leadSlug={leadSlug}
         />
-        <Cover brief={data.brief} sections={data.sections} />
         {groupedSections.map(({ key, sections }) => (
           <Fragment key={key}>
             <div className="tb-group" data-group={key}>
@@ -335,6 +361,7 @@ export function ClientApp(props: ClientAppProps) {
                   displayOrd={displayOrdBySlug.get(s.slug)}
                   chartOrd={chartOrdBySlug.get(s.slug)}
                   issueDate={data.brief?.brief_date}
+                  groupLabel={GROUP_LABELS[key]}
                 />
               ))}
             </div>
@@ -352,9 +379,11 @@ export function ClientApp(props: ClientAppProps) {
       </main>
 
       <footer className="tb-foot">
+        {/* Tagline's first sentence moved here from the masthead (spec §5.3,
+            owner veto §11.2); the other two sentences are dropped. */}
         <div>
-          The Brief · Bangladesh business intelligence · Vol. {data.brief?.volume} · Issue{" "}
-          {data.brief?.issue_no}
+          The Brief · Daily macro &amp; markets read for Bangladesh banking professionals · Vol.{" "}
+          {data.brief?.volume} · Issue {data.brief?.issue_no}
         </div>
         <div>Curated daily · Read time {data.brief?.read_minutes ?? 15} min</div>
         <div>
