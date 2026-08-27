@@ -30,6 +30,20 @@ lived). The reshape below is round 2's verdict, not a guess:
   positive ("...in 14 days" as a plain duration statement, not a
   count-of-observations claim).
 
+  BLOCK, SCOPED (added 2026-08-28, owner-approved) —
+  `check_hyphenated_count_claims`, for the sections in
+  `_HYPHENATED_COUNT_BLOCK_SLUGS` (today: `dse`) AND only for the claim
+  shape the supply side can answer (`_is_blockable_shape`:
+  session/print/read + "low"). The hyphenated ATTRIBUTIVE shape ("a
+  ten-session low") shipped byte-identical across issues 205-208 while the
+  real rank ran 38 -> 42; PR #185 now feeds `dse` the true rank as a
+  history fact, so a session-low claim there matching neither that fact nor
+  any other sourced count is invented by construction. A claim whose NUMBER
+  matches a machine-supplied count is legitimate and produces nothing at
+  all. Outside that slug set — where no count is supplied and a finding
+  means "unverifiable", not "invented" — and outside that shape — where no
+  fact of the kind could ever exist to clear it — it stays WARN.
+
   WARN (logged + Discord-alerted in ONE grouped message, never blocks) —
   everything else: `check_metric_sub_numbers`, `check_metric_sub_periods`,
   `check_metric_value_vs_raw` (new — the check that would have caught the
@@ -62,8 +76,10 @@ from typing import Any
 
 
 class ProseNumberViolationError(RuntimeError):
-    """BLOCK-mode hard fail — raised ONLY by `check_count_claims` (and by the
-    orchestrator when `BRIEF_PROSE_VALIDATOR_STRICT=1` upgrades a WARN).
+    """BLOCK-mode hard fail — raised by `check_count_claims` (unconditional,
+    anywhere in the brief), by `check_hyphenated_count_claims` for a section
+    in `_HYPHENATED_COUNT_BLOCK_SLUGS` (scoped, 2026-08-28), and by the
+    orchestrator when `BRIEF_PROSE_VALIDATOR_STRICT=1` upgrades a WARN.
     Independent of `brief.pipeline_v6.V6PublishError` on purpose — this
     module must not import pipeline_v6 at module level (it would close an
     import cycle: pipeline_v6 imports THIS module). The caller in
@@ -761,14 +777,12 @@ def check_count_claims(final_brief: Any) -> None:
             )
 
 
-# ─── WARN-mode: hyphenated-attributive count claim (issue 206) ────────────
+# ─── hyphenated-attributive count claim (issue 206; BLOCK in dse 2026-08-28) ──
 # Round-2 (#204) narrowed `_COUNT_CLAIM_RE` to the PREPOSITIONAL shape
 # ("across ten sessions"). Issue 205/206 printed the SAME invented-count
 # defect in a different surface shape — the hyphenated ATTRIBUTIVE form ("a
 # ten-session low", "12-day streak") — which that regex cannot match at all
-# (no preposition, and "ten" ends in neither "teen" nor "ty"). Same root
-# cause: no count-of-observations field is ever supplied to the editor, so
-# any number named here is fabricated.
+# (no preposition, and "ten" ends in neither "teen" nor "ty").
 #
 # Golden-corpus replay (tests/fixtures/real_issues/, issues #199-#205, the
 # same real published rows the BLOCK-mode check's corpus lives in): **3 true
@@ -779,45 +793,241 @@ def check_count_claims(final_brief: Any) -> None:
 # `dse.metrics[].sub` ("last session (20 Aug) — a ten-session low"). Issues
 # #199-#204 (6 of the 7 fixtures) produce zero hits.
 #
-# WARN-only, deliberately, pending the same production-log-volume proof the
-# BLOCK-mode check earned before ITS corpus replay — 3 TPs across 1 issue is
-# real signal but not the sample size round 2's own discipline (AGENTS.md
-# landmine 34) requires before holding the publish on a regex. Cannot
-# collide with the plain-duration false positive round 2 already fixed
+# Cannot collide with the plain-duration false positive round 2 already fixed
 # ("BB hasn't published reserves in 14 days") — that phrase has no hyphen at
 # all, so the two shapes are structurally disjoint, not just tuned apart.
+#
+# `count`, `unit` and `extreme` are named groups so the claimed NUMBER and the
+# claim's SHAPE can both be inspected. The count slot accepts an optional
+# hyphenated prefix (`(?:\w+-)?`) so English compounds are captured WHOLE —
+# "forty-two-session low" yields "forty-two", not the tail "two". That was a
+# live false-block, not a hypothetical: the real DSEX rank is 42, ten of the
+# last year's sixty-eight fact-days land in the compound band (22, 23, 24, 28,
+# 33, 38, 41, 42), and the editor's register prefers word forms. The
+# alternation the count slot replaces (`(?:\w+|\d+)`) was redundant — `\w+`
+# already matches a digit run — and the optional prefix only ever WIDENS an
+# existing match's span, never creates one, so the set of matched sentences is
+# unchanged.
 _HYPHENATED_COUNT_CLAIM_RE = re.compile(
-    r"\b(?:\w+|\d+)-(?:session|day|week|print|read)s?\s+(?:low|high|streak|run)\b",
+    r"\b(?P<count>(?:\w+-)?\w+)-(?P<unit>session|day|week|print|read)s?\s+"
+    r"(?P<extreme>low|high|streak|run)\b",
     re.IGNORECASE,
 )
 
+# The count words the editor's register actually produces, plus the bare tens.
+# Digits are the fact side's own format (`_dsex_session_low_fact` writes
+# `f"a {rank}-session"`), so word-vs-digit comparison is NUMERIC, never textual.
+_COUNT_WORDS: dict[str, int] = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+    "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90,
+}
+_COUNT_TENS = frozenset({20, 30, 40, 50, 60, 70, 80, 90})
 
-def check_hyphenated_count_claims(final_brief: Any) -> list[NumberWarning]:
-    """WARN-mode sibling of `check_count_claims` for the hyphenated-attributive
-    count-claim shape. See `_HYPHENATED_COUNT_CLAIM_RE`'s comment for the
-    corpus evidence behind shipping this WARN rather than BLOCK. Scans the
-    SAME prose surface as the BLOCK-mode check (`_collect_prose_fields`),
-    since it is the same invented-count defect wearing a different shape.
-    Never raises directly — WARN unless `BRIEF_PROSE_VALIDATOR_STRICT=1`
-    escalates it via the orchestrator, same as every other WARN-mode check
-    in this module."""
+
+def _parse_count_token(token: str) -> int | None:
+    """The integer a count slot names, or None when it names no number at all
+    ("a MULTI-session low"). None is not "zero" — it is "nothing to check".
+
+    Handles the English tens-plus-unit compound ("forty-two" -> 42). Anything
+    else hyphenated falls back to the TAIL token, which is what the pattern
+    used to capture — so a shape this function cannot read is never worse off
+    than before, and "risk-free ten-session low" still reads 10.
+    """
+    token = token.casefold()
+    if "-" in token:
+        head, _, tail = token.rpartition("-")
+        tens, unit = _COUNT_WORDS.get(head), _COUNT_WORDS.get(tail)
+        if tens in _COUNT_TENS and unit is not None and 1 <= unit <= 9:
+            return tens + unit
+        token = tail
+    if token.isdigit():
+        return int(token)
+    return _COUNT_WORDS.get(token)
+
+
+def _sourced_counts(raw_section: dict[str, Any] | None) -> set[int]:
+    """Every count a machine-computed history fact supplies for this section.
+
+    Read from `sections_raw[].history_facts` — the same serialized shape
+    `pipeline_v6._to_v6_raw` hands the editor, so what the check accepts is
+    exactly what the editor was given to inline. The rank lives ONLY inside
+    `phrase`: `history_anchors.HistoryFact` has no rank field (its structured
+    fields are metric_id/kind/phrase/reference_value*/reference_as_of), so the
+    phrase is re-scanned with the SAME regex the claim is matched by — one
+    pattern, one definition of "a count claim", both sides.
+    """
+    if not raw_section:
+        return set()
+    facts = raw_section.get("history_facts") or []
+    counts: set[int] = set()
+    for fact in facts:
+        phrase = (
+            fact.get("phrase") if isinstance(fact, dict)
+            else getattr(fact, "phrase", None)
+        )
+        for match in _HYPHENATED_COUNT_CLAIM_RE.finditer(str(phrase or "")):
+            value = _parse_count_token(match.group("count"))
+            if value is not None:
+                counts.add(value)
+    return counts
+
+
+# Sections where an unmatched hyphenated count claim HOLDS THE PUBLISH rather
+# than warning. Owner-approved 2026-08-28, deliberately scoped to `dse` and
+# not the whole brief, on two facts that hold there and nowhere else:
+#
+#   1. `dse` has four fabricated editions ON THE RECORD — "a ten-session low"
+#      shipped byte-identical across issues 205-208 while the true rank ran
+#      38 -> 41 -> 42. This is a demonstrated, repeating production defect,
+#      not a hypothetical.
+#   2. Since PR #185 the pipeline FEEDS `dse` a real machine-computed rank
+#      (`pipeline_v6._dsex_session_low_fact`) through the history-facts-
+#      verbatim contract. An honest alternative now exists, so a claim that
+#      matches neither that fact nor any other sourced count in the section
+#      is a fabrication BY CONSTRUCTION, not merely an unverifiable figure.
+#
+# Every other section fails test 2: nothing supplies it a count of any kind,
+# so a finding there means "unverifiable", not "invented", and it stays WARN.
+# Add a slug here only once that section has its own machine-fed count. `bb`
+# and `tbond` look superficially similar and are NOT candidates: their prose is
+# dense with instrument names wearing this exact shape ("the 14-day call money
+# rate", "the 91-day T-Bill"), counted 25 times across 15 real issues.
+_HYPHENATED_COUNT_BLOCK_SLUGS = frozenset({"dse"})
+
+# Which SHAPE of claim a block slug can hold the publish over. Narrower than
+# the pattern the check warns on, and the narrowing is not a hedge — it is
+# what the supply side can actually answer:
+#
+#   * `_dsex_session_low_fact` emits a `since_lower` rank and nothing else, so
+#     a HIGH / STREAK / RUN claim has no possible sourced counterpart. Blocking
+#     one would be unclearable by an honest editor: the publish holds on a
+#     sentence with no correct alternative to write.
+#   * DAY and WEEK forms are ordinary derivable market prose ("a 52-week low"
+#     is computable from any price series and needs no supplied count), while
+#     `session`/`print`/`read` are OBSERVATION counts — the same three nouns
+#     the count-claim family has always treated as invented-by-default.
+#
+# Demonstrated, not theorised: before this narrowing, "a 52-week low", "a
+# five-session high" and "a three-day run of declines" each held the publish
+# through the real gate. Corpus-verified: narrowing keeps 13/13 real true
+# positives across issues #205-#208 (all of them session-lows) and removes the
+# entire legitimate-phrase false-block surface. Everything outside this shape
+# still WARNs, everywhere, exactly as before.
+_BLOCKABLE_COUNT_UNITS = frozenset({"session", "print", "read"})
+_BLOCKABLE_COUNT_EXTREME = "low"
+
+
+def _is_blockable_shape(match: "re.Match[str]") -> bool:
+    return (
+        match.group("unit").lower() in _BLOCKABLE_COUNT_UNITS
+        and match.group("extreme").lower() == _BLOCKABLE_COUNT_EXTREME
+    )
+
+
+def check_hyphenated_count_claims(
+    final_brief: Any,
+    raw_sections_by_slug: dict[str, dict[str, Any]] | None = None,
+) -> list[NumberWarning]:
+    """Sibling of `check_count_claims` for the hyphenated-attributive
+    count-claim shape. Scans the SAME prose surface as the BLOCK-mode check
+    (`_collect_prose_fields`), since it is the same invented-count defect
+    wearing a different shape.
+
+    A claim is LEGITIMATE when its number matches a count supplied by that
+    section's own machine-computed history facts (`_sourced_counts`) — the
+    only place in the whole payload a count of observations ever comes from
+    (no builder emits a count field; that is the premise the original check
+    was built on). Legitimate claims produce nothing: no warning, no block.
+
+    An unmatched claim BLOCKS — raising `ProseNumberViolationError`, the same
+    error family `check_count_claims` raises, so it reaches `cli.py`'s exit
+    code 4 through `pipeline_v6._run_prose_number_gate` — only when ALL THREE
+    hold: its section is in `_HYPHENATED_COUNT_BLOCK_SLUGS`, its count parses
+    to a number, and its shape is one the supply side can actually answer
+    (`_is_blockable_shape` — session/print/read + "low"). Everything else is
+    collected as a WARN, exactly as it has been since PR #175.
+
+    Two deliberate scope limits on the BLOCK: a count slot naming no number
+    ("a multi-session low") has no figure to compare and no fabricated rank to
+    hold a publish over, and a shape with no possible sourced counterpart
+    ("a 52-week low", "a five-session high") could never be cleared by an
+    honest editor. Both warn instead.
+
+    ACCEPTED RISK, on the record. The supply side fails OPEN and the claim
+    side now fails CLOSED. `_fetch_series_summaries` swallows a fetch failure
+    and yields no facts (deliberately — the editor still runs without chart
+    grounding), while an unmatched session-low claim here holds the publish.
+    So a transient Supabase hiccup plus a habitual phrase is a held edition.
+    The exposure is bounded by how often a fact exists at all: on the real
+    series a fact is available roughly 31% of mornings (63.1% of days the rank
+    is under `LOOKBACK_MIN`, 5.5% are window lows — both suppress the fact by
+    design, and on those mornings there is no honest rank to print either).
+    Judged the right trade: the failure mode is a held publish, which is
+    visible and recoverable, versus four editions of a fabricated figure,
+    which was neither.
+
+    A residual, named rather than hidden: legitimacy is matched on the NUMBER
+    alone, so a WARN-class shape reusing a sourced number ("a 42-week low"
+    beside a 42-session fact) passes silently. Those shapes cannot block
+    anyway, so the cost is one missing log line.
+
+    `raw_sections_by_slug` defaults to empty — a caller with no raw sections
+    can still run the pattern, it simply has no fact to legitimize anything
+    with.
+    """
     from brief.pipeline_v6 import _collect_prose_fields  # lazy: avoids the import cycle
 
+    raw_by_slug = raw_sections_by_slug or {}
+    sourced_by_section: dict[str, set[int]] = {}
     warnings: list[NumberWarning] = []
     for field_path, text in _collect_prose_fields(final_brief):
-        match = _HYPHENATED_COUNT_CLAIM_RE.search(text)
-        if match:
-            section = field_path.split(".", 1)[0]
+        section = field_path.split(".", 1)[0]
+        if section not in sourced_by_section:
+            sourced_by_section[section] = _sourced_counts(raw_by_slug.get(section))
+        sourced = sourced_by_section[section]
+        # Every claim in the field, not just the first: a sourced claim must
+        # never shield a fabricated one sitting behind it in the same string.
+        # At most ONE warning per field is still emitted, preserving the
+        # per-field counting the golden-corpus replay pins.
+        for match in _HYPHENATED_COUNT_CLAIM_RE.finditer(text):
+            claimed = _parse_count_token(match.group("count"))
+            if claimed is not None and claimed in sourced:
+                continue
+            if (
+                section in _HYPHENATED_COUNT_BLOCK_SLUGS
+                and claimed is not None
+                and _is_blockable_shape(match)
+            ):
+                known = (
+                    "machine-supplied counts here: "
+                    + ", ".join(str(c) for c in sorted(sourced))
+                    if sourced else "no sourced count exists for this section"
+                )
+                raise ProseNumberViolationError(
+                    f"prose-number gate: hyphenated count-claim "
+                    f"{match.group(0)!r} at {field_path!r} — {section!r} is a "
+                    f"BLOCK-scoped section and this count matches no "
+                    f"machine-supplied history fact ({known}). No builder "
+                    "emits a count field; an unsourced count here is invented "
+                    "(issues 205-208, 'a ten-session low' byte-identical "
+                    "across four editions while the real rank ran 38-42). "
+                    "Publish held."
+                )
             warnings.append(NumberWarning(
                 kind="hyphenated_count_claim",
                 section=section,
                 field_path=field_path,
                 matched_text=match.group(0),
-                normalized_value=0.0,
+                normalized_value=float(claimed) if claimed is not None else 0.0,
                 category="count",
                 nearest_value=None,
                 nearest_delta=None,
             ))
+            break
     return warnings
 
 
@@ -1304,21 +1514,27 @@ def check_lede_numbers_against_builder_values(
 def run_prose_number_gate(
     final_brief: Any, raw_sections: list[dict[str, Any]], *, strict: bool = False,
 ) -> list[NumberWarning]:
-    """`check_count_claims` first (raises unconditionally — the ONLY
-    BLOCK-mode check post-round-2). Then every WARN-mode check runs and its
-    findings are collected into one list. When `strict`
-    (BRIEF_PROSE_VALIDATOR_STRICT=1), the first collected warning is
-    escalated to a raise instead of being returned — a documented future
-    flip, not this PR's default (see module docstring)."""
+    """The two BLOCK-capable checks run FIRST, adjacent, so a hold never
+    depends on what some WARN-mode check did before it:
+    `check_count_claims` (raises unconditionally, anywhere in the brief),
+    then `check_hyphenated_count_claims` (raises only for a section in
+    `_HYPHENATED_COUNT_BLOCK_SLUGS` whose count matches no machine-supplied
+    history fact — owner-approved 2026-08-28; WARN everywhere else, and its
+    WARN findings still join the collected list below).
+
+    Then every remaining WARN-mode check runs and its findings are collected
+    into one list. When `strict` (BRIEF_PROSE_VALIDATOR_STRICT=1), the first
+    collected warning is escalated to a raise instead of being returned — a
+    documented future flip, not this PR's default (see module docstring)."""
     check_count_claims(final_brief)
 
     raw_by_slug = {s["slug"]: s for s in raw_sections if "slug" in s}
     warnings: list[NumberWarning] = []
+    warnings.extend(check_hyphenated_count_claims(final_brief, raw_by_slug))
     warnings.extend(check_metric_sub_numbers(final_brief, raw_by_slug))
     warnings.extend(check_metric_sub_periods(final_brief, raw_by_slug))
     warnings.extend(check_metric_value_vs_raw(final_brief, raw_by_slug))
     warnings.extend(check_lede_numbers_against_builder_values(final_brief, raw_sections))
-    warnings.extend(check_hyphenated_count_claims(final_brief))
     warnings.extend(check_card_period_vs_chart_series(final_brief, raw_by_slug))
     warnings.extend(check_year_ago_claims(final_brief, raw_by_slug))
 

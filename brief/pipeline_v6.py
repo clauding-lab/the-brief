@@ -1666,9 +1666,12 @@ class DenylistViolationError(V6PublishError):
 
 class ProseNumberGateError(V6PublishError):
     """Raised when `brief.validators.prose_numbers` finds a sourceless
-    count-claim anywhere in the brief (`check_count_claims` — the ONLY
-    unconditional BLOCK post-round-2 review, corpus-verified 14/14 TP, 0 FP;
-    P2 fact-checker, 2026-08-22 audit #204), OR — only when
+    count-claim anywhere in the brief (`check_count_claims` — the only
+    UNCONDITIONAL BLOCK post-round-2 review, corpus-verified 14/14 TP, 0 FP;
+    P2 fact-checker, 2026-08-22 audit #204), OR a hyphenated-attributive
+    count-claim in a block-scoped section that matches no machine-fed history
+    fact (`check_hyphenated_count_claims` + `_HYPHENATED_COUNT_BLOCK_SLUGS`,
+    owner-approved 2026-08-28), OR — only when
     `BRIEF_PROSE_VALIDATOR_STRICT=1` — any WARN-mode figure/period mismatch.
     Same propagation shape as `DenylistViolationError` — see
     `_run_prose_number_gate`, which wraps `prose_numbers.ProseNumberViolationError`
@@ -1938,9 +1941,12 @@ def _run_prose_number_gate(
     final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]],
 ) -> list["_prose_numbers.NumberWarning"]:
     """Wire `brief.validators.prose_numbers` in (P2 fact-checker, 2026-08-22
-    audit #204, round-2 review). `check_count_claims` is the ONLY BLOCK-mode
-    check post-round-2 (14/14 TP, 0 FP against a 25-real-issue corpus replay)
-    and HOLDS the publish via `ProseNumberGateError`. Everything else
+    audit #204, round-2 review). `check_count_claims` is the only
+    UNCONDITIONAL BLOCK-mode check (14/14 TP, 0 FP against a 25-real-issue
+    corpus replay) and HOLDS the publish via `ProseNumberGateError`;
+    `check_hyphenated_count_claims` holds it too, but ONLY for the sections in
+    `_HYPHENATED_COUNT_BLOCK_SLUGS` (dse) and only for a count matching no
+    machine-fed history fact (owner-approved 2026-08-28). Everything else
     (sub numbers/periods, metric.value vs raw, lede figures) is WARN-mode —
     collected and sent as ONE grouped Discord alert (H3), never blocking —
     UNLESS `BRIEF_PROSE_VALIDATOR_STRICT=1`, which upgrades the whole set to

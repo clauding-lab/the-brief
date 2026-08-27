@@ -48,6 +48,7 @@ import pytest
 
 from brief.pipeline_v6 import summarize_series_points
 from brief.v6_schema import BriefPayloadV6
+from brief.validators import prose_numbers
 from brief.validators.prose_numbers import (
     ProseNumberViolationError,
     check_count_claims,
@@ -315,19 +316,71 @@ def test_chart_grounding_clears_most_of_issue_205s_warn_volume() -> None:
     )
 
 
-def test_hyphenated_count_claim_corpus_replay_matches_only_issue_205() -> None:
+def test_hyphenated_count_claim_corpus_replay_matches_only_issue_205(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Golden-corpus replay for `check_hyphenated_count_claims` (issue 206
     regression — the '_COUNT_CLAIM_RE' family's hyphenated-attributive
     extension, 'a ten-session low'). Pins the replay documented in that
     check's own module comment: 3 true positives, ALL of them issue #205's
     real fabricated phrase repeated across 3 fields in one issue, 0 false
-    positives across the other 6 real issues (#199-#204)."""
-    hits_by_issue: dict[int, int] = {}
+    positives across the other 6 real issues (#199-#204).
+
+    RE-PIN 2026-08-28 (owner-approved BLOCK promotion): all 3 of those true
+    positives sit in `dse` fields, and `dse` is now BLOCK-scoped
+    (`_HYPHENATED_COUNT_BLOCK_SLUGS`) — the check RAISES on #205 rather than
+    returning findings, which is the whole point of the promotion. The
+    measurement itself is unweakened: the TP/FP counts are still taken over
+    the same seven real issues, with the block scope emptied so the pattern's
+    own hit rate is what gets counted. The BLOCK behaviour is then asserted
+    separately, on the real fixture, in
+    `test_issue_205s_dse_hits_are_block_class_under_the_real_scope`."""
+    monkeypatch.setattr(prose_numbers, "_HYPHENATED_COUNT_BLOCK_SLUGS", frozenset())
+    hits_by_issue: dict[int, list[str]] = {}
     for issue_no in WARN_ISSUE_NUMBERS:
         brief, _raw = _load_real_issue(issue_no)
-        hits_by_issue[issue_no] = len(check_hyphenated_count_claims(brief))
-    assert sum(n for issue_no, n in hits_by_issue.items() if issue_no != 205) == 0
-    assert hits_by_issue[205] == 3
+        hits_by_issue[issue_no] = [
+            w.field_path for w in check_hyphenated_count_claims(brief)
+        ]
+    assert sum(len(p) for no, p in hits_by_issue.items() if no != 205) == 0
+    assert len(hits_by_issue[205]) == 3
+    # All three are the SAME real dse defect — load-bearing for the scope of
+    # the BLOCK below, which is per-section, not brief-wide.
+    assert all(p.startswith("dse.") for p in hits_by_issue[205]), hits_by_issue[205]
+
+
+def test_issue_205s_dse_hits_are_block_class_under_the_real_scope() -> None:
+    """The promotion, measured on the real published row rather than a
+    fixture: issue #205's three fabricated `dse` session-low claims now HOLD
+    the publish. The reconstructed raw carries no `history_facts` (they are
+    pre-editor input a published row never retains — module docstring, note
+    3), which is exactly the "no sourced count" case: with nothing to source
+    a rank from, an editor that prints one has invented it."""
+    brief, raw = _load_real_issue(205)
+    raw_by_slug = {r["slug"]: r for r in raw}
+    with pytest.raises(ProseNumberViolationError) as exc_info:
+        check_hyphenated_count_claims(brief, raw_by_slug)
+    message = str(exc_info.value)
+    assert "dse." in message
+    assert "session low" in message
+
+
+def test_a_real_history_fact_would_have_let_issue_205s_claim_through() -> None:
+    """The other side of the same promotion — proof it discriminates on the
+    NUMBER, not on the section. Hand issue #205's `dse` section the rank its
+    own prose claims, in the exact serialized shape `_to_v6_raw` writes, and
+    the block clears. This is what a real published `dse` section looks like
+    post-PR #185 when the editor inlines the fact it was given."""
+    brief, raw = _load_real_issue(205)
+    raw_by_slug = {r["slug"]: r for r in raw}
+    raw_by_slug["dse"]["history_facts"] = [{
+        "metric_id": "dsex",
+        "kind": "since_lower",
+        "phrase": "a ten-session low (5,601.44 on 22 Jun the last lower close)",
+        "reference_value_formatted": "5,601.44",
+        "reference_as_of": "2026-06-22",
+    }]
+    assert check_hyphenated_count_claims(brief, raw_by_slug) == []
 
 
 def test_year_ago_claim_corpus_replay_matches_only_issue_205() -> None:

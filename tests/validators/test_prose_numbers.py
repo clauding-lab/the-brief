@@ -97,24 +97,278 @@ def test_count_claim_narrowed_nouns_no_longer_flag_sessions():
     check_count_claims(brief)  # must not raise — "sessions" contributed zero TPs, dropped
 
 
-# ─── WARN: check_hyphenated_count_claims — issue 206's "ten-session low" ───
+# ─── check_hyphenated_count_claims — issue 206's "ten-session low" ─────────
+# WARN everywhere, BLOCK inside `_HYPHENATED_COUNT_BLOCK_SLUGS` (dse) since
+# the 2026-08-28 owner-approved promotion. A claim whose COUNT matches a
+# machine-fed history fact for the same section is legitimate and never fires.
 
 
-def test_count_claim_catches_hyphenated_session_low():
-    """Issue 205/206 regression: '_COUNT_CLAIM_RE' only matches the
-    prepositional form ('across ten sessions'); the hyphenated ATTRIBUTIVE
-    form ('a ten-session low') is a different surface shape and passed
-    uncaught, printing a count nothing in the pipeline supplies. WARN-only —
-    see `_HYPHENATED_COUNT_CLAIM_RE`'s comment for the golden-corpus replay."""
-    brief = _brief([{
+def _dse_section(**fields) -> dict:
+    return {
         "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+        "weight": 1, **fields,
+    }
+
+
+def _history_fact(phrase: str, *, metric_id: str = "dsex") -> dict:
+    """The serialized shape `pipeline_v6._to_v6_raw` writes into
+    `sections_raw[].history_facts` — five keys, `phrase` carrying the rank."""
+    return {
+        "metric_id": metric_id,
+        "kind": "since_lower",
+        "phrase": phrase,
+        "reference_value_formatted": "5,722.21",
+        "reference_as_of": "2026-08-23",
+    }
+
+
+_REAL_SESSION_LOW_FACT = _history_fact(
+    "a 42-session low (5,722.21 on 23 Aug the last lower close)"
+)
+
+
+def test_hyphenated_count_claim_sourced_by_a_history_fact_is_legitimate():
+    """PR #185 feeds `dse` a REAL machine-computed session rank through the
+    history-facts-verbatim contract. Prose that inlines that rank is the
+    honest output the whole fix exists to produce — it must neither warn nor
+    block, or the fix would be unshippable alongside its own catcher."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a 42-session low on drained turnover.",
+    )])
+    assert check_hyphenated_count_claims(brief, raw) == []
+
+
+def test_the_block_scope_is_exactly_dse():
+    """Pin the scope itself, not just its behaviour. Shrinking it is pinned by
+    every WARN test below and growing it toward `fiscal` by
+    `test_hyphenated_count_claim_outside_the_block_scope_stays_warn`, but
+    ARBITRARY growth was not — and the sections most likely to be added next
+    are the ones that would false-block immediately.
+
+    PRECONDITION for adding a slug: that section must have its OWN machine-fed
+    count, the way `dse` has `_dsex_session_low_fact`. `bb` and `tbond` do not,
+    and their prose is dense with instrument names that wear the same shape
+    ("the 14-day call money rate", "the 91-day T-Bill") — a reviewer counted 25
+    such phrases across 15 real issues. Adding either slug on the strength of
+    "it looks similar" holds a publish on the first honest morning."""
+    from brief.validators.prose_numbers import _HYPHENATED_COUNT_BLOCK_SLUGS
+
+    assert _HYPHENATED_COUNT_BLOCK_SLUGS == frozenset({"dse"})
+
+
+# ─── FIX 1: compound word-forms ("forty-two-session") ──────────────────────
+
+
+def test_compound_word_form_claim_clears_a_digit_fact():
+    """The live rank is 42 and the editor's register prefers word forms, so
+    the compound band is where an honest claim actually lands. Capturing only
+    the tail token ("two") turned every "forty-two-session low" into a
+    fabrication and would have held an honest morning."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a forty-two-session low on drained turnover.",
+    )])
+    assert check_hyphenated_count_claims(brief, raw) == []
+
+
+def test_compound_word_form_fabrication_still_blocks():
+    """Widening the capture must not blunt the catch: a compound that names
+    the WRONG rank is still an invented figure."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a thirty-seven-session low on drained turnover.",
+    )])
+    with pytest.raises(ProseNumberViolationError, match=r"thirty-seven-session low"):
+        check_hyphenated_count_claims(brief, raw)
+
+
+def test_compound_word_form_matched_text_names_the_whole_count():
+    """The reported phrase must be the one a human would go looking for."""
+    brief = _brief([{
+        "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
         "weight": 1,
-        "verdict": "DSEX grinds to a ten-session low on drained turnover.",
+        "tldr": "NBR collections have held flat on a twenty-one-day streak.",
     }])
-    warnings = check_hyphenated_count_claims(brief)
+    warnings = check_hyphenated_count_claims(brief, {})
+    assert warnings[0].matched_text.startswith("twenty-one-day")
+    assert warnings[0].normalized_value == 21.0
+
+
+# ─── FIX 2: only session/print/read + "low" can ever hard-block ────────────
+
+
+def test_a_52_week_low_only_warns_in_dse():
+    """Standard derivable market prose. No fact of that shape is ever fed, so
+    a BLOCK on it could never be cleared by an honest editor — it would just
+    hold the publish on a correct sentence."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX closed at a 52-week low on drained turnover.",
+    )])
+    warnings = check_hyphenated_count_claims(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].section == "dse"
+
+
+def test_a_session_high_only_warns_in_dse():
+    """`_dsex_session_low_fact` emits a `since_lower` rank and nothing else,
+    so a HIGH claim has no possible sourced counterpart — unblockable by
+    construction, therefore never blocked."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX printed a five-session high on thin turnover.",
+    )])
+    warnings = check_hyphenated_count_claims(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].section == "dse"
+
+
+def test_a_day_run_only_warns_in_dse():
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX extended a three-day run of declines.",
+    )])
+    warnings = check_hyphenated_count_claims(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].section == "dse"
+
+
+def test_a_print_low_still_blocks_in_dse():
+    """The blockable noun set is (session|print|read), not `session` alone —
+    the same three the count-claim family has always treated as
+    observation counts."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX ground out a ten-print low on drained turnover.",
+    )])
+    with pytest.raises(ProseNumberViolationError, match=r"ten-print low"):
+        check_hyphenated_count_claims(brief, raw)
+
+
+# ─── FIX 3: the producer's phrase must round-trip into the extractor ───────
+
+
+def test_the_real_producers_phrase_round_trips_into_the_extractor():
+    """Chains the REAL producer to the REAL extractor so they can only change
+    together. Every other test here hands the check a hand-written phrase, so
+    a future rewording of `_dsex_session_low_fact` ("a 42-session closing
+    low", "lowest close in 42 sessions" — both extract NOTHING) would leave
+    those green while every honest morning silently became a hold. This test
+    goes points -> production fact -> production `_to_v6_raw` serialization ->
+    `_sourced_counts`, asserting the rank survives the whole chain."""
+    from datetime import date as _date, timedelta as _timedelta
+
+    from brief.pipeline_v6 import _dsex_session_low_fact, _to_v6_raw
+    from brief.schema import SectionData
+    from brief.validators.prose_numbers import _sourced_counts
+
+    start = _date(2026, 6, 1)
+    values = [5900.0] * 30 + [5601.44] + [5800.0 + i for i in range(5)] + [5640.09]
+    points = [
+        {"key": "dsex", "ts": (start + _timedelta(days=i)).isoformat(), "value": v}
+        for i, v in enumerate(values)
+    ]
+
+    fact = _dsex_session_low_fact(points)
+    assert fact is not None, "fixture drifted — the producer emitted no fact"
+
+    raw = _to_v6_raw(
+        [SectionData(id="dse", title="DSE Markets", freshness="fresh", metrics=[])],
+        today=_date(2026, 7, 15),
+        extra_history_facts={"dse": [fact]},
+    )
+    assert _sourced_counts(raw[0]) == {6}, (
+        f"the producer's phrase {fact.phrase!r} no longer yields its own rank "
+        "to the extractor — an honest claim would now BLOCK"
+    )
+
+
+def test_hyphenated_count_claim_word_form_matches_a_digit_fact():
+    """The editor writes count words, the fact carries digits — matching is
+    NUMERIC, not textual, or every word-form restatement of an honest rank
+    would block."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_history_fact("a 12-session low (5,601.44 on 22 Jun the last lower close)")]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a twelve-session low on drained turnover.",
+    )])
+    assert check_hyphenated_count_claims(brief, raw) == []
+
+
+def test_hyphenated_count_claim_blocks_in_dse_when_the_fact_says_otherwise():
+    """Issue 205's REAL defect: 'a ten-session low' shipped byte-identical
+    across four editions while the true rank ran 38 -> 42. With a real rank
+    now supplied, an unmatched claim in `dse` is a fabrication by
+    construction — BLOCK, not WARN (owner-approved, 2026-08-28)."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a ten-session low on drained turnover.",
+    )])
+    with pytest.raises(ProseNumberViolationError, match=r"ten-session low"):
+        check_hyphenated_count_claims(brief, raw)
+
+
+def test_hyphenated_count_claim_off_by_two_still_blocks_in_dse():
+    """No tolerance on an integer session rank: 40 is not 42. A rank is a
+    COUNT of observations, not a measurement — there is no last-printed-digit
+    half-ulp to widen (the module's currency/percent tolerance ladder does not
+    apply here), so close-but-wrong is simply wrong."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a 40-session low on drained turnover.",
+    )])
+    with pytest.raises(ProseNumberViolationError, match=r"40-session low"):
+        check_hyphenated_count_claims(brief, raw)
+
+
+def test_hyphenated_count_claim_blocks_in_dse_with_no_history_facts_at_all():
+    """The rank guards (`LOOKBACK_MIN`, `MIN_DATA_POINTS['daily']`, window
+    low) make `_dsex_session_low_fact` return None rather than a fabricated
+    rank — so 'no fact' is a legitimate pipeline state. An editor that writes
+    a session-low claim ANYWAY, with nothing to source it from, is the exact
+    fabrication case: BLOCK."""
+    raw = {"dse": {"slug": "dse", "metrics": [], "history_facts": []}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a ten-session low on drained turnover.",
+    )])
+    with pytest.raises(ProseNumberViolationError, match=r"no sourced count"):
+        check_hyphenated_count_claims(brief, raw)
+
+
+def test_dse_with_no_fact_and_no_claim_is_clean():
+    """The other half of the rank-guard interplay: fact suppressed, editor
+    writes no count claim — nothing to catch, nothing to hold."""
+    raw = {"dse": {"slug": "dse", "metrics": [], "history_facts": []}}
+    brief = _brief([_dse_section(
+        verdict="DSEX slips 1.10% on drained turnover; no fresh low.",
+    )])
+    assert check_hyphenated_count_claims(brief, raw) == []
+
+
+def test_hyphenated_count_claim_outside_the_block_scope_stays_warn():
+    """Scoped promotion: `fiscal` has no machine-supplied count of any kind,
+    so there is no honest alternative for the editor to have used — it warns,
+    exactly as it has since PR #175, and the publish proceeds."""
+    brief = _brief([{
+        "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
+        "weight": 1,
+        "tldr": "NBR collections have held flat on a 12-day streak.",
+    }])
+    warnings = check_hyphenated_count_claims(brief, {})
     assert len(warnings) == 1
     assert warnings[0].kind == "hyphenated_count_claim"
-    assert "ten-session low" in warnings[0].matched_text
+    assert warnings[0].section == "fiscal"
+    assert "12-day streak" in warnings[0].matched_text
 
 
 def test_hyphenated_count_claim_catches_a_day_streak():
@@ -140,20 +394,98 @@ def test_hyphenated_count_claim_does_not_flag_the_plain_duration_form():
 
 
 def test_hyphenated_count_claim_passes_clean_prose():
-    brief = _brief([{
-        "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
-        "weight": 1,
-        "verdict": "Corridor holds at 9.50%, unchanged since the 30 Jul cut.",
-    }])
+    brief = _brief([_dse_section(
+        verdict="Corridor holds at 9.50%, unchanged since the 30 Jul cut.",
+    )])
     assert check_hyphenated_count_claims(brief) == []
 
 
-def test_orchestrator_includes_hyphenated_count_claims_in_warn_findings():
-    raw = [_raw_section("dse", [{"label": "DSEX close", "value": 5722.21, "unit": "index", "as_of": "2026-08-23"}])]
+def test_hyphenated_count_claim_with_a_non_numeric_count_word_stays_warn_in_dse():
+    """Documented scope limit of the BLOCK. The regex's count slot is `\\w+`,
+    so it also matches quantifiers that name no number at all ('a
+    multi-session low'). Those carry no fabricated figure and nothing to
+    compare against a fact, and holding a 08:00 publish over one would be a
+    worse trade than logging it — the BLOCK requires a parsed number."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a multi-session low on drained turnover.",
+    )])
+    warnings = check_hyphenated_count_claims(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].section == "dse"
+
+
+def test_hyphenated_count_claim_checks_every_claim_in_a_field_not_just_the_first():
+    """A field whose FIRST claim is sourced must not shield a second,
+    fabricated one behind it — the legitimacy test is per claim.
+
+    Both claims wear the blockable session-low shape here: after the FIX-2
+    narrowing, a second claim in a WARN-class shape (day/week, high/streak/
+    run) would only warn, which would make this test pass for the wrong
+    reason."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
+    brief = _brief([_dse_section(
+        verdict=(
+            "DSEX grinds to a 42-session low on drained turnover; "
+            "DS30 sits at a nine-session low of its own."
+        ),
+    )])
+    with pytest.raises(ProseNumberViolationError, match=r"nine-session low"):
+        check_hyphenated_count_claims(brief, raw)
+
+
+def test_a_dse_fact_does_not_legitimize_another_sections_claim():
+    """Facts are section-scoped: `dse`'s rank says nothing about `fiscal`."""
+    raw = {"dse": {"slug": "dse", "metrics": [],
+                   "history_facts": [_REAL_SESSION_LOW_FACT]}}
     brief = _brief([{
-        "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+        "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
         "weight": 1,
-        "verdict": "DSEX grinds to a ten-session low on drained turnover.",
+        "tldr": "NBR collections have held flat on a 42-day streak.",
+    }])
+    warnings = check_hyphenated_count_claims(brief, raw)
+    assert len(warnings) == 1
+    assert warnings[0].section == "fiscal"
+
+
+def test_orchestrator_blocks_a_fabricated_dse_hyphenated_count_claim():
+    raw = [{
+        "slug": "dse",
+        "metrics": [{"label": "DSEX close", "value": 5722.21, "unit": "index",
+                     "as_of": "2026-08-23"}],
+        "history_facts": [_REAL_SESSION_LOW_FACT],
+    }]
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a ten-session low on drained turnover.",
+    )])
+    with pytest.raises(ProseNumberViolationError, match=r"ten-session low"):
+        run_prose_number_gate(brief, raw, strict=False)
+
+
+def test_orchestrator_lets_a_sourced_dse_claim_through():
+    raw = [{
+        "slug": "dse",
+        "metrics": [{"label": "DSEX close", "value": 5722.21, "unit": "index",
+                     "as_of": "2026-08-23"}],
+        "history_facts": [_REAL_SESSION_LOW_FACT],
+    }]
+    brief = _brief([_dse_section(
+        verdict="DSEX grinds to a 42-session low on drained turnover.",
+    )])
+    warnings = run_prose_number_gate(brief, raw, strict=False)
+    assert "hyphenated_count_claim" not in {w.kind for w in warnings}
+
+
+def test_orchestrator_includes_hyphenated_count_claims_in_warn_findings():
+    """Outside the block scope the orchestrator still only collects."""
+    raw = [_raw_section("fiscal", [{"label": "NBR collected YTD", "value": 3.61,
+                                    "unit": "BDT trn", "as_of": "2026-06-30"}])]
+    brief = _brief([{
+        "slug": "fiscal", "ord": 8, "title": "Fiscal", "group_key": "policy",
+        "weight": 1,
+        "tldr": "NBR collections have held flat on a 12-day streak.",
     }])
     warnings = run_prose_number_gate(brief, raw, strict=False)
     kinds = {w.kind for w in warnings}

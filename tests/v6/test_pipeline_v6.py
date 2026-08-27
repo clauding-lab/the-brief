@@ -891,6 +891,99 @@ def test_run_publish_holds_on_a_sourceless_count_claim(
     mock_pub.assert_not_called()
 
 
+def _dse_editor_output(verdict: str) -> dict:
+    return {
+        "brief": {"issue_no": 89, "volume": 1, "brief_date": "2026-08-25",
+                  "todays_call": "Today's brief is shipping.", "status": "published"},
+        "sections": [{
+            "slug": "dse", "ord": 6, "title": "DSE Markets", "group_key": "markets",
+            "weight": 1,
+            "verdict": verdict,
+            "news": [], "summary_pills": [],
+        }],
+    }
+
+
+def _session_low_fact(rank: int):
+    from brief.history_anchors import HistoryFact
+
+    return HistoryFact(
+        metric_id="dsex",
+        kind="since_lower",
+        phrase=f"a {rank}-session low (5,601.44 on 22 Jun the last lower close)",
+        reference_value=5601.44,
+        reference_value_formatted="5,601.44",
+        reference_as_of="2026-06-22",
+    )
+
+
+def test_run_publish_holds_on_a_fabricated_dse_session_low(
+    _stub_supabase_reads: object,
+) -> None:
+    """The 2026-08-28 owner-approved promotion, proven through the FULL gate
+    path rather than the check in isolation: a `dse` hyphenated count claim
+    that matches no machine-supplied rank raises the SAME
+    `ProseNumberGateError` (a `V6PublishError`, exit code 4 — AGENTS.md
+    landmine 34) the sourceless count-claim BLOCK raises, and nothing is
+    published. The pipeline hands `dse` a real 42-session fact here; the
+    editor prints "ten-session" anyway — issue 205-208's actual defect."""
+    from brief.pipeline_v6 import ProseNumberGateError
+    from brief.schema import SectionData
+
+    def _fake_fetch(*, today, http, supabase_url, service_key, history_facts_out=None):
+        if history_facts_out is not None:
+            history_facts_out.setdefault("dse", []).append(_session_low_fact(42))
+        return {}
+
+    sections = [SectionData(id="dse", title="DSE Markets", freshness="fresh")]
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6._fetch_series_summaries", side_effect=_fake_fetch), \
+         patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief") as mock_pub:
+        mock_run.side_effect = [
+            _max_result(_dse_editor_output(
+                "DSEX grinds to a ten-session low on drained turnover.")),
+            _max_result(review),
+        ]
+        with pytest.raises(ProseNumberGateError, match=r"ten-session low"):
+            run_publish(sections, today=date(2026, 8, 25), scraped_headlines=[])
+
+    mock_pub.assert_not_called()
+    assert issubclass(ProseNumberGateError, V6PublishError)
+
+
+def test_run_publish_ships_the_dse_session_low_the_pipeline_actually_supplied(
+    _stub_supabase_reads: object,
+) -> None:
+    """The companion that keeps the BLOCK honest rather than absolute: when
+    the editor inlines the rank the pipeline COMPUTED for it, the same gate
+    passes and the edition publishes. If this test ever fails, the promotion
+    has started holding correct briefs."""
+    from brief.schema import SectionData
+
+    def _fake_fetch(*, today, http, supabase_url, service_key, history_facts_out=None):
+        if history_facts_out is not None:
+            history_facts_out.setdefault("dse", []).append(_session_low_fact(42))
+        return {}
+
+    sections = [SectionData(id="dse", title="DSE Markets", freshness="fresh")]
+    review = {"verdict": "pass", "issues": [], "revised_brief": None}
+
+    with patch("brief.pipeline_v6._fetch_series_summaries", side_effect=_fake_fetch), \
+         patch("brief.pipeline_v6.run_max") as mock_run, \
+         patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub:
+        mock_run.side_effect = [
+            _max_result(_dse_editor_output(
+                "DSEX grinds to a 42-session low on drained turnover.")),
+            _max_result(review),
+        ]
+        brief_id = run_publish(sections, today=date(2026, 8, 25), scraped_headlines=[])
+
+    assert brief_id == "brief-id-89"
+    mock_pub.assert_called_once()
+
+
 def test_run_publish_ships_a_sub_that_traces_to_the_real_builder_value(
     _stub_supabase_reads: object,
 ) -> None:
