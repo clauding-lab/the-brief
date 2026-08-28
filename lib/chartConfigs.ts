@@ -1425,6 +1425,9 @@ export interface ChartCardHead {
   fig: string;
   title: string;
   subtitle?: string;
+  /** One-line elaboration rendered directly below the chart canvas
+   *  (e.g. spelling out an abbreviation the title uses). */
+  note?: string;
 }
 
 export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
@@ -1477,6 +1480,7 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
     fig: "10",
     title: "Overnight Money Market",
     subtitle: "Daily · DOMMR + BOFR · %",
+    note: "DOMMR — Dhaka Overnight Money Market Rate · BOFR — Bangladesh Overnight Financing Rate, Bangladesh Bank's official money-market reference rates.",
   },
 };
 

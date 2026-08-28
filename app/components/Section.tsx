@@ -193,6 +193,9 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate, gr
             ) : (
               <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
             )}
+            {CHART_CARD_HEADS[slug]?.note && (
+              <div className="tb-chart-note">{CHART_CARD_HEADS[slug]?.note}</div>
+            )}
             {chart_read && (
               <div className="tb-analysis tb-chart-read" id={`${slug}-chart-read`}>
                 <span className="label">Chart read</span>
