@@ -58,7 +58,7 @@ export const longView: LongViewData | null = {
       kind: "prose",
       paragraphs: [
         "The revenue side sets the arithmetic. Tax-to-GDP stands at 6.73% against a target of 10.7% by FY29, and the NBR's revenue target for FY27 is Tk 6.04 lakh cr (Tk 6.04tn). Business Identification Number (BIN) coverage, the VAT-side registration, reaches 3.3% of economic units.",
-        "The gap is roughly 4 percentage points over three fiscal years, from a base where 10.22 lakh units carry a TIN. The additional revenue can only come from units already inside the net, from higher effective rates, or from bringing new units in. The three routes land differently on a bank's book, and the composition above indicates which units are available to be brought in.",
+        "The gap is roughly 4 percentage points, to be closed in three fiscal years from a base where 10.22 lakh units carry a TIN. The additional revenue has to come from units already inside the net, from higher effective rates, or from bringing new units in. The three routes land differently on a bank's book, and the composition above indicates which units are available to be brought in.",
       ],
     },
   ],
