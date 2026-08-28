@@ -12,19 +12,20 @@ The companion file `Master.md` covers voice and copy.
 
 - **Production palette**: `steel-crimson` — cool steel paper background, sharp crimson accent.
 - **Alternate palette**: `bone` — warm cream paper, deeper red accent. Used in email rendering and certain preview surfaces.
-- **The ink band**: the masthead (and its sticky-bar echo) sits on a full-bleed `--band` (#0B0F12) surface in **both** themes — "the nameplate is always ink." The band extends into the browser chrome: `theme-color` is fixed `#0B0F12` regardless of theme.
+- **The band**: the masthead (and its sticky-bar echo) sits on a full-bleed `--band` surface that resolves **per theme** (v2.4.0, owner decision 2026-08-28): ink `#0B0F12` in dark, paper in light — light mode is one uninterrupted paper sheet with no dark surfaces. The ink band is the **dark-mode and brand identity** (icons, hero, social card keep the ink ground). The browser chrome follows: `theme-color` is a per-scheme pair (`#E6E9EB` light / `#0B0F12` dark), runtime-synced to the in-app toggle.
 - **Mood**: morning-paper rigor. Like a Reuters dealer's screen layered onto FT Weekend.
 - Mono typography first. Georgia serif only in email body for editorial weight.
 - No shadows. No gradients. No rounded corners > 2px. No animations beyond opacity/blur for stale state.
 
 ---
 
-## Theme axis (v2.3.0)
+## Theme axis (v2.3.0; band per-theme since v2.4.0)
 
 Light/dark is **orthogonal to palette** and keyed on `<html data-theme>`, set pre-paint by the FOUC guard in `app/layout.tsx` and flipped by `ThemeToggle` (choice persists in `localStorage["thebrief.theme"]`; first visits follow the OS until an explicit click).
 
 - **Dark is steel-crimson only, by decision.** `bone` is the email identity and stays light forever. `color-scheme` is palette-scoped accordingly.
 - In dark, the band (#0B0F12) and dark paper (#101418) are ~1.04:1 — **accepted**: dark reads as "all band"; the `--band-rule` border keeps the edge legible.
+- In light (v2.4.0), the band IS `--paper` (1.00:1) — the deliberate mirror: light reads as "all paper." The band's and sticky bar's `border-bottom` promote to full `--rule` in light so the seam stays legible (the same call the print contract makes).
 - Charts are canvas: token values are snapshotted at build time, so every chart **rebuilds** on a theme flip via `lib/useTheme.ts` in `BriefChart`'s dep array. Print forces `data-theme="light"` (ClientApp's printMode effect + `beforeprint`), which rides the same mechanism.
 
 ---
@@ -49,16 +50,18 @@ All tokens are declared in `app/globals.css` under `:root` and the per-palette s
 
 Email body uses **Georgia, serif** explicitly inlined (not as a CSS var) for client compatibility. Chrome inside the email uses `-apple-system, Segoe UI, Helvetica, Arial`.
 
-### Band tokens (cross-palette — the band is ink in both themes)
+### Band tokens (per-theme since v2.4.0 — ink in dark, paper in light)
 
-| Token | Value | Role |
-|---|---|---|
-| `--band` | `#0B0F12` | Band ground (masthead, sticky bar, Subscribe CTA panel) |
-| `--band-ink` | `#E6E9EB` | Primary text on the band |
-| `--band-ink-2` | `rgba(230,233,235,0.92)` | Today's Call body on the band (13.38:1) |
-| `--band-mute` | `rgba(230,233,235,0.55)` | Meta/labels on the band (5.31:1) |
-| `--band-rule` | `rgba(230,233,235,0.40)` | Hairlines + control borders on the band (3.33:1 — clears the 3:1 non-text floor) |
-| `--band-accent` | `oklch(0.62 0.21 25)` | Accent on the band (4.77:1) |
+The `:root` values are the DARK branch (dark inherits them unchanged); in light every band token re-points at the light palette via `[data-palette="steel-crimson"]:not([data-theme="dark"])`. Do not treat these as cross-palette constants — every consumer (band, sticky bar, band link, on-band toggle, Subscribe panel) resolves per theme.
+
+| Token | Dark (`:root` value) | Light (resolves to) | Role |
+|---|---|---|---|
+| `--band` | `#0B0F12` | `var(--paper)` `#E6E9EB` | Band ground (masthead, sticky bar, Subscribe CTA panel) |
+| `--band-ink` | `#E6E9EB` | `var(--ink)` (15.78:1) | Primary text on the band |
+| `--band-ink-2` | `rgba(230,233,235,0.92)` (13.38:1) | `var(--ink-2)` | Today's Call body on the band |
+| `--band-mute` | `rgba(230,233,235,0.55)` (5.31:1) | `var(--ink-3)` (6.20:1) | Meta/labels on the band |
+| `--band-rule` | `rgba(230,233,235,0.40)` (3.33:1) | `var(--rule-soft)` — hairlines only; the on-band toggle's control border takes an explicit `--ink-3` (rule-soft is 1.55:1, under the 3:1 floor), and the band/sticky `border-bottom` promotes to full `--rule` | Hairlines + control borders on the band |
+| `--band-accent` | `oklch(0.62 0.21 25)` (4.77:1) | `var(--accent)` (4.44:1 — rides the recorded small-text exemption) | Accent on the band |
 
 ### Palette — `steel-crimson` (production), light and dark
 
@@ -107,7 +110,7 @@ The legacy cream-paper palette. Used as the email visual identity. **Light forev
 Accent appears in exactly five jobs; everything else is monochrome:
 
 1. **Live pulse + chart latest-point** — the pulse dot, the chart's latest-point dot and its `.tb-chart-latest` caption (they pair). FIG labels are `--ink-3`.
-2. **Today's Call label** (`--band-accent` on the band).
+2. **Today's Call label** (`--band-accent` on the band — resolves per theme since v2.4.0: band red on ink in dark, `--accent` on paper in light).
 3. **Bear tone** — LEAD/TODAY'S LEAD flags, bear deltas, bear verdict tints.
 4. **Active nav** — `.tb-secnav-item.active` and the lead section's `.is-lead` item.
 5. **Underlines** — the Subscribe band link's border, input focus underline, and the submit button's hover label underline.
@@ -136,7 +139,7 @@ Accent appears in exactly five jobs; everything else is monochrome:
 | Long View lead | 13.5px, normal | 400 |
 | Body prose (analysis, Long View prose) | ≥13px — compactness comes from spacing and chrome, never body-copy shrink | 300–400 |
 | Bar chart label | 11px | 500 |
-| Comparison row value | 17–19px | 500 |
+| Comparison row value | 17–19px | 300 |
 
 **Label tier (floor 9px):** any uppercase label carrying load-bearing information at ≤10.5px sits on `--ink-3`, never `--ink-4` (`--ink-4` = decorative marks and disabled states only). KPI/snapshot tile labels 9px/500/0.14em; section eyebrow 9.5px/500/0.16em (scoped `.tb-section-head .eyebrow`); group label 10px/500/0.16em; news meta 9.5px; FIG label 9.5px/600/0.14em; watch/risk headers 9.5px/600.
 
@@ -202,10 +205,10 @@ The **snapshot strip** above the SecNav derives six canonical cells (USD/BDT mid
 
 ## PWA (v2.3.0)
 
-- Installable: `app/manifest.ts` (standalone display, `#0B0F12` ground) + band-identity icons ("B." mark; maskable variant keeps the mark in the central safe zone).
+- Installable: `app/manifest.ts` (standalone display, `#0B0F12` ground) + band-identity icons ("B." mark; maskable variant keeps the mark in the central safe zone). The manifest ground stays ink even with a paper light mode: manifest splash is Android-only behavior (iOS ignores it), and the launch frame staying the brand mark is deliberate. Icons, hero, and the social card keep the ink ground — the brand mark is dark; the light app is not.
 - **Online-only by decision** — no service worker; the local `lastBrief` cache is write-only. A minimal SW (shell + last issue) is the queued follow-up.
 - Safe-area inset ownership lives in `app/globals.css` §4.3-tagged rules: `.tb-body`/`.tb-band-inner` (sides), `.tb-secnav` (top calc), `.tb-stickybar-inner` (top + sides), `.tb-foot` (sides + home-indicator bottom), `.tb-skip:focus`. **Longhands only** — a later `padding:` shorthand silently wipes an inset longhand.
-- iOS status bar is `black-translucent` (white glyphs over the page) — sound because the band is the top of the document in both themes.
+- iOS status bar is `default` (v2.4.0): an opaque system bar following the OS appearance. `black-translucent` (v2.3.0) drew white glyphs over the page — sound only while the top of every route was ink, which a paper light mode (and /archive, which never had the band) breaks; iOS offers no per-theme API for this static meta. Accepted residual: in dark standalone the bar follows the OS, mismatching only when the in-app toggle diverges from it.
 
 ---
 
@@ -257,7 +260,7 @@ When the brief is being viewed as "today's diff vs prior issue":
 - KPI tiles: `minmax(130px, 1fr)`; snapshot cells `minmax(150px, 1fr)`; news rail `minmax(220px, 1fr)` (headlines keeps its fixed 4-col contract).
 - Long View comparison block: 2-col grid → single column below 640px viewport
 - 3-col comparison auto-promotion (at ≥7 rows) collapses to 2-col below 900px, single below 640px
-- Bar chart SVG: scales via `preserveAspectRatio="xMidYMid meet"` — no special breakpoint logic needed
+- Bar chart SVG: renders at **1:1 CSS pixels** (ResizeObserver-measured viewBox, v2.4.0) so its 11px labels are real 11px at every width — the earlier stretch-to-fit scaling rendered them as low as ~4.7px on tablets, under the 9px label floor
 - Email: hardcoded 600px max-width; mobile clients render with proportional shrink
 
 ---
@@ -272,13 +275,13 @@ When the brief is being viewed as "today's diff vs prior issue":
 - No colors outside palette tokens
 - No emoji in editorial copy or UI chrome
 - No icons in section headers — use small-caps labels instead
-- No raw hex values in component code — always reference a CSS variable. **Carve-out:** `app/manifest.ts` and `layout.tsx`'s `viewport.themeColor` may carry `#0B0F12` literals (metadata surfaces can't read CSS variables); image assets carry raw color by nature.
+- No raw hex values in component code — always reference a CSS variable. **Carve-out:** `app/manifest.ts` may carry the `#0B0F12` literal, `layout.tsx`'s `viewport.themeColor` carries the per-scheme pair (`#E6E9EB` / `#0B0F12`), and `ClientApp`'s theme-color meta effect mirrors the same two hexes (metadata surfaces can't read CSS variables — the three sites must stay in sync with `--paper`/`--band`); image assets carry raw color by nature.
 - No fonts/sizes/colors specified inside `content/long-view.ts` data — the component renders with palette tokens
 
 ---
 
 ## Versioning
 
-This document tracks the visual contract as of **v2.3.0** (the 1c facelift: ink band, light/dark theme axis, compact density, KPI tile grid, PWA). Changes that affect the contract — new block kinds, palette tweaks, typography revisions — bump the minor or major version per `CHANGELOG.md` and require a separate platform-level PR (not a per-pin Long View PR).
+This document tracks the visual contract as of **v2.4.0** (light mode fully paper — the ink band becomes the dark-mode and brand identity; per-theme band tokens; per-scheme browser chrome; iOS status bar `default`; bar-chart type at 1:1 px; on v2.3.0's 1c facelift base). Changes that affect the contract — new block kinds, palette tweaks, typography revisions — bump the minor or major version per `CHANGELOG.md` and require a separate platform-level PR (not a per-pin Long View PR).
 
 Per-pin Long View PRs must NOT touch `app/globals.css`, `Design.md`, `CHANGELOG.md`, or `package.json`.
