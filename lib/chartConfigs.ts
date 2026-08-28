@@ -1233,6 +1233,79 @@ function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   } as unknown as ChartConfiguration<"line">;
 }
 
+/**
+ * moneyMarket — §04 Banking overnight money-market two-line chart (%).
+ *
+ * Reads dommr (Dhaka Overnight Money Market Rate) + bofr (Bangladesh
+ * Overnight Financing Rate) from section.series — BB's official reference
+ * rates, written DAILY by EconDelta with REAL value-dates (business days
+ * only; BD weekend/holiday gaps are genuine gaps, bridged visually by
+ * spanGaps from baseLineOptions, never fabricated points).
+ *
+ * Structurally mirrors reservesConfig (two-key line chart, per-series stale
+ * dimming via ctx.staleKeys + dimColor, legend on) but on the DAILY time
+ * axis of dsexConfig/brentConfig ({unit:'day', tooltipFormat:'MMM d'}).
+ * Y-axis = percent at a FIXED 2dp (toFixed(2) + "%", matching the caption
+ * strip's num2 precision — on an overnight rate the trailing zero is a real
+ * basis-point digit, so r2str's "9.2%" is one digit short of "9.20%"). The
+ * same callback feeds the tooltip via baseLineOptions' yTickCallback.
+ * TimeScale/LinearScale already registered in BriefChart.tsx per AGENTS.md
+ * landmine #2 — no new registration needed for a two-line time chart.
+ */
+function moneyMarketConfig(ctx: BuildContext): ChartConfiguration<"line"> {
+  const DOMMR_KEY = "dommr";
+  const BOFR_KEY = "bofr";
+
+  if (!hasAnyData(ctx.series, [DOMMR_KEY, BOFR_KEY])) {
+    return emptyLineConfig();
+  }
+
+  const palette = buildPalette();
+  const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
+
+  const datasets: ChartDataset<"line", XYPoint[]>[] = [
+    {
+      label: "DOMMR",
+      data: toPoints(ctx.series[DOMMR_KEY]),
+      borderColor: isStale(DOMMR_KEY) ? dimColor(palette.ink) : palette.ink,
+      borderWidth: 1.8,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+    {
+      label: "BOFR",
+      data: toPoints(ctx.series[BOFR_KEY]),
+      borderColor: isStale(BOFR_KEY) ? dimColor(palette.accent) : palette.accent,
+      borderWidth: 1.4,
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    },
+  ];
+
+  const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
+    legend: true,
+    yTicks: { callback: (v: number) => v.toFixed(2) + "%" },
+  });
+
+  return {
+    type: "line",
+    data: { datasets },
+    options: {
+      ...baseOpts,
+      scales: {
+        ...baseOpts.scales,
+        x: {
+          ...baseOpts.scales.x,
+          time: { unit: "day" as const, tooltipFormat: "MMM d" },
+          ticks: { ...baseOpts.scales.x.ticks, maxTicksLimit: 8 },
+        },
+      },
+    },
+  } as unknown as ChartConfiguration<"line">;
+}
+
 // Format a YYYY-MM-DD date string as "MMM DD" (e.g. "May 09"). Falls back
 // to the input on any parse mismatch.
 function shortDate(iso: string): string {
@@ -1317,6 +1390,7 @@ export const chartConfigs = {
   remitFlow: remitFlowConfig,
   reserves: reservesConfig,
   fiscalNbr: fiscalNbrConfig,
+  moneyMarket: moneyMarketConfig,
 } as const;
 
 export type ChartConfigKey = keyof typeof chartConfigs;
@@ -1327,6 +1401,7 @@ export type ChartConfigBuilder = (ctx: BuildContext) => AnyChartConfig;
 // Section.tsx (Phase E.3) will look up by section.slug.
 export const SECTION_TO_CHART: Partial<Record<string, ChartConfigKey>> = {
   bb: "reserves",
+  banking: "moneyMarket",
   fx: "fxBalance",
   dse: "dsex",
   iran: "brent",
@@ -1353,6 +1428,9 @@ export interface ChartCardHead {
   fig: string;
   title: string;
   subtitle?: string;
+  /** One-line elaboration rendered directly below the chart canvas
+   *  (e.g. spelling out an abbreviation the title uses). */
+  note?: string;
 }
 
 export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
@@ -1400,6 +1478,12 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
     fig: "09",
     title: "NBR Tax Revenue",
     subtitle: "Monthly · BDT crore",
+  },
+  banking: {
+    fig: "10",
+    title: "Overnight Money Market",
+    subtitle: "Daily · DOMMR + BOFR · %",
+    note: "DOMMR — Dhaka Overnight Money Market Rate · BOFR — Bangladesh Overnight Financing Rate, Bangladesh Bank's official money-market reference rates.",
   },
 };
 

@@ -2,9 +2,10 @@
 
 After the LLM produces final_brief, a deterministic helper fetches time-series
 from `metric_history` and stamps it onto `final_brief.sections[i].series` so
-the SPA can render charts. dse/iran are HTTP-dispatched; fx joins bb/tbond/macro/remit
-on the monthly branches, stamped from metric_history_monthly; the rest get an
-empty series list and the frontend hides their chart slot.
+the SPA can render charts. dse/iran/banking are HTTP-dispatched; fx joins
+bb/tbond/macro/remit on the monthly branches, stamped from
+metric_history_monthly; the rest get an empty series list and the frontend
+hides their chart slot.
 
 Coverage:
   1. `_CHART_FETCHERS_BY_SLUG` dispatch table contains exactly the HTTP-dispatched
@@ -81,16 +82,19 @@ TODAY = date(2026, 5, 8)
 
 
 def test_chart_fetchers_by_slug_only_includes_http_dispatched_sections() -> None:
-    """The HTTP dispatch dict contains exactly dse/iran.
+    """The HTTP dispatch dict contains exactly dse/iran/banking.
 
     fx joined the monthly branches via the metric_history_monthly External Flow
     Balance branch (F3), tbond moved to the yield-ladder branch (F5), and
     bb/macro/remit are stamped via their own monthly-archive branches — none of
-    those go through _CHART_FETCHERS_BY_SLUG.
+    those go through _CHART_FETCHERS_BY_SLUG. banking (DOMMR/BOFR overnight
+    money-market) is a daily metric_history fetcher, so it rides the HTTP
+    dispatch like brent.
     """
     assert set(pipeline_v6._CHART_FETCHERS_BY_SLUG.keys()) == {
         "dse",
         "iran",
+        "banking",
     }
 
 
@@ -233,6 +237,93 @@ def test_fetch_dsex_returns_empty_on_empty_response() -> None:
     assert notes == []
 
 
+def test_fetch_money_market_emits_one_point_per_row_keyed_by_metric_id() -> None:
+    """DOMMR/BOFR fetcher returns SeriesPointV6 list keyed by metric_id, one
+    point per metric_history row — both keys from a single batched request."""
+    rows: list[dict[str, Any]] = [
+        {"metric_id": "dommr", "as_of": "2026-08-26", "value": 9.15},
+        {"metric_id": "dommr", "as_of": "2026-08-27", "value": 9.18},
+        {"metric_id": "bofr", "as_of": "2026-08-26", "value": 9.20},
+        {"metric_id": "bofr", "as_of": "2026-08-27", "value": 9.23},
+    ]
+    http: _FakeHttp = _http([(200, rows)])
+    series: list[SeriesPointV6] = chart_series_fetcher.fetch_money_market(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    assert len(series) == 4
+    assert len(http.requests) == 1, "both rates come from one batched request"
+    by_key: dict[str | None, list[SeriesPointV6]] = {}
+    for p in series:
+        by_key.setdefault(p.key, []).append(p)
+    assert set(by_key) == {"dommr", "bofr"}
+    assert by_key["dommr"][-1].ts == "2026-08-27"
+    assert by_key["dommr"][-1].value == 9.18
+    assert by_key["bofr"][-1].value == 9.23
+
+
+def test_fetch_money_market_filters_to_the_two_overnight_ids() -> None:
+    """The PostgREST URL targets metric_history with metric_id=in.(dommr,bofr) —
+    the stored-but-not-charted 1-week tenors (dommr_1w/bofr_1w) are excluded."""
+    http: _FakeHttp = _http([(200, [])])
+    chart_series_fetcher.fetch_money_market(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    url: str = http.requests[0][0]
+    assert "metric_history" in url
+    assert "dommr" in url
+    assert "bofr" in url
+    assert "dommr_1w" not in url
+    assert "bofr_1w" not in url
+
+
+def test_fetch_money_market_drops_unknown_metric_ids() -> None:
+    """Rows outside dommr/bofr (e.g. a 1-week tenor leaking through) are
+    dropped defensively, mirroring fetch_yield_curve."""
+    rows: list[dict[str, Any]] = [
+        {"metric_id": "dommr_1w", "as_of": "2026-08-27", "value": 9.30},
+        {"metric_id": "dommr", "as_of": "2026-08-27", "value": 9.18},
+    ]
+    http: _FakeHttp = _http([(200, rows)])
+    series: list[SeriesPointV6] = chart_series_fetcher.fetch_money_market(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    assert len(series) == 1
+    assert series[0].key == "dommr"
+
+
+def test_fetch_money_market_returns_empty_on_empty_response() -> None:
+    """No rows → empty list, no crash."""
+    http: _FakeHttp = _http([(200, [])])
+    series: list[SeriesPointV6] = chart_series_fetcher.fetch_money_market(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    assert series == []
+
+
+def test_fetch_money_market_returns_empty_on_http_error() -> None:
+    """500 from Supabase → empty list (graceful degradation)."""
+    http: _FakeHttp = _http([(500, None)])
+    series: list[SeriesPointV6] = chart_series_fetcher.fetch_money_market(
+        http=http,
+        supabase_url=SUPABASE_URL,
+        service_key=SERVICE_KEY,
+        today=TODAY,
+    )
+    assert series == []
+
+
 def test_fetch_brent_emits_one_point_per_row() -> None:
     """Brent fetcher → key='brent', ts=as_of, value=jsonb-coerced float."""
     rows: list[dict[str, Any]] = [
@@ -357,7 +448,7 @@ def test_fetch_yield_curve_returns_empty_on_empty_response() -> None:
 
 @pytest.mark.parametrize(
     "fetcher_name",
-    ["fetch_fx_flows", "fetch_dsex", "fetch_brent", "fetch_yield_curve"],
+    ["fetch_fx_flows", "fetch_dsex", "fetch_brent", "fetch_yield_curve", "fetch_money_market"],
 )
 def test_fetchers_set_authorization_headers(fetcher_name: str) -> None:
     """Every fetcher passes apikey + Authorization Bearer headers."""
@@ -413,14 +504,18 @@ def test_stamp_chart_series_populates_chartable_sections(
 ) -> None:
     """All chartable slugs get series; the chartless ones stay empty.
 
-    HTTP-dispatched: dse/iran. Monthly-archive branches: fx (F3 External Flow
-    Balance), bb (F2 reserves), tbond (F5 yield ladder), macro (CPI), remit (F6),
-    fiscal (F7b NBR).
-    Chartless: headlines, banking, comm (comm de-charted post-LNG-drop).
+    HTTP-dispatched: dse/iran/banking. Monthly-archive branches: fx (F3 External
+    Flow Balance), bb (F2 reserves), tbond (F5 yield ladder), macro (CPI),
+    remit (F6), fiscal (F7b NBR).
+    Chartless: headlines, comm (comm de-charted post-LNG-drop).
     """
     dsex_series: list[SeriesPointV6] = [SeriesPointV6(key="dsex", ts="2026-05-01", value=5210.0)]
     dsex_notes: list[SeriesNoteV6] = []
     brent_series: list[SeriesPointV6] = [SeriesPointV6(key="brent", ts="2026-05-08", value=91.2)]
+    mm_series: list[SeriesPointV6] = [
+        SeriesPointV6(key="dommr", ts="2026-05-07", value=9.18),
+        SeriesPointV6(key="bofr", ts="2026-05-07", value=9.23),
+    ]
     fx_pt = SeriesPointV6(key="exports_usd_mn_monthly", ts="2026-03-01", value=3489.8)
     reserves_pt = SeriesPointV6(key="gross_reserves_usd_bn_monthly", ts="2026-03-01", value=34.1)
     ladder_pt = SeriesPointV6(key="yield_5y_monthly", ts="2026-04-01", value=10.75)
@@ -430,6 +525,7 @@ def test_stamp_chart_series_populates_chartable_sections(
 
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: (dsex_series, dsex_notes))
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: brent_series)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_money_market", lambda **_: mm_series)
     monkeypatch.setattr(
         chart_series_fetcher, "fetch_fx_balance_monthly", lambda *_a, **_k: {fx_pt.key: [fx_pt]}
     )
@@ -469,9 +565,10 @@ def test_stamp_chart_series_populates_chartable_sections(
     assert by_slug["macro"].series == [macro_pt]
     assert by_slug["remit"].series == [remit_pt]
     assert by_slug["fiscal"].series == [fiscal_pt]
+    assert by_slug["banking"].series == mm_series
 
     # Chartless: empty
-    for slug in ("headlines", "banking", "comm"):
+    for slug in ("headlines", "comm"):
         assert by_slug[slug].series == [], f"{slug} should have empty series"
         assert by_slug[slug].notes == [], f"{slug} should have empty notes"
 
@@ -494,6 +591,7 @@ def test_stamp_chart_series_handles_fetcher_exception_gracefully(
 
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _bad_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _ok_brent)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_money_market", lambda **_: [])
     # Isolate the monthly-archive branches so they don't hit the real client
     # via the fake HTTP stub (they're exercised in their own tests below).
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_balance_monthly", _empty_dict)
@@ -546,6 +644,7 @@ def test_stamp_chart_series_handles_monthly_branch_exception_gracefully(
     # Isolate the other branches so only fx/bb/tbond/fiscal failures are under test.
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: ([], []))
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
+    monkeypatch.setattr(chart_series_fetcher, "fetch_money_market", lambda **_: [])
     monkeypatch.setattr(chart_series_fetcher, "fetch_macro_cpi_series", _empty_dict)
     monkeypatch.setattr(chart_series_fetcher, "fetch_remit_monthly", _empty_dict)
 
@@ -599,19 +698,25 @@ def test_stamp_chart_series_skips_when_section_absent(
         called.append("bb")
         return {}
 
+    def _ok_money_market(**_: Any) -> list[SeriesPointV6]:
+        called.append("banking")
+        return []
+
     monkeypatch.setattr(chart_series_fetcher, "fetch_fx_balance_monthly", _ok_fx)
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _ok_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _ok_brent)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_money_market", _ok_money_market)
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", _ok_ladder)
     monkeypatch.setattr(chart_series_fetcher, "fetch_reserves_monthly", _ok_reserves)
 
-    # Brief with only banking + headlines — none of the chartable slugs
-    # (bb is chartable via the F2 reserves branch and fiscal via the F7b NBR
-    # branch, so neither can stand in here).
+    # Brief with only comm + headlines — none of the chartable slugs
+    # (bb is chartable via the F2 reserves branch, fiscal via the F7b NBR
+    # branch, and banking via the money-market HTTP dispatch, so none of
+    # those can stand in here).
     minimal_brief: BriefPayloadV6 = BriefPayloadV6(
         brief=BriefV6(issue_no=1, volume=1, brief_date=TODAY),
         sections=[
-            _make_section("banking", 4, "banking"),
+            _make_section("comm", 12, "markets"),
             _make_section("headlines", 2, "overview"),
         ],
     )
@@ -785,9 +890,10 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
 def test_stamp_chart_series_threads_http_and_today_to_fetchers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every HTTP-dispatched fetcher (dse/iran) receives http, supabase_url,
-    service_key, today. The monthly-archive branches (fx/bb/tbond/macro/remit)
-    take a history client instead and are covered separately."""
+    """Every HTTP-dispatched fetcher (dse/iran/banking) receives http,
+    supabase_url, service_key, today. The monthly-archive branches
+    (fx/bb/tbond/macro/remit) take a history client instead and are covered
+    separately."""
     captured: list[dict[str, Any]] = []
 
     def _record(**kwargs: Any) -> list[SeriesPointV6]:
@@ -800,6 +906,7 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
 
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", _record_dsex)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", _record)
+    monkeypatch.setattr(chart_series_fetcher, "fetch_money_market", _record)
     # Isolate the monthly-archive branches (history-client signature, not the
     # http/today kwargs under test here) so they don't hit the fake HTTP stub.
     def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
@@ -821,7 +928,7 @@ def test_stamp_chart_series_threads_http_and_today_to_fetchers(
         supabase_url=SUPABASE_URL,
         service_key=SERVICE_KEY,
     )
-    assert len(captured) == 2, "all 2 HTTP-dispatched fetchers should be dispatched"
+    assert len(captured) == 3, "all 3 HTTP-dispatched fetchers should be dispatched"
     for kw in captured:
         assert kw["http"] is http
         assert kw["supabase_url"] == SUPABASE_URL
@@ -846,6 +953,7 @@ def test_stamp_chart_series_stamps_dse_movers(
     monkeypatch.setattr(chart_series_fetcher, "fetch_dse_movers", lambda **_k: [mover])
     # Isolate every other branch so only the dse section is under test.
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
+    monkeypatch.setattr(chart_series_fetcher, "fetch_money_market", lambda **_: [])
 
     def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
         return {}
@@ -885,6 +993,7 @@ def test_stamp_chart_series_dse_movers_failure_is_isolated(
     monkeypatch.setattr(chart_series_fetcher, "fetch_dsex", lambda **_: (dsex_series, []))
     monkeypatch.setattr(chart_series_fetcher, "fetch_dse_movers", _raise)
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
+    monkeypatch.setattr(chart_series_fetcher, "fetch_money_market", lambda **_: [])
 
     def _empty_dict(*_a: Any, **_k: Any) -> dict[str, list[SeriesPointV6]]:
         return {}

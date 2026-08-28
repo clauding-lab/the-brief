@@ -194,6 +194,59 @@ def test_fetch_series_summaries_degrades_gracefully_on_a_single_fetcher_failure(
     assert out["remit"]["remittance_usd_mn_monthly"]["last_value"] == 2858.68
 
 
+def test_fetch_series_summaries_includes_the_banking_money_market_digest():
+    """The banking slug rides the daily HTTP fetcher path (like dse/iran):
+    one batched DOMMR/BOFR fetch, digested into BOTH keys — mirroring how the
+    bb reserves digest carries its two monthly keys. The editor's chart_read
+    leads on the PRIMARY series (dommr) per the existing convention."""
+    mm_points = [
+        SeriesPointV6(key="dommr", ts="2026-08-26", value=9.15),
+        SeriesPointV6(key="dommr", ts="2026-08-27", value=9.18),
+        SeriesPointV6(key="bofr", ts="2026-08-26", value=9.20),
+        SeriesPointV6(key="bofr", ts="2026-08-27", value=9.23),
+    ]
+    with patch("brief.pipeline_v6.chart_series_fetcher.fetch_macro_cpi_series", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_remit_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_reserves_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_yield_ladder_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fx_balance_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fiscal_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_dsex", return_value=([], [])), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_brent", return_value=[]), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_money_market",
+               return_value=mm_points) as fetch_mm:
+        out = _fetch_series_summaries(
+            today=date(2026, 8, 28), http=object(),
+            supabase_url="https://test.supabase.co", service_key="key",
+        )
+    fetch_mm.assert_called_once()
+    assert set(out["banking"]) == {"dommr", "bofr"}
+    assert out["banking"]["dommr"]["last_ts"] == "2026-08-27"
+    assert out["banking"]["dommr"]["last_value"] == 9.18
+    assert out["banking"]["bofr"]["last_value"] == 9.23
+
+
+def test_fetch_series_summaries_degrades_gracefully_when_money_market_fails():
+    """A failing banking fetch leaves the slug absent — never a crash, and
+    never a half-digest (the editor then sees series_summary: {})."""
+    with patch("brief.pipeline_v6.chart_series_fetcher.fetch_macro_cpi_series", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_remit_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_reserves_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_yield_ladder_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fx_balance_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_fiscal_monthly", return_value={}), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_dsex", return_value=([], [])), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_brent", return_value=[]), \
+         patch("brief.pipeline_v6.chart_series_fetcher.fetch_money_market",
+               side_effect=RuntimeError("boom")):
+        out = _fetch_series_summaries(
+            today=date(2026, 8, 28), http=object(),
+            supabase_url="https://test.supabase.co", service_key="key",
+        )
+    assert "banking" not in out
+    assert "iran" in out  # the sibling daily fetchers are unaffected
+
+
 def test_build_editor_input_stamps_empty_series_summary_by_default():
     sections = [SectionData(id="macro", title="Macro", freshness="fresh", metrics=[])]
     with patch("brief.pipeline_v6.fetch_max_issue_no", return_value=1):

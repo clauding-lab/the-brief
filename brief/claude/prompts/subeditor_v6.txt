@@ -116,7 +116,7 @@ These are warn (not error) — fix if obvious, otherwise let pass:
 
 ## 13. ABBREVIATION POLICY — Per Section entry in the briefs JSON output:
     - Tier-1 (BB, NBR, MPS, NPL, ALCO, MANCO, USD/BDT, YoY, etc.) — bare use always allowed.
-    - Tier-2 (LCR, NSFR, RWA, CAR, CRAR, ALM, DPD, ECL, FRA, IRS, REER, NEER, SCB, GSIB, D-SIB) — MUST be expanded on first occurrence per section, e.g. "LCR (Liquidity Coverage Ratio)". Bare use thereafter in the same section is fine.
+    - Tier-2 (LCR, NSFR, RWA, CAR, CRAR, ALM, DPD, ECL, FRA, IRS, REER, NEER, SCB, GSIB, D-SIB, DOMMR, BOFR) — MUST be expanded on first occurrence per section, e.g. "LCR (Liquidity Coverage Ratio)". Bare use thereafter in the same section is fine.
     - Tier-3 (Basel III, ICAAP, IFRS, etc.) — expand every occurrence OR rephrase to a 2-3 word noun phrase.
     If a Tier-2 abbreviation appears bare before its expansion in a section → revise to add the expansion at first use.
 

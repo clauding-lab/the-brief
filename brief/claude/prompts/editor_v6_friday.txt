@@ -139,7 +139,8 @@ Tier-2 abbreviations — expand on first use per section, bare thereafter:
   ALM (Asset-Liability Management), DPD (Days Past Due), ECL (Expected Credit Loss),
   FRA (Forward Rate Agreement), IRS (Interest Rate Swap), REER (Real Effective Exchange Rate),
   NEER (Nominal Effective Exchange Rate), SCB (State-Owned Commercial Bank),
-  GSIB (Global Systemically Important Bank), D-SIB (Domestic Systemically Important Bank).
+  GSIB (Global Systemically Important Bank), D-SIB (Domestic Systemically Important Bank),
+  DOMMR (Dhaka Overnight Money Market Rate), BOFR (Bangladesh Overnight Financing Rate).
 
 Tier-3 — anything not in Tier 1 or 2 must be expanded every use OR rephrased to a 2-3
 word noun phrase. Examples: Basel III, ICAAP, IFRS, IBOR, ESG, KYC/AML.

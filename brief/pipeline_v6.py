@@ -1279,6 +1279,18 @@ def _fetch_series_summaries(
     except Exception:  # noqa: BLE001 — graceful degradation
         logger.warning("v6: series_summary pre-fetch failed for slug=iran", exc_info=True)
 
+    # banking (DOMMR/BOFR overnight rates) is the third daily HTTP fetcher —
+    # one batched fetch, digested per key (dommr + bofr), mirroring how the
+    # bb reserves digest carries its two monthly keys. The editor's chart_read
+    # should lead on the PRIMARY series (dommr) per the existing convention.
+    try:
+        mm_series = chart_series_fetcher.fetch_money_market(
+            http=http, supabase_url=supabase_url, service_key=service_key, today=today,
+        )
+        out["banking"] = summarize_series_points(mm_series)
+    except Exception:  # noqa: BLE001 — graceful degradation
+        logger.warning("v6: series_summary pre-fetch failed for slug=banking", exc_info=True)
+
     return out
 
 
@@ -1290,6 +1302,10 @@ def _fetch_series_summaries(
 _CHART_FETCHERS_BY_SLUG: dict[str, str] = {
     "dse": "dsex",
     "iran": "brent",
+    # §04 Banking DOMMR/BOFR overnight money-market two-line chart — a daily
+    # metric_history fetcher, so it rides the generic HTTP dispatch below
+    # (list-returning else branch, same as brent).
+    "banking": "money_market",
     # fx moved to the metric_history_monthly External Flow Balance branch (F3);
     # fetch_fx_flows is retained (unit-tested) but no longer slug-dispatched.
     # tbond moved to the metric_history_monthly yield-ladder branch (F5);

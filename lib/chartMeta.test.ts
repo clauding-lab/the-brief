@@ -4,9 +4,10 @@
 // month-end stamping the normalization is meant to survive.
 import { describe, expect, it } from "vitest";
 import { getChartLatestCaption, getPerSeriesStaleness, __internals } from "./chartMeta";
+import { SECTION_TO_CHART } from "./chartConfigs";
 import type { Section, SeriesPoint } from "@/types/brief";
 
-const { periodEnd, num2 } = __internals;
+const { periodEnd, num2, CHART_SPECS } = __internals;
 
 function makeSection(series: SeriesPoint[]): Section {
   return {
@@ -174,5 +175,37 @@ describe("getPerSeriesStaleness — threshold sweep against live #204 data", () 
     const section = makeSection([{ key: "dsex", ts: "2026-08-20", value: 5219.74 }]);
     const result = getPerSeriesStaleness(section, "dsex", "2026-09-05");
     expect(result[0].isStale).toBe(true);
+  });
+});
+
+describe("SECTION_TO_CHART ↔ CHART_SPECS parity", () => {
+  // The only guard on the four-way series-key coupling ('dommr'/'bofr'-style
+  // strings repeated across chart_series_fetcher.py metric ids, chartConfigs
+  // builder keys, CHART_SPECS series[].key, and CHART_SPECS primaryKey):
+  // every chart a section can render must have a spec here, and that spec's
+  // primaryKey must be one of its own plotted series keys — otherwise the
+  // "LATEST PLOTTED" caption silently falls back and per-series staleness
+  // goes blind for that chart.
+  //
+  // `lng` (mapped from the retired `comm` commodities section, AGENTS.md
+  // landmine 30) is the one documented exception: chartMeta.ts deliberately
+  // carries no lng spec, and removing the dead SECTION_TO_CHART row belongs
+  // to a chartConfigs.ts cleanup pass, not this test.
+  const RETIRED_CHART_KEYS = new Set<string>(["lng"]);
+
+  it("every live SECTION_TO_CHART key has a CHART_SPECS entry whose primaryKey is in its own series list", () => {
+    const liveKeys = Object.values(SECTION_TO_CHART).filter(
+      (key): key is NonNullable<typeof key> => key != null && !RETIRED_CHART_KEYS.has(key),
+    );
+    expect(liveKeys.length).toBeGreaterThan(0);
+    for (const key of liveKeys) {
+      const spec = CHART_SPECS[key];
+      expect(spec, `CHART_SPECS has no entry for chart key "${key}"`).toBeDefined();
+      const seriesKeys = spec!.series.map((s) => s.key);
+      expect(
+        seriesKeys,
+        `CHART_SPECS["${key}"].primaryKey "${spec!.primaryKey}" is not one of its own series keys`,
+      ).toContain(spec!.primaryKey);
+    }
   });
 });

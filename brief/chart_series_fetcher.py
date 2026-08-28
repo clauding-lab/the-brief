@@ -74,6 +74,14 @@ _YIELD_LADDER_MONTHLY_METRIC_IDS: tuple[str, ...] = (
 _BRENT_METRIC_ID: str = "brent_crude_usd_barrel"
 _DSEX_METRIC_ID: str = "dsex"
 
+# §04 Banking overnight money-market chart (metric_history, daily, %).
+# DOMMR = Dhaka Overnight Money Market Rate; BOFR = Bangladesh Overnight
+# Financing Rate — BB's official money-market reference rates. EconDelta
+# writes both DAILY with REAL value-dates (business days only; BD weekend/
+# holiday gaps are genuine gaps, not missing data). The 1-week tenors
+# (dommr_1w / bofr_1w) are stored in metric_history but NOT charted.
+_MONEY_MARKET_METRIC_IDS: tuple[str, ...] = ("dommr", "bofr")
+
 # F4 — DS30 blue-chip movers (per-ticker dse_close_*, computed at publish time).
 _DSE_CLOSE_PREFIX: str = "dse_close_"
 _DSE_MOVERS_PER_SIDE: int = 5
@@ -366,6 +374,48 @@ def fetch_dse_movers(
     )[:_DSE_MOVERS_PER_SIDE]
     result: list[MoverRowV6] = gainers + losers
     return result or None
+
+
+def fetch_money_market(
+    *,
+    http: HttpClient,
+    supabase_url: str,
+    service_key: str,
+    today: date_t,
+    days: int = 365,
+) -> list[SeriesPointV6]:
+    """Pull last `days` of DOMMR + BOFR overnight rates from `metric_history`
+    (metric_id in dommr/bofr) for the §04 Banking two-line chart.
+
+    Batched sibling of `fetch_dsex`/`fetch_brent` — one round-trip filtered
+    `metric_id=in.(dommr,bofr)`, one SeriesPointV6 per row keyed by its own
+    metric_id. The series holds ~90 business days of history from 2026-04-15;
+    a generous 365-day window just returns what exists.
+
+    AGENTS.md landmine #1: reads metric_history, NOT tb_* tables.
+    """
+    cutoff: date_t = today - timedelta(days=days)
+    ids_csv: str = ",".join(_MONEY_MARKET_METRIC_IDS)
+    url: str = _metric_history_url(
+        supabase_url=supabase_url,
+        metric_filter=f"in.({ids_csv})",
+        cutoff=cutoff,
+    )
+    rows: list[dict[str, Any]] = _safe_get(http, url, service_key=service_key)
+    out: list[SeriesPointV6] = []
+    for row in rows:
+        ts: Any = row.get("as_of")
+        metric_id: Any = row.get("metric_id")
+        rate: float | None = _coerce_float(row.get("value"))
+        if (
+            rate is None
+            or not isinstance(ts, str)
+            or not isinstance(metric_id, str)
+            or metric_id not in _MONEY_MARKET_METRIC_IDS
+        ):
+            continue
+        out.append(SeriesPointV6(key=metric_id, ts=ts, value=rate))
+    return out
 
 
 def fetch_brent(

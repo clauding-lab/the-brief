@@ -159,6 +159,19 @@ const CHART_SPECS: Partial<Record<ChartConfigKey, ChartSpec>> = {
     series: [{ key: "nbr_revenue_monthly_cr", label: "NBR revenue" }],
     cadence: "monthly",
   },
+  moneyMarket: {
+    primaryKey: "dommr",
+    primaryLabel: "DOMMR",
+    format: (v) => `${num2(v)}%`,
+    series: [
+      { key: "dommr", label: "DOMMR" },
+      { key: "bofr", label: "BOFR" },
+    ],
+    // Daily with real value-dates: the plotted point lags one business day at
+    // the 08:00 BDT publish (same convention as the DSEX close). The 7-day
+    // daily threshold absorbs the BD Fri–Sat weekend plus a public holiday.
+    cadence: "daily",
+  },
   // No `lng` entry: the commodities section (§comm) that plotted LNG JKM was
   // retired (AGENTS.md landmine 30) — chartConfigs.ts's `lngConfig` builder
   // and its `SECTION_TO_CHART`/`CHART_CARD_HEADS` rows are unreachable dead
