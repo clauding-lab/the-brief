@@ -4,7 +4,7 @@
 
 [![Live site](https://img.shields.io/badge/live-thebrief.clauding--lab.com-1a1814?style=flat-square)](https://thebrief.clauding-lab.com/)
 [![Cadence](https://img.shields.io/badge/cadence-Daily%20%C2%B7%2008%3A00%20BDT-7a6f5c?style=flat-square)](#cadence)
-[![Version](https://img.shields.io/badge/version-2.3.1-a67c2e?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.4.0-a67c2e?style=flat-square)](./CHANGELOG.md)
 
 Numbers, news, and a banker's read on what matters. One brief. Every morning at 08:00 BDT. ~15 minutes.
 
@@ -261,7 +261,7 @@ The Brief uses semantic versioning. Releases are tagged on `main` with `v<MAJOR>
 - **Minor** — new section, new editorial feature, new visible UI surface
 - **Patch** — fixes, copy changes, deferred-cleanup commits
 
-See [CHANGELOG.md](./CHANGELOG.md) for the full release history. Current: **v2.3.1** — the honesty patch (fabricated-claim hard block, Real Policy Rate correction, provenance stamps) on top of v2.3.0's 1c facelift.
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history. Current: **v2.4.0** — the paper-light release (light mode is one uninterrupted paper sheet; the ink band becomes the dark-mode and brand identity) on top of v2.3.1's honesty patch.
 
 ## Related projects
 

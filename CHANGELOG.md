@@ -8,7 +8,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-## [2.3.1] — 2026-08-28
+## [2.4.0] — 2026-08-28
+
+The paper-light release. Light mode is now one uninterrupted paper sheet — masthead band, sticky bar, and Subscribe panel all render on paper, and the full-bleed ink band becomes the dark-mode and brand identity. Prompted by the owner's iPhone read: light mode showed the band and Today's Call as a dark slab under light browser chrome. Shipped as four adversarially-reviewed PRs (#192–#194, #196) plus this release; every review finding was either fixed pre-merge or recorded as a deliberate call.
+
+### Changed
+- **Light mode is completely paper** (#192): the six `--band-*` tokens now resolve per theme — dark inherits the ink values byte-identical; in light they re-point at the paper palette, so the band, its twelve descendant styles, the sticky bar, the band link, the on-band toggle, and the Subscribe panel all follow with zero selector churn. The band/sticky/panel seams promote to full-strength hairlines in light (the same call the print contract already made); the on-band toggle takes the tertiary ink its control-border contrast requires. Dark mode is unchanged.
+- **The browser chrome follows the reader's theme** (#192): `theme-color` is a per-scheme media pair, stamped pre-paint by the FOUC script and kept honest on every route — including /archive and across client navigations, where Next re-creates the meta tags — by a root-mounted sync component. This overturns the v2.3.0 fixed-ink-chrome decision (spec §11.6) with owner sign-off. The iOS status bar reverts to `default`: `black-translucent` drew white glyphs over the page and was already broken on /archive, and iOS offers no per-theme alternative.
+- Docs synced to the register that actually governs the product (#194): `docs/longview-workflow.md`'s voice section now binds to Master.md's Daily Star business-desk register (PR #174) with the enforceable rules inline, and AGENTS.md landmine 20 stops describing the retired Economist/FT four-dial register and points at the CI voice-consistency guard.
+
+### Fixed
+- **Long View bar-chart type now renders at a true 1:1 pixels** (#193): the SVG previously stretched a fixed 600-unit canvas to its container, so its nominal 11px labels rendered ~4.7px on tablets and ~5.1px on phones — under the 9px floor the facelift ratified. The chart now measures its container and draws at real pixel size, with collision-proofed reference-line/label geometry verified at eight viewport widths, responsive label/value columns (the data track keeps ≥50% of the chart at the paired tablet width), a full server-rendered fallback (no-JS output lost the bars entirely), and aspect-fit printing (the fixed height letterboxed and shrank printed charts).
+- Comparison grids now implement Design.md's documented responsive contract (#193): 3-column grids step to 2 below 900px; single column at 640px.
+- Long View card blocks gained print page-break protection, and the takeaway label gets its casing from CSS like its tier siblings (#193).
+- Design.md corrections (#196): comparison row value weight was documented as 500 while the app ships 300; the band token table, identity clauses, PWA section, and raw-hex carve-out now describe the per-theme reality with recomputed contrast figures.
+
 
 The honesty patch. Four defects found by adversarially reviewing published issues 205–210 against live production data — a cross-section date contradiction, a mislabeled comparison, a fabricated statistic, and a mispaired financial derivation — each root-caused, fixed TDD-first, and re-verified against the next real edition. Also refreshes the README and hero to the v2.3.0 "1c" identity with live screenshots.
 
