@@ -31,6 +31,13 @@ The Brief is read by banking professionals in Bangladesh — business heads (cor
 
 ### Voice register
 
+**`Master.md`'s Tone and Voice register sections are the binding register contract for all Long View prose** (synced into this workflow 2026-08-28, PR #194). The register is the Daily Star business desk — plain, declarative, reported prose — the single register since PR #174 (v2.2.0, 24 Aug 2026), superseding the earlier Economist/FT register. Where this list and `Master.md` disagree, `Master.md` wins.
+
+- Plain, declarative, reported sentences. One idea per sentence — never compress several findings into a string of figures stacked behind commas and a "so" clause. (Two figures serving one idea can share a sentence; three ideas cannot.)
+- Full sentences everywhere a sentence belongs: lead, prose paragraphs, stat body, bullet-list item text, banker_read. Every clause gets a subject and a verb. Fragments belong only in non-sentence surfaces — small-caps labels, eyebrows, stat units, and display values.
+- Let the facts carry the judgment. State what happened and what follows from it. Do not editorialise, do not perform candour; prefer the plain statement over a parallelism or epigram.
+- Attribute a figure to its publisher where one exists, and anchor its data period in prose ("according to Bangladesh Bank", "in the 31 Jul print"). Attribution is not hedging — and it is not a "Source:" line, which stays forbidden in blocks (see Forbiddens).
+- Neutral toward institutions: toward BB, NBR and the government, diplomatic in framing and fact-based in substance. Critique is expressed through the facts, never as a verdict on a policy or a named individual.
 - Banker-native vocabulary: NPL, CRR, repo, SDF, Sukuk, ALCO, MPS, BB, Tier-1 capital, provisioning, advance-deposit ratio.
 - Concrete numbers; never round away precision the source provides.
 - Implications oriented to credit committees, ALCO, treasury desks.
@@ -106,15 +113,15 @@ Keep `before_label` and `after_label` SHORT (1–2 words). They appear both at t
 }
 ```
 
-**4. Bullet-list** — structured points. Use for "three signals" / "what we learned" / "key takeaways" slides. Items can use `**bold**` markdown-light for leading emphasis. Optional `tone` per item tints the leading mark (▸).
+**4. Bullet-list** — structured points. Use for "three signals" / "what we learned" / "key takeaways" slides. Items can use `**bold**` markdown-light for leading emphasis. Both the bolded lead and the body are full sentences — no verbless fragments in item text (see Voice register). Optional `tone` per item tints the leading mark (▸).
 
 ```typescript
 {
   kind: "bullet-list",
   eyebrow: "<optional small-caps header>",
   items: [
-    { text: "**Strong lead.** Body of the point.", tone: "bull" },
-    { text: "Plain point without leading bold.", tone: "warn" },
+    { text: "**The strong lead is a short full sentence.** The body carries the supporting point.", tone: "bull" },
+    { text: "An item without leading bold is still written as a full sentence.", tone: "warn" },
     // 2–7 items
   ],
 }

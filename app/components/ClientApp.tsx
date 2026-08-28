@@ -65,7 +65,6 @@ export function ClientApp(props: ClientAppProps) {
   const [printMode, setPrintMode] = useState<boolean>(false);
   const navOffset = useNavOffset();
   const reducedMotion = useReducedMotion();
-
   // Read localStorage diff + URL print=1 after mount (avoid SSR hydration mismatch).
   // Reading client-only state (localStorage) post-mount and syncing it into React
   // state is the deliberate SSR-safe pattern here — server can't see localStorage,

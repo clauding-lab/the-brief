@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" font-family="'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace">
-  <!-- The ink band — the identity ground in BOTH themes (v2.3.0 facelift) -->
+  <!-- The ink band — the dark-mode identity ground and the brand mark (since v2.4.0 light mode is fully paper; this artwork depicts dark / the brand) -->
   <rect width="1200" height="340" fill="#0B0F12"/>
 
   <!-- eyebrow + live pulse -->
