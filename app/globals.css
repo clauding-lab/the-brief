@@ -1208,6 +1208,13 @@ body.tb-print .tb-kpi-rail, body.tb-print .tb-snapshot-row { background: transpa
 body.tb-print .tb-kpi-row, body.tb-print .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
 body.tb-print .tb-hero-flag,
 body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+/* §9.5: the Long View bar chart carries an inline screen height (its 1:1-px
+   contract), but print relayout narrows the container while the viewBox
+   keeps the screen-measured width — a fixed height letterboxes the scaled
+   drawing between dead bands. height:auto re-derives the box from the
+   viewBox aspect ratio so paper gets a pure proportional fit. !important is
+   required: the height is an inline style, which outranks any selector. */
+body.tb-print .tb-longview-bar-svg { height: auto !important; }
 
 @media print {
   /* This native browser-print rule (Cmd/Ctrl+P) is separate from the app's
@@ -1251,6 +1258,9 @@ body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent
   .tb-kpi-rail, .tb-snapshot-row { background: transparent; border: none; gap: 0; }
   .tb-kpi-row, .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
   .tb-hero-flag, .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  /* §9.5 parity: bar-chart aspect-fit on the native Cmd/Ctrl+P path too —
+     !important because the screen height is an inline style. */
+  .tb-longview-bar-svg { height: auto !important; }
   /* §9.2: band prints as paper on the native path too. */
   .tb-band { background: white; border-bottom: 1px solid var(--rule); color: var(--ink); }
   .tb-band .hair { background: var(--rule-soft); }
