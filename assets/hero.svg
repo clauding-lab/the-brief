@@ -1,19 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" font-family="'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace">
-  <rect width="1200" height="340" fill="#EDE7DD"/>
+  <!-- The ink band — the identity ground in BOTH themes (v2.3.0 facelift) -->
+  <rect width="1200" height="340" fill="#0B0F12"/>
 
-  <!-- masthead double-rule -->
-  <rect x="64" y="56" width="1072" height="2" fill="#2B0E12"/>
-  <rect x="64" y="62" width="1072" height="1" fill="#2B0E12" opacity="0.45"/>
+  <!-- eyebrow + live pulse -->
+  <circle cx="68" cy="74" r="4" fill="#ea3c3f"/>
+  <text x="84" y="79" font-size="13" letter-spacing="3.5" fill="#E6E9EB" opacity="0.55">DAILY MACRO &amp; MARKETS · BANGLADESH BANKING · 08:00 BDT</text>
 
-  <!-- eyebrow -->
-  <text x="64" y="92" font-size="13" letter-spacing="3" fill="#7A5C5F">DAILY MACRO &amp; MARKETS · BANGLADESH BANKING</text>
-  <!-- title -->
-  <text x="62" y="178" font-size="66" font-weight="700" letter-spacing="-1" fill="#2B0E12">The Brief</text>
+  <!-- theme toggle chip (the real control, in miniature) -->
+  <rect x="1044" y="56" width="92" height="28" fill="none" stroke="#E6E9EB" stroke-opacity="0.4"/>
+  <text x="1060" y="75" font-size="12" letter-spacing="2" fill="#E6E9EB">◐ DARK</text>
+
+  <!-- hairline under the meta row -->
+  <rect x="64" y="98" width="1072" height="1" fill="#E6E9EB" opacity="0.4"/>
+
+  <!-- wordmark -->
+  <text x="60" y="185" font-size="84" font-weight="200" letter-spacing="-3.4" fill="#E6E9EB">The Brief<tspan fill="#ea3c3f">.</tspan></text>
+
   <!-- tagline -->
-  <text x="64" y="222" font-size="20" fill="#4A1F24">The numbers, the news, and a banker’s read — every morning.</text>
+  <text x="64" y="224" font-size="16" fill="#E6E9EB" opacity="0.92">Numbers, news, and a banker&#8217;s read on what matters.</text>
 
-  <!-- footer rule + row -->
-  <rect x="64" y="268" width="1072" height="1" fill="#2B0E12" opacity="0.28"/>
-  <text x="64" y="298" font-size="14" fill="#7A5C5F">thebrief.clauding-lab.com</text>
-  <text x="1136" y="298" text-anchor="end" font-size="12" letter-spacing="1" fill="#7A5C5F">MON–FRI + SUN · 06:30 BDT</text>
+  <!-- snapshot-strip motif: six grout cells, abstract label/value bars -->
+  <g>
+    <rect x="64" y="252" width="1072" height="56" fill="#E6E9EB" opacity="0.06"/>
+    <!-- cell separators (1px grout) -->
+    <rect x="242" y="252" width="1" height="56" fill="#0B0F12"/>
+    <rect x="421" y="252" width="1" height="56" fill="#0B0F12"/>
+    <rect x="600" y="252" width="1" height="56" fill="#0B0F12"/>
+    <rect x="779" y="252" width="1" height="56" fill="#0B0F12"/>
+    <rect x="958" y="252" width="1" height="56" fill="#0B0F12"/>
+    <!-- per-cell: tiny label bar + wider value bar -->
+    <g fill="#E6E9EB">
+      <rect x="78" y="264" width="52" height="5" opacity="0.35"/><rect x="78" y="280" width="104" height="12" opacity="0.75"/>
+      <rect x="257" y="264" width="44" height="5" opacity="0.35"/><rect x="257" y="280" width="112" height="12" opacity="0.75"/>
+      <rect x="436" y="264" width="60" height="5" opacity="0.35"/><rect x="436" y="280" width="88" height="12" opacity="0.75"/>
+      <rect x="615" y="264" width="40" height="5" opacity="0.35"/><rect x="615" y="280" width="96" height="12" opacity="0.75"/>
+      <rect x="794" y="264" width="36" height="5" opacity="0.35"/><rect x="794" y="280" width="120" height="12" opacity="0.75"/>
+      <rect x="973" y="264" width="64" height="5" opacity="0.35"/><rect x="973" y="280" width="100" height="12" opacity="0.75"/>
+    </g>
+    <!-- one crimson sparkline (the accent budget's chart job) -->
+    <polyline points="1090,296 1102,288 1112,292 1122,284 1132,286" fill="none" stroke="#ea3c3f" stroke-width="2"/>
+  </g>
+
+  <!-- band border-bottom -->
+  <rect x="0" y="338" width="1200" height="1" fill="#E6E9EB" opacity="0.4"/>
 </svg>
