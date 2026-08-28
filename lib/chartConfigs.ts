@@ -1245,7 +1245,10 @@ function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
  * Structurally mirrors reservesConfig (two-key line chart, per-series stale
  * dimming via ctx.staleKeys + dimColor, legend on) but on the DAILY time
  * axis of dsexConfig/brentConfig ({unit:'day', tooltipFormat:'MMM d'}).
- * Y-axis = percent, formatted like the other rate charts (r2str + "%").
+ * Y-axis = percent at a FIXED 2dp (toFixed(2) + "%", matching the caption
+ * strip's num2 precision — on an overnight rate the trailing zero is a real
+ * basis-point digit, so r2str's "9.2%" is one digit short of "9.20%"). The
+ * same callback feeds the tooltip via baseLineOptions' yTickCallback.
  * TimeScale/LinearScale already registered in BriefChart.tsx per AGENTS.md
  * landmine #2 — no new registration needed for a two-line time chart.
  */
@@ -1283,7 +1286,7 @@ function moneyMarketConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 
   const baseOpts = baseLineOptions({ reducedMotion: ctx.reducedMotion,
     legend: true,
-    yTicks: { callback: (v: number) => r2str(v) + "%" },
+    yTicks: { callback: (v: number) => v.toFixed(2) + "%" },
   });
 
   return {

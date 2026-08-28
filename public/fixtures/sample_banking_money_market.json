@@ -1,4 +1,5 @@
 {
+  "_synthetic": "banking.series DOMMR/BOFR points are illustrative for preview, not Bangladesh Bank data",
   "brief": {
     "id": "e35e1e53-a392-40fe-b6cb-abb6fb918ac3",
     "lens": "remit",
@@ -514,59 +515,84 @@
       "movers": null,
       "series": [
         {
+          "ts": "2026-07-26",
+          "key": "dommr",
+          "value": 9.52
+        },
+        {
+          "ts": "2026-07-27",
+          "key": "dommr",
+          "value": 9.48
+        },
+        {
+          "ts": "2026-07-28",
+          "key": "dommr",
+          "value": 9.55
+        },
+        {
+          "ts": "2026-07-29",
+          "key": "dommr",
+          "value": 9.46
+        },
+        {
+          "ts": "2026-07-30",
+          "key": "dommr",
+          "value": 9.42
+        },
+        {
           "ts": "2026-08-02",
-          "key": "dommr",
-          "value": 9.41
-        },
-        {
-          "ts": "2026-08-03",
-          "key": "dommr",
-          "value": 9.47
-        },
-        {
-          "ts": "2026-08-04",
           "key": "dommr",
           "value": 9.44
         },
         {
-          "ts": "2026-08-05",
+          "ts": "2026-08-03",
           "key": "dommr",
-          "value": 9.36
+          "value": 9.49
         },
         {
-          "ts": "2026-08-06",
+          "ts": "2026-08-04",
           "key": "dommr",
           "value": 9.38
         },
         {
+          "ts": "2026-08-05",
+          "key": "dommr",
+          "value": 9.35
+        },
+        {
+          "ts": "2026-08-06",
+          "key": "dommr",
+          "value": 9.40
+        },
+        {
           "ts": "2026-08-09",
           "key": "dommr",
-          "value": 9.43
+          "value": 9.33
         },
         {
           "ts": "2026-08-10",
           "key": "dommr",
-          "value": 9.36
+          "value": 9.37
         },
         {
           "ts": "2026-08-11",
           "key": "dommr",
-          "value": 9.31
+          "value": 9.28
         },
         {
           "ts": "2026-08-12",
           "key": "dommr",
-          "value": 9.36
+          "value": 9.31
         },
         {
           "ts": "2026-08-13",
           "key": "dommr",
-          "value": 9.37
+          "value": 9.26
         },
         {
           "ts": "2026-08-16",
           "key": "dommr",
-          "value": 9.29
+          "value": 9.22
         },
         {
           "ts": "2026-08-17",
@@ -576,52 +602,52 @@
         {
           "ts": "2026-08-18",
           "key": "dommr",
-          "value": 9.33
+          "value": 9.19
         },
         {
           "ts": "2026-08-19",
           "key": "dommr",
-          "value": 9.31
+          "value": 9.15
         },
         {
           "ts": "2026-08-20",
           "key": "dommr",
-          "value": 9.23
+          "value": 9.11
         },
         {
-          "ts": "2026-08-23",
-          "key": "dommr",
-          "value": 9.24
+          "ts": "2026-07-26",
+          "key": "bofr",
+          "value": 9.44
         },
         {
-          "ts": "2026-08-24",
-          "key": "dommr",
-          "value": 9.29
+          "ts": "2026-07-27",
+          "key": "bofr",
+          "value": 9.41
         },
         {
-          "ts": "2026-08-25",
-          "key": "dommr",
-          "value": 9.24
+          "ts": "2026-07-28",
+          "key": "bofr",
+          "value": 9.47
         },
         {
-          "ts": "2026-08-26",
-          "key": "dommr",
-          "value": 9.18
+          "ts": "2026-07-29",
+          "key": "bofr",
+          "value": 9.39
         },
         {
-          "ts": "2026-08-27",
-          "key": "dommr",
-          "value": 9.18
+          "ts": "2026-07-30",
+          "key": "bofr",
+          "value": 9.36
         },
         {
           "ts": "2026-08-02",
           "key": "bofr",
-          "value": 9.35
+          "value": 9.38
         },
         {
           "ts": "2026-08-03",
           "key": "bofr",
-          "value": 9.36
+          "value": 9.42
         },
         {
           "ts": "2026-08-04",
@@ -631,87 +657,62 @@
         {
           "ts": "2026-08-05",
           "key": "bofr",
-          "value": 9.27
+          "value": 9.28
         },
         {
           "ts": "2026-08-06",
           "key": "bofr",
-          "value": 9.29
+          "value": 9.33
         },
         {
           "ts": "2026-08-09",
           "key": "bofr",
-          "value": 9.33
+          "value": 9.27
         },
         {
           "ts": "2026-08-10",
           "key": "bofr",
-          "value": 9.33
+          "value": 9.30
         },
         {
           "ts": "2026-08-11",
           "key": "bofr",
-          "value": 9.27
+          "value": 9.22
         },
         {
           "ts": "2026-08-12",
           "key": "bofr",
-          "value": 9.24
+          "value": 9.25
         },
         {
           "ts": "2026-08-13",
           "key": "bofr",
-          "value": 9.27
+          "value": 9.20
         },
         {
           "ts": "2026-08-16",
           "key": "bofr",
-          "value": 9.31
+          "value": 9.16
         },
         {
           "ts": "2026-08-17",
           "key": "bofr",
-          "value": 9.29
+          "value": 9.21
         },
         {
           "ts": "2026-08-18",
           "key": "bofr",
-          "value": 9.24
+          "value": 9.13
         },
         {
           "ts": "2026-08-19",
           "key": "bofr",
-          "value": 9.21
+          "value": 9.09
         },
         {
           "ts": "2026-08-20",
           "key": "bofr",
-          "value": 9.25
-        },
-        {
-          "ts": "2026-08-23",
-          "key": "bofr",
-          "value": 9.28
-        },
-        {
-          "ts": "2026-08-24",
-          "key": "bofr",
-          "value": 9.25
-        },
-        {
-          "ts": "2026-08-25",
-          "key": "bofr",
-          "value": 9.2
-        },
-        {
-          "ts": "2026-08-26",
-          "key": "bofr",
-          "value": 9.18
-        },
-        {
-          "ts": "2026-08-27",
-          "key": "bofr",
-          "value": 9.23
+          "value": 9.05
         }
       ],
       "weight": 1,
