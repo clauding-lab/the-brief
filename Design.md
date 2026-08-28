@@ -57,7 +57,7 @@ The `:root` values are the DARK branch (dark inherits them unchanged); in light 
 | Token | Dark (`:root` value) | Light (resolves to) | Role |
 |---|---|---|---|
 | `--band` | `#0B0F12` | `var(--paper)` `#E6E9EB` | Band ground (masthead, sticky bar, Subscribe CTA panel) |
-| `--band-ink` | `#E6E9EB` | `var(--ink)` (16.2:1) | Primary text on the band |
+| `--band-ink` | `#E6E9EB` | `var(--ink)` (15.78:1) | Primary text on the band |
 | `--band-ink-2` | `rgba(230,233,235,0.92)` (13.38:1) | `var(--ink-2)` | Today's Call body on the band |
 | `--band-mute` | `rgba(230,233,235,0.55)` (5.31:1) | `var(--ink-3)` (6.20:1) | Meta/labels on the band |
 | `--band-rule` | `rgba(230,233,235,0.40)` (3.33:1) | `var(--rule-soft)` — hairlines only; the on-band toggle's control border takes an explicit `--ink-3` (rule-soft is 1.55:1, under the 3:1 floor), and the band/sticky `border-bottom` promotes to full `--rule` | Hairlines + control borders on the band |
