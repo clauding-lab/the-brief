@@ -368,10 +368,10 @@ export function ClientApp(props: ClientAppProps) {
             {/* The Long View sits between Overview and the next group (Banking).
                 Renders nothing when `longView` is null. Fragment is used (vs. a
                 wrapping div) so the existing `.tb-group + .tb-group` adjacent-
-                sibling CSS rule still matches across groups. The new rule
-                `.tb-longview + .tb-group` (added in Task 5) restores the 64px
-                top margin on Banking, which is preceded by LongView instead of
-                an adjacent .tb-group. */}
+                sibling CSS rule still matches across groups. The rule
+                `.tb-longview + .tb-group` gives Banking — preceded by LongView
+                instead of an adjacent .tb-group — the same group-gap tiers:
+                26px desktop / 22px ≤920 / 20px print (facelift-spec §6). */}
             {key === "overview" && <LongView data={longView} />}
           </Fragment>
         ))}

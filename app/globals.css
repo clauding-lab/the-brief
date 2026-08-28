@@ -1191,6 +1191,11 @@ body.tb-print .tb-section.is-unavailable { page-break-inside: avoid; opacity: 1;
 body.tb-print .tb-section-title { font-size: 24px; }
 body.tb-print .tb-group + .tb-group { margin-top: 20px; }
 body.tb-print .tb-longview + .tb-group { margin-top: 20px; }
+/* Long View cards must not split across a page break. NOT on .tb-longview
+   itself — the whole section is taller than a page. */
+body.tb-print .tb-longview-stat,
+body.tb-print .tb-longview-cmp-row,
+body.tb-print .tb-longview-pair { page-break-inside: avoid; }
 body.tb-print .tb-group-header { padding-top: 0; margin-top: 12px; }
 body.tb-print .tb-masthead-full { padding: 14px 0 12px; }
 body.tb-print .tb-masthead-hero { padding: 10px 0; }
@@ -1237,6 +1242,9 @@ body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent
   .tb-section-title { font-size: 24px; }
   .tb-group + .tb-group { margin-top: 20px; }
   .tb-longview + .tb-group { margin-top: 20px; }
+  /* Parity with body.tb-print: Long View cards don't split across pages
+     (not .tb-longview itself — taller than a page). */
+  .tb-longview-stat, .tb-longview-cmp-row, .tb-longview-pair { page-break-inside: avoid; }
   .tb-masthead-full { padding: 14px 0 12px; }
   .tb-masthead-hero { padding: 10px 0; }
   .tb-wordmark-big { font-size: 44px; }
@@ -1367,7 +1375,20 @@ body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent
   grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
 }
-@media (max-width: 600px) {
+/* Responsive contract (Design.md §Responsive): the 3-col auto-promotion
+   steps down to 2-col below 900px; both grids collapse to a single column
+   below 640px. Order matters the way the SECTION GROUP block warns — all
+   three grid-template-columns declarations are (0,1,0), so the 640px block
+   must sit AFTER the 900px block (and both after the base rules above) for
+   the single-column rule to win the source-order tie at ≤640px. No later
+   base rule redeclares these columns (checked: nothing below line ~1414
+   touches .tb-longview-cmp-grid-*). */
+@media (max-width: 900px) {
+  .tb-longview-cmp-grid-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 640px) {
   .tb-longview-cmp-grid-2,
   .tb-longview-cmp-grid-3 {
     grid-template-columns: 1fr;
@@ -1606,6 +1627,7 @@ body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent
   letter-spacing: 0.16em;
   color: var(--ink-3);
   font-weight: 600;
+  text-transform: uppercase; /* label tier — same as its four eyebrow siblings */
   margin-bottom: 10px;
 }
 .tb-longview-takeaway p {
