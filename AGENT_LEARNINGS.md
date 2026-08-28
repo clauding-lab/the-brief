@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-08-28 — v2.3.0+ | The provenance stamp skipped its own debut: marker-substring idempotence is editor-collidable
+
+**Trigger:** issue 210 — the first edition with the Real Policy Rate fix — published the corrected 1.18 but WITHOUT the provenance note the fix shipped for. The Import Cover stamp on the same page worked.
+
+**What went wrong:** `_stamp_real_policy_rate_sub`'s never-double-append guard checked whether the published `sub` already contained the marker phrase `"p2p CPI"`. The editor's own sentence that morning was "Jul 2026, repo above p2p CPI." — a natural phrase containing the marker — so the stamper concluded the note was already present and silently skipped. The sibling import-cover stamp carried the identical latent bug (`"import bill"` is equally ordinary prose); it survived only because the editor didn't happen to write the phrase that day.
+
+**Lesson:** idempotence for machine-written text must key on the EXACT artifact the machine writes, never on a marker substring — free prose will eventually contain any natural-language marker.
+
+**Prevention:** both stampers now check `note not in current` (the full reconstructed note); regression tests pin the exact issue-210 shape ("Jul 2026, repo above p2p CPI." still gets stamped) for both stampers. Detection lesson honored: the miss was caught the same morning because the edition check verifies the published payload, not the merge (a no-op that writes nothing looks identical to a no-op with nothing to write — landmine 28's rule; the dry-run's logs could never have shown it because stamp results aren't logged — a `stamped=%s` log line would have).
+
+**Hotfix:** `fix(pipeline)` exact-note idempotence, same-day.
+
+**Cross-references:** AGENT_LEARNINGS 2026-08-27 (the stamp's origin); AGENTS.md landmine 28 (verify against production output); auto-memory `project_card_honesty_fix_2026_08_24`.
+
 ## 2026-08-27 — v2.3.0+ | Real Policy Rate printed a pre-cut rate's arithmetic: `at_or_before` on a restamped series is not "the value in force"
 
 **Trigger:** an adversarial review of issues 207/208 flagged that the published Real Policy Rate 1.68% implied a 7.82% deflator appearing nowhere in the edition. An Opus investigation against live `metric_history` found there was no 7.82 at all — the real arithmetic was 10.00 − 8.32, and the 10.00 leg was wrong.
