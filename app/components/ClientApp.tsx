@@ -7,7 +7,6 @@ import { getBrowserSupabase } from "@/lib/supabase";
 import { SECTION_TO_CHART } from "@/lib/chartConfigs";
 import { useNavOffset } from "@/lib/useNavOffset";
 import { useReducedMotion } from "@/lib/useReducedMotion";
-import { useTheme } from "@/lib/useTheme";
 import { Masthead } from "./Masthead";
 import { StickyBar } from "./StickyBar";
 import { SnapshotStrip } from "./SnapshotStrip";
@@ -66,24 +65,6 @@ export function ClientApp(props: ClientAppProps) {
   const [printMode, setPrintMode] = useState<boolean>(false);
   const navOffset = useNavOffset();
   const reducedMotion = useReducedMotion();
-  const theme = useTheme();
-
-  // Browser-chrome color follows the ACTIVE theme (v2.4.0, spec §12).
-  // layout.tsx ships a prefers-color-scheme media pair as the no-JS
-  // baseline, but media-paired metas track the OS, not our data-theme
-  // toggle — so this effect overwrites BOTH metas' content with the
-  // active theme's ground whenever data-theme changes. useTheme is a
-  // MutationObserver on the attribute, so every writer is covered:
-  // ThemeToggle, the OS-change listener, the FOUC script's pre-hydration
-  // stamp, and this file's own print force/restore. Hexes must match
-  // layout.tsx's viewport pair (--paper light / --band dark ink).
-  useEffect(() => {
-    const color = theme === "dark" ? "#0B0F12" : "#E6E9EB";
-    document
-      .querySelectorAll('meta[name="theme-color"]')
-      .forEach((m) => m.setAttribute("content", color));
-  }, [theme]);
-
   // Read localStorage diff + URL print=1 after mount (avoid SSR hydration mismatch).
   // Reading client-only state (localStorage) post-mount and syncing it into React
   // state is the deliberate SSR-safe pattern here — server can't see localStorage,

@@ -16,7 +16,7 @@ Numbers, news, and a banker's read on what matters. One brief. Every morning at 
 
 ## The morning read, both themes
 
-The "1c" identity, v2.4.0: light mode is one uninterrupted paper sheet; dark mode is the full-bleed ink band. A light/dark toggle whose choice persists per device, the compact editorial scale, and a six-cell market snapshot strip on every issue.
+The "1c" identity: light mode is one uninterrupted paper sheet; dark mode is the full-bleed ink band. A light/dark toggle whose choice persists per device, the compact editorial scale, and a six-cell market snapshot strip on every issue.
 
 | Light | Dark |
 |---|---|

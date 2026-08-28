@@ -256,18 +256,27 @@ body { background: var(--paper); color: var(--ink); }
 .tb-band .tb-masthead-lens-pill       { background: none; padding: 0; border-radius: 0; color: var(--band-mute); }
 .tb-band .tb-masthead-lens-pill .tb-mlp-day { color: var(--band-ink); }
 
-/* Light-mode band extras (v2.4.0). Two places where the token re-scope
+/* Light-mode band extras (v2.4.0). Three places where the token re-scope
    alone is not enough:
    1. Container seams: with a paper band, the border-bottom is the ONLY
       edge between band/sticky-bar and the content below — promote it
       from --rule-soft (1.55:1, near-invisible) to full --rule, the same
       call print §9.2 made for the same seam. Internal band hairlines
       (.hair, the Today's Call divider) stay --rule-soft via the token.
-   2. The on-band toggle: --band-rule → --rule-soft fails the 3:1
+   2. The Subscribe panel/form seam: in light the panel background is
+      byte-identical to the page (--band = --paper), so its border is the
+      panel's only edge — same promotion to full --rule. (In dark the
+      band-rule token stays the 3.33:1 pale hairline; only light needed
+      the lift.)
+   3. The on-band toggle: --band-rule → --rule-soft fails the 3:1
       control-border floor (the exact trap the base .tb-theme-toggle
       comment documents) — match the base toggle's --ink-3 instead. */
 [data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-band,
 [data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-stickybar {
+  border-bottom-color: var(--rule);
+}
+[data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-cta-dark {
+  border-right-color: var(--rule);
   border-bottom-color: var(--rule);
 }
 [data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-theme-toggle.on-band {
@@ -859,10 +868,13 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   padding: 40px 36px; display: flex; flex-direction: column; justify-content: space-between;
 }
 .tb-cta-dark .eyebrow { color: var(--band-mute); }
-/* Panel≈paper in BOTH themes now (dark: #0B0F12 vs #101418 ~1.06:1; light:
-   paper on paper exactly) — same accepted collision §5.1 records, same
-   remedy in both: a band-rule edge keeps the panel legible as a panel.
-   --band-rule resolves per theme, so one unconditional rule covers both. */
+/* Panel≈paper in BOTH themes now, but the remedies differ by theme: in
+   dark the panel (#0B0F12 vs #101418, ~1.06:1) keeps the pale band-rule
+   edge (3.33:1); in light the panel is byte-identical to the page, and
+   --band-rule resolves to --rule-soft (1.54:1 — near-invisible), so the
+   light-extras block near §5.2 promotes this seam to full --rule, the
+   same promotion the band and sticky bar got. This base rule supplies
+   the border; the color resolves per theme through those two rules. */
 .tb-cta-dark { border-right: 1px solid var(--band-rule); }
 .tb-cta-dark .head { font-size: 30px; font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-family: var(--mono); }
 .tb-cta-dark .head .accent { color: var(--band-accent); }
