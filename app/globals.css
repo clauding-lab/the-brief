@@ -25,11 +25,14 @@
   --color-muted: var(--ink-3);
   --color-surface-2: var(--paper-2);
 
-  /* Band tokens (facelift PR A — docs/facelift-spec.md §1). The masthead
-     band is ink in BOTH themes; that is the point of the band, so these
-     are cross-palette constants, not per-theme values. Consumed today by
-     the Subscribe CTA panel (§7.8 pulled forward with dark mode) and the
-     toggle's .on-band variant; the full band lands in PR C. */
+  /* Band tokens (facelift PR A — docs/facelift-spec.md §1; re-scoped per
+     theme by the v2.4.0 amendment, §12). These :root values are the DARK
+     branch: ink ground, pale text — dark mode inherits them unchanged. In
+     light mode the steel-crimson block below re-points every band token at
+     the light palette, so the band renders as paper (owner decision
+     2026-08-28: light mode is completely paper; the ink band is dark-mode-
+     only). Do NOT treat these as cross-palette constants again — every
+     .tb-band/.tb-stickybar/.tb-cta-dark consumer resolves per theme now. */
   --band:        #0B0F12;
   --band-ink:    #E6E9EB;
   --band-ink-2:  rgba(230, 233, 235, 0.92);  /* Today's Call body on the band — 13.38:1 */
@@ -102,6 +105,28 @@
   --bear:         oklch(0.66 0.19 25);       /* bear always equals accent in this identity */
   --warn:         oklch(0.70 0.13 75);       /* 6.79:1 */
   --neu:          var(--ink-3);
+}
+/* Light-mode band re-scope (v2.4.0). In light, every band token re-points
+   at the light steel palette so the masthead band, sticky bar, and
+   Subscribe panel render as one paper sheet — the exact mirror of dark's
+   "reads as all band". Keyed :not([data-theme="dark"]) rather than
+   [data-theme="light"] so the no-JS frame (FOUC script not yet run) gets
+   the paper band too, and keyed to steel-crimson so the bone email
+   palette is untouched. Alias-to-var is safe here for the same reason the
+   --color-muted alias works: every block sits on <html>, so substitution
+   picks up the theme's values. Light mappings mirror the §9.2 print
+   contract (the reviewed "band on paper" table); measured on --paper:
+   ink 16.2:1, ink-3 6.20:1, accent 4.44:1 (the recorded §11.11 small-text
+   exemption carries over). --band-rule maps to --rule-soft for HAIRLINES
+   only — the toggle's control border gets an explicit --ink-3 override
+   below (rule-soft is 1.55:1, under the 3:1 component floor). */
+[data-palette="steel-crimson"]:not([data-theme="dark"]) {
+  --band:        var(--paper);
+  --band-ink:    var(--ink);
+  --band-ink-2:  var(--ink-2);
+  --band-mute:   var(--ink-3);
+  --band-rule:   var(--rule-soft);
+  --band-accent: var(--accent);
 }
 html[data-palette="steel-crimson"][data-theme="dark"]  { color-scheme: dark; }
 html[data-palette="steel-crimson"][data-theme="light"] { color-scheme: light; }
@@ -202,11 +227,14 @@ body { background: var(--paper); color: var(--ink); }
 
 .tb-shell { min-height: 100vh; display: flex; flex-direction: column; }
 
-/* ─── THE INK BAND (facelift spec §5.1/§5.2) ─────────────── */
-/* True full-bleed identity band around the masthead — ink in BOTH themes;
-   that is the point of the band. In dark, band (#0B0F12) vs paper (#101418)
-   is ~1.04:1 — accepted ("dark reads as all band"); the border keeps the
-   edge legible. */
+/* ─── THE BAND (facelift spec §5.1/§5.2; v2.4.0 amendment §12) ── */
+/* True full-bleed wrapper around the masthead. Ink in DARK mode only
+   (band #0B0F12 vs paper #101418 is ~1.04:1 — accepted, "dark reads as
+   all band"); in LIGHT mode the token re-scope renders it as paper
+   (band = --paper exactly, 1.00:1 — the deliberate mirror: light reads
+   as all paper). In both themes the border keeps the edge legible; the
+   light border is promoted to full --rule below, matching print §9.2's
+   choice for the same seam. */
 .tb-band {
   background: var(--band);
   color: var(--band-ink);
@@ -217,7 +245,7 @@ body { background: var(--paper); color: var(--ink); }
 /* Band-scoped descendant overrides (§5.2) — the block v1 was missing. */
 .tb-band .hair                        { background: var(--band-rule); }
 .tb-band .tb-masthead-meta            { color: var(--band-mute); }
-.tb-band .tb-masthead-meta .pulse     { background: var(--band-accent); }  /* light --accent is a visibly darker red on the band (3.56:1) */
+.tb-band .tb-masthead-meta .pulse     { background: var(--band-accent); }  /* resolves per theme since v2.4.0: --accent on paper in light, band red on ink in dark */
 .tb-band .tb-published                { color: var(--band-mute); }   /* v2.1.0 honesty stamp — KEPT */
 .tb-band .tb-readtime                 { color: var(--band-mute); font-size: 10.5px; }
 .tb-band .tb-todays-call              { border-top: 1px solid var(--band-rule); }  /* its only divider from the nameplate row */
@@ -227,6 +255,34 @@ body { background: var(--paper); color: var(--ink); }
 .tb-band .tb-wordmark-big .dot        { color: var(--band-accent); }
 .tb-band .tb-masthead-lens-pill       { background: none; padding: 0; border-radius: 0; color: var(--band-mute); }
 .tb-band .tb-masthead-lens-pill .tb-mlp-day { color: var(--band-ink); }
+
+/* Light-mode band extras (v2.4.0). Three places where the token re-scope
+   alone is not enough:
+   1. Container seams: with a paper band, the border-bottom is the ONLY
+      edge between band/sticky-bar and the content below — promote it
+      from --rule-soft (1.55:1, near-invisible) to full --rule, the same
+      call print §9.2 made for the same seam. Internal band hairlines
+      (.hair, the Today's Call divider) stay --rule-soft via the token.
+   2. The Subscribe panel/form seam: in light the panel background is
+      byte-identical to the page (--band = --paper), so its border is the
+      panel's only edge — same promotion to full --rule. (In dark the
+      band-rule token stays the 3.33:1 pale hairline; only light needed
+      the lift.)
+   3. The on-band toggle: --band-rule → --rule-soft fails the 3:1
+      control-border floor (the exact trap the base .tb-theme-toggle
+      comment documents) — match the base toggle's --ink-3 instead. */
+[data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-band,
+[data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-stickybar {
+  border-bottom-color: var(--rule);
+}
+[data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-cta-dark {
+  border-right-color: var(--rule);
+  border-bottom-color: var(--rule);
+}
+[data-palette="steel-crimson"]:not([data-theme="dark"]) .tb-theme-toggle.on-band {
+  color: var(--ink-3);
+  border-color: var(--ink-3);
+}
 
 /* ─── EDITORIAL MASTHEAD ─────────────────────────────────── */
 /* Safe-area rules (facelift spec §4.3): every affected selector uses
@@ -320,8 +376,11 @@ body { background: var(--paper); color: var(--ink); }
 .tb-readtime { font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; }
 
 /* ─── STICKY BAR ───────────────────────────────────────── */
-/* Band-colored since PR C (spec §5.4) — the identity anchor keeps its shape
-   on scroll now that the masthead sits on the same ink. */
+/* Band-colored since PR C (spec §5.4) — it follows the band tokens, so it
+   is ink in dark and paper in light (v2.4.0: no dark slab returns on
+   scroll in light mode). Its border-bottom is promoted to full --rule in
+   light by the band-extras block above — the hairline is the only cue
+   that the bar floats over content (Design.md forbids shadows). */
 .tb-stickybar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 50;
   background: var(--band);
@@ -800,20 +859,23 @@ body.tb-diff .tb-section.is-unavailable { opacity: 0.32; }
   display: grid; grid-template-columns: 1fr 1fr;
   min-height: 360px;
 }
-/* Panel pinned to the band tokens, which hold in both themes (facelift
-   spec §7.8, pulled forward into PR A with dark mode): background:
-   var(--ink) would invert to a near-white panel in dark, collapsing the
-   old hardcoded cream rgba texts to 1.07–1.10:1. */
+/* Panel rides the band tokens (facelift spec §7.8, pulled forward into
+   PR A with dark mode), which since v2.4.0 resolve per theme — so the
+   panel is ink in dark and paper in light (owner decision 2026-08-28:
+   the panel follows the theme; light mode keeps no dark surfaces). */
 .tb-cta-dark {
   background: var(--band); color: var(--band-ink);
   padding: 40px 36px; display: flex; flex-direction: column; justify-content: space-between;
 }
 .tb-cta-dark .eyebrow { color: var(--band-mute); }
-/* Dark: band panel (#0B0F12) against dark paper (#101418) is ~1.06:1 — the
-   same accepted band≈paper collision §5.1 records, and the same remedy: a
-   band-rule edge keeps the panel legible as a panel. Light needs nothing
-   (band on light paper is high-contrast by construction). */
-[data-theme="dark"] .tb-cta-dark { border-right: 1px solid var(--band-rule); }
+/* Panel≈paper in BOTH themes now, but the remedies differ by theme: in
+   dark the panel (#0B0F12 vs #101418, ~1.06:1) keeps the pale band-rule
+   edge (3.33:1); in light the panel is byte-identical to the page, and
+   --band-rule resolves to --rule-soft (1.54:1 — near-invisible), so the
+   light-extras block near §5.2 promotes this seam to full --rule, the
+   same promotion the band and sticky bar got. This base rule supplies
+   the border; the color resolves per theme through those two rules. */
+.tb-cta-dark { border-right: 1px solid var(--band-rule); }
 .tb-cta-dark .head { font-size: 30px; font-weight: 200; letter-spacing: -0.04em; line-height: 0.95; font-family: var(--mono); }
 .tb-cta-dark .head .accent { color: var(--band-accent); }
 .tb-cta-dark .body { margin-top: 22px; font-size: 13px; line-height: 1.55; color: var(--band-ink-2); max-width: 380px; text-wrap: pretty; }
@@ -1097,8 +1159,11 @@ body.tb-diff .tb-statstack:not(.is-changed) {
   .tb-banker-runway .num { font-size: 36px; }
   .tb-cta { grid-template-columns: 1fr; }
   .tb-cta-dark .head { font-size: 26px; }
-  /* Single-column CTA: the panel/form seam runs horizontally here. */
-  [data-theme="dark"] .tb-cta-dark { border-right: none; border-bottom: 1px solid var(--band-rule); }
+  /* Single-column CTA: the panel/form seam runs horizontally here. Both
+     themes carry the seam since v2.4.0 (panel≈paper in both) — same
+     specificity as the base rule, so source order inside this later
+     media block is what flips right→bottom. */
+  .tb-cta-dark { border-right: none; border-bottom: 1px solid var(--band-rule); }
   .tb-foot {
     flex-direction: column; gap: 8px;
     padding: 24px 20px;
