@@ -1154,6 +1154,9 @@ body.tb-diff .tb-statstack:not(.is-changed) {
   .tb-movers-grid { grid-template-columns: 1fr; gap: 18px; }
   .tb-analysis { grid-template-columns: 1fr; gap: 12px; }
   .tb-banker { grid-template-columns: 1fr; gap: 20px; }
+  /* Verdicts go full-width here (single-column banker grid) — the Long
+     View measure follows them. */
+  .tb-longview-lead, .tb-longview-prose p, .tb-longview-takeaway p { max-width: none; }
   .tb-banker-watchrisk { grid-template-columns: 1fr; }
   /* 36, not 40: must stay under the wordmark's 40px floor on phones (§6). */
   .tb-banker-runway .num { font-size: 36px; }
@@ -1408,8 +1411,6 @@ body.tb-print .tb-longview-bar-svg { height: auto !important; }
   line-height: 1.55;
   color: var(--ink-2);
   margin: 0 0 24px;
-  /* Uncapped with the prose/takeaway (owner decision 2026-08-28) so every
-     Long View text surface fills the section width consistently. */
 }
 
 /* Vertical gap between consecutive blocks */
@@ -1422,9 +1423,6 @@ body.tb-print .tb-longview-bar-svg { height: auto !important; }
   font-size: 13.5px;
   line-height: 1.65;
   margin: 0 0 12px;
-  /* Full section width by owner decision (2026-08-28) — the 70ch line cap
-     left half the shell empty on desktop; prose now runs edge to edge of
-     the Long View container, matching its hairline rules. */
   color: var(--ink-2);
 }
 .tb-longview-prose p:last-child { margin-bottom: 0; }
@@ -1714,10 +1712,20 @@ body.tb-print .tb-longview-bar-svg { height: auto !important; }
   font-weight: 300;
   letter-spacing: -0.005em;
   margin: 0;
-  /* Full section width by owner decision (2026-08-28), matching the
-     section banker-verdicts (which fill their column uncapped) and the
-     Long View prose above — the old 65ch cap left half the shell empty. */
   text-wrap: pretty;
+}
+
+/* Long View text measure = the section VERDICT column (owner decision
+   2026-08-28, superseding the same-day full-width call): .tb-banker is
+   0.4fr | 1fr with a 36px gap, so the verdict text runs (100% − 36px)
+   × 5/7 of its section. The old fixed 62–70ch caps read too narrow on
+   desktop; full width read too wide. This tracks the verdict measure at
+   every viewport; the ≤920 tier lifts it exactly where the banker grid
+   collapses to one column. */
+.tb-longview-lead,
+.tb-longview-prose p,
+.tb-longview-takeaway p {
+  max-width: calc((100% - 36px) * 5 / 7);
 }
 
 /* Diff-stale state (kept from v1.1.0) */
