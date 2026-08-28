@@ -874,7 +874,9 @@ def _stamp_import_cover_sub(
     A no-op when the raw metric has no value (suppressed this issue), when
     its `source` carries no dual-period note (i.e. `_import_cover` didn't
     take its success path), or when the published `sub` already contains
-    the marker phrase (never double-appends on a re-run).
+    the EXACT note (never double-appends on a re-run; keyed on the full
+    note, not the bare marker — editor prose can contain the marker phrase,
+    which is how issue 210 lost the sibling stamp).
     """
     note: str | None = None
     for s in raw_sections:
@@ -903,7 +905,12 @@ def _stamp_import_cover_sub(
             if _normalize_label(pub.label) != _IMPORT_COVER_LABEL:
                 continue
             current = pub.sub or ""
-            if _IMPORT_COVER_SUB_MARKER not in current:
+            # Idempotence keys on the EXACT note, never the bare marker: the
+            # editor's own prose can legitimately contain the marker phrase
+            # (issue 210's "repo above p2p CPI" skipped the sibling stamp
+            # this way, 2026-08-28), and only the full note proves the
+            # disclosure is already on the page.
+            if note not in current:
                 pub.sub = f"{current} · {note}" if current else note
         break
 
@@ -940,7 +947,9 @@ def _stamp_real_policy_rate_sub(
     resolved. A no-op when the raw metric has no value (a leg was missing
     this issue), when its `source` carries no note (the derivation did not
     take its success path), or when the published `sub` already contains the
-    marker phrase.
+    EXACT note (keyed on the full note, not the bare marker — issue 210's
+    editor sub "Jul 2026, repo above p2p CPI." contained the marker and the
+    old check skipped the stamp, publishing 1.18 with no provenance).
     """
     note: str | None = None
     for s in raw_sections:
@@ -974,7 +983,11 @@ def _stamp_real_policy_rate_sub(
             if _normalize_label(pub.label) != _REAL_POLICY_RATE_LABEL:
                 continue
             current = pub.sub or ""
-            if _REAL_POLICY_RATE_SUB_MARKER not in current:
+            # Exact-note idempotence — see _stamp_import_cover_sub. This is
+            # the issue-210 fix: the editor wrote "Jul 2026, repo above p2p
+            # CPI." and the old marker-substring check read that as already-
+            # stamped, so the corrected 1.18 published with no provenance.
+            if note not in current:
                 pub.sub = f"{current} · {note}" if current else note
         break
 

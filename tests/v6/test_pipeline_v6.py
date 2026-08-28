@@ -633,6 +633,25 @@ def test_stamp_import_cover_sub_is_a_noop_when_already_present() -> None:
     assert brief.sections[0].metrics[0].sub == already
 
 
+def test_stamp_import_cover_sub_still_stamps_when_editor_prose_contains_the_bare_marker() -> None:
+    """Idempotence keys on the EXACT note, not the marker substring: an editor
+    sub that naturally says "import bill" (the marker phrase) must not be
+    mistaken for an already-stamped sub. This is the issue-210 failure shape —
+    the Real Policy stamp was skipped because the editor wrote "repo above
+    p2p CPI" and the marker-substring check read that as already-stamped."""
+    from brief.pipeline_v6 import _stamp_import_cover_sub
+
+    raw = _macro_raw_sections_with_import_cover("BB (reserves 31 Jul ÷ Mar import bill)")
+    brief = _macro_brief_with_import_cover_sub("Jun print, import bill rising.")
+
+    _stamp_import_cover_sub(brief, raw)
+
+    assert (
+        brief.sections[0].metrics[0].sub
+        == "Jun print, import bill rising. · reserves 31 Jul ÷ Mar import bill"
+    )
+
+
 def test_stamp_import_cover_sub_is_a_noop_when_the_metric_is_suppressed() -> None:
     """The raw builder metric has value=None (H1's 4-month gate suppressed
     it) — there is no dual-period fact to stamp."""
@@ -717,6 +736,22 @@ def test_stamp_real_policy_rate_sub_is_a_noop_when_already_present() -> None:
     _stamp_real_policy_rate_sub(brief, raw)
 
     assert brief.sections[0].metrics[0].sub == _RPR_SUB
+
+
+def test_stamp_real_policy_rate_sub_still_stamps_when_editor_prose_contains_the_bare_marker() -> None:
+    """THE ISSUE-210 REGRESSION (2026-08-28): the editor's own sub was
+    "Jul 2026, repo above p2p CPI." — it contains the marker phrase
+    "p2p CPI", so the marker-substring idempotence check concluded the note
+    was already stamped and skipped it. The corrected 1.18 published with no
+    provenance. Idempotence must key on the EXACT reconstructed note."""
+    from brief.pipeline_v6 import _stamp_real_policy_rate_sub
+
+    raw = _macro_raw_sections_with_real_policy_rate(_RPR_NOTE)
+    brief = _macro_brief_with_real_policy_rate_sub("Jul 2026, repo above p2p CPI.")
+
+    _stamp_real_policy_rate_sub(brief, raw)
+
+    assert brief.sections[0].metrics[0].sub == f"Jul 2026, repo above p2p CPI. · {_RPR_SUB}"
 
 
 def test_stamp_real_policy_rate_sub_is_a_noop_when_the_metric_is_suppressed() -> None:
