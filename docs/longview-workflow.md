@@ -1,4 +1,4 @@
-# The Long View — workflow (v1.7.0)
+# The Long View — workflow (v1.6.0)
 
 This file is the contract for the Long View workflow on The Brief. It has two halves: **Editorial** (what to write) and **Operational** (how to ship it). Both halves must be followed for every Long View pin.
 
@@ -31,12 +31,12 @@ The Brief is read by banking professionals in Bangladesh — business heads (cor
 
 ### Voice register
 
-**`Master.md`'s Tone and Voice register sections are the binding register contract for all Long View prose** (synced into this workflow in v1.7.0). The register is the Daily Star business desk — plain, declarative, reported prose — the single register since PR #174 (v2.2.0, 24 Aug 2026), superseding the earlier Economist/FT register. Where this list and `Master.md` disagree, `Master.md` wins.
+**`Master.md`'s Tone and Voice register sections are the binding register contract for all Long View prose** (synced into this workflow 2026-08-28, PR #194). The register is the Daily Star business desk — plain, declarative, reported prose — the single register since PR #174 (v2.2.0, 24 Aug 2026), superseding the earlier Economist/FT register. Where this list and `Master.md` disagree, `Master.md` wins.
 
-- Plain, declarative, reported sentences. One idea per sentence — do not stack three or four figures behind commas and a "so" clause; give each figure its own sentence.
-- Full sentences everywhere, including bullet-list item bodies. Every clause gets a subject and a verb; fragments belong only in small-caps labels and eyebrows.
-- Let the facts carry the judgment. State what happened and what follows from it; at most one rhetorical turn per pin. No editorialising, no performed candour.
-- Attribute a figure to its publisher and data period in prose ("according to Bangladesh Bank", "in the 31 Jul print"). Attribution is not hedging — and it is not a "Source:" line, which stays forbidden in blocks (see Forbiddens).
+- Plain, declarative, reported sentences. One idea per sentence — never compress several findings into a string of figures stacked behind commas and a "so" clause. (Two figures serving one idea can share a sentence; three ideas cannot.)
+- Full sentences everywhere a sentence belongs: lead, prose paragraphs, stat body, bullet-list item text, banker_read. Every clause gets a subject and a verb. Fragments belong only in non-sentence surfaces — small-caps labels, eyebrows, stat units, and display values.
+- Let the facts carry the judgment. State what happened and what follows from it. Do not editorialise, do not perform candour; prefer the plain statement over a parallelism or epigram.
+- Attribute a figure to its publisher where one exists, and anchor its data period in prose ("according to Bangladesh Bank", "in the 31 Jul print"). Attribution is not hedging — and it is not a "Source:" line, which stays forbidden in blocks (see Forbiddens).
 - Neutral toward institutions: toward BB, NBR and the government, diplomatic in framing and fact-based in substance. Critique is expressed through the facts, never as a verdict on a policy or a named individual.
 - Banker-native vocabulary: NPL, CRR, repo, SDF, Sukuk, ALCO, MPS, BB, Tier-1 capital, provisioning, advance-deposit ratio.
 - Concrete numbers; never round away precision the source provides.
