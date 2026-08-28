@@ -1256,6 +1256,11 @@ body.tb-print .tb-section.is-unavailable { page-break-inside: avoid; opacity: 1;
 body.tb-print .tb-section-title { font-size: 24px; }
 body.tb-print .tb-group + .tb-group { margin-top: 20px; }
 body.tb-print .tb-longview + .tb-group { margin-top: 20px; }
+/* Long View cards must not split across a page break. NOT on .tb-longview
+   itself — the whole section is taller than a page. */
+body.tb-print .tb-longview-stat,
+body.tb-print .tb-longview-cmp-row,
+body.tb-print .tb-longview-pair { page-break-inside: avoid; }
 body.tb-print .tb-group-header { padding-top: 0; margin-top: 12px; }
 body.tb-print .tb-masthead-full { padding: 14px 0 12px; }
 body.tb-print .tb-masthead-hero { padding: 10px 0; }
@@ -1268,6 +1273,13 @@ body.tb-print .tb-kpi-rail, body.tb-print .tb-snapshot-row { background: transpa
 body.tb-print .tb-kpi-row, body.tb-print .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
 body.tb-print .tb-hero-flag,
 body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+/* §9.5: the Long View bar chart carries an inline screen height (its 1:1-px
+   contract), but print relayout narrows the container while the viewBox
+   keeps the screen-measured width — a fixed height letterboxes the scaled
+   drawing between dead bands. height:auto re-derives the box from the
+   viewBox aspect ratio so paper gets a pure proportional fit. !important is
+   required: the height is an inline style, which outranks any selector. */
+body.tb-print .tb-longview-bar-svg { height: auto !important; }
 
 @media print {
   /* This native browser-print rule (Cmd/Ctrl+P) is separate from the app's
@@ -1302,12 +1314,18 @@ body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent
   .tb-section-title { font-size: 24px; }
   .tb-group + .tb-group { margin-top: 20px; }
   .tb-longview + .tb-group { margin-top: 20px; }
+  /* Parity with body.tb-print: Long View cards don't split across pages
+     (not .tb-longview itself — taller than a page). */
+  .tb-longview-stat, .tb-longview-cmp-row, .tb-longview-pair { page-break-inside: avoid; }
   .tb-masthead-full { padding: 14px 0 12px; }
   .tb-masthead-hero { padding: 10px 0; }
   .tb-wordmark-big { font-size: 44px; }
   .tb-kpi-rail, .tb-snapshot-row { background: transparent; border: none; gap: 0; }
   .tb-kpi-row, .tb-snapshot-cell { border: 1px solid var(--rule-faint); margin: -1px 0 0 -1px; }
   .tb-hero-flag, .tb-banker-leadflag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  /* §9.5 parity: bar-chart aspect-fit on the native Cmd/Ctrl+P path too —
+     !important because the screen height is an inline style. */
+  .tb-longview-bar-svg { height: auto !important; }
   /* §9.2: band prints as paper on the native path too. */
   .tb-band { background: white; border-bottom: 1px solid var(--rule); color: var(--ink); }
   .tb-band .hair { background: var(--rule-soft); }
@@ -1432,7 +1450,20 @@ body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent
   grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
 }
-@media (max-width: 600px) {
+/* Responsive contract (Design.md §Responsive): the 3-col auto-promotion
+   steps down to 2-col below 900px; both grids collapse to a single column
+   below 640px. Order matters the way the SECTION GROUP block warns — all
+   three grid-template-columns declarations are (0,1,0), so the 640px block
+   must sit AFTER the 900px block (and both after the base rules above) for
+   the single-column rule to win the source-order tie at ≤640px. No later
+   base rule redeclares these columns (checked: nothing below line ~1414
+   touches .tb-longview-cmp-grid-*). */
+@media (max-width: 900px) {
+  .tb-longview-cmp-grid-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 640px) {
   .tb-longview-cmp-grid-2,
   .tb-longview-cmp-grid-3 {
     grid-template-columns: 1fr;
@@ -1671,6 +1702,7 @@ body.tb-print .tb-banker-leadflag { background: transparent; color: var(--accent
   letter-spacing: 0.16em;
   color: var(--ink-3);
   font-weight: 600;
+  text-transform: uppercase; /* label tier — same as its four eyebrow siblings */
   margin-bottom: 10px;
 }
 .tb-longview-takeaway p {
