@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
+import { ThemeColorSync } from "./components/ThemeColorSync";
 import "./globals.css";
 
 const jetbrainsMono = JetBrains_Mono({
@@ -46,23 +47,40 @@ export const metadata: Metadata = {
     // buys nothing on pre-16.4 iOS, which only read the retired apple-
     // prefixed tag. Kept for the standards-track tag current browsers read.
     capable: true,
-    // black-translucent draws WHITE status-bar glyphs over the page's own
-    // pixels — sound ONLY because the ink band (#0B0F12, both themes) is
-    // the top of the document as of PR C; PR B shipped "default" while the
-    // top was still light paper. §4.3's top insets keep content clear.
-    statusBarStyle: "black-translucent",
+    // "default" (v2.4.0): an opaque system bar whose glyphs follow the OS
+    // appearance. black-translucent (PR C) drew WHITE glyphs over the
+    // page's own pixels — sound only while the top of EVERY route was ink
+    // in both themes; it was already broken on /archive (no band there),
+    // and the light-mode paper band re-creates it on every route. iOS has
+    // no per-theme API for this static launch-time meta, so "default" is
+    // the honest choice: always correct in light; in dark standalone the
+    // bar follows the OS and mismatches only when the in-app toggle
+    // diverges from the OS setting (accepted, spec §12). §4.3's env()
+    // insets degrade gracefully to their base constants.
+    statusBarStyle: "default",
   },
 };
 
-// PWA viewport (facelift spec §4.2, PR B). theme-color is fixed #0B0F12 in
-// BOTH themes — "the nameplate is always ink" extended to the browser
-// chrome; the theme toggle does not mutate this meta (owner veto §11.6).
-// Raw hex here is the Design.md carve-out (§10.3 item 8).
+// PWA viewport (facelift spec §4.2, PR B; amended v2.4.0 §12). theme-color
+// is a per-scheme media pair — light chrome over the paper band, ink
+// chrome in dark. This overturns the §11.6 owner veto (owner decision
+// 2026-08-28: light mode is completely paper, so ink chrome above it is
+// the mismatch, not the brand). The media pair is only the no-JS
+// baseline (it tracks the OS, not our toggle): the FOUC script below
+// stamps both metas with the resolved theme pre-paint on hard loads, and
+// ThemeColorSync (root-mounted, every route) re-stamps them after theme
+// flips AND after client navigations — Next re-creates these meta nodes
+// per route, so a one-shot mutation would not survive a navigation. Raw
+// hex here is the Design.md carve-out (§10.3 item 8); values must match
+// --paper (light steel) and --band (ink) in globals.css.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0B0F12",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#E6E9EB" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B0F12" },
+  ],
 };
 
 export default function RootLayout({
@@ -91,11 +109,14 @@ export default function RootLayout({
             ever lands it needs the nonce. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=null;try{t=localStorage.getItem("thebrief.theme")}catch(e){}if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=null;try{t=localStorage.getItem("thebrief.theme")}catch(e){}if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t;var c=t==="dark"?"#0B0F12":"#E6E9EB";var s=function(){var m=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<m.length;i++){m[i].setAttribute("content",c)}return m.length>0};if(!s()){document.addEventListener("DOMContentLoaded",s)}}catch(e){}`,
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <ThemeColorSync />
+        {children}
+      </body>
     </html>
   );
 }

@@ -6,50 +6,70 @@ import type { LongViewData } from "@/types/brief";
 // before merging to main. See docs/longview-workflow.md for the full recipe.
 
 export const longView: LongViewData | null = {
-  posted_at: "2026-08-25T08:10:00Z",
-  title: "Nine in Ten Economic Units Hold No TIN",
-  lead: "Bangladesh has 1.17cr economic units. Only 10.22 lakh of them hold a Taxpayer Identification Number, and coverage thins sharply outside Dhaka and Chattogram.",
+  posted_at: "2026-08-28T11:28:00Z",
+  title: "The Data Rail Comes Before the Lending Model",
+  lead: "Four markets built high-volume unsecured SME lending on four different data rails: payments and platform data in China, Aadhaar e-KYC and GST e-invoicing in India, merchant acquiring data in the United States, Open Banking in the United Kingdom. Approval runs from seconds to two days, unsecured tickets from INR 100,000 to GBP 2,000,000.",
   blocks: [
     {
-      kind: "stat",
-      value: "10.22",
-      unit: "LAKH",
-      label: "TIN HOLDERS AGAINST 1.17CR ECONOMIC UNITS",
-      body: "More than 90% of the country's economic units sit outside the direct-tax register. That register is also the documentary base a lender would normally underwrite against, so the gap is a credit-file problem before it is a revenue one.",
-      tone: "bear",
-    },
-    {
-      kind: "bar-chart",
-      eyebrow: "SHARE OF ECONOMIC UNITS HOLDING A TIN, BY DIVISION",
-      unit: "% of units",
-      reference: { value: 8.7, label: "National 8.7%" },
-      items: [
-        { label: "Dhaka", value: 13.6, display: "13.6%", tone: "neu" },
-        { label: "Chattogram", value: 10.4, display: "10.4%", tone: "neu" },
-        { label: "Rajshahi", value: 5.5, display: "5.5%", tone: "bear" },
-        { label: "Mymensingh", value: 4.7, display: "4.7%", tone: "bear" },
-        { label: "Rangpur", value: 4.1, display: "4.1%", tone: "bear" },
+      kind: "comparison",
+      before_label: "Traditional",
+      after_label: "Next-gen",
+      rows: [
+        {
+          title: "The credit input",
+          before: "Documents",
+          after: "Real-time data",
+          description: "A submitted pack gives way to transaction, invoice and platform flow observed as it happens.",
+          tone: "neu",
+        },
+        {
+          title: "The decision",
+          before: "Credit officer",
+          after: "Risk engine",
+          description: "File-level judgement becomes portfolio-level scoring; approval lands in seconds to hours in all four markets.",
+          tone: "bull",
+        },
+        {
+          title: "The security",
+          before: "Collateral",
+          after: "Pre-approved limit",
+          description: "The limit is set off observed business activity, not off an asset pledged against it.",
+          tone: "neu",
+        },
+        {
+          title: "The offer",
+          before: "Loan",
+          after: "Embedded offer",
+          description: "Credit appears inside the wallet, marketplace or acquiring platform the SME already uses.",
+          tone: "neu",
+        },
+        {
+          title: "Repayment",
+          before: "—",
+          after: "Automated debit",
+          description: "Auto-debit from bank, wallet or card receipts in all four; the traditional chain has no such stage.",
+          tone: "bull",
+        },
       ],
     },
     {
       kind: "bullet-list",
-      eyebrow: "THE 1.17CR UNITS BY SIZE",
+      eyebrow: "WHAT EACH MARKET ACTUALLY SOLVED",
       items: [
         {
-          text: "**Micro: 66.3 lakh.** The largest tier by some distance — more units than every other category combined.",
+          text: "**China — underwriting at scale.** MYbank and WeBank price off payments, wallet, e-commerce, tax-invoice and supply-chain data. RMB 10,000–5,000,000, 3–12 months, seconds to minutes.",
           tone: "neu",
         },
         {
-          text: "**Cottage: 45.3 lakh.** Household-scale by definition. Cottage and micro together are 111.6 lakh units, or 95% of the entire base.",
+          text: "**India — the cost of acquisition and underwriting.** Aadhaar e-KYC, UPI history, GST e-invoicing, the Account Aggregator consent layer, eMandate autopay. INR 100,000–5,000,000, 3–24 months, minutes to hours.",
           tone: "neu",
         },
         {
-          text: "**Small: 4.9 lakh.** 4.2% of units, and with medium the whole of what the SME mandate covers.",
+          text: "**United States — distribution.** Square, Shopify Capital, PayPal Working Capital and OnDeck lend inside the platform the SME sells through, repaid as a share of card sales. USD 5,000–500,000, 3–18 months.",
           tone: "neu",
         },
-        { text: "**Medium: 40,000.** 0.3% of units.", tone: "neu" },
         {
-          text: "**Large: 9,000.** 0.08% of units, and the corporate lending universe in its entirety.",
+          text: "**United Kingdom — competition and tenor.** Open Banking under PSD2 plus government guarantee schemes, behind Funding Circle, iwoca, Tide and OakNorth. GBP 10,000–2,000,000 over 6–60 months, the longest tenor and largest ticket of the four.",
           tone: "neu",
         },
       ],
@@ -57,11 +77,11 @@ export const longView: LongViewData | null = {
     {
       kind: "prose",
       paragraphs: [
-        "The revenue side sets the arithmetic. Tax-to-GDP stands at 6.73% against a target of 10.7% by FY29, and the NBR's revenue target for FY27 is Tk 6.04 lakh cr. BIN coverage, the VAT-side registration, reaches 3.3% of economic units.",
-        "Closing a gap of roughly 4 percentage points in three fiscal years, from a base where 10.22 lakh units carry a TIN, means the additional revenue has to come from units already inside the net, from higher effective rates, or from bringing new units in. The three routes land differently on a bank's book, and the composition above indicates which units are available to be brought in.",
+        "These are not four credit products. They are four answers to one prior question: what can a lender observe about a business without asking the business for anything. China observes platform flow, India tax and bank data through a consented sharing layer, the United States merchant receipts at the acquirer, the United Kingdom bank accounts under a statutory access regime. The lending model follows whichever rail got built.",
+        "Bangladesh is further along than the comparison implies, and stuck somewhere else. NID-based e-KYC is live, the CIB and VAT registration are established, and direct debit instructions already run on bank accounts — the collection mandate exists. Two things it does not do: it does not reach MFS wallets, where much of small-business cash actually moves, and a failed direct debit carries none of the consequences a dishonoured cheque carries under the Negotiable Instruments Act. The missing rail is not the mandate. It is enforceability, and the consented data-sharing layer that would let one institution read a borrower's history held at another.",
       ],
     },
   ],
   banker_read:
-    "For a lender the TIN gap cuts both ways. As a constraint, a borrower with no filed return leaves SME and retail underwriting resting on bank-statement analysis, trade references and collateral — the inputs hardest to standardise and most easily disputed at recovery. As an opportunity, the same figure is the market. Cottage, micro, small and medium units total 116.9 lakh, or 99.9% of every economic unit in the country, against 10.22 lakh TIN holders and a VAT net thinner still at 3.3%, so the CMSME targets banks already carry are being chased across a base where roughly nine counterparties in ten cannot yet be underwritten conventionally. Formalisation is what converts that overhang into addressable demand, and the FY29 path implies a tax take around 59% higher relative to GDP than today's 6.73% — arithmetic that cannot be delivered out of 10.22 lakh units alone. The regional spread shows where the conversion is still to come: Dhaka's 13.6% is roughly three times Rangpur's 4.1%, so the ground outside the two commercial centres carries both the thinner documentation today and the larger share of the untapped base tomorrow. Desks pricing multi-year CMSME facilities should expect the compliance cost to reach the customer before the improved credit file reaches the rating, and should be building acquisition and distribution now against a documented borrower pool that on these numbers is an order of magnitude larger than the one they lend to today.",
+    "The lesson is a negative one. None of these markets reached seconds-to-hours approval by writing a better credit policy; each first built a rail that let a lender see a business without interviewing it. A digital SME journey laid over the same document pack, the same branch judgement and the same collateral test compresses paperwork and leaves the unit economics where they were. Two things are worth pushing at Bangladesh Bank and association level rather than inside any one institution: consented data sharing on the Indian model, which attacks underwriting cost, and statutory consequence behind a dishonoured direct debit, which attacks recovery cost. A mandate a borrower can ignore without penalty is a convenience, not a security. Until that changes the American route is the one available now — MFS and acquiring flows sit with counterparties a bank can contract with today, and lending against receipts through the platform that captures them waits on no regulation. It does change what a credit committee is approving: a limit set by observed behaviour rather than a facility secured on an asset. Settle that argument before the technology lands, not after.",
 };
