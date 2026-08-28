@@ -1421,7 +1421,9 @@ body.tb-print .tb-longview-bar-svg { height: auto !important; }
   font-size: 13.5px;
   line-height: 1.65;
   margin: 0 0 12px;
-  max-width: 70ch;
+  /* Full section width by owner decision (2026-08-28) — the 70ch line cap
+     left half the shell empty on desktop; prose now runs edge to edge of
+     the Long View container, matching its hairline rules. */
   color: var(--ink-2);
 }
 .tb-longview-prose p:last-child { margin-bottom: 0; }
