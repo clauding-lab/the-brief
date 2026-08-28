@@ -16,7 +16,7 @@ Numbers, news, and a banker's read on what matters. One brief. Every morning at 
 
 ## The morning read, both themes
 
-The v2.3.0 "1c" facelift: a full-bleed ink masthead band that stays ink in both themes, a light/dark toggle whose choice persists per device, the compact editorial scale, and a six-cell market snapshot strip on every issue.
+The "1c" identity: light mode is one uninterrupted paper sheet; dark mode is the full-bleed ink band. A light/dark toggle whose choice persists per device, the compact editorial scale, and a six-cell market snapshot strip on every issue.
 
 | Light | Dark |
 |---|---|
@@ -30,7 +30,7 @@ The v2.3.0 "1c" facelift: a full-bleed ink masthead band that stays ink in both 
 
 The Brief is a daily editorial brief that synthesises Bangladesh's macro and markets data into a single ~15-minute read for senior banking professionals — business heads across corporate, SME, and retail, plus risk heads, plus treasury heads, at Tier-1 banks in Bangladesh.
 
-Every morning at 08:00 BDT, a Python pipeline pulls fresh data from EconDelta (the upstream scraper system) via a Supabase store, hands it to Claude (Anthropic's LLM) running with a tightly-scoped Desk Editor prompt, and publishes the finished brief — structured prose + verdicts + numbers + headlines + chart data — back to Supabase. A Next.js single-page app on Vercel reads the latest issue and renders it as a morning-paper page on steel paper under a full-bleed ink masthead band, in the reader's choice of light or dark. Subscribers receive an HTML + plain-text email at the same moment via Brevo.
+Every morning at 08:00 BDT, a Python pipeline pulls fresh data from EconDelta (the upstream scraper system) via a Supabase store, hands it to Claude (Anthropic's LLM) running with a tightly-scoped Desk Editor prompt, and publishes the finished brief — structured prose + verdicts + numbers + headlines + chart data — back to Supabase. A Next.js single-page app on Vercel reads the latest issue and renders it as a morning-paper page — one steel-paper sheet in light, a full-bleed ink masthead band in dark — in the reader's choice of theme. Subscribers receive an HTML + plain-text email at the same moment via Brevo.
 
 There is no human in the loop on the daily run. The brief writes itself, reviews itself (a subeditor LLM pass), and then fact-checks its own prose deterministically — every figure in the copy must trace to a builder value, a machine-fed history fact, or a documented derivation, and an invented market statistic in the DSE section hard-holds the publish rather than shipping. The voice is consistent because the prompts are fixed; the data is fresh because the upstream scrapers finish about five hours earlier.
 
@@ -50,7 +50,7 @@ Each daily brief contains, in order:
 
 | Block | What it is |
 |---|---|
-| **Masthead** | The ink band: issue number, date, lens pill, publish stamp, theme toggle, "Today's Call" — the editorial thesis |
+| **Masthead** | The identity band (paper in light, ink in dark): issue number, date, lens pill, publish stamp, theme toggle, "Today's Call" — the editorial thesis |
 | **Snapshot strip** | 6 KPI cells (USD/BDT, DSEX, 91-d T-Bill, Brent, Gold, monthly remittance) with sparklines — derived live from section metrics |
 | **Banking** | NPL, CAR, defaulted-loan stock, sector credit growth |
 | **Markets** | Rates curve, DSEX, FX flows, T-bill / T-bond yields |
@@ -105,7 +105,7 @@ Brief.timer on Hetzner runs `Mon..Sun 02:00 UTC` — every day, Saturday include
    5. **Publish** — `v6_publisher.publish_brief()` clears any same-issue row, then writes the brief as a `draft`, POSTs sections/metrics/news/chart_series, and flips `status='published'` as the LAST call — a two-phase write, not a single DELETE + INSERT (idempotent for same-day re-runs). A reconciliation pass force-reinserts a short list of protected metrics (currently the BB policy corridor) if the editor dropped them, and hard-fails the publish if one is still missing
    6. **Notify** — `notifier.notify()` fetches all rows from `subscribers`, renders an HTML + plain-text digest, and POSTs ONE Brevo call per subscriber (never a multi-recipient `to:` list — that would leak every recipient's address to the others). Fail-open — never crashes the publish.
 3. **Supabase** — the data layer. Tables: `metric_history` (indicator time series), `briefs`, `sections`, `metrics`, `news`, `chart_series`, `chart_notes`, `subscribers`. Service-role auth for the publisher and the subscribe form; anon read-only auth for the SPA.
-4. **Next.js SPA** — `app/`, deployed on Vercel. Reads the latest brief via the `get_latest_brief` Supabase RPC and renders it in the "1c" editorial identity: steel paper under a full-bleed ink masthead band, light/dark themes (charts rebuild on flip), compact type scale, KPI tile grids, an installable PWA manifest, and a print contract that produces a clean light PDF from either theme. Hash-routed scroll-spy navigation, IntersectionObserver-driven sticky bar, no-JS-needed first paint via SSR.
+4. **Next.js SPA** — `app/`, deployed on Vercel. Reads the latest brief via the `get_latest_brief` Supabase RPC and renders it in the "1c" editorial identity: one steel-paper sheet in light, a full-bleed ink masthead band in dark, themes the reader flips (charts rebuild on flip), compact type scale, KPI tile grids, an installable PWA manifest, and a print contract that produces a clean light PDF from either theme. Hash-routed scroll-spy navigation, IntersectionObserver-driven sticky bar, no-JS-needed first paint via SSR.
 
 ## Tech stack
 
@@ -135,7 +135,7 @@ the-brief/
 │   ├── layout.tsx                # Root layout, metadata, PWA config
 │   ├── page.tsx                  # Server-side initial fetch via Supabase RPC
 │   ├── components/               # React components (Masthead, Section, SnapshotStrip, SecNav, ThemeToggle, …)
-│   └── globals.css               # Design tokens (light/dark steel-crimson + the ink band) + print contract
+│   └── globals.css               # Design tokens (light/dark steel-crimson; band tokens per-theme) + print contract
 ├── brief/                        # Python pipeline
 │   ├── cli.py                    # Entry: `python -m brief.cli run --publish`
 │   ├── pipeline.py               # Section-gather orchestration
