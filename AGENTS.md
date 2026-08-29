@@ -350,6 +350,10 @@ The shipped shape (copy it for any future runtime `<head>` mutation):
 
 Verify all three scenarios when touching this: hard-load `/archive` with the toggle diverging from the OS; client-nav `/` → `/archive`; `?print=1` from dark, then navigate away. The three theme-color hexes (viewport pair, FOUC stamp, ThemeColorSync) must stay in sync with `--paper`/`--band` — Design.md's raw-hex carve-out names all three sites.
 
+## 37. `content/long-view.ts` is CONTENDED — another session can replace or rewrite the live pin mid-day, so fetch and re-read before any pin edit or judgment
+
+The pin is written by whichever session the owner happens to speak to — local terminals and Copotron via Discord both ship pin PRs. Two collisions inside 24 hours (28–29 Aug 2026): PR #195's prose touch-up died unmerged because Copotron merged a NEW pin (#191) mid-wave; the next day, a queued voice pass on #191 turned out moot because an owner-requested trim (#202, merged 12:30 BDT) had already rewritten the prose under the synced register. Before judging or editing the pin: `git fetch origin` then `git log origin/main -- content/long-view.ts`, pull, and read the CURRENT text — never work from a cached read or a previous session's description of it. The recipe and Master.md register travel with the repo, so any session's rewrite inherits the rules; verify what is actually live, not what you remember shipping.
+
 ## Communication & timezone
 
 - **All times in BDT (UTC+6).** When generating timestamps, dates, or schedules, convert to BDT and label it.
