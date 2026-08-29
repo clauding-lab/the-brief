@@ -93,12 +93,48 @@ export function splitBigNum(value: string | number | undefined): ReactNode {
   );
 }
 
-// Strip repeated `$` chars from metric values. The editor LLM sometimes
-// emits "$$108.17" (likely a TeX display-math artefact from training);
-// collapse any run of 2+ to a single `$`.
+// A metric value that is a single number carrying 3+ decimal places, with
+// only non-digit decoration around it (a leading "$", a trailing "%" / "bn").
+// Groups: prefix, integer part (sign + optional thousands commas), fraction,
+// suffix. Deliberately whole-string-anchored: a string holding two numbers
+// ("3.500-4.000") or a dotted date ("2026.08.29") must NOT match, because
+// truncating one number inside a compound string would corrupt it.
+const LONG_DECIMAL = /^(\D*?)(-?[\d,]+)\.(\d{3,})(\D*)$/;
+
+// Clean a metric value for display. Two fixes, in order:
+//
+// 1. Strip repeated `$` chars. The editor LLM sometimes emits "$$108.17"
+//    (likely a TeX display-math artefact from training); collapse any run
+//    of 2+ to a single `$`.
+//
+// 2. Cut runaway decimal tails to 2 places. Upstream feeds hand us float32
+//    values widened to float64, so BRENT SPOT arrives as "88.01000214" and
+//    GOLD as "4512.100098" — that tail is arithmetic noise, not precision,
+//    and it was rendering verbatim on the snapshot strip and the KPI tiles.
+//
+// The cut is a TRUNCATION, not a round: owner decision (2026-08-29) — shown
+// "122.9959", he asked for "122.99". Do not "fix" this to Math.round; it
+// would print 123.00 there and 8.83 for the 91d T-Bill cut-off's 8.829.
+// Truncation is done on the DIGIT STRING, never via Math.trunc(n * 100),
+// because the values we are cleaning are precisely the ones carrying float
+// error — 8.829 * 100 is 882.9000000000001 in IEEE-754, and a value stored
+// as 8.8299999999 would truncate to 8.82 when its true 2dp form is 8.83.
+//
+// Values already at 2 or fewer decimals are returned untouched, so "9.5"
+// stays "9.5" and "185" stays "185" — this pads nothing, it only cuts.
 export function cleanMetricValue(v: string | undefined | null): string {
   if (!v) return "";
-  return v.replace(/\${2,}/g, "$");
+  const collapsed = v.replace(/\${2,}/g, "$");
+  const m = collapsed.match(LONG_DECIMAL);
+  if (!m) return collapsed;
+  const [, prefix, intPart, frac, suffix] = m;
+  const cut = `${prefix}${intPart}.${frac.slice(0, 2)}${suffix}`;
+  // Never let the cut collapse a small non-zero value to a bare "0.00" —
+  // "0.0004" keeps its full tail rather than being displayed as nothing.
+  if (Number(`${intPart.replace(/,/g, "")}.${frac.slice(0, 2)}`) === 0) {
+    return collapsed;
+  }
+  return cut;
 }
 
 // Format an ISO timestamp as the Long View eyebrow:
