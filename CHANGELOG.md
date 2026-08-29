@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+- **Metric values no longer render their float tails** (#201): twelve values on issue #211 reached the reader at raw feed precision — Brent spot as `88.01000214`, Gold as `4512.100098`, Import Cover as `4.848200071`, DSEX close as `5655.68313`, USD/BDT mid as `122.9959`. Those tails are float32→float64 arithmetic noise from the upstream feeds, not precision. `cleanMetricValue` — the single display chokepoint every metric passes through, on the snapshot strip, the KPI tiles, the summary pills and the chart-latest line — now cuts a value carrying 3+ decimals to 2. Values already at 2 or fewer are untouched (it cuts, it never pads), and a string holding more than one number or a dotted date is left alone. Applies to the archive as well as today, since the SPA renders every issue from stored data. The cut is a truncation, not a round (owner call, 2026-08-29: shown `122.9959`, he asked for `122.99`), and it is done on the digit string rather than through `Math.trunc(n * 100)` — the values being cleaned are precisely the ones carrying float error.
+
 ## [2.4.0] — 2026-08-28
 
 The paper-light release. Light mode is now one uninterrupted paper sheet — masthead band, sticky bar, and Subscribe panel all render on paper, and the full-bleed ink band becomes the dark-mode and brand identity. Prompted by the owner's iPhone read: light mode showed the band and Today's Call as a dark slab under light browser chrome. Shipped as four adversarially-reviewed PRs (#192–#194, #196) plus this release; every review finding was either fixed pre-merge or recorded as a deliberate call.
