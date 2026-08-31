@@ -3,7 +3,13 @@
 // numbers) so the threshold sweep exercises the actual mixed month-start /
 // month-end stamping the normalization is meant to survive.
 import { describe, expect, it } from "vitest";
-import { getChartLatestCaption, getPerSeriesStaleness, __internals } from "./chartMeta";
+import {
+  getChartAuctionNote,
+  getChartLatestCaption,
+  getPerSeriesStaleness,
+  YIELD_LADDER_AUCTION_NOTE_KEY,
+  __internals,
+} from "./chartMeta";
 import { SECTION_TO_CHART } from "./chartConfigs";
 import type { Section, SeriesPoint } from "@/types/brief";
 
@@ -207,5 +213,41 @@ describe("SECTION_TO_CHART ↔ CHART_SPECS parity", () => {
         `CHART_SPECS["${key}"].primaryKey "${spec!.primaryKey}" is not one of its own series keys`,
       ).toContain(spec!.primaryKey);
     }
+  });
+});
+
+describe("getChartAuctionNote — §tbond bottom footnote", () => {
+  function withNotes(notes: Section["notes"]): Section {
+    return { ...makeSection([]), notes };
+  }
+
+  it("renders the last auction date the newest curve is built from", () => {
+    const s = withNotes([
+      { series_key: YIELD_LADDER_AUCTION_NOTE_KEY, ts: "2026-08-27", label: "last auction" },
+    ]);
+    expect(getChartAuctionNote(s)).toBe("Curve built from auctions through 27 Aug 2026");
+  });
+
+  it("does not pad the day — '5 Aug', not '05 Aug'", () => {
+    const s = withNotes([
+      { series_key: YIELD_LADDER_AUCTION_NOTE_KEY, ts: "2026-08-05", label: "last auction" },
+    ]);
+    expect(getChartAuctionNote(s)).toBe("Curve built from auctions through 5 Aug 2026");
+  });
+
+  it("returns null when the pipeline attached no such note", () => {
+    expect(getChartAuctionNote(makeSection([]))).toBeNull();
+  });
+
+  it("ignores notes belonging to other series (e.g. DSEX event markers)", () => {
+    const s = withNotes([{ series_key: "dsex", ts: "2026-08-27", label: "budget" }]);
+    expect(getChartAuctionNote(s)).toBeNull();
+  });
+
+  it("returns null on an unparseable ts rather than echoing raw text", () => {
+    const s = withNotes([
+      { series_key: YIELD_LADDER_AUCTION_NOTE_KEY, ts: "sometime in August", label: "x" },
+    ]);
+    expect(getChartAuctionNote(s)).toBeNull();
   });
 });

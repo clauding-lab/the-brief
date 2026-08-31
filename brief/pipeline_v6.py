@@ -1379,7 +1379,7 @@ def _stamp_chart_series(
                 )
             continue
 
-        # F5 — §tbond full yield ladder, last 2 months (metric_history_monthly).
+        # F5 — §tbond full yield ladder, last 3 months (metric_history_monthly).
         # Replaces the daily fetch_yield_curve path (tbond removed from the
         # _CHART_FETCHERS_BY_SLUG HTTP map below).
         if section.slug == "tbond":
@@ -1389,6 +1389,18 @@ def _stamp_chart_series(
             except Exception:  # noqa: BLE001 — graceful degradation
                 logger.warning(
                     "v6: yield-ladder series fetch failed for slug=tbond",
+                    exc_info=True,
+                )
+            # The chart's bottom footnote ("built from auctions through …").
+            # Its OWN try/except, deliberately: the footnote is a caption, and
+            # losing it must never cost us the curve that just fetched fine.
+            try:
+                note = chart_series_fetcher.fetch_yield_ladder_last_auction(history_monthly_client)
+                if note is not None:
+                    section.notes = [*(section.notes or []), note]
+            except Exception:  # noqa: BLE001 — graceful degradation
+                logger.warning(
+                    "v6: yield-ladder last-auction note fetch failed for slug=tbond",
                     exc_info=True,
                 )
             continue

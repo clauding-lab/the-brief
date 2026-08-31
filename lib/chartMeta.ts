@@ -218,6 +218,48 @@ function formatMonthYear(iso: string): string {
   return idx >= 0 && idx <= 11 ? `${months[idx]} ${m[1]}` : iso;
 }
 
+/** Series key the pipeline stamps the §tbond last-auction footnote under.
+ *
+ * Must match `brief/chart_series_fetcher.py::YIELD_LADDER_AUCTION_NOTE_KEY`.
+ * It is deliberately not one of the 8 plotted tenor ids — `notesToEvents` in
+ * chartConfigs.ts turns notes into on-chart event markers by matching against
+ * a plotted series, and this note is a caption, not an event. */
+export const YIELD_LADDER_AUCTION_NOTE_KEY = "yield_ladder_last_auction";
+
+function formatDayMonthYear(iso: string): string | null {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const idx = parseInt(m[2], 10) - 1;
+  if (idx < 0 || idx > 11) return null;
+  return `${parseInt(m[3], 10)} ${months[idx]} ${m[1]}`;
+}
+
+/**
+ * The §tbond chart's bottom footnote: the real auction date the newest curve
+ * is built from.
+ *
+ * Why it exists: the ladder's month rungs are stamped `as_of` = FIRST of the
+ * month, which is a bucket label, not an observation date. Since 2026-08-31
+ * the pipeline publishes the CURRENT, still-open month as soon as it has an
+ * auction of its own, so the accent line can be a partial month — "Aug 2026"
+ * alone doesn't tell a reader whether that means the 5th or the 27th. This
+ * names the cutoff explicitly.
+ *
+ * Returns null when the pipeline attached no such note (older issues, or a
+ * month whose rows predate `source_as_of`), so the caller can fall back to
+ * the chart's static card note.
+ */
+export function getChartAuctionNote(section: Section): string | null {
+  const note = (section.notes || []).find(
+    (n) => n.series_key === YIELD_LADDER_AUCTION_NOTE_KEY,
+  );
+  if (!note) return null;
+  const day = formatDayMonthYear(note.ts);
+  if (!day) return null;
+  return `Curve built from auctions through ${day}`;
+}
+
 export interface ChartLatest {
   label: string;
   value: string;

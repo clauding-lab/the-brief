@@ -668,10 +668,14 @@ def fetch_reserves_monthly(
 def fetch_yield_ladder_monthly(
     history_monthly: MetricHistoryClient,
     *,
-    months: int = 2,
+    months: int = 3,
 ) -> dict[str, list[SeriesPointV6]]:
     """Pull `months` month-ends of the 8 govt yield tenors from
     `metric_history_monthly` for the F5 §tbond yield-ladder chart (yield %).
+
+    `months` was 2 until 2026-08-31; Adnan asked for a 3-month curve so the
+    shape of the move is visible rather than just its endpoints. The SPA's
+    `yieldLadderConfig` draws whatever month-ends arrive, oldest faintest.
 
     Multi-series sibling of `fetch_macro_cpi_series`; returns a dict keyed by
     tenor metric_id with chronological (oldest-first) SeriesPointV6 lists. The
@@ -695,6 +699,69 @@ def fetch_yield_ladder_monthly(
             for r in reversed(rows)
         ]
     return out
+
+
+"""Series key for the §tbond footnote note.
+
+Deliberately NOT one of the 8 plotted tenor ids: `notesToEvents` in
+`lib/chartConfigs.ts` turns notes into on-chart event markers by matching
+`series_key` against a plotted series, and this note is a caption, not an
+event. A key no series uses can never be picked up that way.
+"""
+YIELD_LADDER_AUCTION_NOTE_KEY = "yield_ladder_last_auction"
+
+
+def fetch_yield_ladder_last_auction(
+    history_monthly: MetricHistoryClient,
+    *,
+    months: int = 3,
+) -> SeriesNoteV6 | None:
+    """The date of the newest auction the §tbond curve's LATEST line is built from.
+
+    The ladder's month-ends are stamped `as_of` = FIRST of the month — a bucket
+    label, not an observation date. On 31 Aug the August rung is real but
+    partial, derived from auctions that cleared during August, and a reader
+    can't tell how current it is from `as_of` alone. EconDelta records the true
+    per-tenor auction date in `metric_history_monthly.source_as_of`; this takes
+    the MAX of those across the 8 tenors of the newest month present, i.e. the
+    most recent auction that fed the line the chart draws in accent.
+
+    Returns None when nothing is available (no rows, or no row carries a
+    `source_as_of`) — the SPA then falls back to the static card note, so a
+    missing footnote degrades the caption, never the chart.
+
+    Separate read from `fetch_yield_ladder_monthly` on purpose: that function's
+    return type is a plain dict that a dozen call sites and tests already
+    depend on, and one extra 24-row PostgREST GET per issue is cheaper than
+    threading a second return value through all of them.
+    """
+    grouped = history_monthly.get_history_window(
+        _YIELD_LADDER_MONTHLY_METRIC_IDS,
+        limit=months * len(_YIELD_LADDER_MONTHLY_METRIC_IDS),
+        table="metric_history_monthly",
+    )
+    latest_month: date_t | None = None
+    for mid in _YIELD_LADDER_MONTHLY_METRIC_IDS:
+        for row in grouped.get(mid, []):
+            if latest_month is None or row.as_of > latest_month:
+                latest_month = row.as_of
+    if latest_month is None:
+        return None
+
+    auction_dates = [
+        row.source_as_of
+        for mid in _YIELD_LADDER_MONTHLY_METRIC_IDS
+        for row in grouped.get(mid, [])
+        if row.as_of == latest_month and row.source_as_of is not None
+    ]
+    if not auction_dates:
+        return None
+
+    return SeriesNoteV6(
+        series_key=YIELD_LADDER_AUCTION_NOTE_KEY,
+        ts=max(auction_dates).isoformat(),
+        label="last auction",
+    )
 
 
 def fetch_yield_curve(
