@@ -19,6 +19,29 @@ class HistoryRow:
     as_of: date
     value: Any
     source: str
+    # The date the UNDERLYING observation carries, when the writer recorded one.
+    # Distinct from `as_of`, which for `metric_history_monthly` is always the
+    # FIRST of the month — a bucket label, not an observation date. The yield
+    # ladder needs the real thing: a rung stamped `as_of=2026-08-01` may be
+    # derived from an auction that cleared on 27 Aug, and the chart footnote
+    # says so. Optional and last so positional construction stays valid.
+    source_as_of: date | None = None
+
+
+def _source_as_of(row: dict) -> date | None:
+    """Best-effort read of a row's `source_as_of`.
+
+    Tolerant on purpose: the column is absent on older rows and on tables that
+    never had it, and a malformed value must degrade to "unknown" rather than
+    take down a whole history fetch that is otherwise fine.
+    """
+    raw = row.get("source_as_of")
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(str(raw)[:10])
+    except ValueError:
+        return None
 
 
 @runtime_checkable
@@ -81,6 +104,7 @@ class MetricHistoryClient:
             as_of=date.fromisoformat(row["as_of"]),
             value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
             source=row["source"],
+            source_as_of=_source_as_of(row),
         )
 
     def get_at_or_before(
@@ -110,6 +134,7 @@ class MetricHistoryClient:
             as_of=date.fromisoformat(row["as_of"]),
             value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
             source=row["source"],
+            source_as_of=_source_as_of(row),
         )
 
     def get_history_window(
@@ -160,6 +185,7 @@ class MetricHistoryClient:
                         as_of=date.fromisoformat(row["as_of"]),
                         value=value,
                         source=row["source"],
+                        source_as_of=_source_as_of(row),
                     )
                 )
             return grouped

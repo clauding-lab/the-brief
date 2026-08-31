@@ -841,11 +841,12 @@ function yieldCurveConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 
 /**
  * yieldLadder — F5. Full 8-tenor BD govt yield ladder (91D · 182D · 364D · 2Y ·
- * 5Y · 10Y · 15Y · 20Y) over the last 2 month-ends, read from
+ * 5Y · 10Y · 15Y · 20Y) over the last 3 month-ends, read from
  * metric_history_monthly. Replaces the daily 5-point yieldCurve on §tbond
  * (FIG.03) with the full term structure plus month-over-month shift.
  *
- * Category x-axis (tenor), latest month-end solid (accent), prior dashed —
+ * Category x-axis (tenor), latest month-end solid (accent), the two priors
+ * progressively fainter and more finely dashed —
  * mirrors yieldCurveConfig. CategoryScale is already registered in
  * BriefChart.tsx per AGENTS.md landmine #2 (no new registration needed).
  */
@@ -882,17 +883,42 @@ function yieldLadderConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   const dates = Object.keys(byDate).sort();
   if (!dates.length) return emptyLineConfig();
 
-  // Show the last 2 month-ends only: latest (solid accent) + 1 prior (dashed).
-  const latest = dates[dates.length - 1];
-  const prior = dates.length > 1 ? dates[dates.length - 2] : null;
+  // Show the last 3 month-ends: latest (solid accent) + 2 priors, fading back
+  // in time. Was 2 until 2026-08-31 — two points show that the curve moved,
+  // three show whether it is a trend or a one-month jump.
+  //
+  // Emphasis MUST decrease monotonically with age (weight, then dash density,
+  // then colour), otherwise the reader can't tell which line is "now" without
+  // consulting the legend. Note `ruleSoft` is a 0.18-alpha wash and `ink4` is
+  // an opaque pale ink, so ruleSoft is the FAINTER of the two despite being
+  // the "rule" token — hence oldest gets ruleSoft, middle gets ink4.
+  const window = dates.slice(-3);
+  const latest = window[window.length - 1];
+  const prior = window.length > 1 ? window[window.length - 2] : null;
+  const oldest = window.length > 2 ? window[window.length - 3] : null;
 
   const datasets: ChartDataset<"line", Array<number | null>>[] = [];
+  if (oldest) {
+    datasets.push({
+      label: monthLabel(oldest),
+      data: byDate[oldest],
+      borderColor: palette.ruleSoft,
+      backgroundColor: palette.ruleSoft,
+      borderWidth: 1,
+      borderDash: [2, 3],
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      tension: 0.1,
+      showLine: true,
+      spanGaps: true,
+    });
+  }
   if (prior) {
     datasets.push({
       label: monthLabel(prior),
       data: byDate[prior],
-      borderColor: palette.ruleSoft,
-      backgroundColor: palette.ruleSoft,
+      borderColor: palette.ink4,
+      backgroundColor: palette.ink4,
       borderWidth: 1.4,
       borderDash: [4, 4],
       pointRadius: 2,
@@ -1452,7 +1478,7 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
   tbond: {
     fig: "03",
     title: "BD Govt Yield Ladder",
-    subtitle: "8-tenor · last 2 months · 91D to 20Y",
+    subtitle: "8-tenor · last 3 months · 91D to 20Y",
   },
   comm: {
     fig: "04",

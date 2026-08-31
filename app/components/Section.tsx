@@ -8,6 +8,7 @@ import { BriefChart } from "./BriefChart";
 import { SECTION_TO_CHART, CHART_CARD_HEADS } from "@/lib/chartConfigs";
 import {
   getChartLatestCaption,
+  getChartAuctionNote,
   getPerSeriesStaleness,
   getChartAriaLabel,
   type PerSeriesStaleness,
@@ -115,6 +116,12 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate, gr
   // period it plotted rather than reading as agreeing or disagreeing with
   // whatever the tile shows.
   const chartLatest = hasChart ? getChartLatestCaption(section, configKey) : null;
+  // Bottom-of-chart footnote. A pipeline-supplied note wins over the static
+  // card note when present — today only §tbond ships one ("built from auctions
+  // through 27 Aug 2026"), because its newest line can be a partial month and
+  // the "Aug 2026" legend alone doesn't say how far into August it goes.
+  const chartFootnote =
+    (hasChart ? getChartAuctionNote(section) : null) ?? CHART_CARD_HEADS[slug]?.note ?? null;
   const isHero = (weight ?? 1) >= 2;
   const anySignal =
     metrics.some((m) => m.changed || m.held_from) ||
@@ -193,8 +200,8 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate, gr
             ) : (
               <SignatureChart series={series} notes={filteredNotes} label={`${title} chart`} />
             )}
-            {CHART_CARD_HEADS[slug]?.note && (
-              <div className="tb-chart-note">{CHART_CARD_HEADS[slug]?.note}</div>
+            {chartFootnote && (
+              <div className="tb-chart-note">{chartFootnote}</div>
             )}
             {chart_read && (
               <div className="tb-analysis tb-chart-read" id={`${slug}-chart-read`}>
