@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from brief.cadence import metric_freshness, section_freshness
+from brief.cadence import metric_freshness, month_end, section_freshness
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -174,10 +174,15 @@ def build(ctx: BuilderContext) -> SectionData:
         # History unreachable, or carrying no reserves row: the snapshot's month
         # label is still the best date available, then ctx.today for a missing or
         # malformed one — the pre-fix path, unchanged, now as the fallback.
+        # The label parses to the 1st of the period month; normalize it to the
+        # month-END the history row would have carried (brief.cadence.month_end),
+        # or the `monthly` cadence below over-ages a current print by ~30 days
+        # and re-creates the stale-on-arrival defect on exactly this path.
         reserves_as_of_str = ctx.snapshot.get("reserves_date")
         try:
             reserves_as_of = (
-                date.fromisoformat(reserves_as_of_str) if reserves_as_of_str else ctx.today
+                month_end(date.fromisoformat(reserves_as_of_str))
+                if reserves_as_of_str else ctx.today
             )
         except ValueError:
             reserves_as_of = ctx.today
@@ -203,7 +208,13 @@ def build(ctx: BuilderContext) -> SectionData:
         as_of=reserves_as_of,
         source="BB",
         source_url=_BB_URL,
-        cadence="weekly",
+        # Monthly, not weekly (landmine 24, corrected 2026-09-02): EconDelta stamps
+        # this row with BB's month-END date (econdelta #97) and the next month's
+        # figure lands ~11 days after month-end. Under the weekly thresholds
+        # (fresh <=7d, stale >10d) the print was stale on arrival every month and
+        # §02 never read anything else. Keep in lockstep with fx.py — one feed,
+        # one clock (test_reserves_as_of_matches_fx_builder pins it).
+        cadence="monthly",
         stale=is_stale,
     )
     metrics.append(reserves_metric)
