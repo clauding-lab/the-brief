@@ -21,6 +21,9 @@ const eslintConfig = defineConfig([
     // whole nested repo copies — linting them re-reports every historical
     // finding and breaks `npm run lint` as a local gate. Absent in CI.
     ".claude/**",
+    // Same for `.worktrees/` (already in .gitignore) — a worktree's `.next/`
+    // build output is not covered by the root-level ".next/**" ignore above.
+    ".worktrees/**",
   ]),
 ]);
 
