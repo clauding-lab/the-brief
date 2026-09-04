@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-09-04
+
+The honest-clock release. The govt yield ladder now plots three month-ends, including the still-open month, with a footnote naming the auction it was built from; metric values stop leaking float tails; the Gross Reserves tile runs on the monthly clock its feed actually keeps, so §02's freshness signal means something again; and the dependency audit is clean (Next.js 16.3.4, ws 8.21.3). Five PRs (#201, #204, #206, #207, #208), each reviewed adversarially before merge — the review corrections are on the record in AGENTS.md landmines 24 and 38 (#205) and in AGENT_LEARNINGS.md's entry for the 31 Aug–3 Sep EconDelta aggregate freeze.
+
+### Security
+- **Next.js 16.2.4 → 16.3.4** (#206): closes the 22 published Next.js advisories on 16.2.4 (Server Components DoS, middleware/proxy bypass, cache poisoning, SSRF) — all of which 16.2.11+ would also have closed — plus the `postcss` 8.4.31 and `sharp` 0.34.x transitives that only a 16.3 release unpins. `npm audit` now reports zero, prod and dev. No source changes; build, type-check, lint and vitest green in a clean worktree, and every route (front page, archive, issue pages, manifest, icons, subscribe validation) smoke-tested on the Vercel preview before merge. A 16.2.12 patch-line alternative (#209) was prepared and closed in favour of the clean audit.
+- **`ws` 8.20.0 → 8.21.3, lockfile only** (#207): a transitive of `@supabase/realtime-js` the SPA never imports at runtime; two advisories (uninitialized memory disclosure, fragment DoS). The same PR back-filled #204's CHANGELOG numbers and taught ESLint to ignore `.worktrees/`.
+
 ### Changed
 - **The govt yield ladder (FIG.03) now plots three month-ends, and no longer waits for a month to finish** (#204): on 31 August the chart still read "10Y 10.24% · JUL 2026". Two causes, both real. The chart drew the last **two** month-ends — enough to show that the curve moved, not enough to show whether that was a trend or a one-month jump — so it now draws **three**, the newest solid in accent, the two priors progressively fainter and more finely dashed. And EconDelta's ladder writer only ever published the most recently *completed* month, so August's rung could not exist before 1 September; it now also publishes the current, still-open month as soon as that month has an auction of its own, refreshing it in place as later auctions land (econdelta PR, same day). The consequence in the missing issue: BD govt yields fell ~80–130bp across the whole curve during August (10Y 10.24 → 9.23, 20Y 10.40 → 9.13, part-inverting against 2Y at 9.39) while the page printed July.
 
