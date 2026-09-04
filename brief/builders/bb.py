@@ -203,7 +203,13 @@ def build(ctx: BuilderContext) -> SectionData:
         as_of=reserves_as_of,
         source="BB",
         source_url=_BB_URL,
-        cadence="weekly",
+        # Monthly, not weekly (landmine 24, corrected 2026-09-02): EconDelta stamps
+        # this row with BB's month-END date (econdelta #97) and the next month's
+        # figure lands ~11 days after month-end. Under the weekly thresholds
+        # (fresh <=7d, stale >10d) the print was stale on arrival every month and
+        # §02 never read anything else. Keep in lockstep with fx.py — one feed,
+        # one clock (test_reserves_as_of_matches_fx_builder pins it).
+        cadence="monthly",
         stale=is_stale,
     )
     metrics.append(reserves_metric)

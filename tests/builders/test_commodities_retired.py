@@ -169,11 +169,16 @@ def test_a_stale_reserves_row_now_correctly_drags_the_fx_badge() -> None:
     were supporting context excluded from the freshness badge, so FX stayed
     "fresh" even while reserves sat 35 days stale. That was audit finding (e):
     "the fx badge reads ONLY spot+gold." fx.py now scores freshness worst-of
-    ALL its metrics, same as every other builder — reserves at 35 days old
-    (weekly cadence, stale past 10 days) now correctly drags the section to
-    "stale", which is the honest reading."""
-    s = build_fx(_ctx())
+    ALL its metrics, same as every other builder — a reserves print past its
+    window now correctly drags the section to "stale", which is the honest
+    reading. Reserves are month-END stamped and declared monthly since the
+    landmine-24 correction (fresh <=35d, warning <=45d), so the 35-day-old
+    June print this test originally used is now — correctly — still fresh;
+    the stale case is a print older than 45 days (BB late, or the appender
+    dead), reproduced here 51 days after month-end."""
+    late = date(2026, 8, 20)
+    s = build_fx(_ctx(today=late))
     reserves = next(m for m in s.metrics if m.id == "fx_gross_reserves")
     assert reserves.as_of == JUN30
-    assert (AUG4 - reserves.as_of).days == 35
+    assert (late - reserves.as_of).days == 51
     assert s.freshness == "stale"

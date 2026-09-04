@@ -196,7 +196,7 @@ def test_reserves_uses_snapshot_value_and_never_fakes_delta():
     assert res.value == _LIVE_RESERVES
     assert res.stale is False
     assert res.delta is None                 # no fabricated delta
-    assert res.cadence == "weekly"
+    assert res.cadence == "monthly"          # month-end-stamped feed (landmine 24)
 
 
 def test_reserves_fallback_reads_live_id_not_dead_id():
@@ -294,6 +294,37 @@ def test_reserves_as_of_matches_fx_builder():
     assert bb_res.label == fx_res.label == "Gross Reserves"
     assert bb_res.value == fx_res.value == _RESERVES_VALUE
     assert bb_res.as_of == fx_res.as_of == _RESERVES_SESSION
+    # Same feed, same clock: a cadence split would let §02 and §05 wear
+    # different badges for one figure on one page.
+    assert bb_res.cadence == fx_res.cadence == "monthly"
+
+
+def test_reserves_month_end_stamp_reads_fresh_inside_the_monthly_window():
+    """Landmine 24 correction (2026-09-02 health review): EconDelta stamps
+    `gross_reserves_usd_bn` with BB's month-END date (econdelta #97, 1 Aug 2026)
+    and the new month's figure lands ~11 days after month-end. Declared
+    `cadence="weekly"` (fresh <=7d, stale >10d) that feed was stale on arrival
+    and stayed stale until the next print — §02 read "stale" in every issue
+    checked (212–215 directly; 117/117 since #98), so the badge carried no
+    information. Under the monthly thresholds (fresh <=35d, warning <=45d) the
+    July print read on 25 Aug (25 days) is what it honestly is: current."""
+    from brief.cadence import metric_freshness
+
+    res = _m(build(_reserves_ctx()), "bb_gross_reserves")
+    assert res.as_of == _RESERVES_SESSION
+    assert (_AUG_TODAY - res.as_of).days == 25
+    assert metric_freshness(res, today=_AUG_TODAY) == "fresh"
+
+
+def test_reserves_past_the_monthly_warning_window_still_reads_stale():
+    """The re-declaration must not make reserves UNABLE to go stale: a print
+    older than 45 days (BB late, or the appender dead) still drags §02."""
+    from brief.cadence import metric_freshness
+
+    late = _AUG_TODAY.replace(month=9, day=20)          # 51 days after 31 Jul
+    res = _m(build(_reserves_ctx(today=late)), "bb_gross_reserves")
+    assert (late - res.as_of).days == 51
+    assert metric_freshness(res, today=late) == "stale"
 
 
 def test_reserves_as_of_falls_back_to_the_snapshot_label_when_history_has_no_row():

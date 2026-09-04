@@ -153,6 +153,38 @@ def test_fx_freshness_is_fresh_when_every_metric_is_genuinely_current():
     assert s.freshness == "fresh"
 
 
+def test_fx_reserves_month_end_stamp_reads_fresh_inside_the_monthly_window():
+    """Landmine 24 correction (2026-09-02 health review): the live reserves row
+    is month-END stamped and lands ~11 days after month-end, so under the old
+    `cadence="weekly"` §05 could never read anything but "stale" once the
+    print was more than 10 days old — i.e. every day of every month. Declared
+    monthly, a 25-day-old July print on 25 Aug reads fresh, and the section
+    (spot + Gold stamped today, no archive tiles) reads fresh with it."""
+    history = _FakeHistory({
+        "gross_reserves_usd_bn": _Row(36.4222, date(2026, 7, 31)),
+    })
+    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 25),
+                         history_monthly=_FakeHistory({}))
+    s = build(ctx)
+    by_id = {m.id: m for m in s.metrics}
+    assert by_id["fx_gross_reserves"].cadence == "monthly"
+    assert by_id["fx_gross_reserves"].as_of == date(2026, 7, 31)
+    assert s.freshness == "fresh"
+
+
+def test_fx_reserves_older_than_the_monthly_warning_window_still_drags_the_badge():
+    """Opposite direction: the re-declaration must keep a genuinely late print
+    honest. 56 days past month-end (> the 45-day monthly warning ceiling) is
+    stale, and worst-of freshness carries that to the section."""
+    history = _FakeHistory({
+        "gross_reserves_usd_bn": _Row(36.4222, date(2026, 6, 30)),
+    })
+    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 25),
+                         history_monthly=_FakeHistory({}))
+    s = build(ctx)
+    assert s.freshness == "stale"
+
+
 def test_fx_unavailable_when_all_values_none():
     snap = EconDeltaSnapshot(
         updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
