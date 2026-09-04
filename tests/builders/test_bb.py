@@ -316,6 +316,23 @@ def test_reserves_month_end_stamp_reads_fresh_inside_the_monthly_window():
     assert metric_freshness(res, today=_AUG_TODAY) == "fresh"
 
 
+def test_reserves_between_36_and_45_days_reads_warning_by_design():
+    """The deliberate trade-off, pinned so it is a choice and not a surprise:
+    BB publishes the month-end print ~12 days after month-end, so a normal
+    cycle runs to ~42-43 days. The generic monthly thresholds (fresh <=35d,
+    warning <=45d) therefore put the LAST ~7 DAYS of every cycle in
+    "warning" (the AGING chip; lens freshness term 0.64 instead of 1.0).
+    Chosen over a reserves-specific threshold to avoid a one-metric special
+    case in brief/cadence.py; if the warning band proves noisy, the fix is a
+    lagged-monthly threshold, never a return to "weekly"."""
+    from brief.cadence import metric_freshness
+
+    day41 = _AUG_TODAY.replace(month=9, day=10)          # 41 days after 31 Jul
+    res = _m(build(_reserves_ctx(today=day41)), "bb_gross_reserves")
+    assert (day41 - res.as_of).days == 41
+    assert metric_freshness(res, today=day41) == "warning"
+
+
 def test_reserves_past_the_monthly_warning_window_still_reads_stale():
     """The re-declaration must not make reserves UNABLE to go stale: a print
     older than 45 days (BB late, or the appender dead) still drags §02."""
@@ -340,7 +357,7 @@ def test_reserves_as_of_falls_back_to_the_snapshot_label_when_history_has_no_row
         today=_AUG_TODAY,
     )
     res = _m(build(ctx), "bb_gross_reserves")
-    assert res.as_of == date(2026, 7, 1)
+    assert res.as_of == date(2026, 7, 31)  # month-END of the label's month (cadence is monthly)
     assert res.value == _RESERVES_VALUE
 
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from brief.cadence import metric_freshness, section_freshness
+from brief.cadence import metric_freshness, month_end, section_freshness
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -174,10 +174,15 @@ def build(ctx: BuilderContext) -> SectionData:
         # History unreachable, or carrying no reserves row: the snapshot's month
         # label is still the best date available, then ctx.today for a missing or
         # malformed one — the pre-fix path, unchanged, now as the fallback.
+        # The label parses to the 1st of the period month; normalize it to the
+        # month-END the history row would have carried (brief.cadence.month_end),
+        # or the `monthly` cadence below over-ages a current print by ~30 days
+        # and re-creates the stale-on-arrival defect on exactly this path.
         reserves_as_of_str = ctx.snapshot.get("reserves_date")
         try:
             reserves_as_of = (
-                date.fromisoformat(reserves_as_of_str) if reserves_as_of_str else ctx.today
+                month_end(date.fromisoformat(reserves_as_of_str))
+                if reserves_as_of_str else ctx.today
             )
         except ValueError:
             reserves_as_of = ctx.today
