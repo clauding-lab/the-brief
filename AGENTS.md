@@ -58,7 +58,7 @@ Notes:
 
 ## Release flow
 
-1. PR merges to `main`. CI green. Squash merge is the default.
+1. PR merges to `main`. CI green. Squash merge is the default. Branch protection requires the head to be UP TO DATE with `main` (strict checks) and the repo has auto-merge DISABLED (verified 2026-09-04): after every merge, the next queued PR needs `gh pr update-branch <n>` → wait for CI → `gh pr merge <n> --squash` — a stale head fails with "not mergeable: the head branch is not up to date", and `--auto` is refused. `--delete-branch` prints a LOCAL "Not possible to fast-forward" that is NOT a failed merge; confirm with `gh pr view <n> --json state,mergedAt`.
 2. After a release-worthy batch:
    - Bump `package.json` `version` field.
    - Add a CHANGELOG entry (keep-a-changelog format; see prior `[1.x.x]` blocks).
@@ -112,7 +112,7 @@ These are shape rules that govern HOW code/configs/data are named, structured, a
 
 11. **Tag every CHANGELOG version on its merge commit, same day as the release.** v1.2.1 and v1.3.0 CHANGELOG entries lived for weeks without git tags or GH releases (caught + backfilled 2026-05-27). When bumping version + CHANGELOG, push the annotated tag and create the GH release in the same loop. Also: GH auto-marks the most-recently-published release as `Latest` regardless of version — verify and re-pin `--latest` with `gh release edit` if needed.
 
-12. **`package.json` `version` is the source of truth.** README "Current: vX.Y.Z" line and CHANGELOG entries should match. Bump all three together. Don't bump only one.
+12. **`package.json` `version` is the source of truth.** README "Current: vX.Y.Z" line and CHANGELOG entries should match. Bump all three together. Don't bump only one. **The lockfile is a FOURTH place the version lives** (`package-lock.json` root `version` and `packages[""].version`): the #204 bump to 2.5.0 missed it and the lockfile sat at 2.4.1 until #206/#207 re-synced it on 2026-09-04 — run `npm install --package-lock-only` in the bump PR, and cut the CHANGELOG/README/tag in the same loop (landmine 11) rather than letting `package.json` run ahead (2.5.0 lived unreleased for a week).
 
 13. **Anthropic API transient failures are common at 04:00–06:00 BDT.** The publish window overlaps with high traffic / token rotation on Anthropic's side. If `brief.service` fails with timeout or 401, a manual re-fire often succeeds. See the manual-fire snippet in README's Operations section. Don't deep-dive an Anthropic issue without trying a retry first.
 
