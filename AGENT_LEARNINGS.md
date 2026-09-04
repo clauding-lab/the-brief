@@ -37,6 +37,22 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-09-04 — v2.4.0+ | Seven sections went stale together: EconDelta's aggregate hard-rejected for three nights and The Brief published on top of a frozen upstream
+
+**Trigger:** A read-only health review on 2 Sep 2026 found 7/10 sections `stale` on issue 215 with no Brief-side failure anywhere — the pipeline log, the notifier and the deploy chain were all green. Supabase `run_logs?source=eq.aggregate` showed nine consecutive exit-1 runs since 31 Aug.
+
+**What went wrong:** Bangladesh Bank rebuilt its `gsom.bb.org.bd` treasury pages around 1 Jul. EconDelta's `parse_all` masked the resulting "File not found" with a 60-day `stale_fallback`, which expired on 31 Aug; the four treasury ids then dropped out of the aggregate and `_quarantine_flagged`'s deterministic rule ("any flagged id absent from `data` → hard reject") kept yesterday's `latest.json`. Nothing was written to `metric_history` after 30 Aug, so EVERY aggregate-owned id — `dsex`, `dommr`/`bofr`, `usd_bdt_*`, call money, the policy corridor — froze together, while `dse_close_*` (a separate scraper) kept flowing. The Brief's publish gate does not block on a stuck upstream, so issues 213–217 published on time with honest stale badges and nobody was alerted on this side. The log line blamed the Opus reviewer ("opus review REJECTED (hard)"); the reviewer was the messenger. A second, independent cause rode along: the fiscal-year-to-date export/remittance series reset in July and read as a ~90% collapse.
+
+The fix took four EconDelta PRs, not two. #133 (URL repoint) + #134 (FY-reset guard) merged 2 Sep and self-deployed at 01:00 BDT 3 Sep — but the 3 Sep 02:55 run only "passed" because the Opus review itself was skipped (`claude_exit_1`) and the upsert went through unreviewed, and the 03:16 retry hard-rejected again on `treasury_bill_outstanding`. #135 (guard hardening) + #136 (fetch the gsom page for an explicit date; alarm on stale holdovers) merged 3 Sep; the first clean reviewed fire was 4 Sep 02:56 BDT (146 rows, three OK runs that day). Issue 217 (4 Sep) had `dse` back to fresh; `tbond` and `remit` still read stale/warning for unrelated cadence reasons (landmines 24/27).
+
+**Lesson:** When several sections flip stale on the same morning, the fault is upstream, not in this repo — check EconDelta's aggregate `run_logs` first, treat "REJECTED (hard) … missing=[ids]" as a dead source rather than a reviewer to tune, and do not call an outage closed on "fix merged": read the NEXT morning's `run_logs` row and `metric_history` max(`as_of`).
+
+**Prevention:** AGENTS.md landmine 38 (diagnosis order, the 03:15 retry timer's no-op-on-failure / double-run-on-success behaviour). Still open, recorded in auto-memory: an allowlist for tenors that are legitimately absent some days (`call_money_rate_14d` was null on 2 Sep and named "missing" by the reviewer), a Brief-side "N sections newly stale vs yesterday" alert so a frozen upstream is noticed the same morning rather than three days later, and the reserves-cadence re-declaration (landmine 24) so §02/§04's badge carries information again.
+
+**Hotfix:** None in this repo. econdelta #133/#134/#135/#136 (2–3 Sep 2026), deployed unattended by the 01:00 BDT `econdelta-gitpull.timer`; verified against the box log, `run_logs` and `metric_history` on 4 Sep.
+
+**Cross-references:** AGENTS.md landmines 24, 32, 38; auto-memory `project_econdelta_aggregate_outage_2026_08_31`; global rulebook entry 2026-09-04 (same title); session notes 2026-09-02-health-review-outage and 2026-09-04.
+
 ## 2026-08-28 — v2.3.0+ | The provenance stamp skipped its own debut: marker-substring idempotence is editor-collidable
 
 **Trigger:** issue 210 — the first edition with the Real Policy Rate fix — published the corrected 1.18 but WITHOUT the provenance note the fix shipped for. The Import Cover stamp on the same page worked.
