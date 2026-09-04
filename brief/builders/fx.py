@@ -77,11 +77,15 @@ def build(ctx: BuilderContext) -> SectionData:
         unit="USD/oz", as_of=ctx.today, source="EconDelta", cadence="daily",
     ))
 
-    # ── Gross reserves — daily live series ──────────────────────────────────
+    # ── Gross reserves — month-END-stamped live series ─────────────────────
+    # Monthly cadence, in lockstep with bb.py (landmine 24, corrected
+    # 2026-09-02): the row is stamped with BB's month-end date and refreshed
+    # ~11 days after month-end, so "weekly" made this tile — and with it the
+    # whole worst-of §05 badge — stale on arrival every month.
     res_v, res_as_of = _last_known(ctx, "gross_reserves_usd_bn")
     metrics.append(Metric(
         id="fx_gross_reserves", label="Gross Reserves", value=res_v, unit="bn USD",
-        as_of=res_as_of, source="BB", cadence="weekly",
+        as_of=res_as_of, source="BB", cadence="monthly",
     ))
 
     # ── Exports — official EPB final only, no flash fallback (P0 fix) ───────

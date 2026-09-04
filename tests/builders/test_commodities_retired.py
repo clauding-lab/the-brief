@@ -169,11 +169,31 @@ def test_a_stale_reserves_row_now_correctly_drags_the_fx_badge() -> None:
     were supporting context excluded from the freshness badge, so FX stayed
     "fresh" even while reserves sat 35 days stale. That was audit finding (e):
     "the fx badge reads ONLY spot+gold." fx.py now scores freshness worst-of
-    ALL its metrics, same as every other builder — reserves at 35 days old
-    (weekly cadence, stale past 10 days) now correctly drags the section to
-    "stale", which is the honest reading."""
-    s = build_fx(_ctx())
-    reserves = next(m for m in s.metrics if m.id == "fx_gross_reserves")
-    assert reserves.as_of == JUN30
-    assert (AUG4 - reserves.as_of).days == 35
-    assert s.freshness == "stale"
+    ALL its metrics, same as every other builder.
+
+    Reserves are month-END stamped and declared monthly since the landmine-24
+    correction (fresh <=35d, warning <=45d), so the 35-day-old June print this
+    test originally used is now — correctly — still fresh. The stale case is a
+    print older than 45 days. To prove RESERVES is the driver (and not the
+    exports/trade-gap tiles, which stay inside their 35-day window here), the
+    same context is run twice: reserves at 30 Jun reads fresh, at 31 May reads
+    stale, and only the second drags the section."""
+    def _ctx_with_reserves(as_of: date) -> BuilderContext:
+        history = _FakeHistory({**LIVE, "gross_reserves_usd_bn": _row("gross_reserves_usd_bn", 37.578, as_of)})
+        return BuilderContext(
+            snapshot=EconDeltaSnapshot(
+                updated_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
+                sources_status={},
+                data={"usd_bdt_mid": USD_BDT_MID, "gold_usd_oz": GOLD_USD_OZ},
+            ),
+            history=history, today=AUG4, history_monthly=history,
+        )
+
+    current = build_fx(_ctx_with_reserves(JUN30))
+    assert (AUG4 - JUN30).days == 35
+    assert current.freshness == "fresh"                    # exports (35d) and reserves (35d) both fresh
+
+    late = build_fx(_ctx_with_reserves(date(2026, 5, 31)))
+    reserves = next(m for m in late.metrics if m.id == "fx_gross_reserves")
+    assert (AUG4 - reserves.as_of).days == 65
+    assert late.freshness == "stale"                       # reserves alone drags the section
