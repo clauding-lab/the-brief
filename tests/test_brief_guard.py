@@ -341,6 +341,12 @@ def test_dangling_symlink_binary_message_is_one_line(
 # not normalised out of octal before `(( ... ))`, "08" is not a valid octal
 # digit — bash's arithmetic context would error out instead of comparing, so
 # a disk with plenty of free space must still PASS.
+#
+# Exit 0 alone does NOT lock this in: the pre-fix script also exited 0, because
+# the errored `((...))` simply skipped the disk comparison (fail-OPEN) and ran
+# on to the binary check. The signature that separates the two is stderr —
+# pre-fix bash printed `((: 08: value too great for base`, post-fix it is
+# silent. Assert the silence, or this test has no teeth.
 def test_min_free_mb_leading_zero_still_passes(
     repo: Path, executable_claude: Path
 ) -> None:
@@ -349,6 +355,10 @@ def test_min_free_mb_leading_zero_still_passes(
         {"CLAUDE_BINARY": str(executable_claude), "BRIEF_MIN_FREE_MB": "08"},
     )
     assert result.returncode == 0, result.stderr
+    assert result.stderr == "", (
+        "guard wrote to stderr on a valid (leading-zero) threshold — an octal "
+        f"misread skips the disk floor silently: {result.stderr!r}"
+    )
 
 
 # (q) a leading-zero, otherwise-huge threshold must still REFUSE — proves the
