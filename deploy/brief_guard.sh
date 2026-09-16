@@ -17,12 +17,11 @@
 
 set -u
 
-REPO=/home/adnan/the-brief
+REPO="${BRIEF_REPO:-/home/adnan/the-brief}"
+BRIEF_MIN_FREE_MB="${BRIEF_MIN_FREE_MB:-2048}"
 
 branch="$(git -C "$REPO" symbolic-ref --short -q HEAD || echo DETACHED)"
 head="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-
-echo "brief_guard: branch=$branch head=$head"
 
 if [[ "$branch" != "main" ]]; then
   echo "brief_guard: REFUSING to publish from '$branch' (only main) — holding this run;" \
@@ -30,4 +29,46 @@ if [[ "$branch" != "main" ]]; then
   exit 1
 fi
 
-exit 0
+# Disk-free check — a full disk is how npm's postinstall was left mid-extraction
+# on 12 Sep 2026 (AGENTS.md landmine 39), leaving a non-executable stub behind.
+free_mb="$(df -Pm "$REPO" | awk 'NR==2 {print $4}')"
+
+if (( free_mb < BRIEF_MIN_FREE_MB )); then
+  echo "brief_guard: REFUSING to publish — only ${free_mb} MB free on the filesystem holding $REPO" \
+       "(need >= ${BRIEF_MIN_FREE_MB} MB); free disk, then: sudo systemctl start brief.service" >&2
+  exit 1
+fi
+
+# Binary check — names the cause instead of letting a bad CLAUDE_BINARY surface
+# as an opaque PermissionError three layers down in the Python pipeline.
+bin="${CLAUDE_BINARY:-claude}"
+
+if [[ "$bin" != */* ]]; then
+  resolved="$(command -v -- "$bin" 2>/dev/null || true)"
+  if [[ -z "$resolved" ]]; then
+    echo "brief_guard: REFUSING to publish — CLAUDE_BINARY '$bin' not found on PATH" >&2
+    exit 1
+  fi
+  bin="$resolved"
+fi
+
+real="$(readlink -f -- "$bin" 2>/dev/null || printf '%s' "$bin")"
+
+# GNU stat (`-c`) on the box; fall back to BSD stat (`-f`) so this degrades
+# gracefully when the suite runs on the owner's Mac (spec point 5).
+size_mode() {
+  stat -c '%s %a' -- "$1" 2>/dev/null || stat -f '%z %Lp' -- "$1" 2>/dev/null || echo "0 000"
+}
+
+if [[ -f "$real" && -x "$real" ]]; then
+  read -r size mode <<<"$(size_mode "$real")"
+  echo "brief_guard: branch=$branch head=$head disk_free_mb=$free_mb claude=$real ($size bytes)"
+  exit 0
+fi
+
+read -r size mode <<<"$(size_mode "$real")"
+echo "brief_guard: REFUSING to publish — CLAUDE_BINARY '$bin' -> '$real' is not an executable file" \
+     "(size=${size} mode=${mode}). A ~500-byte non-executable file is npm's placeholder from a" \
+     "half-finished Claude Code update — see AGENTS.md landmine 39; rollback: rename the retired" \
+     ".claude-code-* tree back, or free disk and reinstall." >&2
+exit 1

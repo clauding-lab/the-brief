@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- `deploy/brief_guard.sh` now refuses to publish when free disk is below 2 GB or `CLAUDE_BINARY` is not an executable file, and names the cause in the alert (#TBD).
+
 ## [2.5.0] — 2026-09-04
 
 The honest-clock release. The govt yield ladder now plots three month-ends, including the still-open month, with a footnote naming the auction it was built from; metric values stop leaking float tails; the Gross Reserves tile runs on the monthly clock its feed actually keeps, so §02's freshness signal means something again; and the dependency audit is clean (Next.js 16.3.4, ws 8.21.3). Five PRs (#201, #204, #206, #207, #208), each reviewed adversarially before merge — the review corrections are on the record in AGENTS.md landmines 24 and 38 (#205) and in AGENT_LEARNINGS.md's entry for the 31 Aug–3 Sep EconDelta aggregate freeze.
