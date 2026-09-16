@@ -37,6 +37,20 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-09-16 — v2.5.0 | Four issues missed (13–16 Sep): a Claude Code self-update ran out of disk mid-install and left a non-executable stub where `claude` should be
+
+**Trigger:** `/resume-session` orientation on 16 Sep: the latest `briefs` row was issue 225 (12 Sep). Four OnFailure Discord alerts (13–16 Sep, 08:00 BDT, HTTP 204 each) had gone unread. Copotron had been dead since its Saturday rotation (13 Sep 04:00 BDT) with 1,079 silent "restart FAILED" watchdog ticks.
+
+**What went wrong:** The Hetzner root disk hit 100% at 00:32 BDT 13 Sep (a new tenant, `chess-prodigy`, hoarded 9.3 GB of releases in a week; npm cache 3.5 GB; old snap revisions). At that moment Claude Code's auto-updater (npm-global install, triggered by a Copotron launch) was reinstalling `@anthropic-ai/claude-code`; extraction of the 220 MB native binary died at 117 MB and postinstall never replaced the package's 500-byte mode-644 `bin/claude.exe` stub. `brief.service` execs that path (`CLAUDE_BINARY` in `/etc/brief.env`) → `PermissionError` in `run_max` → exit 1 in 25 s, not retried. Upstream (EconDelta aggregate) was healthy every night; the code on the box was unchanged. Mechanics in AGENTS.md landmine #39.
+
+**Lesson:** An unattended box that self-updates its own tools needs the update turned off, a disk-free floor, and a pre-flight that proves the binary is executable — and every relaunch loop must alert after N failures, not just log them.
+
+**Prevention:** (1) `DISABLE_AUTOUPDATER=1` in the box's `~/.claude/settings.json` `env` block (docs: code.claude.com/docs/en/setup, "Disable auto-updates"); updating becomes a deliberate `claude update`. (2) `deploy/brief_guard.sh`: fail closed when `df` free < 2 GB or `! test -x "$CLAUDE_BINARY"`, with a message that names the cause, so the OnFailure alert says WHY. (3) `~/bin/copotron-watchdog.sh`: Discord alert after 3 consecutive "restart FAILED" ticks (throttled like the auth-wall alert). (4) chess-prodigy deploy: keep the last 3 releases, clean `/tmp/*-stage.*`. (5) A box-level disk alert at 85%. (6) Someone reads the alert channel: four alerts were delivered and ignored — alerting worked, reading did not.
+
+**Hotfix (16 Sep, 22:00–22:35 BDT, owner-approved batch):** freed 3.9 GB without deleting anything (npm cache clean, journal vacuum to 200 MB, 7 disabled snap revisions removed); staged 9.8 GB of approved deletes in `/home/adnan/.trash-20260916/` (4 `/tmp` stage dirs, 17 old chess-prodigy releases, the broken claude tree) for the owner to remove; renamed npm's retired `.claude-code-bDq1Jpch` tree back into place (`claude --version` → 2.1.269); the watchdog relaunched Copotron at 22:10 BDT and the auto-updater immediately installed 2.1.273 cleanly now that disk was available; a manual `systemctl start brief.service` published issue 226 at 22:33 BDT (10 sections, `sent=10/10`, live at `/issue/226`). No code changed.
+
+**Cross-references:** AGENTS.md landmine #39; auto-memory `project_claude_binary_outage_2026_09_12.md`; global rulebook 2026-09-16 "Hetzner / Copotron / The Brief"; the 2026-09-04 global entry (watchdog must read the screen) is the sibling gap.
+
 ## 2026-09-04 — v2.4.0+ | Seven sections went stale together: EconDelta's aggregate hard-rejected for three nights and The Brief published on top of a frozen upstream
 
 **Trigger:** A read-only health review on 2 Sep 2026 found 7/10 sections `stale` on issue 215 with no Brief-side failure anywhere — the pipeline log, the notifier and the deploy chain were all green. Supabase `run_logs?source=eq.aggregate` showed nine consecutive exit-1 runs since 31 Aug.
