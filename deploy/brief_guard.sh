@@ -53,10 +53,6 @@ _is_plain_int() {
   [[ "$1" =~ ^[0-9]+$ ]]
 }
 
-if ! _is_plain_int "$BRIEF_MIN_FREE_MB"; then
-  _refuse "brief_guard: REFUSING to publish — BRIEF_MIN_FREE_MB='$BRIEF_MIN_FREE_MB' is not a plain integer number of MB (set it in /etc/brief.env as e.g. BRIEF_MIN_FREE_MB=2048)"
-fi
-
 branch="$(git -C "$REPO" symbolic-ref --short -q HEAD || echo DETACHED)"
 head="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
@@ -73,6 +69,22 @@ fi
 
 # Disk-free check — a full disk is how npm's postinstall was left mid-extraction
 # on 12 Sep 2026 (AGENTS.md landmine 39), leaving a non-executable stub behind.
+#
+# BRIEF_MIN_FREE_MB validation lives here, not before the branch check, so
+# spec order (branch -> disk -> binary) holds: a non-main branch with a
+# malformed threshold still reports the branch refusal, not this one
+# (review residual, 2026-09-16).
+if ! _is_plain_int "$BRIEF_MIN_FREE_MB"; then
+  _refuse "brief_guard: REFUSING to publish — BRIEF_MIN_FREE_MB='$BRIEF_MIN_FREE_MB' is not a plain integer number of MB (set it in /etc/brief.env as e.g. BRIEF_MIN_FREE_MB=2048)"
+fi
+
+# Normalise away any leading zeros before this reaches `(( ... ))` — bash
+# arithmetic reads a leading-zero literal as OCTAL, so "08" is an invalid
+# octal digit (arithmetic error) and "0010" would compare as 8, not 10. A
+# forced base-10 read (`10#...`) fixes both without rejecting valid input
+# (review residual, 2026-09-16).
+BRIEF_MIN_FREE_MB="$((10#$BRIEF_MIN_FREE_MB))"
+
 free_mb="$(df -Pm "$REPO" | awk 'NR==2 {print $4}')"
 
 if ! _is_plain_int "$free_mb"; then

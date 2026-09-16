@@ -281,7 +281,7 @@ def stub_logger(tmp_path: Path) -> tuple[Path, Path]:
     bin_dir.mkdir()
     capture = tmp_path / "logger-calls.log"
     path = bin_dir / "logger"
-    path.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> {capture}\n")
+    path.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"{capture}\"\n")
     path.chmod(0o755)
     return bin_dir, capture
 
@@ -332,3 +332,52 @@ def test_dangling_symlink_binary_message_is_one_line(
     ]
     assert len(lines_with_msg) == 1
     assert "->" in lines_with_msg[0]
+
+
+# --- Residual-defect pass, 2026-09-16 (leading-zero threshold + ordering) ---
+
+
+# (p) a leading-zero BRIEF_MIN_FREE_MB passes the plain-integer regex but, if
+# not normalised out of octal before `(( ... ))`, "08" is not a valid octal
+# digit — bash's arithmetic context would error out instead of comparing, so
+# a disk with plenty of free space must still PASS.
+def test_min_free_mb_leading_zero_still_passes(
+    repo: Path, executable_claude: Path
+) -> None:
+    result = run_guard(
+        repo,
+        {"CLAUDE_BINARY": str(executable_claude), "BRIEF_MIN_FREE_MB": "08"},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+# (q) a leading-zero, otherwise-huge threshold must still REFUSE — proves the
+# 10#-forced base-10 read produces the real decimal value (999999999), not a
+# truncated or mis-parsed one that would accidentally fail-open.
+def test_min_free_mb_leading_zero_huge_value_refuses(
+    repo: Path, executable_claude: Path
+) -> None:
+    result = run_guard(
+        repo,
+        {
+            "CLAUDE_BINARY": str(executable_claude),
+            "BRIEF_MIN_FREE_MB": "0999999999",
+        },
+    )
+    assert result.returncode == 1
+    assert "MB free" in result.stderr
+
+
+# (r) ordering: branch check must win over a malformed BRIEF_MIN_FREE_MB too
+# (not just over the binary check) — the threshold validation now lives in
+# the disk step, which only runs after the branch check passes.
+def test_branch_check_wins_over_malformed_threshold(
+    repo_off_main: Path, executable_claude: Path
+) -> None:
+    result = run_guard(
+        repo_off_main,
+        {"CLAUDE_BINARY": str(executable_claude), "BRIEF_MIN_FREE_MB": "2G"},
+    )
+    assert result.returncode == 1
+    assert "only main" in result.stderr
+    assert "not a plain integer" not in result.stderr
