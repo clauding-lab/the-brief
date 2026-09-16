@@ -122,6 +122,8 @@ logs loudly on its own failures — but something has to be the last turtle.
 | Symptom | Fix |
 |---|---|
 | `journalctl`: `Claude CLI binary not found: claude` | `/etc/brief.env` missing `CLAUDE_BINARY` or path wrong. Re-point at `/home/adnan/.npm-global/bin/claude`. |
+| `journalctl`: `brief_guard: REFUSING to publish — only NNN MB free ...` | Free disk on the box, or raise the floor for this box only: `BRIEF_MIN_FREE_MB=<new value>` in `/etc/brief.env` (default 2048; see AGENTS.md landmine 39). |
+| `journalctl`: `brief_guard: REFUSING to publish — CLAUDE_BINARY ... not found on PATH` / `... resolved to '/usr/bin/...', a stale binary` | `/etc/brief.env`'s `CLAUDE_BINARY` is unset or wrong. Re-point at `/home/adnan/.npm-global/bin/claude`, never `/usr/bin/claude` — that copy is a separate, stale 2.1.104 build the service must not run (AGENTS.md landmine 39). |
 | `journalctl`: `Claude CLI exited 1: Session not found` | Max OAuth expired. On the host: `claude` interactively, re-authenticate. |
 | `journalctl`: `V6 publish failed: subeditor verdict=fail` | Editor output failed sub-editor self-review. Check the most recent log for the failure reason; usually fixed by retry on next timer fire. |
 | `journalctl`: Supabase 4xx/5xx in `run_publish` | Check `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` in `/etc/brief.env`; verify the `briefs`/`sections` schema is up to date. |
