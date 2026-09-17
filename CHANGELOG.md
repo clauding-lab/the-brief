@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- `deploy/brief_guard.sh` now refuses to publish when free disk is below 2 GB or `CLAUDE_BINARY` is not an executable file, and names the cause in the alert (#TBD).
+- Review hardening on the guard above (#TBD): refusal messages now also go through `logger` to journald — `brief.service`'s `StandardOutput`/`StandardError` append straight to `logs/brief-systemd.log`, which `brief_alert.sh`'s Discord alert never reads (it tails `journalctl -u brief.service`), so without this the alert only ever said "exit-code" and never the real cause. Also: `BRIEF_MIN_FREE_MB` and `df`'s reported free space are validated as plain integers (a non-numeric value previously either silently disabled the disk floor or crashed with no refusal message); an unset `CLAUDE_BINARY` that resolves via `PATH` to the box's separate, stale `/usr/bin/claude` (landmine 39) is now refused instead of accepted; `branch=`/`head=` is logged on every fire, not only a successful one; and a dangling `CLAUDE_BINARY` symlink no longer corrupts the refusal message into two lines on BSD hosts.
+
 ## [2.5.0] — 2026-09-04
 
 The honest-clock release. The govt yield ladder now plots three month-ends, including the still-open month, with a footnote naming the auction it was built from; metric values stop leaking float tails; the Gross Reserves tile runs on the monthly clock its feed actually keeps, so §02's freshness signal means something again; and the dependency audit is clean (Next.js 16.3.4, ws 8.21.3). Five PRs (#201, #204, #206, #207, #208), each reviewed adversarially before merge — the review corrections are on the record in AGENTS.md landmines 24 and 38 (#205) and in AGENT_LEARNINGS.md's entry for the 31 Aug–3 Sep EconDelta aggregate freeze.
