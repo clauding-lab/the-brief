@@ -47,6 +47,11 @@ and a journal tail to Discord.
   fires, minus the log excerpt).
 - Test end-to-end without touching a real publish:
   `sudo systemctl start brief-alert@brief.service.service` → a ping should land.
+- **Shared with another repo on the same box.** `chess-prodigy-prune.service`
+  (clauding-lab/chess-prodigy, `deploy/`) carries the same
+  `OnFailure=brief-alert@%n.service` line. Renaming or moving `brief-alert@.service`,
+  `deploy/brief_alert.sh`, the `/home/adnan/the-brief` checkout or `/etc/brief.env`
+  silently kills that repo's prune-failure alarm — update its unit in the same change.
 
 ## Weekly export (brief-export.timer)
 
