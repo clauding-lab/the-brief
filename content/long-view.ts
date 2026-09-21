@@ -6,81 +6,36 @@ import type { LongViewData } from "@/types/brief";
 // before merging to main. See docs/longview-workflow.md for the full recipe.
 
 export const longView: LongViewData | null = {
-  posted_at: "2026-08-28T11:28:00Z",
-  title: "The Data Rail Comes Before the Lending Model",
-  lead: "Four markets built high-volume unsecured SME lending on four different data rails. Approval runs from seconds in China to one or two days in the United Kingdom, which also carries the longest tenor at 6–60 months.",
+  posted_at: "2026-09-21T03:31:00Z",
+  title: "Food's Share of Spending Rises as Income Falls",
+  lead: "An IMF chart built on USDA data plots each economy's food spending as a share of GDP against food's share of total consumer spending. The two rise together across the sample, and low-income developing countries sit at the top-right corner of both scales.",
   blocks: [
     {
-      kind: "comparison",
-      before_label: "Traditional",
-      after_label: "Next-gen",
-      rows: [
-        {
-          title: "The credit input",
-          before: "Documents",
-          after: "Real-time data",
-          description: "A submitted document pack gives way to observed transaction flow.",
-          tone: "neu",
-        },
-        {
-          title: "The decision",
-          before: "Credit officer",
-          after: "Risk engine",
-          description: "Approval lands in seconds to hours in all four markets.",
-          tone: "bull",
-        },
-        {
-          title: "The security",
-          before: "Collateral",
-          after: "Pre-approved limit",
-          description: "The limit follows business activity, not a pledged asset.",
-          tone: "neu",
-        },
-        {
-          title: "The offer",
-          before: "Loan",
-          after: "Embedded offer",
-          description: "Credit appears inside the platform the SME already uses.",
-          tone: "neu",
-        },
-        {
-          title: "Repayment",
-          before: "—",
-          after: "Automated debit",
-          description: "The traditional chain has no equivalent stage.",
-          tone: "bull",
-        },
-      ],
-    },
-    {
       kind: "bullet-list",
-      eyebrow: "WHAT EACH MARKET SOLVED",
+      eyebrow: "WHERE EACH INCOME GROUP SITS",
       items: [
         {
-          text: "**China solved underwriting at scale.** MYbank and WeBank price off payments, platform and tax-invoice data. Tickets run RMB 10,000–5,000,000, approved in seconds to minutes.",
+          text: "**Advanced economies hold the bottom-left corner.** Food takes roughly 5 to 22 percent of consumer spending in that group, on food outlays worth under about 13 percent of GDP.",
           tone: "neu",
         },
         {
-          text: "**India solved acquisition cost.** Aadhaar e-KYC, UPI history, GST e-invoicing and the Account Aggregator consent layer carry the file. Tickets run INR 100,000–5,000,000, approved in minutes to hours.",
-          tone: "neu",
+          text: "**Emerging markets spread across the whole middle of the chart.** Their markers run from about 11 percent of consumer spending to above 40 percent, and the group overlaps the advanced cluster at one end and the low-income band at the other.",
+          tone: "warn",
         },
         {
-          text: "**The United States solved distribution.** Square, Shopify Capital and PayPal Working Capital lend inside the platform the merchant already sells through, collecting from card receipts. Tickets run USD 5,000–500,000.",
-          tone: "neu",
-        },
-        {
-          text: "**The United Kingdom solved tenor.** Open Banking under PSD2 sits behind Funding Circle, iwoca and OakNorth. Tickets run GBP 10,000–2,000,000 over 6–60 months, the longest of the four.",
-          tone: "neu",
+          text: "**Low-income developing countries occupy the top-right.** Every marker in that group sits above roughly 29 percent of consumer spending, and the highest of them approach 55 percent.",
+          tone: "bear",
         },
       ],
     },
     {
       kind: "prose",
       paragraphs: [
-        "Bangladesh has more of this rail than the comparison implies. NID-based e-KYC is live, the CIB and VAT registration are established, and direct debit instructions already run on bank accounts. Two gaps remain. The mandate does not reach MFS wallets, where much of small-business cash moves, and a failed direct debit carries none of the consequence a dishonoured cheque carries under the Negotiable Instruments Act.",
+        "The two measures track each other closely, and the mechanism behind that is straightforward. A household that already spends half its money on food has no cheaper category to move into when food prices rise, so the increase comes out of everything else it buys. The same percentage move in food prices therefore transfers far more real income away from a household at the top-right of this chart than from one at the bottom-left.",
+        "The IMF classifies Bangladesh among low-income developing countries, the group in the upper-right band. That placement sets the transmission path for a food price move: it reaches headline inflation first, real household income next, and the repayment behaviour of retail and small-ticket SME borrowers after that. It is the same fact the CPI shows from the other side, where food and beverages carry the largest single weight in the Bangladesh basket.",
       ],
     },
   ],
   banker_read:
-    "None of these markets reached seconds-to-hours approval by writing a better credit policy. Each first built a rail that let a lender see a business without interviewing it. A digital journey laid over the same document pack and the same collateral test compresses paperwork and leaves the unit economics unchanged. Two things are worth pushing at Bangladesh Bank and association level: consented data sharing, which attacks underwriting cost, and statutory consequence behind a dishonoured direct debit, which attacks recovery cost. The American route needs neither — lending against receipts through the platform that captures them waits on no regulation.",
+    "The read for a Bangladeshi bank is that food inflation belongs in the credit process, not only in the macro commentary. Where food absorbs the share of spending this chart shows, a price move reaches disposable income before it reaches any borrower's file, and the books with the least buffer — retail, microfinance-linked exposure, small-ticket SME — feel it first. A risk team tracking food prices only through the monthly CPI print is working from the slowest signal available, because wholesale and import-cost data move earlier and are already published. Treasury has the same interest from the other direction, since a food shock that lands on household income also narrows the room Bangladesh Bank has to ease over the next few quarters.",
 };
