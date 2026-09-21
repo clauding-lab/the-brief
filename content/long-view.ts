@@ -15,15 +15,15 @@ export const longView: LongViewData | null = {
       eyebrow: "WHERE EACH INCOME GROUP SITS",
       items: [
         {
-          text: "**Advanced economies hold the bottom-left.** Food takes roughly 5 to 22 percent of consumer spending there.",
+          text: "**Advanced economies hold the bottom-left corner.** Food takes roughly 5 to 22 percent of consumer spending in that group, on food outlays worth under about 13 percent of GDP.",
           tone: "neu",
         },
         {
-          text: "**Emerging markets fill the middle.** Their markers run from about 11 percent to above 40 percent.",
+          text: "**Emerging markets spread across the whole middle of the chart.** Their markers run from about 11 percent of consumer spending to above 40 percent, and the group overlaps the advanced cluster at one end and the low-income band at the other.",
           tone: "warn",
         },
         {
-          text: "**Low-income countries occupy the top-right.** Every marker sits above roughly 29 percent, and the highest approach 55.",
+          text: "**Low-income developing countries occupy the top-right.** Every marker in that group sits above roughly 29 percent of consumer spending, and the highest of them approach 55 percent.",
           tone: "bear",
         },
       ],
