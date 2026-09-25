@@ -197,9 +197,14 @@ def test_notifier_zero_sent_with_audience_alerts_but_exit_0(caplog):
     assert rc == 0
     mock_alert.assert_called_once()
     msg = mock_alert.call_args.args[0]
-    assert "delivered to NOBODY" in msg
+    assert "no confirmed provider acceptance" in msg
+    assert "accepted=0" in msg
+    assert "acceptance unconfirmed=8" in msg
+    assert "may already have been accepted" in msg
+    assert "do not resend everyone" in msg
+    assert "subscribers got no email" not in msg
     assert "attempted=8" in msg
-    assert any("DELIVERED TO NOBODY" in r.message for r in caplog.records)
+    assert any("NO CONFIRMED ACCEPTANCE" in r.message for r in caplog.records)
 
 
 def test_notifier_success_does_not_alert():
@@ -241,6 +246,9 @@ def test_notifier_crash_alerts_and_exit_0():
     assert rc == 0
     mock_alert.assert_called_once()
     assert "CRASHED" in mock_alert.call_args.args[0]
+    assert "acceptance may be unknown" in mock_alert.call_args.args[0]
+    assert "before sending" not in mock_alert.call_args.args[0]
+    assert "subscribers got no email" not in mock_alert.call_args.args[0]
 
 
 @pytest.mark.parametrize("raw", ["1", "true", "yes", "on", " TRUE "])
@@ -499,8 +507,9 @@ def test_notifier_partial_delivery_alerts_without_republishing(caplog):
         rc, alert = _run_publish_with_notify(notify_result=result)
     assert rc == 0
     alert.assert_called_once()
-    assert "PARTIAL DELIVERY" in alert.call_args.args[0]
-    assert "sent=2" in alert.call_args.args[0]
+    assert "PARTIAL ACCEPTANCE" in alert.call_args.args[0]
+    assert "accepted=2" in alert.call_args.args[0]
     assert "attempted=3" in alert.call_args.args[0]
-    assert "failed=1" in alert.call_args.args[0]
-    assert any("PARTIAL DELIVERY" in record.message for record in caplog.records)
+    assert "acceptance unconfirmed=1" in alert.call_args.args[0]
+    assert "do not resend everyone" in alert.call_args.args[0]
+    assert any("PARTIAL ACCEPTANCE" in record.message for record in caplog.records)

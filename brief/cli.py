@@ -127,41 +127,40 @@ def _run_v6_publish_unlocked(
             from brief.notifier import notify as _notify
             result = _notify(brief_id)
             log.info(
-                "notifier: sent=%d/%d failed=%d skipped=%d message_id=%s error=%s",
+                "notifier: accepted=%d attempted=%d acceptance unconfirmed=%d skipped=%d message_id=%s error=%s",
                 result.sent_count, result.attempted_count,
                 result.failed_count, result.skipped_count, result.message_id, result.error,
             )
-            # Fail-loud (item 5d): a publish that succeeded but whose email reached
-            # NOBODY used to vanish into an info log. Alert when sent=0 with a real
-            # audience (attempted>0), or when the notifier errored before it could
-            # even count the audience (auth/fetch failures). A genuinely empty
-            # subscriber list ("no_subscribers") is a fine state, not an incident.
-            # Exit code stays 0 — the Supabase brief is the canonical artifact; the
-            # email is the amplifier. Loud, not fatal.
-            total_delivery_failure = result.sent_count == 0 and (
+            # Brevo HTTP acceptance is not inbox delivery. A request timeout can
+            # leave acceptance unknown, so these alerts never imply safe resend.
+            # Auth/fetch failure is also an incident; an empty audience is not.
+            # Keep exit 0 because the canonical edition is already published.
+            no_confirmed_acceptance = result.sent_count == 0 and (
                 result.attempted_count > 0
                 or result.error not in (None, "no_subscribers")
             )
-            if total_delivery_failure:
+            retry_caution = "Timed-out attempts may already have been accepted; do not resend everyone."
+            if no_confirmed_acceptance:
                 log.error(
-                    "notifier: DELIVERED TO NOBODY — sent=0 attempted=%d error=%s "
-                    "(publish itself succeeded; subscribers got no email)",
-                    result.attempted_count, result.error,
+                    "notifier: NO CONFIRMED ACCEPTANCE — accepted=0 attempted=%d "
+                    "acceptance unconfirmed=%d error=%s (publish itself succeeded). %s",
+                    result.attempted_count, result.failed_count, result.error, retry_caution,
                 )
                 from brief.alerts import send_discord_alert
                 send_discord_alert(
                     f"ALERT: The Brief published (brief_id={brief_id}) but the "
-                    f"subscriber email delivered to NOBODY — sent=0 "
-                    f"attempted={result.attempted_count} error={result.error}. "
+                    f"subscriber email has no confirmed provider acceptance — accepted=0 "
+                    f"attempted={result.attempted_count} acceptance unconfirmed={result.failed_count} "
+                    f"error={result.error}. {retry_caution} "
                     f"Inspect: journalctl -u brief.service -n 200 --no-pager"
                 )
             elif result.failed_count > 0:
                 # Keep the published edition and do not retry an already-mailed
                 # audience. B5 owns the existing alert transport.
                 incident = (
-                    f"PARTIAL DELIVERY — sent={result.sent_count} "
-                    f"attempted={result.attempted_count} failed={result.failed_count} "
-                    f"error={result.error} (publish itself succeeded; do not resend everyone)"
+                    f"PARTIAL ACCEPTANCE — accepted={result.sent_count} "
+                    f"attempted={result.attempted_count} acceptance unconfirmed={result.failed_count} "
+                    f"error={result.error} (publish itself succeeded). {retry_caution}"
                 )
                 log.error("notifier: %s", incident)
                 from brief.alerts import send_discord_alert
@@ -171,13 +170,14 @@ def _run_v6_publish_unlocked(
                 )
         except Exception:
             # Last-resort fail-open: even an import error must not crash a successful
-            # publish — but it still alerts (a crashed notifier also emails nobody).
+            # publish. A crash may occur after some sends, so acceptance is unknown.
             log.exception("notifier: unexpected exception (publish remains successful)")
             try:
                 from brief.alerts import send_discord_alert
                 send_discord_alert(
                     f"ALERT: The Brief published (brief_id={brief_id}) but the "
-                    f"notifier CRASHED before sending — subscribers got no email. "
+                    f"notifier CRASHED — provider acceptance may be unknown. "
+                    f"Do not resend everyone. "
                     f"Inspect: journalctl -u brief.service -n 200 --no-pager"
                 )
             except Exception:
