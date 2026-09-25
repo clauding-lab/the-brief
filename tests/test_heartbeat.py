@@ -194,7 +194,16 @@ def test_main_exit_0_when_healthy(_env) -> None:
     mock_alert.assert_not_called()
 
 
-def test_main_exit_1_on_breach_with_alert(_env) -> None:
+def test_main_exit_1_on_breach_with_alert(_env, monkeypatch) -> None:
+    # Pin after the 09:45 BDT deadline: running the suite before breakfast
+    # must not turn the deliberately stale Brief fixture into a no-op check.
+    class AfterDeadline(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 9, 26, 10, 0, tzinfo=hb.BDT)
+            return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(hb, "datetime", AfterDeadline)
     breached = _fetch_for({
         "/briefs": (200, [{"brief_date": "2020-01-01"}]),
         "/run_logs": (200, []),
