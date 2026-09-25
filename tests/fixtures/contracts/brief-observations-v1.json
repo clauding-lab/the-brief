@@ -1,0 +1,147 @@
+{
+  "contract_version": 1,
+  "evidence": {
+    "mei_2026_july": {
+      "source_url": "https://www.bb.org.bd/pub/monthly/selectedecooind/2026_july.pdf",
+      "sha256": "40d510b44117fc597675a58c142d56c71fdbe9f11fec2f693aecc225dd6f117e",
+      "fixture": "tests/_pdfs/bb_mei_2026_july.pdf",
+      "report_edition": "2026-07"
+    },
+    "wsei_2026_09_20": {
+      "source_url": "https://www.bb.org.bd/pub/weekly/selectedindi/20%20%20september%202026.pdf",
+      "sha256": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516",
+      "fixture": "tests/_pdfs/bb_wsei_2026_09_20.pdf",
+      "report_edition": "2026-09-20"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "mei-private-credit-june-not-cover-month",
+      "run_date_bdt": "2026-09-25",
+      "source_observations": [
+        {
+          "evidence_id": "mei_2026_july",
+          "page_pdf": 5,
+          "table": "1. Money and credit developments",
+          "row": "Private sector",
+          "column": "June, 2026P",
+          "metric_id": "private_sector_credit",
+          "value": 1825864.8,
+          "unit": "BDT crore",
+          "observation_period": "2026-06-30"
+        }
+      ],
+      "expected_outputs": [
+        {
+          "metric_id": "private_sector_credit",
+          "value": 1825864.8,
+          "unit": "BDT crore",
+          "as_of": "2026-06-30",
+          "state": "verified"
+        }
+      ]
+    },
+    {
+      "case_id": "mei-lc-select-latest-month-within-fy26",
+      "run_date_bdt": "2026-09-25",
+      "source_observations": [
+        {
+          "evidence_id": "mei_2026_july",
+          "page_pdf": 24,
+          "table": "13.A Custom-based import, import LCs opening and LCs settlement",
+          "row": "July under FY26P (July 2025)",
+          "column": "Import LCs opening FY26P2 / settlement FY26P2",
+          "metric_id": "monthly_import_lc_opening",
+          "value": 6067.72,
+          "paired_value": 6104.03,
+          "unit": "USD million",
+          "observation_period": "2025-07-31"
+        },
+        {
+          "evidence_id": "mei_2026_july",
+          "page_pdf": 24,
+          "table": "13.A Custom-based import, import LCs opening and LCs settlement",
+          "row": "June under FY26P",
+          "column": "Import LCs opening FY26P2 / settlement FY26P2",
+          "metric_id": "monthly_import_lc_opening",
+          "value": 6198.59,
+          "paired_value": 7116.88,
+          "unit": "USD million",
+          "observation_period": "2026-06-30"
+        }
+      ],
+      "expected_outputs": [
+        {
+          "metric_id": "monthly_import_lc_opening",
+          "value": 6198.59,
+          "unit": "USD million",
+          "as_of": "2026-06-30",
+          "state": "verified"
+        },
+        {
+          "metric_id": "monthly_import_lc_settlement",
+          "value": 7116.88,
+          "unit": "USD million",
+          "as_of": "2026-06-30",
+          "state": "verified"
+        }
+      ]
+    },
+    {
+      "case_id": "mei-deficit-financing-fy26",
+      "run_date_bdt": "2026-09-25",
+      "source_observations": [
+        {
+          "evidence_id": "mei_2026_july",
+          "page_pdf": 15,
+          "table": "C. Government deficit financing",
+          "row": "FY 26",
+          "column": "banking / non-bank / total domestic / net foreign",
+          "metric_id": "bank_borrowing_for_deficit_financing",
+          "value": 165538.2,
+          "non_bank_value": -847.17,
+          "domestic_value": 164691.03,
+          "foreign_value": 57743.6,
+          "unit": "BDT crore",
+          "observation_period": "2026-06-30"
+        }
+      ],
+      "expected_outputs": [
+        {"metric_id": "bank_borrowing_for_deficit_financing", "value": 165538.2, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"},
+        {"metric_id": "non_bank_borrowing_for_deficit_financing", "value": -847.17, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"},
+        {"metric_id": "domestic_borrowing_for_budget_deficit", "value": 164691.03, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"},
+        {"metric_id": "foreign_borrowing_for_budget_deficit", "value": 57743.6, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"}
+      ]
+    },
+    {
+      "case_id": "weekly-components-have-independent-periods",
+      "run_date_bdt": "2026-09-25",
+      "source_observations": [
+        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "5.a Wage Earners' Remittances", "row": "Wage Earners' Remittances", "column": "August, 2026", "metric_id": "monthly_remittance", "value": 2.97, "unit": "USD billion", "observation_period": "2026-08-31"},
+        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "6.a Import (C&F)", "row": "Import (C&F)", "column": "July, 2026P", "metric_id": "monthly_import", "value": 6.78, "unit": "USD billion", "observation_period": "2026-07-31"},
+        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "7.a Export (f.o.b)", "row": "Export (f.o.b)", "column": "July, 2026P", "metric_id": "monthly_export", "value": 4.35, "unit": "USD billion", "observation_period": "2026-07-31"},
+        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "11.b Broad Money (M2)", "row": "Broad Money (M2)", "column": "July, 2026", "metric_id": "broad_money", "value": 2422923.9, "unit": "BDT crore", "observation_period": "2026-07-31"},
+        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "12.c Credit to the Private Sector", "row": "Credit to the Private Sector", "column": "July, 2026", "metric_id": "private_sector_credit", "value": 1823101.6, "unit": "BDT crore", "observation_period": "2026-07-31"}
+      ],
+      "expected_outputs": [
+        {"metric_id": "monthly_remittance", "value": 2.97, "unit": "USD billion", "as_of": "2026-08-31", "state": "verified"},
+        {"metric_id": "monthly_import", "value": 6.78, "unit": "USD billion", "as_of": "2026-07-31", "state": "verified"},
+        {"metric_id": "monthly_export", "value": 4.35, "unit": "USD billion", "as_of": "2026-07-31", "state": "verified"},
+        {"metric_id": "broad_money", "value": 2422923.9, "unit": "BDT crore", "as_of": "2026-07-31", "state": "verified"},
+        {"metric_id": "private_sector_credit", "value": 1823101.6, "unit": "BDT crore", "as_of": "2026-07-31", "state": "verified"}
+      ]
+    },
+    {
+      "case_id": "weekly-lc-july-follow-on",
+      "run_date_bdt": "2026-09-25",
+      "source_observations": [
+        {"evidence_id": "wsei_2026_09_20", "page_pdf": 2, "table": "13. L/C Opening and Settlement", "row": "Total", "column": "July, FY27 opening", "metric_id": "monthly_import_lc_opening", "value": 6.9017, "unit": "USD billion", "observation_period": "2026-07-31"},
+        {"evidence_id": "wsei_2026_09_20", "page_pdf": 2, "table": "13. L/C Opening and Settlement", "row": "Total", "column": "July, FY27 settlement", "metric_id": "monthly_import_lc_settlement", "value": 6.2793, "unit": "USD billion", "observation_period": "2026-07-31"}
+      ],
+      "expected_outputs": [
+        {"metric_id": "monthly_import_lc_opening", "value": 6901.7, "unit": "USD million", "as_of": "2026-07-31", "state": "verified"},
+        {"metric_id": "monthly_import_lc_settlement", "value": 6279.3, "unit": "USD million", "as_of": "2026-07-31", "state": "verified"}
+      ]
+    }
+  ]
+}
