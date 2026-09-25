@@ -1063,3 +1063,37 @@ def test_brevo_acceptance_counts_even_when_response_body_is_not_json(monkeypatch
         subscribers=[Subscriber("Reader", "reader@example.test", None)],
         subject="s", html_body="h", text_body="t")
     assert (sent, message_id, error) == (1, None, None)
+
+
+from pathlib import Path
+_EMAIL_CONTRACT = _json.loads(
+    (Path(__file__).parent / "fixtures" / "subscriber_email_contract.json").read_text()
+)
+
+
+@pytest.mark.parametrize("case", _EMAIL_CONTRACT["accepted"])
+def test_subscriber_fetch_accepts_exact_route_storage_contract(monkeypatch, case):
+    _subscriber_env(monkeypatch)
+    # This exact stored string is asserted against the route's real insert payload
+    # by route.test.ts. Legacy raw strings normalize to the same recipient.
+    pages = iter([[_subscriber_row(1, case["stored"]), _subscriber_row(2, case["raw"])], []])
+    monkeypatch.setattr(notifier_mod, "urlopen", lambda *a, **kw: _page_response(next(pages)))
+    assert [sub.email for sub in fetch_subscribers()] == [case["stored"]]
+
+
+@pytest.mark.parametrize("email", _EMAIL_CONTRACT["rejected"])
+def test_legacy_incompatible_email_still_blocks_all_sends(monkeypatch, email):
+    _subscriber_env(monkeypatch)
+    _notify_brief(monkeypatch)
+    pages = iter([[_subscriber_row(1)], [_subscriber_row(2, email)], []])
+    calls = []
+
+    def fetch(req, timeout=None):
+        calls.append(req.full_url)
+        return _page_response(next(pages))
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fetch)
+    result = notify("synthetic-brief")
+    assert result.error == "fetch_subs: invalid_response"
+    assert result.attempted_count == result.sent_count == 0
+    assert all("/subscribers?" in url for url in calls)

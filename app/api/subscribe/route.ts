@@ -12,9 +12,10 @@ export const dynamic = "force-dynamic";
 const MAX_NAME = 120;
 const MAX_ORG = 160;
 const MAX_EMAIL = 254; // RFC 5321 practical maximum
-// Pragmatic email shape check (not RFC-perfect). `[^\s@]` excludes whitespace and
-// control chars, so the email field is inherently CRLF/header-injection safe. Not
-// ReDoS-prone (single hard `@` delimiter, no ambiguous nested quantifiers).
+// Pragmatic shape check (not RFC-perfect). Alongside the explicit C0/C1 check
+// below, matches notifier.py's contract: no controls, Unicode whitespace or BOM.
+// JavaScript \s excludes U+0085, while Python \s includes it; Python needs an
+// explicit BOM exclusion instead. Shared cases: subscriber_email_contract.json.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ── Rate limiting (best-effort, per serverless instance) ────────────────────
@@ -126,17 +127,21 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const name = sanitizeField(fieldStr(fields, "name"));
-  // Email goes through sanitizeField too (review LOW): EMAIL_RE's [^\s@] rejects
-  // whitespace but NOT non-whitespace control bytes (0x00-0x08, 0x0e-0x1f, 0x7f),
-  // which could otherwise enter the stored value. Sanitizing maps them to spaces,
-  // which the regex then rejects — a control-byte email fails validation cleanly.
-  const email = sanitizeField(fieldStr(fields, "email"));
+  // Only ordinary outer spaces are trimmed; reject controls/Unicode whitespace
+  // rather than silently repairing them. Lowercase before the length check so
+  // Unicode case expansion cannot produce an oversized stored recipient.
+  const email = typeof fields.email === "string"
+    ? fields.email.replace(/^ +| +$/g, "").toLowerCase() : "";
+  const hasEmailControl = Array.from(email).some((char) => {
+    const code = char.codePointAt(0)!;
+    return code < 0x20 || (code >= 0x7f && code <= 0x9f);
+  });
   const organisation = sanitizeField(fieldStr(fields, "organisation"));
 
   if (!name || name.length > MAX_NAME) {
     return json({ ok: false, error: "A valid name is required." }, 400);
   }
-  if (!email || email.length > MAX_EMAIL || !EMAIL_RE.test(email)) {
+  if (!email || email.length > MAX_EMAIL || hasEmailControl || !EMAIL_RE.test(email)) {
     return json({ ok: false, error: "A valid email address is required." }, 400);
   }
   if (organisation.length > MAX_ORG) {

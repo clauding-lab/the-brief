@@ -369,9 +369,12 @@ def fetch_subscribers() -> list[Subscriber]:
             name, email, organisation = row.get("name"), row.get("email"), row.get("organisation")
             if not isinstance(name, str) or not isinstance(email, str):
                 raise ValueError("Invalid subscriber fields")
-            email = email.strip().lower()
-            if (len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email)
-                    or any(ord(char) < 32 or ord(char) == 127 for char in email)):
+            # Match the signup route's storage policy, including its ECMAScript
+            # whitespace/BOM set and C0/C1 controls. Only ASCII outer spaces are
+            # trimmed. Shared regression cases: subscriber_email_contract.json.
+            email = email.strip(" ").lower()
+            if (len(email) > 254 or not re.fullmatch(r"[^\s@\ufeff]+@[^\s@\ufeff]+\.[^\s@\ufeff]+", email)
+                    or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in email)):
                 raise ValueError("Invalid subscriber email")
             if organisation is not None and not isinstance(organisation, str):
                 raise ValueError("Invalid subscriber organisation")

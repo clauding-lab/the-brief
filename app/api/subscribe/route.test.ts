@@ -77,3 +77,27 @@ describe("signup network limiting", () => {
     }
   });
 });
+
+// Both runtimes consume this storage-boundary contract; Python must accept every
+// exact stored value this real route emits, not just a similar regex example.
+import emailContract from "../../../tests/fixtures/subscriber_email_contract.json";
+
+describe("subscriber email storage contract", () => {
+  it.each(emailContract.accepted)("stores the shared canonical value for $raw", async ({ raw, stored }) => {
+    const req = new Request("https://brief.example/api/subscribe", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Reader", email: raw }),
+    });
+    expect((await post(req)).status).toBe(200);
+    expect(insert.mock.calls[0][0][0].email).toBe(stored);
+  });
+
+  it.each(emailContract.rejected)("rejects incompatible address %j before storage", async (email) => {
+    const req = new Request("https://brief.example/api/subscribe", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Reader", email }),
+    });
+    expect((await post(req)).status).toBe(400);
+    expect(insert).not.toHaveBeenCalled();
+  });
+});
