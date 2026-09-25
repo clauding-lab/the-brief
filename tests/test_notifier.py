@@ -295,11 +295,13 @@ def test_fetch_subscribers_returns_list_of_subscriber(monkeypatch):
     captured = {}
 
     def fake_urlopen(req, timeout=None):
+        if "&id=gt." in req.full_url:
+            return _FakeResp(b"[]")
         captured["url"] = req.full_url
         captured["headers"] = dict(req.headers)
         body = _json.dumps([
-            {"name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
-            {"name": "Tareq", "email": "t@city.com", "organisation": None},
+            {"id": "00000000-0000-0000-0000-000000000001", "name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
+            {"id": "00000000-0000-0000-0000-000000000002", "name": "Tareq", "email": "t@city.com", "organisation": None},
         ]).encode()
         return _FakeResp(body)
 
@@ -523,7 +525,7 @@ def test_send_via_brevo_includes_list_unsubscribe_header_when_opted_in(monkeypat
 
 def test_send_via_brevo_partial_failure_reports_sent_count_and_first_error(monkeypatch):
     """If subscriber 2 of 3 fails but 1 and 3 succeed, sent_count=2 and the
-    error string surfaces the first failure. Caller can decide to retry."""
+    error string surfaces the first failure without resending the audience."""
     counter = {"n": 0}
 
     def fake_urlopen(req, timeout=None):
@@ -547,7 +549,7 @@ def test_send_via_brevo_partial_failure_reports_sent_count_and_first_error(monke
     )
     assert sent == 2
     assert msg_id == "<ok@brevo>"
-    assert "transient network blip" in err
+    assert err == "network_error"
 
 
 def test_send_via_brevo_returns_error_on_network_failure(monkeypatch):
@@ -563,7 +565,7 @@ def test_send_via_brevo_returns_error_on_network_failure(monkeypatch):
     )
     assert sent == 0
     assert msg_id is None
-    assert "connection refused" in err
+    assert err == "network_error"
 
 
 def test_send_via_brevo_returns_error_on_non_2xx(monkeypatch):
@@ -683,8 +685,10 @@ def test_notify_happy_path(monkeypatch):
                 "published_at": "2026-05-14T00:30:00+00:00",
             }]).encode()
         elif "/subscribers?" in url:
+            if "&id=gt." in url:
+                return _FakeResp(b"[]")
             body = _json.dumps([
-                {"name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
+                {"id": "00000000-0000-0000-0000-000000000001", "name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
             ]).encode()
         elif url == "https://api.brevo.com/v3/smtp/email":
             body = b'{"messageId":"<abc@brevo>"}'
@@ -788,7 +792,7 @@ def test_notify_returns_fetch_subs_error_when_subscribers_raises(monkeypatch):
     assert result.sent_count == 0
     assert result.error is not None
     assert result.error.startswith("fetch_subs:")
-    assert "db timeout" in result.error
+    assert result.error == "fetch_subs: network_error"
 
 
 # ── H4/H3, review round 1: notify()'s UNSUBSCRIBE_EMAIL / BRIEF_LIST_UNSUB_HEADER ──
@@ -807,8 +811,10 @@ def _notify_happy_urlopen(captured_brevo: list[dict]):
         elif "/news?" in url:
             body = b"[]"
         elif "/subscribers?" in url:
+            if "&id=gt." in url:
+                return _FakeResp(b"[]")
             body = _json.dumps([
-                {"name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
+                {"id": "00000000-0000-0000-0000-000000000001", "name": "Mehrin", "email": "m@brac.com", "organisation": "BRAC"},
             ]).encode()
         elif url == "https://api.brevo.com/v3/smtp/email":
             captured_brevo.append(_json.loads(req.data.decode()))
@@ -881,3 +887,179 @@ def test_notify_includes_list_unsubscribe_header_when_flag_is_on(monkeypatch):
     notify("f54ac95d")
 
     assert captured[0]["headers"]["List-Unsubscribe"] == "<mailto:desk@thebrief.example?subject=Unsubscribe>"
+
+# B4: synthetic recipients only; the HTTP boundary still exercises real fetching/sending.
+import pytest
+from urllib.parse import parse_qs, urlsplit
+from uuid import UUID
+
+
+def _subscriber_row(number, email=None):
+    return {"id": str(UUID(int=number)), "name": f"Reader {number}",
+            "email": email or f"reader{number}@example.test", "organisation": None}
+
+
+def _subscriber_env(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "synthetic-service-key")
+    monkeypatch.setenv("BREVO_API_KEY", "synthetic-brevo-key")
+    monkeypatch.setenv("FROM_EMAIL", "sender@example.test")
+    monkeypatch.setenv("UNSUBSCRIBE_EMAIL", "unsubscribe@example.test")
+
+
+def _page_response(rows, content_range="0-999/*"):
+    response = _FakeResp(_json.dumps(rows).encode())
+    response.headers = {"Content-Range": content_range}
+    return response
+
+
+@pytest.mark.parametrize("count,cap", [(0, 1000), (1, 1000), (1000, 1000),
+                                       (1001, 1000), (2000, 1000), (7, 2)])
+def test_subscribers_keyset_reads_complete_list_despite_server_cap(monkeypatch, count, cap):
+    _subscriber_env(monkeypatch)
+    rows = [_subscriber_row(i) for i in range(1, count + 1)]
+    cursors = []
+
+    def fetch(req, timeout=None):
+        query = parse_qs(urlsplit(req.full_url).query)
+        assert query["select"] == ["id,name,email,organisation"]
+        assert query["order"] == ["id.asc"]
+        assert query["limit"] == ["1000"]
+        assert "offset" not in query
+        cursor = query.get("id", ["gt." + str(UUID(int=0))])[0]
+        assert cursor.startswith("gt.")
+        position = UUID(cursor[3:]).int
+        cursors.append(position)
+        # Assert the production request, not a fake that accepts any pagination.
+        return _page_response(rows[position:position + cap])
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fetch)
+    subs = fetch_subscribers()
+    assert [sub.email for sub in subs] == [f"reader{i}@example.test" for i in range(1, count + 1)]
+    assert cursors == list(range(0, count, cap)) + [count]
+
+
+@pytest.mark.parametrize("total", ["nonsense", "0-0/0", "0-0/1", "0-0/-1", "0-0/*"])
+def test_subscribers_never_uses_untrusted_totals_to_end_early(monkeypatch, total):
+    _subscriber_env(monkeypatch)
+    pages = iter([[_subscriber_row(1)], [_subscriber_row(2)], []])
+    monkeypatch.setattr(notifier_mod, "urlopen", lambda *a, **kw: _page_response(next(pages), total))
+    assert len(fetch_subscribers()) == 2
+
+
+@pytest.mark.parametrize("bad_page", [
+    [_subscriber_row(1)],  # repeated page, no cursor progress
+    [_subscriber_row(3), _subscriber_row(2)],  # out of order
+    [_subscriber_row(2), _subscriber_row(2)],  # duplicate primary key
+    [{"id": "invalid", "name": "Reader", "email": "reader@example.test"}],
+    [{"id": str(UUID(int=2)), "name": None, "email": "reader@example.test"}],
+    [{"id": str(UUID(int=2)), "name": "Reader", "email": "bad\n@example.test"}],
+    {"error": "not a list"},
+])
+def test_subscribers_rejects_nonprogress_and_malformed_pages(monkeypatch, bad_page):
+    _subscriber_env(monkeypatch)
+    pages = iter([[_subscriber_row(1)], bad_page, []])
+    monkeypatch.setattr(notifier_mod, "urlopen", lambda *a, **kw: _page_response(next(pages)))
+    with pytest.raises(ValueError):
+        fetch_subscribers()
+
+
+def _notify_brief(monkeypatch):
+    from brief.notifier import BriefRow
+    monkeypatch.setattr(notifier_mod, "fetch_brief_data", lambda _: (
+        BriefRow(id="synthetic-brief", issue_no=1, volume=1,
+                 brief_date=date(2026, 9, 25), published_at=None,
+                 todays_call="Synthetic brief.", lens=None), None))
+
+
+def test_notify_fetches_all_pages_and_deduplicates_before_private_sends(monkeypatch):
+    _subscriber_env(monkeypatch)
+    _notify_brief(monkeypatch)
+    pages = iter([[_subscriber_row(1, " Reader@Example.test ")],
+                  [_subscriber_row(2, "reader@example.test"), _subscriber_row(3)], []])
+    completed_fetch = False
+    payloads = []
+
+    def fetch(req, timeout=None):
+        nonlocal completed_fetch
+        if "/subscribers?" in req.full_url:
+            page = next(pages)
+            completed_fetch = not page
+            return _page_response(page)
+        assert completed_fetch, "No recipient may be sent before the final page validates"
+        payloads.append(_json.loads(req.data))
+        if len(payloads) == 2:
+            raise OSError("synthetic failure")
+        return _FakeResp(b'{"messageId":"accepted"}', status=201)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fetch)
+    result = notify("synthetic-brief")
+    assert [payload["to"] for payload in payloads] == [
+        [{"name": "Reader 1", "email": "reader@example.test"}],
+        [{"name": "Reader 3", "email": "reader3@example.test"}],
+    ]
+    assert all("cc" not in payload and "bcc" not in payload for payload in payloads)
+    assert result.attempted_count == 2
+    assert result.sent_count == 1
+    assert result.failed_count == 1
+    assert result.error == "network_error"
+
+
+def test_notify_page_two_failure_sends_nothing_and_redacts_error(monkeypatch, caplog):
+    _subscriber_env(monkeypatch)
+    _notify_brief(monkeypatch)
+    calls = []
+
+    def fetch(req, timeout=None):
+        calls.append(req.full_url)
+        if len(calls) == 1:
+            return _page_response([_subscriber_row(1)])
+        raise OSError("reader1@example.test synthetic-service-key " + "secret" * 1000)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fetch)
+    result = notify("synthetic-brief")
+    assert len(calls) == 2
+    assert all("/subscribers?" in url for url in calls)
+    assert result.attempted_count == result.sent_count == result.failed_count == 0
+    assert result.error == "fetch_subs: network_error"
+    assert "reader1@example.test" not in caplog.text
+    assert "synthetic-service-key" not in caplog.text
+    assert "secret" not in caplog.text
+
+
+@pytest.mark.parametrize("http_error", [False, True])
+def test_send_errors_are_bounded_redacted_and_do_not_stop_later_recipients(monkeypatch, caplog, http_error):
+    from urllib.error import HTTPError
+    calls = 0
+
+    def fetch(req, timeout=None):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            private_detail = "private-reader@example.test synthetic-brevo-key " + "sensitive" * 1000
+            if http_error:
+                raise HTTPError(req.full_url, 503, private_detail, hdrs=None, fp=None)
+            raise OSError(private_detail)
+        return _FakeResp(b'{"messageId":"accepted"}', status=201)
+
+    monkeypatch.setattr(notifier_mod, "urlopen", fetch)
+    sent, _, error = send_via_brevo(
+        api_key="synthetic-brevo-key", from_email="sender@example.test", from_name="The Brief",
+        subscribers=[Subscriber("Private", "private-reader@example.test", None),
+                     Subscriber("Next", "next@example.test", None)],
+        subject="s", html_body="h", text_body="t")
+    assert calls == 2 and sent == 1
+    assert error == ("HTTP 503" if http_error else "network_error")
+    assert len(error) < 80
+    assert "private-reader@example.test" not in caplog.text
+    assert "synthetic-brevo-key" not in caplog.text
+    assert "sensitive" not in caplog.text
+
+
+def test_brevo_acceptance_counts_even_when_response_body_is_not_json(monkeypatch):
+    monkeypatch.setattr(notifier_mod, "urlopen", lambda *a, **kw: _FakeResp(b"", status=201))
+    sent, message_id, error = send_via_brevo(
+        api_key="key", from_email="sender@example.test", from_name="The Brief",
+        subscribers=[Subscriber("Reader", "reader@example.test", None)],
+        subject="s", html_body="h", text_body="t")
+    assert (sent, message_id, error) == (1, None, None)

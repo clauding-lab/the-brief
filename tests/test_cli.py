@@ -488,3 +488,19 @@ def test_failed_published_replacement_leaves_draft_and_retry_still_never_sends()
     assert identities[0] == identities[1]
     assert identities[1].issue_no == 235
     notify.assert_not_called()
+
+
+def test_notifier_partial_delivery_alerts_without_republishing(caplog):
+    from brief.notifier import NotifyResult
+
+    result = NotifyResult(sent_count=2, skipped_count=0, message_id="accepted",
+                          error="HTTP 503", attempted_count=3)
+    with caplog.at_level("ERROR", logger="brief.cli"):
+        rc, alert = _run_publish_with_notify(notify_result=result)
+    assert rc == 0
+    alert.assert_called_once()
+    assert "PARTIAL DELIVERY" in alert.call_args.args[0]
+    assert "sent=2" in alert.call_args.args[0]
+    assert "attempted=3" in alert.call_args.args[0]
+    assert "failed=1" in alert.call_args.args[0]
+    assert any("PARTIAL DELIVERY" in record.message for record in caplog.records)

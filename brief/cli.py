@@ -127,9 +127,9 @@ def _run_v6_publish_unlocked(
             from brief.notifier import notify as _notify
             result = _notify(brief_id)
             log.info(
-                "notifier: sent=%d/%d skipped=%d message_id=%s error=%s",
+                "notifier: sent=%d/%d failed=%d skipped=%d message_id=%s error=%s",
                 result.sent_count, result.attempted_count,
-                result.skipped_count, result.message_id, result.error,
+                result.failed_count, result.skipped_count, result.message_id, result.error,
             )
             # Fail-loud (item 5d): a publish that succeeded but whose email reached
             # NOBODY used to vanish into an info log. Alert when sent=0 with a real
@@ -154,6 +154,20 @@ def _run_v6_publish_unlocked(
                     f"subscriber email delivered to NOBODY — sent=0 "
                     f"attempted={result.attempted_count} error={result.error}. "
                     f"Inspect: journalctl -u brief.service -n 200 --no-pager"
+                )
+            elif result.failed_count > 0:
+                # Keep the published edition and do not retry an already-mailed
+                # audience. B5 owns the existing alert transport.
+                incident = (
+                    f"PARTIAL DELIVERY — sent={result.sent_count} "
+                    f"attempted={result.attempted_count} failed={result.failed_count} "
+                    f"error={result.error} (publish itself succeeded; do not resend everyone)"
+                )
+                log.error("notifier: %s", incident)
+                from brief.alerts import send_discord_alert
+                send_discord_alert(
+                    f"ALERT: The Brief published (brief_id={brief_id}) but subscriber email had "
+                    f"{incident}. Inspect: journalctl -u brief.service -n 200 --no-pager"
                 )
         except Exception:
             # Last-resort fail-open: even an import error must not crash a successful

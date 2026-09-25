@@ -12,6 +12,7 @@ import html as _html
 import json as _stdjson
 import logging
 import os
+import re
 import urllib.error
 from dataclasses import dataclass
 from datetime import date as date_t
@@ -19,6 +20,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote as _urlquote
 from urllib.request import Request, urlopen
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 
@@ -71,6 +73,11 @@ class NotifyResult:
     # to 0 on early-return paths where the list was never fetched.
     attempted_count: int = 0
 
+    @property
+    def failed_count(self) -> int:
+        """Attempted recipients for whom Brevo acceptance was not confirmed."""
+        return self.attempted_count - self.sent_count
+
 
 @dataclass(frozen=True)
 class BriefRow:
@@ -104,6 +111,18 @@ class NewsRow:
 def _json_loads(data: bytes) -> list[dict]:
     """Decode a Supabase / Brevo JSON response body into a list of dicts."""
     return _stdjson.loads(data.decode("utf-8"))
+
+
+def _error_tag(error: Exception) -> str:
+    """Bounded diagnostic categories; exception text may contain private data."""
+    if isinstance(error, urllib.error.HTTPError):
+        code = error.code
+        return f"HTTP {code}" if isinstance(code, int) and 100 <= code <= 599 else "http_error"
+    if isinstance(error, OSError):
+        return "network_error"
+    if isinstance(error, (ValueError, TypeError, KeyError)):
+        return "invalid_response"
+    return "unexpected_error"
 
 
 def _esc(s: str) -> str:
@@ -318,22 +337,46 @@ def render_email(*, brief: BriefRow, lead_news: NewsRow | None, unsubscribe_emai
 
 
 def fetch_subscribers() -> list[Subscriber]:
-    """GET /rest/v1/subscribers — all rows ordered by created_at desc."""
+    """Fetch and validate every page before returning normalized unique recipients.
+
+    The live schema's UUID primary key gives a stable, unique cursor. A short
+    page is NOT completion: Supabase may cap results below our requested limit.
+    Continue until an empty page, independently of optional/estimated totals.
+    These reads are not a database snapshot; concurrent signups behind the cursor
+    may join the next edition instead. No send starts until this fetch completes.
+    """
     url, key = _supabase_config()
-    req = Request(
-        f"{url}/rest/v1/subscribers?select=name,email,organisation&order=created_at.desc",
-        headers={
-            "apikey": key,
-            "Authorization": f"Bearer {key}",
-            "Accept": "application/json",
-        },
-    )
-    with urlopen(req, timeout=30) as r:
-        rows = _json_loads(r.read())
-    return [
-        Subscriber(name=row["name"], email=row["email"], organisation=row.get("organisation"))
-        for row in rows
-    ]
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Accept": "application/json"}
+    cursor: UUID | None = None
+    recipients: dict[str, Subscriber] = {}
+    while True:
+        query = "select=id,name,email,organisation&order=id.asc&limit=1000"
+        if cursor is not None:
+            query += f"&id=gt.{cursor}"
+        req = Request(f"{url}/rest/v1/subscribers?{query}", headers=headers)
+        with urlopen(req, timeout=30) as response:
+            rows = _json_loads(response.read())
+        if not isinstance(rows, list):
+            raise ValueError("Invalid subscriber page")
+        if not rows:
+            return list(recipients.values())
+        for row in rows:
+            if not isinstance(row, dict) or not isinstance(row.get("id"), str):
+                raise ValueError("Invalid subscriber id")
+            row_id = UUID(row["id"])
+            if cursor is not None and row_id <= cursor:
+                raise ValueError("Subscriber pagination did not advance")
+            name, email, organisation = row.get("name"), row.get("email"), row.get("organisation")
+            if not isinstance(name, str) or not isinstance(email, str):
+                raise ValueError("Invalid subscriber fields")
+            email = email.strip().lower()
+            if (len(email) > 254 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email)
+                    or any(ord(char) < 32 or ord(char) == 127 for char in email)):
+                raise ValueError("Invalid subscriber email")
+            if organisation is not None and not isinstance(organisation, str):
+                raise ValueError("Invalid subscriber organisation")
+            recipients.setdefault(email, Subscriber(name=name, email=email, organisation=organisation))
+            cursor = row_id
 
 
 def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
@@ -466,17 +509,17 @@ def send_via_brevo(
         )
         try:
             with urlopen(req, timeout=30) as r:
-                body = _json_loads(r.read())
+                # Acceptance is the successful HTTP response, even if its optional
+                # message-id body cannot be read/decoded. Do not report it unsent.
                 sent_count += 1
-                if isinstance(body, dict) and body.get("messageId"):
+                try:
+                    body = _json_loads(r.read())
+                except (ValueError, OSError):
+                    body = None
+                if isinstance(body, dict) and isinstance(body.get("messageId"), str):
                     last_message_id = body["messageId"]
-        except urllib.error.HTTPError as e:
-            err = f"HTTP {e.code}: {e.reason}"
-            logger.warning("notifier: send to %s failed: %s", _mask_email(sub.email), err)
-            if first_error is None:
-                first_error = err
         except Exception as e:
-            err = f"{type(e).__name__}: {e}"
+            err = _error_tag(e)
             logger.warning("notifier: send to %s failed: %s", _mask_email(sub.email), err)
             if first_error is None:
                 first_error = err
@@ -532,14 +575,16 @@ def notify(brief_id: str) -> NotifyResult:
     try:
         brief, lead_news = fetch_brief_data(brief_id)
     except Exception as e:
-        logger.exception("notifier: failed to fetch brief data: %s", e)
-        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error=f"fetch_brief: {e}")
+        error = f"fetch_brief: {_error_tag(e)}"
+        logger.error("notifier: %s", error)
+        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error=error)
 
     try:
         subscribers = fetch_subscribers()
     except Exception as e:
-        logger.exception("notifier: failed to fetch subscribers: %s", e)
-        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error=f"fetch_subs: {e}")
+        error = f"fetch_subs: {_error_tag(e)}"
+        logger.error("notifier: %s", error)
+        return NotifyResult(sent_count=0, skipped_count=0, message_id=None, error=error)
 
     if not subscribers:
         logger.info("notifier: no subscribers, skipping send")
