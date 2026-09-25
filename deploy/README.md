@@ -51,8 +51,10 @@ That application log contains the actual Python traceback (for example, a
   in the `systemd-journal` group for the excerpt:
   `sudo usermod -aG systemd-journal adnan`.
 - **Approved-channel test after deployment:** run exactly one
-  `sudo systemctl start brief-alert@brief.service.service` and confirm one
-  message arrives in the intended Discord channel. Check that it names the
+  `sudo systemctl start brief-alert@brief-test.service` and confirm one
+  message beginning `TEST ALERT:` arrives in the intended Discord channel.
+  The test instance uses the installed alert unit's environment and the
+  allowlisted `brief.service` application log. Check that it names the
   application log and contains no credentials or recipient addresses. This
   test sends a real alert; do it only during the approved release step.
 - **Shared with another repo on the same box.** `chess-prodigy-prune.service`

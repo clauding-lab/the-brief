@@ -19,6 +19,13 @@
 set -u
 
 FAILED_UNIT="${1:-unknown-unit}"
+ALERT_TEST=0
+if [[ "$FAILED_UNIT" == "brief-test" ]]; then
+  # Manual test via brief-alert@brief-test.service uses the installed template,
+  # webhook environment and real application-log mapping.
+  FAILED_UNIT="brief.service"
+  ALERT_TEST=1
+fi
 WEBHOOK="${DISCORD_ALERT_WEBHOOK_URL:-${DISCORD_PREVIEW_WEBHOOK_URL:-}}"
 
 if [[ -z "$WEBHOOK" ]]; then
@@ -57,20 +64,22 @@ case "$FAILED_UNIT" in
 esac
 
 # Build the JSON payload safely (Discord caps content at 2000 chars).
-PAYLOAD="$(FAILED_UNIT="$FAILED_UNIT" HOST="$HOST" WHEN="$WHEN" LOG_TAIL="$LOG_TAIL" LOG_SOURCE="$LOG_SOURCE" python3 - <<'PY'
+PAYLOAD="$(FAILED_UNIT="$FAILED_UNIT" ALERT_TEST="$ALERT_TEST" HOST="$HOST" WHEN="$WHEN" LOG_TAIL="$LOG_TAIL" LOG_SOURCE="$LOG_SOURCE" python3 - <<'PY'
 import json, os, re
 
 unit = os.environ.get("FAILED_UNIT", "unknown-unit")
 host = os.environ.get("HOST", "unknown-host")
 when = os.environ.get("WHEN", "")
-tail = os.environ.get("LOG_TAIL") or ""
+tail_bytes = os.environb.get(b"LOG_TAIL", b"")
 source = os.environ.get("LOG_SOURCE", "none")
+test_mode = os.environ.get("ALERT_TEST") == "1"
 
 # A byte tail can begin inside a credential value, after its label was cut.
-# Discard that first line before applying label-based redaction.
-if len(tail.encode("utf-8")) >= 1501:
-    tail = tail.partition("\n")[2]
-tail = tail.strip()
+# Work with raw bytes until that line is gone: decoding a partial UTF-8
+# character first can leave a surrogate that cannot be re-encoded normally.
+if len(tail_bytes) >= 1501:
+    tail_bytes = tail_bytes.partition(b"\n")[2]
+tail = tail_bytes.decode("utf-8", errors="replace").strip()
 
 def redact(value):
     value = re.sub(r"https?://\S*(?:webhooks?|hooks)/\S+", "[webhook redacted]", value, flags=re.I)
@@ -79,7 +88,8 @@ def redact(value):
     return value
 
 lines = [
-    f"ALERT: `{unit}` FAILED on {host} at {when}.",
+    (f"TEST ALERT: delivery check for `{unit}` on {host} at {when}."
+     if test_mode else f"ALERT: `{unit}` FAILED on {host} at {when}."),
     ("Inspect: `/home/adnan/the-brief/logs/brief-systemd.log`"
      if source == "application log" else f"Source: {source}"),
 ]

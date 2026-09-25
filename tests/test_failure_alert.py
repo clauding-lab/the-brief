@@ -84,3 +84,25 @@ def test_journal_tail_uses_same_redaction(tmp_path: Path) -> None:
     assert "export failed" in content
     assert "secret-journal-value" not in content
     assert "operator@example.com" not in content
+
+
+def test_byte_cut_inside_bengali_character_still_sends_safe_alert(tmp_path: Path) -> None:
+    prefix = "ignored "
+    suffix = "\nV6PublishError: hold\n"
+    cut_at = len(prefix.encode()) + 1  # second byte of the three-byte Bengali character
+    filler_len = 1501 + cut_at - len(prefix.encode()) - len("ক".encode()) - len(suffix.encode())
+    filler = "secret-cut-value" + "x" * (filler_len - len("secret-cut-value"))
+    log = prefix + "ক" + filler + suffix
+    assert len(log.encode()) - 1501 == cut_at
+    content = _run_alert(tmp_path, "brief.service", log)["content"]
+    assert "V6PublishError" in content
+    assert "secret-cut-value" not in content
+
+
+def test_manual_test_selector_is_visibly_test_and_normal_failure_is_unchanged(tmp_path: Path) -> None:
+    test_content = _run_alert(tmp_path, "brief-test", "V6PublishError: hold\n")["content"]
+    normal_content = _run_alert(tmp_path, "brief.service", "V6PublishError: hold\n")["content"]
+    assert test_content.startswith("TEST ALERT:")
+    assert "brief.service" in test_content
+    assert normal_content.startswith("ALERT:")
+    assert "TEST" not in normal_content
