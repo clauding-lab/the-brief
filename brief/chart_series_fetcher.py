@@ -28,7 +28,8 @@ from datetime import date as date_t
 from datetime import timedelta
 from typing import Any
 
-from brief.history import HttpClient, MetricHistoryClient
+from brief.history import HttpClient, MetricHistoryClient, observation_date
+from brief.cadence import now_bdt
 from brief.v6_schema import MoverRowV6, SeriesNoteV6, SeriesPointV6
 
 logger = logging.getLogger(__name__)
@@ -474,6 +475,7 @@ def fetch_brent(
 # stay excluded; the seeded archive does not.
 _OFFICIAL_CPI_SOURCES: frozenset[str] = frozenset({
     "bb_inflation_page",
+    "econdelta_daily_cpi",
     "macro_observer_seed",
 })
 
@@ -503,7 +505,12 @@ def is_official_cpi_point(metric_id: str, ts: str, source: str | None) -> bool:
     chart can never independently drift on what counts as official."""
     if source not in _OFFICIAL_CPI_SOURCES:
         return False
-    if (metric_id, ts) in _PENDING_UNOFFICIAL_CPI_POINTS:
+    # Denied points name a source month, regardless of start/end stamping.
+    try:
+        bucket = date_t.fromisoformat(ts).replace(day=1).isoformat()
+    except (TypeError, ValueError):
+        return False
+    if (metric_id, bucket) in _PENDING_UNOFFICIAL_CPI_POINTS:
         return False
     return True
 
@@ -536,8 +543,9 @@ def fetch_macro_cpi_series(
         rows = grouped.get(mid, [])
         # rows are most-recent-first from PostgREST anchor mode; flip to chronological
         points: list[SeriesPointV6] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=now_bdt().date(), monthly=True)) is not None
             if is_official_cpi_point(mid, r.as_of.isoformat(), r.source)
         ]
         out[mid] = points
@@ -567,8 +575,9 @@ def fetch_remit_monthly(
     for mid in _REMIT_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=now_bdt().date(), monthly=True)) is not None
         ]
     return out
 
@@ -598,8 +607,9 @@ def fetch_fiscal_monthly(
     for mid in _FISCAL_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=now_bdt().date(), monthly=True)) is not None
         ]
     return out
 
@@ -629,8 +639,9 @@ def fetch_fx_balance_monthly(
     for mid in _FX_BALANCE_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=now_bdt().date(), monthly=True)) is not None
         ]
     return out
 
@@ -659,8 +670,9 @@ def fetch_reserves_monthly(
     for mid in _RESERVES_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=now_bdt().date(), monthly=True)) is not None
         ]
     return out
 

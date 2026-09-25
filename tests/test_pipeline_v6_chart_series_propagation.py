@@ -1143,15 +1143,15 @@ def test_fetch_macro_cpi_series_keeps_the_official_12m_avg_july_point() -> None:
     _seed_cpi_fixture()
     out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
     ts_values = {p.ts: p.value for p in out["cpi_12m_avg_monthly"]}
-    assert ts_values.get("2026-07-01") == 8.66
+    assert ts_values.get("2026-07-31") == 8.66
 
 
 def test_fetch_macro_cpi_series_drops_the_derived_july_food_point() -> None:
     _seed_cpi_fixture()
     out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
     ts_values = {p.ts for p in out["cpi_p2p_food_monthly"]}
-    assert "2026-07-01" not in ts_values
-    assert "2026-06-01" in ts_values
+    assert "2026-07-31" not in ts_values
+    assert "2026-06-30" in ts_values
 
 
 def test_fetch_macro_cpi_series_drops_the_owner_pending_july_nonfood_point() -> None:
@@ -1161,8 +1161,8 @@ def test_fetch_macro_cpi_series_drops_the_owner_pending_july_nonfood_point() -> 
     _seed_cpi_fixture()
     out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
     ts_values = {p.ts for p in out["cpi_p2p_nonfood_monthly"]}
-    assert "2026-07-01" not in ts_values
-    assert "2026-06-01" in ts_values
+    assert "2026-07-31" not in ts_values
+    assert "2026-06-30" in ts_values
 
 
 # ─── CPI archive honesty gate must not truncate the whole history ────────
@@ -1243,7 +1243,7 @@ def test_fetch_macro_cpi_series_keeps_the_seeded_history_not_just_the_live_tail(
 
     # The seeded history itself must still be present, not just the live tail.
     food_ts = {p.ts for p in out["cpi_p2p_food_monthly"]}
-    assert "2024-08-01" in food_ts, (
+    assert "2024-08-31" in food_ts, (
         "seeded history (source=macro_observer_seed) was dropped — the chart "
         "would show only the last few months instead of a real 24-month trend"
     )

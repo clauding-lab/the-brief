@@ -691,7 +691,7 @@ def test_dual_source_cpi_cards_prefer_a_genuinely_newer_official_archive_row() -
     s = build(ctx)
     by_id = {m.id: m for m in s.metrics}
     assert by_id["cpi_p2p_food_monthly"].value == 7.5
-    assert by_id["cpi_p2p_food_monthly"].as_of == date(2026, 7, 1)
+    assert by_id["cpi_p2p_food_monthly"].as_of == date(2026, 7, 31)
 
 
 def test_private_credit_yoy_is_unaffected_by_the_cpi_dual_source_resolver() -> None:

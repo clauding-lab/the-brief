@@ -921,6 +921,35 @@ def _stamp_import_cover_sub(
         break
 
 
+def _stamp_remittance_sub(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]
+) -> None:
+    """Keep the builder's remittance period/status after model validation.
+
+    Replace the model's sub rather than appending contradictory month/finality
+    prose. Label matching is normalized like the other deterministic stampers.
+    """
+    raw = next((m for section in raw_sections if section.get("slug") == "remit"
+                for m in section.get("metrics", []) or []
+                if m.get("id") == "remit_monthly_mn" and m.get("value") is not None), None)
+    if raw is None:
+        return
+    note = raw.get("source") or ""
+    if not note.startswith("BB · "):
+        return
+    for section in final_brief.sections:
+        if section.slug != "remit":
+            continue
+        for pub in section.metrics:
+            if _normalize_label(pub.label) == _normalize_label(str(raw.get("label") or "")):
+                pub.sub = note
+                # Runs after generic catalog/vintage passes: the source period
+                # wins, and no source here verifies a next-release schedule.
+                pub.held_from = (date_t.fromisoformat(str(raw["as_of"])[:10])
+                                 if raw.get("stale") else None)
+                pub.next_print = None
+
+
 # The marker substring `macro._real_policy_rate`'s provenance note, this
 # stamper and the published `sub` are all checked against, so a re-run never
 # double-appends. Mirrors `_IMPORT_COVER_SUB_MARKER` exactly.
@@ -2224,6 +2253,7 @@ def run_publish(
     # the "held from" footer had never rendered before this ran. See
     # brief/vintage.py.
     vintaged = stamp_vintages(final_brief, sections, today=today)
+    _stamp_remittance_sub(final_brief, editor_input["sections_raw"])
     _stamp_freshness(final_brief, editor_input["sections_raw"])
 
     # Phase E.2 — chart series enricher. Skip silently when supabase env is

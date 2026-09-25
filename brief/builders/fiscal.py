@@ -26,15 +26,15 @@ from . import BuilderContext
 
 
 _SPEC = (
-    ("fiscal_nbr_collected_trn", "NBR collected YTD", "BDT trn", "NBR"),
-    ("fiscal_govt_borrow_trn",   "Govt bank borrow YTD", "BDT trn", "BB"),
+    ("fiscal_nbr_collected_trn", "NBR collected YTD", "BDT trn", "NBR", "fiscal_nbr_collected_trn"),
+    ("fiscal_govt_borrow_trn",   "Govt bank borrow YTD", "BDT trn", "BB", "fiscal_bank_borrow_trn"),
 )
 
 
 def build(ctx: BuilderContext) -> SectionData:
     metrics: list[Metric] = []
-    for mid, label, unit, source in _SPEC:
-        last = ctx.history.get_latest(mid) if ctx.history is not None else None
+    for mid, label, unit, source, read_id in _SPEC:
+        last = ctx.history.get_latest(read_id) if ctx.history is not None else None
         metrics.append(Metric(
             id=mid, label=label,
             value=(last.value if last else None), unit=unit,

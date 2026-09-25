@@ -114,7 +114,9 @@ def _enrich_metric_history(
     """
     if history is None:
         return
-    all_ids = list({m.id for s in sections for m in s.metrics})
+    # Public IDs stay stable while the underlying economic concept is corrected.
+    read_ids = {"fiscal_govt_borrow_trn": "fiscal_bank_borrow_trn"}
+    all_ids = list({read_ids.get(m.id, m.id) for s in sections for m in s.metrics})
     if not all_ids:
         return
     try:
@@ -124,7 +126,7 @@ def _enrich_metric_history(
         return
     for s in sections:
         for m in s.metrics:
-            vals = history_map.get(m.id)
+            vals = history_map.get(read_ids.get(m.id, m.id))
             if vals:
                 m.history_values = vals
 

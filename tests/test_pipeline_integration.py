@@ -70,3 +70,27 @@ def test_gather_no_history_no_enrichment_no_failure(fixture_snapshot, today):
         for m in s.metrics:
             assert m.history_values is None
 
+
+
+def test_bank_borrowing_history_uses_bank_only_read_id_in_one_batch():
+    from datetime import date
+    from brief.pipeline import _enrich_metric_history
+    from brief.schema import Metric
+
+    class History:
+        def __init__(self):
+            self.calls = []
+
+        def get_history_window(self, ids, **kwargs):
+            self.calls.append(ids)
+            rows = {"fiscal_govt_borrow_trn": [1.7, 1.8],
+                    "fiscal_bank_borrow_trn": [-1.1, -1.2]}
+            return {mid: rows[mid] for mid in ids if mid in rows}
+
+    history = History()
+    card = Metric(id="fiscal_govt_borrow_trn", label="Govt bank borrow YTD", value=-1.2,
+                  unit="BDT trn", as_of=date(2026, 6, 30), source="BB", cadence="monthly")
+    sections = [SectionData(id="fiscal", title="Fiscal", metrics=[card], freshness="stale")]
+    _enrich_metric_history(sections, history, today=date(2026, 9, 25))
+    assert card.history_values == [-1.1, -1.2]
+    assert history.calls == [["fiscal_bank_borrow_trn"]]

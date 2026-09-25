@@ -28,6 +28,30 @@ class HistoryRow:
     source_as_of: date | None = None
 
 
+def observation_date(row: HistoryRow, *, today: date, monthly: bool = False) -> date | None:
+    """Resolve source evidence; only completed monthly buckets gain month-end.
+
+    A monthly source date must belong to its bucket. Daily/event dates retain
+    their writer convention. Quote callers separately require explicit evidence
+    because legacy aggregate daily rows may have been collection restamps.
+    """
+    from brief.cadence import month_end
+
+    if not isinstance(row.as_of, date) or row.as_of > today:
+        return None
+    source_date = row.source_as_of
+    if source_date is not None:
+        if not isinstance(source_date, date) or source_date > today:
+            return None
+        if monthly and (source_date.year, source_date.month) != (row.as_of.year, row.as_of.month):
+            return None
+        return source_date
+    if monthly:
+        end = month_end(row.as_of)
+        return end if end <= today else None
+    return row.as_of
+
+
 def _source_as_of(row: dict) -> date | None:
     """Best-effort read of a row's `source_as_of`.
 

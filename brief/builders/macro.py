@@ -39,7 +39,7 @@ from datetime import date
 from typing import Callable
 
 from brief.cadence import months_apart, section_freshness
-from brief.history import HistoryRow
+from brief.history import HistoryRow, observation_date
 from brief.history_anchors import HistoryFact, fetch_and_compute
 from brief.schema import Metric, SectionData
 from . import BuilderContext, official_monthly_bn
@@ -426,7 +426,9 @@ def _resolve_newest_official_cpi(
             and isinstance(row.value, (int, float))
             and is_official_cpi_point(spec.archive_id, row.as_of.isoformat(), row.source)
         ):
-            candidates.append(row)
+            observed = observation_date(row, today=ctx.today, monthly=True)
+            if observed is not None:
+                candidates.append(HistoryRow(row.metric_id, observed, row.value, row.source))
     if not candidates:
         return (None, None)
     newest = max(candidates, key=lambda r: r.as_of)
@@ -456,7 +458,12 @@ def build(ctx: BuilderContext) -> SectionData:
             row = _latest(ctx.history_monthly, spec.archive_id,
                           table="metric_history_monthly")
             if row is not None:
-                value, as_of = row.value, row.as_of
+                from brief.chart_series_fetcher import is_official_cpi_point
+                observed = observation_date(row, today=ctx.today, monthly=True)
+                official = not spec.archive_id.startswith("cpi_") or is_official_cpi_point(
+                    spec.archive_id, row.as_of.isoformat(), row.source)
+                if observed is not None and official:
+                    value, as_of = row.value, observed
 
         metrics.append(Metric(
             id=spec.id,

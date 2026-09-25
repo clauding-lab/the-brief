@@ -68,8 +68,7 @@ def official_monthly_bn(ctx: "BuilderContext", metric_id: str, *,
     caller assigns a final display value. Rounding here AND again downstream
     (e.g. fx.py's trade-gap subtraction) compounds error twice for no reason.
     """
-    from brief.cadence import month_end
-    from brief.history import HistoryRow
+    from brief.history import HistoryRow, observation_date
 
     history_monthly = ctx.history_monthly
     if history_monthly is None:
@@ -94,9 +93,42 @@ def official_monthly_bn(ctx: "BuilderContext", metric_id: str, *,
             metric_id, row.value,
         )
         return None
+    observed = observation_date(row, today=ctx.today, monthly=True)
+    if row.metric_id != metric_id or observed is None:
+        logger.warning("official_monthly_bn: %s — invalid source period", metric_id)
+        return None
     return HistoryRow(
         metric_id=row.metric_id,
-        as_of=month_end(row.as_of),
+        as_of=observed,
         value=row.value / 1000,
         source=row.source,
     )
+
+
+def dated_quote(ctx: BuilderContext, metric_id: str) -> tuple[float, date, str, bool] | None:
+    """Return a source-bound (value, date, source, held) quote, or None.
+
+    A legacy scalar cannot borrow a date from an equal number. The fallback
+    uses the history record's own value and explicit source_as_of together.
+    Daily source_as_of is optional; no query requires that column to exist.
+    """
+    from brief.history import observation_date
+    import math
+
+    item = ctx.snapshot.observation(metric_id, today=ctx.today)
+    if item is not None:
+        return (item["value"], date.fromisoformat(item["as_of"]), item["source"],
+                item["quality"] == "held")
+    # An explicit rejected/unknown record must not be resurrected from history.
+    if metric_id in ctx.snapshot.observations:
+        return None
+    if ctx.history is None:
+        return None
+    row = ctx.history.get_latest(metric_id)
+    if (row is None or getattr(row, "metric_id", None) != metric_id
+            or getattr(row, "source_as_of", None) is None
+            or not isinstance(row.value, (int, float)) or isinstance(row.value, bool)
+            or not math.isfinite(row.value) or not row.source):
+        return None
+    observed = observation_date(row, today=ctx.today)
+    return (row.value, observed, row.source, True) if observed is not None else None

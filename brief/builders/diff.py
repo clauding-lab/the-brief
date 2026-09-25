@@ -65,7 +65,7 @@ def _parse_numeric(v: Any) -> float | None:
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, str):
-        stripped = _NUMERIC_STRIP.sub("", v)
+        stripped = _NUMERIC_STRIP.sub("", v.replace("−", "-"))
         if not stripped or stripped in {".", "-", ".-", "-."}:
             return None
         try:

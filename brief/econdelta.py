@@ -6,9 +6,10 @@ tests pass a path to a fixture. No HTTP.
 from __future__ import annotations
 
 import json
+import math
 import os
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +25,36 @@ class EconDeltaSnapshot:
     updated_at: datetime
     sources_status: dict[str, dict[str, Any]]
     data: dict[str, Any]
+    observations: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
+
+    def observation(self, key: str, *, today: date) -> dict[str, Any] | None:
+        """Read one complete producer record, bound to this scalar and concept.
+
+        Matching values alone are not date evidence: identity, source evidence,
+        quality, date basis and capture boundary must all agree as well.
+        """
+        item = self.observations.get(key)
+        if not isinstance(item, dict):
+            return None
+        value = item.get("value")
+        if (item.get("metric_id") != key or not isinstance(value, (int, float))
+                or isinstance(value, bool) or not math.isfinite(value)
+                or value != self.get(key) or item.get("quality") not in ("verified", "held")
+                or item.get("date_basis") != "observation"
+                or not isinstance(item.get("source"), str) or not item["source"].strip()
+                or not isinstance(item.get("evidence"), str) or not item["evidence"].strip()):
+            return None
+        try:
+            observed = date.fromisoformat(item["as_of"])
+            captured = datetime.fromisoformat(item["captured_at"].replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return None
+        if captured.utcoffset() is None or observed > min(today, captured.date()):
+            return None
+        return item
 
     def source_age_hours(self, source_id: str) -> float | None:
         s = self.sources_status.get(source_id)
@@ -56,6 +84,7 @@ def load_snapshot(path: Path | str = DEFAULT_PATH) -> EconDeltaSnapshot:
             updated_at=updated_at,
             sources_status=payload.get("sources_status", {}),
             data=payload.get("data", {}),
+            observations=payload.get("observations", {}) if isinstance(payload.get("observations"), dict) else {},
         )
     except (KeyError, ValueError, AttributeError) as e:
         raise EconDeltaUnavailable(f"EconDelta snapshot malformed: {e}") from e
