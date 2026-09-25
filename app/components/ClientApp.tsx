@@ -62,6 +62,7 @@ export function ClientApp(props: ClientAppProps) {
   });
   const [stickyVisible, setStickyVisible] = useState(false);
   const [diffMode, setDiffMode] = useState<boolean>(false);
+  const [diffPreferenceLoaded, setDiffPreferenceLoaded] = useState(false);
   const [printMode, setPrintMode] = useState<boolean>(false);
   const navOffset = useNavOffset();
   const reducedMotion = useReducedMotion();
@@ -74,6 +75,7 @@ export function ClientApp(props: ClientAppProps) {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate post-mount localStorage read; see comment above
       setDiffMode(localStorage.getItem("thebrief.diffMode") === "1");
+      setDiffPreferenceLoaded(true);
     } catch {
       // ignore
     }
@@ -142,14 +144,15 @@ export function ClientApp(props: ClientAppProps) {
     };
   }, [printMode]);
 
-  // Persist diff toggle
+  // Do not overwrite the saved preference with the initial SSR default.
   useEffect(() => {
+    if (!diffPreferenceLoaded) return;
     try {
       localStorage.setItem("thebrief.diffMode", diffMode ? "1" : "0");
     } catch {
       // ignore
     }
-  }, [diffMode]);
+  }, [diffMode, diffPreferenceLoaded]);
 
   // Hydrate from Supabase on mount — initialData was server-fetched but we re-fetch
   // to get the freshest state and to write the localStorage cache for next visit.
