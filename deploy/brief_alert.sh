@@ -13,9 +13,8 @@
 #     original failure. Missing webhook → log to stderr, exit 0.
 #   - JSON built with python3 (guaranteed on the box — the pipeline runs on it;
 #     jq is NOT installed on Hetzner clauding-lab).
-#   - journalctl excerpt is best-effort: reading a system unit's journal needs
-#     systemd-journal group membership (see deploy/README.md); without it the
-#     alert still fires, just without the log tail.
+#   - brief.service writes its application traceback to brief-systemd.log;
+#     other allowed units use the journal (best-effort without journal access).
 
 set -u
 
@@ -31,24 +30,51 @@ HOST="$(hostname 2>/dev/null || echo unknown-host)"
 # BDT (UTC+6) timestamp — house convention: times for humans are BDT-labelled.
 WHEN="$(TZ=Asia/Dhaka date '+%Y-%m-%d %H:%M BDT' 2>/dev/null || date -u '+%Y-%m-%d %H:%MZ')"
 
-# Last journal lines of the failed unit (best-effort; may be empty without perms).
-LOG_TAIL="$(journalctl -u "$FAILED_UNIT" -n 15 --no-pager -o cat 2>/dev/null | tail -c 1200 || true)"
+# Unit names and log sources are fixed; never use arbitrary input as a path or
+# journalctl option. Keep the tail bounded before passing it to Python.
+case "$FAILED_UNIT" in
+  brief.service)
+    LOG_SOURCE="application log"
+    LOG_TAIL="$(tail -c 1500 /home/adnan/the-brief/logs/brief-systemd.log 2>/dev/null || true)"
+    ;;
+  brief-export.service)
+    LOG_SOURCE="journal"
+    LOG_TAIL="$(journalctl --unit=brief-export.service -n 15 --no-pager -o cat 2>/dev/null | tail -c 1500 || true)"
+    ;;
+  chess-prodigy-prune.service)
+    LOG_SOURCE="journal"
+    LOG_TAIL="$(journalctl --unit=chess-prodigy-prune.service -n 15 --no-pager -o cat 2>/dev/null | tail -c 1500 || true)"
+    ;;
+  *)
+    FAILED_UNIT="unknown-unit"
+    LOG_SOURCE="none"
+    LOG_TAIL=""
+    ;;
+esac
 
 # Build the JSON payload safely (Discord caps content at 2000 chars).
-PAYLOAD="$(FAILED_UNIT="$FAILED_UNIT" HOST="$HOST" WHEN="$WHEN" LOG_TAIL="$LOG_TAIL" python3 - <<'PY'
-import json, os
+PAYLOAD="$(FAILED_UNIT="$FAILED_UNIT" HOST="$HOST" WHEN="$WHEN" LOG_TAIL="$LOG_TAIL" LOG_SOURCE="$LOG_SOURCE" python3 - <<'PY'
+import json, os, re
 
 unit = os.environ.get("FAILED_UNIT", "unknown-unit")
 host = os.environ.get("HOST", "unknown-host")
 when = os.environ.get("WHEN", "")
 tail = (os.environ.get("LOG_TAIL") or "").strip()
+source = os.environ.get("LOG_SOURCE", "none")
+
+def redact(value):
+    value = re.sub(r"https?://\S*(?:webhooks?|hooks)/\S+", "[webhook redacted]", value, flags=re.I)
+    value = re.sub(r"(?im)^.*(?:authorization|api[-_]?key|password|secret|token|webhook_url)\s*[:=].*$", "[credential redacted]", value)
+    value = re.sub(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "[email redacted]", value)
+    return value
 
 lines = [
     f"ALERT: `{unit}` FAILED on {host} at {when}.",
-    f"Inspect: `journalctl -u {unit} -n 100 --no-pager`",
+    ("Inspect: `/home/adnan/the-brief/logs/brief-systemd.log`"
+     if source == "application log" else f"Source: {source}"),
 ]
 if tail:
-    lines.append("```\n" + tail + "\n```")
+    lines.append("```\n" + redact(tail) + "\n```")
 
 content = "\n".join(lines)
 print(json.dumps({"content": content[:1990]}))
@@ -60,6 +86,7 @@ PY
 
 HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' \
   -H 'Content-Type: application/json' \
+  -A 'the-brief-alerts/1.0 (+https://thebrief.clauding-lab.com)' \
   -X POST --data "$PAYLOAD" \
   --max-time 15 \
   "$WEBHOOK" 2>/dev/null || echo 000)"

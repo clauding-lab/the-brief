@@ -40,15 +40,21 @@ must have those steps applied BEFORE merge, not after.
 `brief.service` carries `OnFailure=brief-alert@%n.service`. Any hard failure — non-zero
 exit (except intentional dry-run exit 3; including the sub-editor's exit 4), a `TimeoutStartSec` SIGTERM, an OOM-kill —
 fires `deploy/brief_alert.sh`, which posts the failed unit name, host, BDT timestamp,
-and a journal tail to Discord.
+and a bounded, redacted tail of `/home/adnan/the-brief/logs/brief-systemd.log` to Discord.
+That application log contains the actual Python traceback (for example, a
+`V6PublishError`); the service journal alone may not contain it.
 
 - Webhook: set `DISCORD_ALERT_WEBHOOK_URL` in `/etc/brief.env` (falls back to
   `DISCORD_PREVIEW_WEBHOOK_URL`; if neither is set the alert logs to stderr and no-ops).
-- Journal tail in the alert needs `adnan` in the `systemd-journal` group:
-  `sudo usermod -aG systemd-journal adnan` (optional — without it the alert still
-  fires, minus the log excerpt).
-- Test end-to-end without touching a real publish:
-  `sudo systemctl start brief-alert@brief.service.service` → a ping should land.
+- The shared alert unit uses journal tails for the allowlisted
+  `brief-export.service` and `chess-prodigy-prune.service`. These need `adnan`
+  in the `systemd-journal` group for the excerpt:
+  `sudo usermod -aG systemd-journal adnan`.
+- **Approved-channel test after deployment:** run exactly one
+  `sudo systemctl start brief-alert@brief.service.service` and confirm one
+  message arrives in the intended Discord channel. Check that it names the
+  application log and contains no credentials or recipient addresses. This
+  test sends a real alert; do it only during the approved release step.
 - **Shared with another repo on the same box.** `chess-prodigy-prune.service`
   (clauding-lab/chess-prodigy, `deploy/`) carries the same
   `OnFailure=brief-alert@%n.service` line. Renaming or moving `brief-alert@.service`,
@@ -74,7 +80,7 @@ of row counts. Retention: newest 12 runs (~3 months); older dirs pruned.
   archive with it. For true off-box durability, periodically copy it down from
   the Mac: `rsync -a adnan@135.181.43.68:/home/adnan/brief-exports/ ~/Backups/brief-exports/`.
 
-## Off-box heartbeat (ExonVPS, 07:30 BDT cron)
+## Off-box heartbeat (ExonVPS, 09:45 BDT cron)
 
 `deploy/heartbeat.py` runs on **ExonVPS** (`adnan-local@103.187.23.22`) — deliberately
 off the Hetzner box that publishes, so a dead box can't kill its own watchdog. One
@@ -84,7 +90,13 @@ cron, two checks, one Discord alert on breach:
    not UTC: before 06:00 BDT the UTC date is still yesterday) is the latest
    `status=published` row in `briefs`. 7 days/week (PR #116) — no Saturday exclusion.
 2. **EconDelta sentinel alive** — an `ok` `run_logs` row with
-   `source=freshness_sentinel` finished within 26 h (its timer fires 13:30 BDT).
+   `source=freshness_sentinel` finished within 26 h (its actual timer fires
+   03:35 BDT). The 26 h liveness limit stays unchanged.
+
+The Brief's timer starts at 08:00 BDT and has a 90-minute runtime limit. The
+09:45 check allows another 15 minutes before declaring today's issue missing.
+The code also gates the Brief check by this deadline if run manually earlier;
+the sentinel check still runs.
 
 Reads Supabase with the **anon key only** (both tables anon-readable, verified
 2026-07-09 — never put the service key on this box). Exit codes: `0` healthy ·
@@ -105,19 +117,20 @@ DISCORD_ALERT_WEBHOOK_URL=<same webhook as the Hetzner alert kit>
 ENV
 sudo chmod 640 /etc/brief-heartbeat.env && sudo chown root:adnan-local /etc/brief-heartbeat.env
 
-# 3. Manual test (expect exit 0 + an "ok" line; exit 1 + a Discord ping on breach):
-python3 /home/adnan-local/brief-heartbeat.py --env-file /etc/brief-heartbeat.env; echo "exit=$?"
+# 3. Read-only syntax check before enabling cron:
+python3 -m py_compile /home/adnan-local/brief-heartbeat.py
 
-# 4. Cron at 07:30 BDT daily. Crontab runs in the SYSTEM timezone — check
-#    `timedatectl` first. System TZ = UTC → 01:30; system TZ = Asia/Dhaka → 07:30.
+# 4. Cron at 09:45 BDT daily. ExonVPS system TZ is Asia/Dhaka; verify with
+#    `timedatectl` at installation, then install the local-time entry below.
 crontab -e
-30 1 * * * python3 /home/adnan-local/brief-heartbeat.py >> /home/adnan-local/brief-heartbeat.log 2>&1
+45 9 * * * python3 /home/adnan-local/brief-heartbeat.py >> /home/adnan-local/brief-heartbeat.log 2>&1
 ```
 
 **Install-order caveat:** EconDelta's `freshness_sentinel` (econdelta PR #80) must
 have written its FIRST ok `run_logs` row before this cron goes live (its timer
-fires 13:30 BDT), or the first heartbeat will — correctly — alert
-"no ok freshness_sentinel row". Install after 13:30 BDT, or expect one advisory alert.
+fires 03:35 BDT), or the first heartbeat will — correctly — alert
+"no ok freshness_sentinel row". Install after its first successful run, or expect
+one advisory alert.
 
 **Last-turtle limitation, honestly:** nothing watches this watchdog. If the
 heartbeat itself breaks (box down, cron removed, env deleted) the only signals are

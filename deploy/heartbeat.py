@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Off-box heartbeat for The Brief fleet (handoff item 5b).
 
-Runs on ExonVPS (adnan-local@103.187.23.22) via cron at ~07:30 BDT daily —
+Runs on ExonVPS (adnan-local@103.187.23.22) via cron at 09:45 BDT daily —
 deliberately OFF the Hetzner box that publishes, so a dead box can't kill its
 own watchdog. Two checks, one Discord alert on breach:
 
@@ -9,8 +9,7 @@ own watchdog. Two checks, one Discord alert on breach:
      NOT UTC) is the latest `status=published` row in Supabase `briefs`.
      Publishes are 7 days/week since PR #116 — no Saturday exclusion.
   2. ECONDELTA SENTINEL ALIVE — a `run_logs` row with source='freshness_sentinel'
-     and status='ok' finished within the last ~26 h (its timer fires 13:30 BDT
-     daily; 26 h covers one fire plus slack). One cron, two watchdogs.
+     and status='ok' finished within the last ~26 h. One cron, two watchdogs.
 
 Auth: Supabase ANON key — both tables are anon-readable (verified 2026-07-09:
 `briefs` exposes brief_date/status to anon; `run_logs` has the "anon read runs"
@@ -57,6 +56,9 @@ DEFAULT_ENV_FILE = "/etc/brief-heartbeat.env"
 DEFAULT_SENTINEL_MAX_AGE_HOURS = 26.0
 _HTTP_TIMEOUT_S = 20
 _DISCORD_MAX_CONTENT = 1990
+_DISCORD_USER_AGENT = "the-brief-alerts/1.0 (+https://thebrief.clauding-lab.com)"
+BRIEF_DEADLINE_HOUR_BDT = 9
+BRIEF_DEADLINE_MINUTE_BDT = 45
 
 
 class HeartbeatError(RuntimeError):
@@ -101,18 +103,23 @@ def today_bdt(now_utc: datetime | None = None) -> date:
     return now.astimezone(BDT).date()
 
 
+def brief_deadline_passed(now_utc: datetime) -> bool:
+    """Allow the 08:00 start, 90-minute runtime and 15-minute publishing slack."""
+    local = now_utc.astimezone(BDT)
+    return (local.hour, local.minute) >= (BRIEF_DEADLINE_HOUR_BDT, BRIEF_DEADLINE_MINUTE_BDT)
+
+
 def _fetch_json(url: str, headers: dict[str, str]) -> tuple[int, object]:
     """GET url → (status, parsed_json). Raises HeartbeatError on network failure."""
-    req = urllib.request.Request(url, headers=headers, method="GET")
     try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
         with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp:
             raw = resp.read()
             return resp.status, (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")[:300]
-        raise HeartbeatError(f"GET {url} → HTTP {e.code}: {body}") from e
+        raise HeartbeatError(f"Supabase GET → HTTP {e.code}") from None
     except Exception as e:  # URLError, timeout, bad JSON …
-        raise HeartbeatError(f"GET {url} failed: {e}") from e
+        raise HeartbeatError(f"Supabase GET failed ({type(e).__name__})") from None
 
 
 def _anon_headers(anon_key: str) -> dict[str, str]:
@@ -191,17 +198,17 @@ def check_sentinel_alive(
 def send_discord_alert(webhook_url: str, message: str) -> bool:
     """POST to the Discord webhook. Returns True on 2xx; never raises."""
     payload = json.dumps({"content": message[:_DISCORD_MAX_CONTENT]}).encode("utf-8")
-    req = urllib.request.Request(
-        webhook_url,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
+        req = urllib.request.Request(
+            webhook_url,
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": _DISCORD_USER_AGENT},
+            method="POST",
+        )
         with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp:
             return 200 <= resp.status < 300
     except Exception as e:  # noqa: BLE001 — reported via return value
-        _log(f"Discord POST failed: {e}", err=True)
+        _log(f"Discord POST failed ({type(e).__name__})", err=True)
         return False
 
 
@@ -216,12 +223,13 @@ def run_checks(
     """Run both fleet checks; return the list of breach messages (empty = healthy)."""
     fetch = fetch if fetch is not None else _fetch_json  # late-bind so tests can patch
     breaches: list[str] = []
-    b = check_brief_published_today(
-        supabase_url=supabase_url, anon_key=anon_key,
-        today=today_bdt(now_utc), fetch=fetch,
-    )
-    if b:
-        breaches.append(b)
+    if brief_deadline_passed(now_utc):
+        b = check_brief_published_today(
+            supabase_url=supabase_url, anon_key=anon_key,
+            today=today_bdt(now_utc), fetch=fetch,
+        )
+        if b:
+            breaches.append(b)
     s = check_sentinel_alive(
         supabase_url=supabase_url, anon_key=anon_key,
         now_utc=now_utc, max_age_hours=max_age_hours, fetch=fetch,
@@ -274,12 +282,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if not breaches:
-        _log(f"ok — brief published for {today_bdt(now_utc).isoformat()} (BDT), sentinel alive")
+        brief_state = (f"brief published for {today_bdt(now_utc).isoformat()} (BDT)"
+                       if brief_deadline_passed(now_utc) else "brief deadline pending")
+        _log(f"ok — {brief_state}, sentinel alive")
         return 0
 
     for b in breaches:
         _log(f"BREACH: {b}", err=True)
-    message = "FLEET ALERT (off-box heartbeat, 07:30 BDT):\n" + "\n".join(
+    message = "FLEET ALERT (off-box heartbeat, 09:45 BDT):\n" + "\n".join(
         f"- {b}" for b in breaches
     )
     if not send_discord_alert(webhook, message):

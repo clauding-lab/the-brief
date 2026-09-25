@@ -119,6 +119,46 @@ def test_send_discord_ping_posts_url_and_todays_call(monkeypatch):
     assert "headline today is X" in content
 
 
+def test_discord_ping_identifies_client_and_rejects_non2xx(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["ua"] = req.get_header("User-agent")
+        return _FakeResp(status=403)
+
+    monkeypatch.setattr(mod, "urlopen", fake_urlopen)
+    meta = PreviewMeta("x.json", date(2026, 9, 25), None, None)
+    err = send_discord_ping(webhook_url="https://discord.test/hook", meta=meta)
+    assert captured["ua"] == "the-brief-alerts/1.0 (+https://thebrief.clauding-lab.com)"
+    assert err == "HTTP 403"
+
+
+def test_discord_ping_malformed_url_hides_secret(monkeypatch):
+    meta = PreviewMeta("x.json", date(2026, 9, 25), None, None)
+    err = send_discord_ping(webhook_url="https://[secret-token", meta=meta)
+    assert err is not None
+    assert "secret-token" not in err
+
+
+def test_preview_email_error_and_logs_hide_recipient_and_api_key(monkeypatch, tmp_path, caplog):
+    fp = _write_fixture(tmp_path / "p.json")
+    monkeypatch.setenv("DISCORD_PREVIEW_WEBHOOK_URL", "https://discord.test/hook")
+    monkeypatch.setenv("BREVO_API_KEY", "secret-api-key")
+    monkeypatch.setenv("FROM_EMAIL", "sender@example.com")
+    monkeypatch.setenv("PREVIEW_EMAIL_RECIPIENT", "subscriber@example.com")
+
+    def fake_open(req, timeout=None):
+        if "brevo" in req.full_url:
+            raise OSError("secret-api-key subscriber@example.com")
+        return _FakeResp(status=204)
+
+    monkeypatch.setattr(mod, "urlopen", fake_open)
+    result = notify_preview(fp)
+    assert result.email_ok is False
+    assert "secret-api-key" not in (result.email_error or "") + caplog.text
+    assert "subscriber@example.com" not in (result.email_error or "") + caplog.text
+
+
 def test_send_discord_ping_returns_http_error(monkeypatch):
     def boom(req, timeout=None):
         raise urllib.error.HTTPError(
@@ -254,7 +294,7 @@ def test_notify_preview_one_channel_failure_does_not_block_the_other(monkeypatch
     result = notify_preview(fp)
 
     assert result.discord_ok is False
-    assert "network blip" in (result.discord_error or "")
+    assert result.discord_error == "OSError"
     assert result.email_ok is True
     assert result.email_error is None
 
