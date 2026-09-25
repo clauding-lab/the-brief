@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { networkRateLimitKey } from "../../../lib/ipRateLimitKey";
 
 // Node runtime: needs server-only env (service-role key) and a module-level Map for
 // the best-effort rate limiter (persists across invocations on a warm instance).
@@ -54,10 +55,7 @@ function rateLimitKey(req: Request): string {
   const realIp = req.headers.get("x-real-ip");
   const xff = req.headers.get("x-forwarded-for");
   const ip = realIp?.trim() || xff?.split(",").pop()?.trim() || "unknown";
-  if (ip.includes(":")) {
-    return ip.split(":").slice(0, 4).join(":") + "::/64"; // IPv6 /64
-  }
-  return ip;
+  return networkRateLimitKey(ip);
 }
 
 function fieldStr(source: Record<string, unknown>, key: string): string {
