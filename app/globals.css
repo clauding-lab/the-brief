@@ -1829,3 +1829,29 @@ body.tb-print .tb-longview-bar-svg { height: auto !important; }
     background: white;
   }
 }
+
+/* Diff is a screen reading preference, never a print treatment. Target the
+   dimmed descendants as well as sections: parent opacity cannot undo a
+   child's opacity or the Long View blur. Keep the stored preference intact.
+   !important also beats the quiet-section hover and tile-specific rules. */
+body.tb-print .tb-section,
+body.tb-print .tb-news-item,
+body.tb-print .tb-kpi-row > *,
+body.tb-print .tb-statstack,
+body.tb-print .tb-longview {
+  opacity: 1 !important;
+  filter: none !important;
+  transition: none !important;
+}
+
+@media print {
+  body .tb-section,
+  body .tb-news-item,
+  body .tb-kpi-row > *,
+  body .tb-statstack,
+  body .tb-longview {
+    opacity: 1 !important;
+    filter: none !important;
+    transition: none !important;
+  }
+}
