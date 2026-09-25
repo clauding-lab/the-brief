@@ -107,41 +107,241 @@
         }
       ],
       "expected_outputs": [
-        {"metric_id": "bank_borrowing_for_deficit_financing", "value": 165538.2, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"},
-        {"metric_id": "non_bank_borrowing_for_deficit_financing", "value": -847.17, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"},
-        {"metric_id": "domestic_borrowing_for_budget_deficit", "value": 164691.03, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"},
-        {"metric_id": "foreign_borrowing_for_budget_deficit", "value": 57743.6, "unit": "BDT crore", "as_of": "2026-06-30", "state": "verified"}
+        {
+          "metric_id": "bank_borrowing_for_deficit_financing",
+          "value": 165538.2,
+          "unit": "BDT crore",
+          "as_of": "2026-06-30",
+          "state": "verified"
+        },
+        {
+          "metric_id": "non_bank_borrowing_for_deficit_financing",
+          "value": -847.17,
+          "unit": "BDT crore",
+          "as_of": "2026-06-30",
+          "state": "verified"
+        },
+        {
+          "metric_id": "domestic_borrowing_for_budget_deficit",
+          "value": 164691.03,
+          "unit": "BDT crore",
+          "as_of": "2026-06-30",
+          "state": "verified"
+        },
+        {
+          "metric_id": "foreign_borrowing_for_budget_deficit",
+          "value": 57743.6,
+          "unit": "BDT crore",
+          "as_of": "2026-06-30",
+          "state": "verified"
+        }
       ]
     },
     {
       "case_id": "weekly-components-have-independent-periods",
       "run_date_bdt": "2026-09-25",
       "source_observations": [
-        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "5.a Wage Earners' Remittances", "row": "Wage Earners' Remittances", "column": "August, 2026", "metric_id": "monthly_remittance", "value": 2.97, "unit": "USD billion", "observation_period": "2026-08-31"},
-        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "6.a Import (C&F)", "row": "Import (C&F)", "column": "July, 2026P", "metric_id": "monthly_import", "value": 6.78, "unit": "USD billion", "observation_period": "2026-07-31"},
-        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "7.a Export (f.o.b)", "row": "Export (f.o.b)", "column": "July, 2026P", "metric_id": "monthly_export", "value": 4.35, "unit": "USD billion", "observation_period": "2026-07-31"},
-        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "11.b Broad Money (M2)", "row": "Broad Money (M2)", "column": "July, 2026", "metric_id": "broad_money", "value": 2422923.9, "unit": "BDT crore", "observation_period": "2026-07-31"},
-        {"evidence_id": "wsei_2026_09_20", "page_pdf": 1, "table": "12.c Credit to the Private Sector", "row": "Credit to the Private Sector", "column": "July, 2026", "metric_id": "private_sector_credit", "value": 1823101.6, "unit": "BDT crore", "observation_period": "2026-07-31"}
+        {
+          "evidence_id": "wsei_2026_09_20",
+          "page_pdf": 1,
+          "table": "5.a Wage Earners' Remittances",
+          "row": "Wage Earners' Remittances",
+          "column": "August, 2026",
+          "metric_id": "monthly_remittance",
+          "value": 2.97,
+          "unit": "USD billion",
+          "observation_period": "2026-08-31"
+        },
+        {
+          "evidence_id": "wsei_2026_09_20",
+          "page_pdf": 1,
+          "table": "6.a Import (C&F)",
+          "row": "Import (C&F)",
+          "column": "July, 2026P",
+          "metric_id": "monthly_import",
+          "value": 6.78,
+          "unit": "USD billion",
+          "observation_period": "2026-07-31"
+        },
+        {
+          "evidence_id": "wsei_2026_09_20",
+          "page_pdf": 1,
+          "table": "7.a Export (f.o.b)",
+          "row": "Export (f.o.b)",
+          "column": "July, 2026P",
+          "metric_id": "monthly_export",
+          "value": 4.35,
+          "unit": "USD billion",
+          "observation_period": "2026-07-31"
+        },
+        {
+          "evidence_id": "wsei_2026_09_20",
+          "page_pdf": 1,
+          "table": "11.b Broad Money (M2)",
+          "row": "Broad Money (M2)",
+          "column": "July, 2026",
+          "metric_id": "broad_money",
+          "value": 2422923.9,
+          "unit": "BDT crore",
+          "observation_period": "2026-07-31"
+        },
+        {
+          "evidence_id": "wsei_2026_09_20",
+          "page_pdf": 1,
+          "table": "12.c Credit to the Private Sector",
+          "row": "Credit to the Private Sector",
+          "column": "July, 2026",
+          "metric_id": "private_sector_credit",
+          "value": 1823101.6,
+          "unit": "BDT crore",
+          "observation_period": "2026-07-31"
+        }
       ],
       "expected_outputs": [
-        {"metric_id": "monthly_remittance", "value": 2.97, "unit": "USD billion", "as_of": "2026-08-31", "state": "verified"},
-        {"metric_id": "monthly_import", "value": 6.78, "unit": "USD billion", "as_of": "2026-07-31", "state": "verified"},
-        {"metric_id": "monthly_export", "value": 4.35, "unit": "USD billion", "as_of": "2026-07-31", "state": "verified"},
-        {"metric_id": "broad_money", "value": 2422923.9, "unit": "BDT crore", "as_of": "2026-07-31", "state": "verified"},
-        {"metric_id": "private_sector_credit", "value": 1823101.6, "unit": "BDT crore", "as_of": "2026-07-31", "state": "verified"}
+        {
+          "metric_id": "monthly_remittance",
+          "value": 2.97,
+          "unit": "USD billion",
+          "as_of": "2026-08-31",
+          "state": "verified"
+        },
+        {
+          "metric_id": "monthly_import",
+          "value": 6.78,
+          "unit": "USD billion",
+          "as_of": "2026-07-31",
+          "state": "verified"
+        },
+        {
+          "metric_id": "monthly_export",
+          "value": 4.35,
+          "unit": "USD billion",
+          "as_of": "2026-07-31",
+          "state": "verified"
+        },
+        {
+          "metric_id": "broad_money",
+          "value": 2422923.9,
+          "unit": "BDT crore",
+          "as_of": "2026-07-31",
+          "state": "verified"
+        },
+        {
+          "metric_id": "private_sector_credit",
+          "value": 1823101.6,
+          "unit": "BDT crore",
+          "as_of": "2026-07-31",
+          "state": "verified"
+        }
       ]
     },
     {
       "case_id": "weekly-lc-july-follow-on",
       "run_date_bdt": "2026-09-25",
       "source_observations": [
-        {"evidence_id": "wsei_2026_09_20", "page_pdf": 2, "table": "13. L/C Opening and Settlement", "row": "Total", "column": "July, FY27 opening", "metric_id": "monthly_import_lc_opening", "value": 6.9017, "unit": "USD billion", "observation_period": "2026-07-31"},
-        {"evidence_id": "wsei_2026_09_20", "page_pdf": 2, "table": "13. L/C Opening and Settlement", "row": "Total", "column": "July, FY27 settlement", "metric_id": "monthly_import_lc_settlement", "value": 6.2793, "unit": "USD billion", "observation_period": "2026-07-31"}
+        {
+          "evidence_id": "wsei_2026_09_20",
+          "page_pdf": 2,
+          "table": "13. L/C Opening and Settlement",
+          "row": "Total",
+          "column": "July, FY27 opening",
+          "metric_id": "monthly_import_lc_opening",
+          "value": 6.9017,
+          "unit": "USD billion",
+          "observation_period": "2026-07-31"
+        },
+        {
+          "evidence_id": "wsei_2026_09_20",
+          "page_pdf": 2,
+          "table": "13. L/C Opening and Settlement",
+          "row": "Total",
+          "column": "July, FY27 settlement",
+          "metric_id": "monthly_import_lc_settlement",
+          "value": 6.2793,
+          "unit": "USD billion",
+          "observation_period": "2026-07-31"
+        }
       ],
       "expected_outputs": [
-        {"metric_id": "monthly_import_lc_opening", "value": 6901.7, "unit": "USD million", "as_of": "2026-07-31", "state": "verified"},
-        {"metric_id": "monthly_import_lc_settlement", "value": 6279.3, "unit": "USD million", "as_of": "2026-07-31", "state": "verified"}
+        {
+          "metric_id": "monthly_import_lc_opening",
+          "value": 6901.7,
+          "unit": "USD million",
+          "as_of": "2026-07-31",
+          "state": "verified"
+        },
+        {
+          "metric_id": "monthly_import_lc_settlement",
+          "value": 6279.3,
+          "unit": "USD million",
+          "as_of": "2026-07-31",
+          "state": "verified"
+        }
       ]
     }
-  ]
+  ],
+  "monthly_contract": {
+    "audit_date_bdt": "2026-09-25",
+    "consumed_archive_ids": [
+      "cpi_12m_avg_monthly",
+      "cpi_p2p_food_monthly",
+      "cpi_p2p_nonfood_monthly",
+      "exports_usd_mn_monthly",
+      "gross_reserves_usd_bn_monthly",
+      "imports_usd_mn_monthly",
+      "m2_growth_yoy_monthly",
+      "nbr_revenue_monthly_cr",
+      "net_reserves_bpm6_usd_bn_monthly",
+      "reer_monthly",
+      "remittance_usd_mn_monthly",
+      "tbill_182d_yield_monthly",
+      "tbill_364d_yield_monthly",
+      "tbill_91d_yield_monthly",
+      "yield_10y_monthly",
+      "yield_15y_monthly",
+      "yield_20y_monthly",
+      "yield_2y_monthly",
+      "yield_5y_monthly"
+    ],
+    "parked_dispositions": {
+      "reer_monthly": "unsupported",
+      "nbr_revenue_monthly_cr": "unsupported",
+      "non_nbr_tax_revenue": "owner-blocked",
+      "non_tax_revenue": "owner-blocked"
+    },
+    "epb_evidence": {
+      "source_url": "https://epb.gov.bd/views/epb-export-data/-/",
+      "workbook_url": "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-epb/2026/8/dc513db2-d75e-4900-a3f0-74ee8624a367.xlsx",
+      "sha256": "464937f3bf06f1bc0b12b801cb2585f0a4ef0411dbea87b51038aff4c26423d7",
+      "unit": "USD million",
+      "basis": "EPB goods exports, All Products (A+B), Summary Sheet",
+      "rows": [
+        {
+          "metric_id": "exports_usd_mn_monthly",
+          "as_of": "2026-07-01",
+          "value": 4727.45,
+          "source_as_of": "2026-07-31",
+          "source": "epb_goods_summary"
+        },
+        {
+          "metric_id": "exports_usd_mn_monthly",
+          "as_of": "2026-08-01",
+          "value": 4429.45,
+          "source_as_of": "2026-08-31",
+          "source": "epb_goods_summary"
+        }
+      ]
+    },
+    "yield_refresh": {
+      "grouping_key": "2026-09-01",
+      "stored_value": 9.0,
+      "stored_source_as_of": "2026-09-07",
+      "candidate_value": 9.0,
+      "candidate_source_as_of": "2026-09-21",
+      "expected": "refresh open and immediately closed month; identical pairs no-op; older evidence blocked",
+      "date_semantics": "auction_results.auction_date is the BB Issue date (settlement), not independently verified auction-held date"
+    },
+    "revision_policy": "Keep accepted existing pairs; source differences are proposals for reviewed R1 repair, never automatic rewrites.",
+    "liveness_policy": "A source-check receipt is not a write receipt. Source period and poll time are separate clocks; legacy future-debt exception remains pending R1."
+  }
 }
