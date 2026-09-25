@@ -1,6 +1,8 @@
 """V6 publisher tests — mocked urllib, no network calls."""
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 import io
 import json
 from unittest.mock import patch
@@ -130,10 +132,13 @@ def test_publish_brief_atomic_flow() -> None:
     captured_calls: list[tuple[str, str, object | None]] = []
 
     with patch("urllib.request.urlopen", side_effect=_capture_urlopen(captured_calls)):
-        brief_id = publish_brief(payload)
+        brief_id = publish_brief(payload, expected_identity=PublishIdentity(payload.brief.issue_no, payload.brief.brief_date))
 
     assert brief_id == "brief-uuid-1"
 
+    assert captured_calls[0][0] == "GET"
+    assert "issue_no=eq.89" in captured_calls[0][1]
+    captured_calls = captured_calls[1:]
     methods = [c[0] for c in captured_calls]
     assert methods[0] == "DELETE"  # idempotency: delete this issue first
     assert "/briefs?issue_no=eq.89" in captured_calls[0][1]
@@ -165,7 +170,7 @@ def test_publish_brief_sweep_failure_is_non_fatal() -> None:
 
     side = _capture_urlopen(captured_calls, fail_on=("DELETE", "status=eq.draft"))
     with patch("urllib.request.urlopen", side_effect=side):
-        brief_id = publish_brief(payload)  # must NOT raise
+        brief_id = publish_brief(payload, expected_identity=PublishIdentity(payload.brief.issue_no, payload.brief.brief_date))  # must NOT raise
 
     assert brief_id == "brief-uuid-1"
     # Flip still happened — the publish completed despite the failed sweep
@@ -184,7 +189,7 @@ def test_publish_brief_stays_draft_when_child_post_fails() -> None:
     side = _capture_urlopen(captured_calls, fail_on=("POST", "/metrics"))
     with patch("urllib.request.urlopen", side_effect=side):
         with pytest.raises(PublishError, match="HTTP 500"):
-            publish_brief(payload)
+            publish_brief(payload, expected_identity=PublishIdentity(payload.brief.issue_no, payload.brief.brief_date))
 
     # The brief row WAS inserted, but as a draft
     brief_posts = [c for c in captured_calls if c[0] == "POST" and "/briefs" in c[1]]
@@ -215,4 +220,48 @@ def test_publish_brief_propagates_http_error() -> None:
 
     with patch("urllib.request.urlopen", side_effect=err):
         with pytest.raises(PublishError, match="HTTP 500"):
-            publish_brief(payload)
+            publish_brief(payload, expected_identity=PublishIdentity(payload.brief.issue_no, payload.brief.brief_date))
+
+
+def test_model_issue_one_april20_cannot_delete_when_max_is_235():
+    from datetime import date
+    from brief.publication_identity import resolve_identity
+
+    expected = resolve_identity(date(2026, 9, 25), same_day_rows=[], max_issue_no=235)
+    payload = _minimal_payload(issue_no=1)
+    payload.brief.brief_date = date(2026, 4, 20)
+    with patch("brief.v6_publisher._request") as request:
+        with pytest.raises(PublishError, match="trusted publication identity"):
+            publish_brief(payload, expected_identity=expected)
+    request.assert_not_called()  # zero GET/DELETE/POST/PATCH, before config/network
+
+
+def test_target_date_is_rechecked_before_any_delete():
+    from datetime import date
+
+    payload = _minimal_payload(issue_no=235)
+    with patch("brief.v6_publisher._request", return_value=[
+        {"issue_no": 235, "brief_date": "2026-04-20"},
+    ]) as request:
+        with pytest.raises(PublishError, match="Existing target conflicts"):
+            publish_brief(payload, expected_identity=PublishIdentity(235, date(2026, 5, 5)))
+    assert [c.args[0] for c in request.call_args_list] == ["GET"]
+    assert "issue_no=eq.235" in request.call_args.args[1]
+
+
+def test_publisher_requires_trusted_identity():
+    with patch("brief.v6_publisher._request") as request:
+        with pytest.raises(TypeError, match="expected_identity"):
+            publish_brief(_minimal_payload())
+    request.assert_not_called()
+
+
+def test_same_day_read_includes_drafts_and_published_rows():
+    from datetime import date
+    from brief.v6_publisher import fetch_same_day_briefs
+
+    with patch("brief.v6_publisher._request", return_value=[]) as request:
+        assert fetch_same_day_briefs(date(2026, 9, 25)) == []
+    assert request.call_args.args == (
+        "GET", "/briefs?brief_date=eq.2026-09-25&select=issue_no,brief_date,status",
+    )

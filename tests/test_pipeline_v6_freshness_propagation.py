@@ -13,6 +13,8 @@ Coverage:
 """
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 from datetime import date
 from typing import Any
 
@@ -332,7 +334,6 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
 
     # No previous brief
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: None)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
 
@@ -398,10 +399,10 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(
         pipeline_v6,
         "publish_brief",
-        lambda payload: captured.append(payload) or "fake-uuid",
+        lambda payload, *, expected_identity: captured.append(payload) or "fake-uuid",
     )
 
-    result: str | None = pipeline_v6.run_publish(v5_sections, monday)
+    result: str | None = pipeline_v6.run_publish(v5_sections, monday, expected_identity=PublishIdentity(1, monday))
 
     assert result == "fake-uuid"
     assert len(captured) == 1

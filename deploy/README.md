@@ -7,7 +7,9 @@
 3. `cd ~/the-brief && git checkout main && git pull`
 4. `sudo cp deploy/brief.env.example /etc/brief.env`
 5. Edit `/etc/brief.env` — fill every `REDACTED`. `sudo chmod 640 /etc/brief.env && sudo chown root:adnan /etc/brief.env`
-6. `sudo deploy/install.sh`
+6. Provision the stable publication lock directory BEFORE installing the unit:
+   `sudo install -d -o adnan -g adnan -m 700 /home/adnan/.local/state/the-brief`
+   then `sudo deploy/install.sh`
 7. `sudo systemctl start brief.service` (first manual run).
 8. `journalctl -u brief.service -f` — watch to completion.
 9. Confirm a new row in Supabase `briefs` (latest `issue_no`, today's `brief_date`).
@@ -36,7 +38,7 @@ must have those steps applied BEFORE merge, not after.
 ## Failure alerts (OnFailure → Discord)
 
 `brief.service` carries `OnFailure=brief-alert@%n.service`. Any hard failure — non-zero
-exit (including the sub-editor's exit 4), a `TimeoutStartSec` SIGTERM, an OOM-kill —
+exit (except intentional dry-run exit 3; including the sub-editor's exit 4), a `TimeoutStartSec` SIGTERM, an OOM-kill —
 fires `deploy/brief_alert.sh`, which posts the failed unit name, host, BDT timestamp,
 and a journal tail to Discord.
 
@@ -141,3 +143,60 @@ TL;DR: `BRIEF_DRY_RUN=1` in `/etc/brief.env` to pause sends, `sudo systemctl dis
 ## Uninstall
 
 `sudo deploy/uninstall.sh` — leaves env + logs + artifacts intact.
+
+## Publication identity, concurrency and maintenance pause
+
+Code allocates the issue number once from the BDT run date and existing rows.
+A unique same-day row (published or draft) keeps its issue number; a new date
+uses the maximum issue number plus one. Conflicting same-day rows or either
+model changing the allocated number/date hold publication with exit 4.
+The publisher checks the target's date again immediately before deletion.
+Live `--today` must equal today's BDT date. Historical replay requires
+`--dry-run`; historical correction is a separate reviewed operation.
+
+All live runs must use `python -m brief.cli run --publish`, as user `adnan`
+with the normal `/home/adnan` home directory. The CLI holds a nonblocking
+process lock from before database identity/gather reads through subscriber
+delivery. Another invocation exits 4 before reads, models, writes or sends.
+The lock lives at `/home/adnan/.local/state/the-brief/publication.lock` for
+both systemd and manual runs, independent of checkout/current directory and
+`PrivateTmp`. Never delete, replace or symlink the lock file. It remains on
+disk after release; the operating system releases ownership when the process
+exits. This protects cooperating same-user processes on one host, not
+external database writers or a distributed database transaction.
+
+**Install prerequisite for existing hosts:** create the lock directory using
+the step above BEFORE copying the revised `brief.service`; its
+`ReadWritePaths` requires that directory to exist. Install the unit and run
+`sudo systemctl daemon-reload`. The unit now treats successful intentional
+exit 3 as success (`SuccessExitStatus=3`); exit 1 and hold exit 4 remain failures.
+A git self-pull does not install or reload the systemd unit. Do not rely on
+these service settings until the installed unit has been verified.
+
+Set `BRIEF_DRY_RUN=1` in `/etc/brief.env` to pause database writes and all
+subscriber, preview and in-process pipeline warning sends. Accepted true
+values are `1`, `true`, `yes`, `on`; false values are unset, empty, `0`,
+`false`, `no`, `off` (case-insensitive, surrounding whitespace ignored).
+Any other value fails before gathering data. The effective dry-run is
+resolved before `--write-fixture`/`--preview-notify` validation; the pause
+allows fixtures but suppresses preview sends. Explicit `--dry-run` still
+wins when the environment says false, and can still request preview sends
+when the environment pause is off. Models and reads still run while paused;
+stop/disable the timer as well when a maintenance window needs no execution.
+The separate systemd hard-failure alert remains active for genuine failures.
+
+Same-day replacement runs automatically suppress subscriber delivery,
+including draft retries: without a delivery ledger a draft could be the
+remains of a failed replacement of an already emailed issue. There is **no
+supported resend command** yet. Missing/partial delivery must wait for the
+separate controlled retry workflow with a delivery-ledger check (R3); do not
+invoke the notifier directly or add an unchecked resend flag. First-ever
+publication for a date retains normal delivery (one Brevo POST per recipient).
+
+**Remaining replacement failure window — release blocker for R3:** the
+existing publisher deletes the old row before inserting the replacement
+as a draft. If it crashes in that interval, there is no same-day row left
+to prove the intended identity or earlier delivery. B1's local lock and
+row-based suppression do not close that gap or provide end-to-end duplicate
+send protection. The controlled retry/delivery guard must account for it
+before live rollout; do not recover that state with an unattended re-fire.

@@ -14,10 +14,11 @@ import logging
 import os
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from brief.v6_schema import BriefPayloadV6
+from brief.publication_identity import PublishIdentity, assert_identity
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,13 @@ def fetch_max_issue_no() -> int:
     return int(rows[0]["issue_no"])
 
 
+def fetch_same_day_briefs(today: date) -> list[dict[str, Any]]:
+    """Read published AND draft identities so retries never mint another issue."""
+    return _request(
+        "GET", f"/briefs?brief_date=eq.{today.isoformat()}&select=issue_no,brief_date,status",
+    ) or []
+
+
 def fetch_recent_news(n_issues: int = 5) -> list[dict[str, Any]]:
     """Return the flat list of news items from the most recent N published briefs.
 
@@ -164,9 +172,10 @@ def fetch_metric_history(metric_id: str, days: int = 90) -> list[dict[str, Any]]
 # ───────────────────────────────────────────────────────────────────────
 
 
-def publish_brief(payload: BriefPayloadV6) -> str:
+def publish_brief(payload: BriefPayloadV6, *, expected_identity: PublishIdentity) -> str:
     """Idempotently publish a validated V6 brief. Returns the new brief.id (UUID).
 
+    First validate the trusted identity and re-read the target date.
     Two-phase, near-atomic (landmine 22):
       1. DELETE FROM briefs WHERE issue_no = N  (cascades to sections/metrics/news/charts)
       2. INSERT brief row as status='draft', get uuid
@@ -180,9 +189,26 @@ def publish_brief(payload: BriefPayloadV6) -> str:
     transaction — PostgREST can't span one — but the SPA never sees a partial
     brief because visibility is gated on the single final status flip.
     """
-    issue_no = payload.brief.issue_no
+    try:
+        assert_identity(payload, expected_identity)
+    except ValueError as exc:
+        raise PublishError(str(exc)) from exc
+    issue_no = expected_identity.issue_no
+    # Read immediately before deleting: a model cannot choose an old issue,
+    # and an out-of-process writer cannot silently retarget this run.
+    targets = _request(
+        "GET", f"/briefs?issue_no=eq.{issue_no}&select=issue_no,brief_date",
+    ) or []
+    if any(
+        row.get("brief_date") != expected_identity.brief_date.isoformat()
+        for row in targets
+    ):
+        raise PublishError("Existing target conflicts with trusted publication identity")
     logger.info("v6_publisher: deleting existing rows for issue_no=%d", issue_no)
-    _request("DELETE", f"/briefs?issue_no=eq.{issue_no}")
+    _request(
+        "DELETE", f"/briefs?issue_no=eq.{issue_no}"
+        f"&brief_date=eq.{expected_identity.brief_date.isoformat()}",
+    )
 
     # Sweep stale drafts left by FAILED publishes of OTHER issues (review follow-up
     # on the two-phase fix): the issue-scoped DELETE above only clears THIS issue_no,

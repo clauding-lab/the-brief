@@ -391,3 +391,11 @@ def test_branch_check_wins_over_malformed_threshold(
     assert result.returncode == 1
     assert "only main" in result.stderr
     assert "not a plain integer" not in result.stderr
+
+
+def test_unit_accepts_intentional_dry_run_but_not_holds_or_failures():
+    service = (Path(__file__).resolve().parents[1] / "deploy/brief.service").read_text()
+    success = next(line.split("=", 1)[1] for line in service.splitlines()
+                   if line.startswith("SuccessExitStatus="))
+    assert success.split() == ["3"]
+    assert "/home/adnan/.local/state/the-brief" in service

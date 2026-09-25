@@ -1,4 +1,5 @@
 """Friday branch test — verifies pipeline_v6 routes to editor_v6_friday on Fri."""
+from brief.publication_identity import PublishIdentity
 from datetime import date
 from unittest.mock import patch
 
@@ -12,10 +13,9 @@ def test_friday_uses_friday_prompt(monkeypatch):
     friday = date(2026, 5, 8)  # Friday
 
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: None)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 95)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
-    monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload: "fake-uuid-friday")
+    monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload, *, expected_identity: "fake-uuid-friday")
 
     fake_sections = [SectionData(
         id="iranwar", title="External", kicker="", tldr="", pull="",
@@ -34,7 +34,7 @@ def test_friday_uses_friday_prompt(monkeypatch):
          patch("brief.pipeline_v6._pipeline._load_prompt") as load_prompt:
         call_mock.side_effect = [fake_editor_out, {"verdict": "pass", "issues": []}]
         load_prompt.return_value = "FAKE_PROMPT_BODY"
-        result = pipeline_v6.run_publish(fake_sections, today=friday, dry_run=False)
+        result = pipeline_v6.run_publish(fake_sections, expected_identity=PublishIdentity(96, friday), today=friday, dry_run=False)
 
     assert result == "fake-uuid-friday"
     # Verify Friday prompt was loaded

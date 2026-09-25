@@ -25,6 +25,8 @@ Coverage:
 """
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 import logging
 from datetime import date, datetime, timezone
 from typing import Any
@@ -742,7 +744,6 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     monkeypatch.setenv("SUPABASE_URL", SUPABASE_URL)
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", SERVICE_KEY)
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: None)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
 
@@ -793,7 +794,7 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     monkeypatch.setattr(
         pipeline_v6,
         "publish_brief",
-        lambda payload: captured.append(payload) or "fake-uuid",
+        lambda payload, *, expected_identity: captured.append(payload) or "fake-uuid",
     )
 
     # V5 input must include an fx section so editor_input["sections_raw"]
@@ -803,7 +804,7 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     v5_sections: list[SectionData] = [
         SectionData(id="fx", title="FX Markets", metrics=[], freshness="fresh"),
     ]
-    result: str | None = pipeline_v6.run_publish(v5_sections, monday)
+    result: str | None = pipeline_v6.run_publish(v5_sections, monday, expected_identity=PublishIdentity(1, monday))
     assert result == "fake-uuid"
     assert len(captured) == 1
     published: BriefPayloadV6 = captured[0]
@@ -828,7 +829,6 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
     monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
 
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: None)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
 
@@ -865,7 +865,7 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
         raise AssertionError(f"unexpected label: {label}")
 
     monkeypatch.setattr(pipeline_v6, "_call_with_retries", fake_call)
-    monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload: "fake-uuid")
+    monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload, *, expected_identity: "fake-uuid")
 
     from brief.schema import SectionData
 
@@ -874,7 +874,7 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
     ]
 
     with caplog.at_level(logging.WARNING, logger="brief.pipeline_v6"):
-        result: str | None = pipeline_v6.run_publish(v5_sections, monday)
+        result: str | None = pipeline_v6.run_publish(v5_sections, monday, expected_identity=PublishIdentity(1, monday))
 
     assert result == "fake-uuid"
     # Some warning mentioning chart series / supabase env should have been logged

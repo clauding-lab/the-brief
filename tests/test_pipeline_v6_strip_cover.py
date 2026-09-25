@@ -15,6 +15,7 @@ via is_held_over from Patch 2. Cold starts (previous_brief=None) are
 unaffected: stamp_changed marks everything changed=True for cold start,
 so this strip never fires.
 """
+from brief.publication_identity import PublishIdentity
 import json
 from datetime import date
 from pathlib import Path
@@ -97,14 +98,13 @@ def _run_with_mocked_llms(monkeypatch, previous, editor_output, metric_defs,
     monday = date(2026, 5, 6)
 
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: previous)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 92)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: metric_defs)
 
     captured: list = []
     monkeypatch.setattr(
         pipeline_v6, "publish_brief",
-        lambda payload: captured.append(payload) or "fake-uuid",
+        lambda payload, *, expected_identity: captured.append(payload) or "fake-uuid",
     )
 
     fake_sections = [
@@ -126,7 +126,7 @@ def _run_with_mocked_llms(monkeypatch, previous, editor_output, metric_defs,
     with patch("brief.pipeline_v6._call_with_retries") as call_mock:
         call_mock.side_effect = [editor_output, {"verdict": "pass", "issues": []}]
         pipeline_v6.run_publish(
-            fake_sections, today=monday, scraped_headlines=[], dry_run=False,
+            fake_sections, expected_identity=PublishIdentity(93, monday), today=monday, scraped_headlines=[], dry_run=False,
         )
 
     assert len(captured) == 1, "publish_brief was not called"

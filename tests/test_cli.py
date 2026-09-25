@@ -10,6 +10,12 @@ import pytest
 from brief import cli
 
 
+@pytest.fixture(autouse=True)
+def _isolated_publication_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("BRIEF_DRY_RUN", raising=False)
+
+
 def test_cli_rejects_unknown_subcommand():
     with pytest.raises(SystemExit) as ei:
         cli.main(["sneeze"])
@@ -162,7 +168,9 @@ def _run_publish_with_notify(notify_result=None, notify_raises=None):
 
     cfg = PipelineConfig(today=_date(2026, 7, 9), enable_headlines=False)
 
-    with patch("brief.cli.gather", return_value=[]), \
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[]), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather", return_value=[]), \
          patch("brief.pipeline_v6.run_publish", return_value="brief-id-1"), \
          patch("brief.notifier.notify") as mock_notify, \
          patch("brief.alerts.send_discord_alert") as mock_alert:
@@ -233,3 +241,250 @@ def test_notifier_crash_alerts_and_exit_0():
     assert rc == 0
     mock_alert.assert_called_once()
     assert "CRASHED" in mock_alert.call_args.args[0]
+
+
+@pytest.mark.parametrize("raw", ["1", "true", "yes", "on", " TRUE "])
+def test_environment_pause_applies_to_service_arguments(raw, monkeypatch):
+    monkeypatch.setenv("BRIEF_DRY_RUN", raw)
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish"]) == 3
+    assert run.call_args.kwargs["dry_run"] is True
+    assert run.call_args.kwargs["notify_enabled"] is False
+
+
+def test_pause_precedes_fixture_validation_and_disables_preview(monkeypatch):
+    monkeypatch.setenv("BRIEF_DRY_RUN", "1")
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish", "--write-fixture=x.json", "--preview-notify"]) == 3
+    assert run.call_args.kwargs["preview_notify_enabled"] is False
+
+
+@pytest.mark.parametrize("raw", ["tru", "2", "disabled"])
+def test_invalid_pause_fails_before_any_work(raw, monkeypatch, capsys):
+    monkeypatch.setenv("BRIEF_DRY_RUN", raw)
+    with patch("brief.cli._run_v6_publish") as run:
+        assert cli.main(["run", "--publish", "--write-fixture=x.json"]) == 1
+    run.assert_not_called()
+    assert "Invalid BRIEF_DRY_RUN" in capsys.readouterr().err
+
+
+def test_live_today_override_cannot_backdate():
+    with patch("brief.cli._run_v6_publish") as run:
+        assert cli.main(["run", "--publish", "--today=2026-01-01"]) == 1
+    run.assert_not_called()
+
+
+def test_live_cli_two_processes_lock_through_delivery(tmp_path):
+    """A competing CLI must stop before identity/gather/model/write/send work."""
+    import os
+    import subprocess
+    import sys
+    import time
+
+    script = r'''
+import sys, time
+from pathlib import Path
+from unittest.mock import patch
+from brief import cli
+from brief.notifier import NotifyResult
+root, role = Path(sys.argv[1]), sys.argv[2]
+def mark(stage):
+    with (root / (role + '.events')).open('a') as f:
+        f.write(stage + '\n')
+def same_day(*args):
+    mark('identity')
+    return []
+def gather(cfg):
+    mark('gather')
+    return []
+def publish(*args, **kwargs):
+    mark('model'); mark('write')
+    return 'id'
+def notify(*args):
+    mark('send')
+    if role == 'owner':
+        (root / 'ready').touch()
+        deadline = time.monotonic() + 10
+        while not (root / 'release').exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError('test synchronization timed out')
+            time.sleep(.02)
+    return NotifyResult(sent_count=1, skipped_count=0, message_id='m', error=None, attempted_count=1)
+with patch('brief.cli.gather', side_effect=gather), \
+     patch('brief.headlines.scrape_all', return_value=[]), \
+     patch('brief.v6_publisher.fetch_same_day_briefs', side_effect=same_day, create=True), \
+     patch('brief.v6_publisher.fetch_max_issue_no', return_value=235), \
+     patch('brief.pipeline_v6.run_publish', side_effect=publish), \
+     patch('brief.notifier.notify', side_effect=notify):
+    sys.exit(cli.main(['run', '--publish']))
+'''
+    env = {**os.environ, "HOME": str(tmp_path), "BRIEF_DRY_RUN": "0",
+           "PYTHONPATH": str(Path.cwd())}
+    owner = subprocess.Popen([sys.executable, "-c", script, str(tmp_path), "owner"],
+                             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        deadline = time.monotonic() + 5
+        while not (tmp_path / "ready").exists():
+            assert owner.poll() is None, owner.communicate()
+            assert time.monotonic() < deadline, "owner did not reach delivery"
+            time.sleep(.02)
+        loser = subprocess.run([sys.executable, "-c", script, str(tmp_path), "loser"],
+                               env=env, cwd=tmp_path, capture_output=True, timeout=5)
+        assert loser.returncode == 4, loser.stderr.decode()
+        assert not (tmp_path / "loser.events").exists()
+        (tmp_path / "release").touch()
+        assert owner.wait(timeout=5) == 0
+        assert (tmp_path / "owner.events").read_text().splitlines() == [
+            "identity", "gather", "model", "write", "send",
+        ]
+        lock = tmp_path / ".local/state/the-brief/publication.lock"
+        assert lock.is_file(), "release must never unlink the shared lock inode"
+        inode = lock.stat().st_ino
+        retry = subprocess.run([sys.executable, "-c", script, str(tmp_path), "retry"],
+                               env=env, cwd=tmp_path, capture_output=True, timeout=5)
+        assert retry.returncode == 0, retry.stderr.decode()
+        assert lock.stat().st_ino == inode
+    finally:
+        (tmp_path / "release").touch()
+        if owner.poll() is None:
+            owner.kill()
+        owner.communicate(timeout=5)
+
+
+@pytest.mark.parametrize("raw", [None, "", "0", "false", "no", "off", " OFF "])
+def test_false_environment_switch_cannot_override_explicit_dry_run(raw, monkeypatch):
+    if raw is not None:
+        monkeypatch.setenv("BRIEF_DRY_RUN", raw)
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish", "--dry-run"]) == 3
+    assert run.call_args.kwargs["dry_run"] is True
+    assert run.call_args.kwargs["notify_enabled"] is False
+
+
+@pytest.mark.parametrize("status,should_send", [("published", False), ("draft", False)])
+def test_same_day_replacement_reuses_identity_and_never_automatically_resends(status, should_send):
+    from datetime import date
+    from brief.notifier import NotifyResult
+    from brief.pipeline import PipelineConfig
+    from brief.publication_identity import PublishIdentity
+
+    today = date(2026, 9, 25)
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[
+        {"issue_no": 235, "brief_date": today.isoformat(), "status": status},
+    ]) as read, \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235) as maximum, \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish", return_value="id") as run, \
+         patch("brief.notifier.notify", return_value=NotifyResult(
+             sent_count=1, skipped_count=0, message_id="m", error=None, attempted_count=1,
+         )) as notify:
+        assert cli._run_v6_publish(PipelineConfig(today=today, enable_headlines=False), today,
+                                   dry_run=False, notify_enabled=True) == 0
+    read.assert_called_once_with(today)
+    maximum.assert_called_once()
+    assert run.call_args.kwargs["expected_identity"] == PublishIdentity(235, today)
+    assert notify.called is should_send
+
+
+def test_same_day_conflict_holds_before_gather_or_model():
+    from datetime import date
+    from brief.pipeline import PipelineConfig
+
+    today = date(2026, 9, 25)
+    rows = [{"issue_no": n, "brief_date": today.isoformat()} for n in [234, 235]]
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=rows), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather") as gather, \
+         patch("brief.pipeline_v6.run_publish") as run, \
+         patch("brief.notifier.notify") as notify:
+        assert cli._run_v6_publish(PipelineConfig(today=today), today, False, True) == 4
+    gather.assert_not_called()
+    run.assert_not_called()
+    notify.assert_not_called()
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_paused_real_service_flow_has_zero_writes_or_notifications(monkeypatch, tmp_path, preview):
+    import shlex
+    from datetime import datetime
+    from brief import pipeline_v6
+
+    monkeypatch.setenv("BRIEF_DRY_RUN", "1")
+    fixture = tmp_path / "paused.json"
+    service = Path("deploy/brief.service").read_text()
+    command = next(line.split("=", 1)[1] for line in service.splitlines() if line.startswith("ExecStart="))
+    args = shlex.split(command)[3:]  # actual python -m brief.cli service arguments
+    if preview:
+        args += [f"--write-fixture={fixture}", "--preview-notify"]
+    payload = {
+        "brief": {"issue_no": 236, "volume": 1, "brief_date": "2026-09-24",
+                  "todays_call": "Inflation reached 99.99%.", "status": "published"},
+        "sections": [{"slug": "bb", "ord": 3, "title": "Bangladesh Bank",
+                      "group_key": "banking", "weight": 1}],
+    }
+    methods = []
+    def request(method, path, *args, **kwargs):
+        methods.append(method)
+        assert method == "GET", "pause must never write to Supabase"
+        return [{"issue_no": 235}] if "order=issue_no.desc" in path else []
+
+    with patch("brief.cli.now_bdt", return_value=datetime(2026, 9, 24, 8)), \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.headlines.scrape_all", return_value=[]), \
+         patch("brief.v6_publisher._request", side_effect=request), \
+         patch("brief.pipeline_v6._resolve_supabase_config", return_value=None), \
+         patch("brief.pipeline_v6._call_with_retries", side_effect=[
+             payload, {"verdict": "pass", "issues": [], "revised_brief": None},
+         ]), \
+         patch("brief.pipeline_v6._alert", wraps=pipeline_v6._alert) as warning, \
+         patch("brief.alerts.send_discord_alert") as alert, \
+         patch("brief.notifier.notify") as notify, \
+         patch("brief.preview_notify.notify_preview") as notify_preview:
+        assert cli.main(args) == 3
+    assert methods and set(methods) == {"GET"}
+    warning.assert_called()  # real degraded-data/prose warning traversed the pause guard
+    alert.assert_not_called()
+    notify.assert_not_called()
+    notify_preview.assert_not_called()
+    assert fixture.exists() is preview
+
+
+def test_explicit_dry_run_preview_still_sends_when_not_paused(tmp_path):
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish", "--dry-run", "--preview-notify",
+                         f"--write-fixture={tmp_path / 'preview.json'}"]) == 3
+    assert run.call_args.kwargs["preview_notify_enabled"] is True
+
+
+def test_failed_published_replacement_leaves_draft_and_retry_still_never_sends():
+    """A draft retry is ambiguous: the original published version may be emailed."""
+    from datetime import date
+    from brief.pipeline import PipelineConfig
+    from brief.pipeline_v6 import V6PublishError
+
+    today = date(2026, 9, 25)
+    row = {"issue_no": 235, "brief_date": today.isoformat(), "status": "published"}
+    attempts = 0
+    identities = []
+    def publish(*args, expected_identity, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        identities.append(expected_identity)
+        if attempts == 1:
+            row["status"] = "draft"  # draft inserted, then a child POST failed
+            raise V6PublishError("child insert failed")
+        row["status"] = "published"
+        return "replacement-id"
+
+    cfg = PipelineConfig(today=today, enable_headlines=False)
+    with patch("brief.v6_publisher.fetch_same_day_briefs", side_effect=lambda _: [dict(row)]), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish", side_effect=publish), \
+         patch("brief.notifier.notify") as notify:
+        assert cli._run_v6_publish(cfg, today, False, True) == 4
+        assert row["status"] == "draft"
+        assert cli._run_v6_publish(cfg, today, False, True) == 0
+    assert identities[0] == identities[1]
+    assert identities[1].issue_no == 235
+    notify.assert_not_called()

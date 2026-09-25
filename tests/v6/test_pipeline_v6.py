@@ -1,6 +1,8 @@
 """Pipeline_v6 orchestrator tests — mocked Claude + mocked publisher."""
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 from datetime import date
 from unittest.mock import patch
 
@@ -96,11 +98,10 @@ def _max_result(parsed: dict) -> MaxCallResult:
 
 @pytest.fixture
 def _stub_supabase_reads() -> object:
-    """fetch_max_issue_no returns 88 → next is 89; fetch_previous_brief returns None.
+    """Stub context reads; each caller supplies a trusted edition identity.
     Also stubs the new Phase 2/3 helpers so tests don't hit the network.
     """
-    with patch("brief.pipeline_v6.fetch_max_issue_no", return_value=88), \
-         patch("brief.pipeline_v6.fetch_previous_brief", return_value=None), \
+    with patch("brief.pipeline_v6.fetch_previous_brief", return_value=None), \
          patch("brief.pipeline_v6.fetch_recent_news", return_value=[]), \
          patch("brief.pipeline_v6.fetch_metric_definitions", return_value=[]):
         yield
@@ -113,12 +114,18 @@ def test_subeditor_pass_publishes_editor_output(_stub_supabase_reads: object) ->
     with patch("brief.pipeline_v6.run_max") as mock_run, \
          patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub:
         mock_run.side_effect = [_max_result(_editor_output()), _max_result(review)]
-        brief_id = run_publish([], today=date(2026, 5, 5), scraped_headlines=[])
+        brief_id = run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5), scraped_headlines=[])
 
     assert brief_id == "brief-id-89"
     assert mock_run.call_count == 2  # editor + subeditor
     published = mock_pub.call_args.args[0]
     assert published.brief.issue_no == 89
+    expected = PublishIdentity(89, date(2026, 5, 5))
+    assert mock_pub.call_args.kwargs["expected_identity"] == expected
+    # The very same identity is supplied before either model call.
+    editor_prompt = mock_run.call_args_list[0].kwargs["prompt"]
+    assert '"issue_no": 89' in editor_prompt
+    assert '"brief_date": "2026-05-05"' in editor_prompt
 
 
 def test_subeditor_revise_publishes_revised_brief(_stub_supabase_reads: object) -> None:
@@ -142,7 +149,7 @@ def test_subeditor_revise_publishes_revised_brief(_stub_supabase_reads: object) 
     with patch("brief.pipeline_v6.run_max") as mock_run, \
          patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub:
         mock_run.side_effect = [_max_result(edited), _max_result(review)]
-        run_publish([], today=date(2026, 5, 5))
+        run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5))
 
     published = mock_pub.call_args.args[0]
     assert "REVISED" in (published.brief.todays_call or "")
@@ -167,7 +174,7 @@ def test_subeditor_fail_aborts(_stub_supabase_reads: object) -> None:
          patch("brief.pipeline_v6.publish_brief") as mock_pub:
         mock_run.side_effect = [_max_result(_editor_output()), _max_result(review)]
         with pytest.raises(V6PublishError, match="verdict=fail"):
-            run_publish([], today=date(2026, 5, 5))
+            run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5))
 
     mock_pub.assert_not_called()
 
@@ -177,7 +184,7 @@ def test_dry_run_skips_publish(_stub_supabase_reads: object) -> None:
     with patch("brief.pipeline_v6.run_max") as mock_run, \
          patch("brief.pipeline_v6.publish_brief") as mock_pub:
         mock_run.side_effect = [_max_result(_editor_output()), _max_result(review)]
-        result = run_publish([], today=date(2026, 5, 5), dry_run=True)
+        result = run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5), dry_run=True)
 
     assert result is None
     mock_pub.assert_not_called()
@@ -196,7 +203,7 @@ def test_subeditor_malformed_twice_holds_never_auto_pass(_stub_supabase_reads: o
             _max_result(malformed),         # sub-editor attempt 2 (the one retry)
         ]
         with pytest.raises(V6PublishError, match="malformed review twice"):
-            run_publish([], today=date(2026, 5, 5))
+            run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5))
 
     mock_pub.assert_not_called()
     assert mock_run.call_count == 3  # editor + exactly two sub-editor attempts
@@ -226,7 +233,7 @@ def test_subeditor_revise_without_brief_holds_never_ships_unrevised(
             _max_result(revise_no_brief),    # sub-editor attempt 2 (the one retry, still invalid)
         ]
         with pytest.raises(V6PublishError, match="malformed review twice"):
-            run_publish([], today=date(2026, 5, 5))
+            run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5))
 
     mock_pub.assert_not_called()
     assert mock_run.call_count == 3  # editor + exactly two sub-editor attempts
@@ -256,7 +263,7 @@ def test_subeditor_revise_without_brief_holds_even_for_warn_only_issues(
             _max_result(revise_no_brief_warn),    # sub-editor attempt 2 (the one retry, still invalid)
         ]
         with pytest.raises(V6PublishError, match="malformed review twice"):
-            run_publish([], today=date(2026, 5, 5))
+            run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5))
 
     mock_pub.assert_not_called()
     assert mock_run.call_count == 3  # editor + exactly two sub-editor attempts
@@ -277,7 +284,7 @@ def test_publish_gate_holds_on_non_pass_verdict_even_if_validator_bypassed(
          patch("brief.pipeline_v6.publish_brief") as mock_pub:
         mock_run.side_effect = [_max_result(_editor_output())]
         with pytest.raises(V6PublishError, match="never fail OPEN"):
-            run_publish([], today=date(2026, 5, 5))
+            run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5))
 
     mock_pub.assert_not_called()
 
@@ -295,7 +302,7 @@ def test_subeditor_malformed_once_then_valid_passes(_stub_supabase_reads: object
             _max_result(malformed),         # sub-editor attempt 1 (malformed)
             _max_result(valid),             # sub-editor attempt 2 (valid → pass)
         ]
-        brief_id = run_publish([], today=date(2026, 5, 5))
+        brief_id = run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5))
 
     assert brief_id == "brief-id-89"
     assert mock_run.call_count == 3
@@ -345,7 +352,7 @@ def test_deterministic_gate_crash_never_blocks_publish(
          ):
         mock_run.side_effect = [_max_result(_editor_output()), _max_result(review)]
         with caplog.at_level("WARNING", logger="brief.pipeline_v6"):
-            brief_id = run_publish([], today=date(2026, 5, 5), scraped_headlines=[])
+            brief_id = run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5), scraped_headlines=[])
 
     assert brief_id == "brief-id-89"          # publish went through
     mock_pub.assert_called_once()             # despite the gate crashing
@@ -569,7 +576,7 @@ def test_run_publish_holds_when_editor_output_hits_the_hard_denylist(
          patch("brief.pipeline_v6.publish_brief") as mock_pub:
         mock_run.side_effect = [_max_result(tainted), _max_result(review)]
         with pytest.raises(DenylistViolationError):
-            run_publish([], today=date(2026, 5, 5), scraped_headlines=[])
+            run_publish([], expected_identity=PublishIdentity(89, date(2026, 5, 5)), today=date(2026, 5, 5), scraped_headlines=[])
 
     mock_pub.assert_not_called()
 
@@ -883,7 +890,7 @@ def test_run_publish_warns_but_still_ships_a_stale_flash_figure_by_default(
          patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub, \
          patch("brief.pipeline_v6._alert") as mock_alert:
         mock_run.side_effect = [_max_result(tainted), _max_result(review)]
-        brief_id = run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+        brief_id = run_publish(sections, expected_identity=PublishIdentity(89, date(2026, 8, 22)), today=date(2026, 8, 22), scraped_headlines=[])
 
     assert brief_id == "brief-id-89"
     mock_pub.assert_called_once()
@@ -921,7 +928,7 @@ def test_run_publish_holds_on_a_sourceless_count_claim(
          patch("brief.pipeline_v6.publish_brief") as mock_pub:
         mock_run.side_effect = [_max_result(tainted), _max_result(review)]
         with pytest.raises(ProseNumberGateError):
-            run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+            run_publish(sections, expected_identity=PublishIdentity(89, date(2026, 8, 22)), today=date(2026, 8, 22), scraped_headlines=[])
 
     mock_pub.assert_not_called()
 
@@ -982,7 +989,7 @@ def test_run_publish_holds_on_a_fabricated_dse_session_low(
             _max_result(review),
         ]
         with pytest.raises(ProseNumberGateError, match=r"ten-session low"):
-            run_publish(sections, today=date(2026, 8, 25), scraped_headlines=[])
+            run_publish(sections, expected_identity=PublishIdentity(89, date(2026, 8, 25)), today=date(2026, 8, 25), scraped_headlines=[])
 
     mock_pub.assert_not_called()
     assert issubclass(ProseNumberGateError, V6PublishError)
@@ -1013,7 +1020,7 @@ def test_run_publish_ships_the_dse_session_low_the_pipeline_actually_supplied(
                 "DSEX grinds to a 42-session low on drained turnover.")),
             _max_result(review),
         ]
-        brief_id = run_publish(sections, today=date(2026, 8, 25), scraped_headlines=[])
+        brief_id = run_publish(sections, expected_identity=PublishIdentity(89, date(2026, 8, 25)), today=date(2026, 8, 25), scraped_headlines=[])
 
     assert brief_id == "brief-id-89"
     mock_pub.assert_called_once()
@@ -1052,7 +1059,7 @@ def test_run_publish_ships_a_sub_that_traces_to_the_real_builder_value(
          patch("brief.pipeline_v6.publish_brief", return_value="brief-id-89") as mock_pub, \
          patch("brief.pipeline_v6._alert") as mock_alert:
         mock_run.side_effect = [_max_result(clean), _max_result(review)]
-        brief_id = run_publish(sections, today=date(2026, 8, 22), scraped_headlines=[])
+        brief_id = run_publish(sections, expected_identity=PublishIdentity(89, date(2026, 8, 22)), today=date(2026, 8, 22), scraped_headlines=[])
 
     assert brief_id == "brief-id-89"
     mock_pub.assert_called_once()
@@ -1075,3 +1082,16 @@ def test_section_adapter_renames_iranwar_to_iran() -> None:
     assert "iranwar" not in slugs
     assert "exec" not in slugs  # V6 dropped exec
     assert "bb" in slugs
+
+
+@pytest.mark.parametrize("phase", ["editor", "subeditor"])
+def test_model_identity_drift_holds_before_any_database_write(_stub_supabase_reads, phase):
+    wrong = _editor_output(issue_no=1)
+    wrong["brief"]["brief_date"] = "2026-04-20"
+    editor = wrong if phase == "editor" else _editor_output(issue_no=236)
+    review = {"verdict": "revise", "issues": [], "revised_brief": wrong}
+    with patch("brief.pipeline_v6.run_max", side_effect=[_max_result(editor), _max_result(review)]), \
+         patch("brief.pipeline_v6.publish_brief") as publish:
+        with pytest.raises(V6PublishError, match="trusted publication identity"):
+            run_publish([], expected_identity=PublishIdentity(236, date(2026, 5, 5)), today=date(2026, 5, 5))
+    publish.assert_not_called()

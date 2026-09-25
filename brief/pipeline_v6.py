@@ -25,9 +25,9 @@ from brief import chart_series_fetcher, pipeline as _pipeline
 from brief.claude.max_client import MaxCallError, run_max
 from brief.history import HttpClient, UrllibHttp
 from brief.schema import SectionData
+from brief.publication_identity import PublishIdentity, assert_identity, environment_paused
 from brief.v6_publisher import (
     PublishError,
-    fetch_max_issue_no,
     fetch_metric_definitions,
     fetch_previous_brief,
     fetch_recent_news,
@@ -318,6 +318,7 @@ def _build_editor_input(
     today: date_t,
     scraped_headlines: list[dict[str, Any]],
     *,
+    expected_identity: PublishIdentity,
     previous_brief: dict[str, Any] | None,
     previous_lens: str | None,
     recent_news: list[dict[str, Any]],
@@ -326,6 +327,9 @@ def _build_editor_input(
     derived_history_facts: dict[str, list[Any]] | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Build editor input + return chosen lens.
+
+    `expected_identity` is allocated once by the CLI before gather; this helper
+    never reads or allocates issue numbers.
 
     Returns (editor_input, today_lens). Caller passes today_lens to the
     appropriate prompt template; mostly relevant when caller wants to log it.
@@ -346,7 +350,6 @@ def _build_editor_input(
     from brief.builders.dedup import filter_headlines
     from brief.builders.diff import _index_previous_metrics
 
-    next_issue = fetch_max_issue_no() + 1
     raw_sections = _to_v6_raw(
         sections, today=today, extra_history_facts=derived_history_facts
     )
@@ -413,9 +416,9 @@ def _build_editor_input(
         "scraped_headlines": filtered_headlines,
         "sections_raw": raw_sections,
         "meta": {
-            "issue_no": next_issue,
+            "issue_no": expected_identity.issue_no,
             "volume": (previous_brief or {}).get("brief", {}).get("volume", 1),
-            "brief_date": today.isoformat(),
+            "brief_date": expected_identity.brief_date.isoformat(),
         },
     }, lens
 
@@ -579,6 +582,9 @@ def _alert(message: str) -> None:
     `brief.cli`'s existing alert call sites — reconciliation must never fail
     (or fail to publish) because the alert path itself broke."""
     try:
+        if environment_paused():
+            logger.info("Publication paused: alert suppressed: %s", message)
+            return
         from brief.alerts import send_discord_alert
         send_discord_alert(message)
     except Exception:
@@ -2018,11 +2024,15 @@ def run_publish(
     sections: list[SectionData],
     today: date_t,
     *,
+    expected_identity: PublishIdentity,
     scraped_headlines: list[dict[str, Any]] | None = None,
     dry_run: bool = False,
     write_fixture_path: str | None = None,
 ) -> str | None:
     """Execute the 2-call publish flow with fresh-brief V1 wiring.
+
+    Live callers must enter through the CLI publication lock and supply the
+    identity allocated there; direct historical replay must be a dry-run.
 
     Pipeline shape:
       1. Compute today_lens (data-driven Mon–Thu, weekly_wrap on Friday)
@@ -2034,6 +2044,9 @@ def run_publish(
       7. Publish to Supabase
     """
     from brief.builders.diff import stamp_changed, mark_held_overs
+
+    if expected_identity.brief_date != today:
+        raise V6PublishError("Run date differs from trusted publication identity")
 
     previous = fetch_previous_brief()
     previous_lens = (previous or {}).get("brief", {}).get("lens")
@@ -2076,6 +2089,7 @@ def run_publish(
         sections,
         today,
         scraped_headlines or [],
+        expected_identity=expected_identity,
         previous_brief=previous,
         previous_lens=previous_lens,
         recent_news=recent_news,
@@ -2115,6 +2129,11 @@ def run_publish(
             f"raw output saved to {dump or 'nowhere — nothing stashed'}): {e}"
         ) from e
 
+    try:
+        assert_identity(editor_brief, expected_identity)
+    except ValueError as exc:
+        raise V6PublishError(str(exc)) from exc
+
     # Force lens onto the brief — the LLM should set it but we guarantee it
     editor_brief.brief.lens = today_lens
 
@@ -2145,6 +2164,10 @@ def run_publish(
 
     if review.verdict == "revise" and review.revised_brief is not None:
         final_brief = review.revised_brief
+        try:
+            assert_identity(final_brief, expected_identity)
+        except ValueError as exc:
+            raise V6PublishError(str(exc)) from exc
         # Re-force lens on revised brief
         final_brief.brief.lens = today_lens
         logger.info("v6: subeditor revised brief, %d issues fixed", len(review.issues))
@@ -2306,6 +2329,6 @@ def run_publish(
         return None
 
     try:
-        return publish_brief(final_brief)
+        return publish_brief(final_brief, expected_identity=expected_identity)
     except PublishError as e:
         raise V6PublishError(f"Supabase publish failed: {e}") from e

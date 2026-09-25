@@ -39,6 +39,8 @@ ExecStartPre=-/usr/bin/timeout 120 /usr/bin/git -C /home/adnan/the-brief pull --
 ExecStartPre=/home/adnan/the-brief/deploy/brief_guard.sh
 
 ExecStart=/home/adnan/the-brief/.venv/bin/python -m brief.cli run --publish
+# A successful intentional dry-run is not a failed daily service.
+SuccessExitStatus=3
 
 # Resource limits — V6 publish does 2 Claude calls (editor + subeditor),
 # each up to 64K tokens; memory stays well under 600M in practice.
@@ -52,7 +54,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/adnan/the-brief /home/adnan/.claude
+ReadWritePaths=/home/adnan/the-brief /home/adnan/.claude /home/adnan/.local/state/the-brief
 
 # Timeouts — pipeline target ~15m. Hard cap matches the editor_v6 retry budget
 # in brief/pipeline_v6.py (`_call_with_retries`: 3 attempts × 1800s + delays ≈ 90m).

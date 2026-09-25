@@ -16,6 +16,7 @@ The flag flows into both:
 The editor prompt then has a one-line rule: don't pick is_held_over=true
 metrics as cover_metric.
 """
+from brief.publication_identity import PublishIdentity
 from datetime import date
 
 import pytest
@@ -114,7 +115,6 @@ def test_editor_input_marks_npl_held_over_when_unchanged_quarterly(monkeypatch):
     expose `is_held_over=True` for that metric so the editor skips it for
     cover_metric."""
     monday = date(2026, 5, 4)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 91)
 
     previous = _make_previous_brief(banking_npl="35.73%", iran_brent="$107.56")
 
@@ -140,7 +140,7 @@ def test_editor_input_marks_npl_held_over_when_unchanged_quarterly(monkeypatch):
     ]
 
     editor_input, today_lens = pipeline_v6._build_editor_input(
-        fake_sections, monday, scraped_headlines=[],
+        fake_sections, monday, expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=previous, previous_lens="banking",
         recent_news=[], metric_definitions=[],
     )
@@ -161,7 +161,6 @@ def test_editor_input_marks_npl_held_over_when_unchanged_quarterly(monkeypatch):
 def test_editor_input_does_not_mark_held_when_npl_actually_moved(monkeypatch):
     """Symmetry: if NPL value changed (e.g., new Q1 2026 print), it's not held."""
     monday = date(2026, 5, 4)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 91)
 
     # NPL changed 30% → 35.73%
     previous = _make_previous_brief(banking_npl="30.0%", iran_brent="$113.95")
@@ -179,7 +178,7 @@ def test_editor_input_does_not_mark_held_when_npl_actually_moved(monkeypatch):
     ]
 
     editor_input, _ = pipeline_v6._build_editor_input(
-        fake_sections, monday, scraped_headlines=[],
+        fake_sections, monday, expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=previous, previous_lens="banking",
         recent_news=[], metric_definitions=[],
     )
@@ -196,7 +195,6 @@ def test_lens_scorer_signal_drops_when_all_metrics_held(monkeypatch):
     with Patch 1's magnitude fix, this further demotes stuck-banking from the
     lens picker on quiet days."""
     monday = date(2026, 5, 4)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 91)
 
     # Banking NPL stuck (quarterly), Iran Brent moved (daily).
     previous = _make_previous_brief(banking_npl="35.73%", iran_brent="$107.56")
@@ -223,7 +221,7 @@ def test_lens_scorer_signal_drops_when_all_metrics_held(monkeypatch):
     ]
 
     _, today_lens = pipeline_v6._build_editor_input(
-        fake_sections, monday, scraped_headlines=[],
+        fake_sections, monday, expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=previous, previous_lens="banking",
         recent_news=[], metric_definitions=[],
     )
@@ -239,7 +237,6 @@ def test_editor_input_held_over_default_false_when_no_prev_brief(monkeypatch):
     """Cold start: no previous brief → no metric can be held-over (no prior
     print to compare to). All is_held_over=False."""
     monday = date(2026, 5, 4)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
 
     fake_sections = [
         SectionData(
@@ -254,7 +251,7 @@ def test_editor_input_held_over_default_false_when_no_prev_brief(monkeypatch):
     ]
 
     editor_input, _ = pipeline_v6._build_editor_input(
-        fake_sections, monday, scraped_headlines=[],
+        fake_sections, monday, expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=None, previous_lens=None,
         recent_news=[], metric_definitions=[],
     )
@@ -271,7 +268,6 @@ def test_daily_metric_unchanged_value_not_marked_held(monkeypatch):
     means the data is stale (a freshness issue), not a held-over case.
     """
     monday = date(2026, 5, 4)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 91)
 
     # Brent unchanged at $113.95 (daily metric, should be moving)
     previous = _make_previous_brief(banking_npl="35.73%", iran_brent="$113.95")
@@ -289,7 +285,7 @@ def test_daily_metric_unchanged_value_not_marked_held(monkeypatch):
     ]
 
     editor_input, _ = pipeline_v6._build_editor_input(
-        fake_sections, monday, scraped_headlines=[],
+        fake_sections, monday, expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=previous, previous_lens="iran",
         recent_news=[], metric_definitions=[],
     )

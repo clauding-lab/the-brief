@@ -9,8 +9,8 @@ Exit codes:
                             the Supabase brief is the canonical artifact; the email
                             is a best-effort amplifier.)
   1 error                 — pipeline raised; stack to stderr
-  3 dry-run-ok            — --dry-run requested, no Supabase write
-  4 publish-failed        — V6 subeditor verdict=fail or Supabase write failed
+  3 dry-run-ok            — --dry-run or BRIEF_DRY_RUN pause, no Supabase write
+  4 publish-failed        — validation/identity hold, publication busy, or write failed
 """
 from __future__ import annotations
 
@@ -18,10 +18,14 @@ import argparse
 import logging
 import sys
 import traceback
+from contextlib import nullcontext
 from datetime import date
 
 from brief.cadence import now_bdt
 from brief.pipeline import PipelineConfig, gather
+from brief.publication_identity import (
+    PublicationBusyError, environment_paused, publication_lock, resolve_identity,
+)
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
@@ -34,7 +38,8 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     r.add_argument("--dry-run", action="store_true",
                    help="Run the pipeline but do not write to Supabase")
     r.add_argument("--today", default=None,
-                   help="Override today's date (YYYY-MM-DD); default: BDT date (now_bdt())")
+                   help="Run date (YYYY-MM-DD); live runs require today in BDT. "
+                        "Use --dry-run for historical replay.")
     r.add_argument("--no-notify", action="store_true",
                    help="Skip the subscriber email notifier after a successful publish")
     r.add_argument("--write-fixture", default=None, metavar="PATH",
@@ -48,7 +53,7 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _run_v6_publish(
+def _run_v6_publish_unlocked(
     cfg: PipelineConfig,
     today: date,
     dry_run: bool,
@@ -60,8 +65,27 @@ def _run_v6_publish(
     from brief.headlines import scrape_all
     from brief.pipeline_v6 import V6PublishError, run_publish
 
+    from brief.v6_publisher import PublishError, fetch_max_issue_no, fetch_same_day_briefs
+
     log = logging.getLogger("brief.cli")
+
     try:
+        same_day_rows = fetch_same_day_briefs(today)
+        try:
+            identity = resolve_identity(
+                today, same_day_rows=same_day_rows,
+                max_issue_no=fetch_max_issue_no(),
+            )
+        except ValueError as exc:
+            raise V6PublishError(str(exc)) from exc
+        # No delivery ledger exists yet. Even a draft may be a failed replacement
+        # of an emailed issue: suppress ALL same-day retries conservatively.
+        if same_day_rows:
+            notify_enabled = False
+            log.info(
+                "Same-day replacement: subscriber resend suppressed "
+                "(no supported resend workflow)"
+            )
         sections = gather(cfg)
         scraped = [
             {"title": h.title, "url": h.url, "source": h.source,
@@ -70,11 +94,12 @@ def _run_v6_publish(
         ] if cfg.enable_headlines else []
         brief_id = run_publish(
             sections, today,
+            expected_identity=identity,
             scraped_headlines=scraped,
             dry_run=dry_run,
             write_fixture_path=write_fixture_path,
         )
-    except V6PublishError as e:
+    except (V6PublishError, PublishError) as e:
         log.error("V6 publish failed: %s", e)
         traceback.print_exc(file=sys.stderr)
         return 4
@@ -147,28 +172,67 @@ def _run_v6_publish(
     return 0
 
 
+def _run_v6_publish(
+    cfg: PipelineConfig,
+    today: date,
+    dry_run: bool,
+    notify_enabled: bool,
+    write_fixture_path: str | None = None,
+    preview_notify_enabled: bool = False,
+) -> int:
+    """The only live entry: hold the lock before reads until delivery finishes."""
+    try:
+        with nullcontext() if dry_run else publication_lock():
+            return _run_v6_publish_unlocked(
+                cfg, today, dry_run, notify_enabled,
+                write_fixture_path, preview_notify_enabled,
+            )
+    except PublicationBusyError as exc:
+        logging.getLogger("brief.cli").error("Publication held: %s", exc)
+        return 4
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     ns = _parse(argv or sys.argv[1:])
 
-    if ns.write_fixture and not ns.dry_run:
+    try:
+        paused = environment_paused()
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    dry_run = ns.dry_run or paused
+    preview_enabled = ns.preview_notify and not paused
+
+    if ns.write_fixture and not dry_run:
         print("--write-fixture requires --dry-run; use both flags together", file=sys.stderr)
         return 1
 
-    if ns.preview_notify and not ns.write_fixture:
+    if preview_enabled and not ns.write_fixture:
         print("--preview-notify requires --write-fixture (nothing to point at otherwise)", file=sys.stderr)
         return 1
 
-    today = date.fromisoformat(ns.today) if ns.today else now_bdt().date()
+    current_day = now_bdt().date()
+    try:
+        today = date.fromisoformat(ns.today) if ns.today else current_day
+    except ValueError:
+        print("--today must be YYYY-MM-DD", file=sys.stderr)
+        return 1
+    if not dry_run and today != current_day:
+        print("Live --today must match today's BDT date; use --dry-run for historical replay", file=sys.stderr)
+        return 1
     cfg = PipelineConfig(today=today)
 
     if ns.publish:
         return _run_v6_publish(
             cfg, today,
-            dry_run=ns.dry_run,
-            notify_enabled=not ns.no_notify,
+            dry_run=dry_run,
+            notify_enabled=not ns.no_notify and not dry_run,
             write_fixture_path=ns.write_fixture,
-            preview_notify_enabled=ns.preview_notify,
+            preview_notify_enabled=preview_enabled,
         )
 
     print("--publish is required (V5 HTML path has been removed)", file=sys.stderr)
