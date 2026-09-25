@@ -70,8 +70,8 @@ def test_fetch_table_paginates_past_page_size() -> None:
     assert len(out) == 2345
     assert out[0]["id"] == "chart_series-00000"
     assert out[-1]["id"] == "chart_series-02344"
-    # 1000 + 1000 + 345 → 3 pages; pages 2 and 3 are keyset (id=gt.<last>), not offset
-    assert len(http.requests) == 3
+    # 1000 + 1000 + 345 + empty; only an empty page confirms completion
+    assert len(http.requests) == 4
     assert "id=" not in http.requests[0]
     assert "id=gt.chart_series-00999" in http.requests[1]
     assert "id=gt.chart_series-01999" in http.requests[2]
@@ -230,3 +230,25 @@ def test_main_returns_1_on_missing_env(
     monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
     monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
     assert main(["--out", str(tmp_path)]) == 1
+
+
+def test_server_cap_below_requested_page_size_does_not_truncate():
+    class Capped(_FakeHttp):
+        def get(self, url, *, headers):
+            status, page = super().get(url, headers=headers)
+            return status, page[:2]
+
+    http = Capped({"briefs": _rows("briefs", 5)})
+    result = fetch_table(http, supabase_url="https://test.supabase.co", service_key="k", table="briefs")
+    assert result == _rows("briefs", 5)
+    assert len(http.requests) == 4
+
+
+@pytest.mark.parametrize("page", [[{"payload": "missing"}], [{"id": "a"}, {"id": "a"}], [{"id": "b"}, {"id": "a"}]])
+def test_invalid_short_page_is_refused(page):
+    class Broken:
+        def get(self, url, *, headers):
+            return 200, page
+
+    with pytest.raises(ExportError):
+        fetch_table(Broken(), supabase_url="https://test.supabase.co", service_key="k", table="briefs")

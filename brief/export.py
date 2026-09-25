@@ -99,7 +99,10 @@ def fetch_table(
     Raises ExportError on any non-200/non-list page or a row missing `id` — a partial
     table must never be treated as complete.
     """
+    if page_size < 1:
+        raise ExportError("page_size must be positive")
     rows: list[dict] = []
+    seen: set[str] = set()
     last_id: str | None = None
     while True:
         params: list[tuple[str, str]] = [
@@ -124,15 +127,21 @@ def fetch_table(
                 f"fetch {table} page after id={last_id!r} failed: HTTP {status} "
                 f"(body type {type(body).__name__})"
             )
-        rows.extend(body)
-        if len(body) < page_size:
+        if not body:
             return rows
-        last = body[-1].get("id")
-        if last is None:
-            raise ExportError(
-                f"{table} row missing 'id' — keyset pagination impossible"
-            )
-        last_id = str(last)
+        previous = None
+        for row in body:
+            if not isinstance(row, dict) or row.get("id") is None:
+                raise ExportError(f"{table} row missing 'id' — keyset pagination impossible")
+            value = row["id"]
+            identity = str(value)
+            if identity in seen or (previous is not None and value <= previous):
+                raise ExportError(f"{table} duplicate or unordered key — no pagination progress")
+            previous = value
+            seen.add(identity)
+        rows.extend(body)
+        # A short page may be a server row cap, not the end of the table.
+        last_id = str(body[-1]["id"])
 
 
 def _prune_old_exports(out_root: Path, keep: int) -> list[str]:
