@@ -39,7 +39,7 @@ from datetime import date
 from typing import Callable
 
 from brief.cadence import months_apart, section_freshness
-from brief.history import HistoryRow, observation_date
+from brief.history import HistoryRow, finite_number, observation_date
 from brief.history_anchors import HistoryFact, fetch_and_compute
 from brief.schema import Metric, SectionData
 from . import BuilderContext, official_monthly_bn
@@ -401,24 +401,26 @@ def _resolve_newest_official_cpi(
     CPI concept (issue 206, item 4). SCOPED to specs that opt in via
     `dual_source_official=True` — today, only the CPI food/non-food pair.
 
-    The live daily leg is trusted as-is (EconDelta's own scrape, unfiltered
-    — the same contract every other `live_id` spec already has). The
-    monthly archive leg is filtered through `chart_series_fetcher`'s CPI
-    honesty gate (`is_official_cpi_point`) — the SAME predicate the chart
-    uses, so a card and its own chart can never independently disagree on
-    what counts as official for this pair.
-
-    With production's real 2026-08-24 shape (June daily official, July
-    archive unofficial for both legs of this pair) this resolves to the
-    JUNE daily row for both cards — the card values do not move to July.
+    The daily table may contain collection restamps. Its leg needs a matching
+    snapshot observation or explicit source_as_of; a bare daily as_of cannot
+    establish a CPI period. Monthly rows retain the shared chart honesty gate.
     """
-    from brief.chart_series_fetcher import is_official_cpi_point
+    from brief.chart_series_fetcher import is_excluded_cpi_period, is_official_cpi_point
 
     candidates: list[HistoryRow] = []
-    if spec.live_id is not None and ctx.history is not None:
-        row = _latest(ctx.history, spec.live_id, table="metric_history")
-        if row is not None and isinstance(row.value, (int, float)):
-            candidates.append(row)
+    if spec.live_id is not None:
+        item = ctx.snapshot.observation(spec.live_id, today=ctx.today)
+        if item is not None and item.get("unit") == "%":
+            observed = date.fromisoformat(item["as_of"])
+            if not is_excluded_cpi_period(spec.id, observed):
+                candidates.append(HistoryRow(spec.live_id, observed, item["value"], item["source"]))
+        elif spec.live_id not in ctx.snapshot.observations and ctx.history is not None:
+            row = _latest(ctx.history, spec.live_id, table="metric_history")
+            if (row is not None and row.metric_id == spec.live_id
+                    and finite_number(row.value) and row.source_as_of is not None):
+                observed = observation_date(row, today=ctx.today)
+                if observed is not None and not is_excluded_cpi_period(spec.id, observed):
+                    candidates.append(HistoryRow(row.metric_id, observed, row.value, row.source))
     if spec.archive_id is not None and ctx.history_monthly is not None:
         row = _latest(ctx.history_monthly, spec.archive_id, table="metric_history_monthly")
         if (

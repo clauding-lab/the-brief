@@ -39,7 +39,8 @@ def snapshot(tmp_path, data, observations=None):
 
 def observation(mid, base_value, as_of="2026-09-23", **overrides):
     return {"metric_id": mid, "value": base_value, "as_of": as_of,
-            "unit": "USD/bbl", "source": "source fixture", "source_url": None,
+            "unit": {"gold_usd_oz": "USD/oz", "usd_bdt_mid": "BDT",
+                     "remit_monthly_mn": "USD million"}.get(mid, "USD/barrel"), "source": "source fixture", "source_url": None,
             "captured_at": "2026-09-25T01:00:00+06:00", "quality": "verified",
             "date_basis": "observation", "evidence": "dated source fixture",
             "dependencies": [], "release_status": "unknown", **overrides}
@@ -209,3 +210,114 @@ def test_held_quote_keeps_its_date_and_cannot_read_fresh(tmp_path):
     from brief.cadence import metric_freshness
     assert card.stale and card.as_of == date(2026, 9, 24)
     assert metric_freshness(card, today=TODAY) != "fresh"
+
+
+QUOTE_CASES = [
+    (iranwar, "brent_crude_usd_barrel", "iranwar_brent_spot", "USD/barrel", "USD/bbl"),
+    (iranwar, "wti_crude_usd_barrel", "iranwar_wti_spot", "USD/barrel", "USD/bbl"),
+    (fx, "gold_usd_oz", "fx_gold_usd_oz", "USD/oz", "USD/oz"),
+    (fx, "usd_bdt_mid", "fx_usd_bdt_mid", "BDT", "BDT"),
+]
+
+
+@pytest.mark.parametrize("builder,mid,display,source_unit,display_unit", QUOTE_CASES)
+def test_quotes_accept_actual_producer_units(tmp_path, builder, mid, display, source_unit, display_unit):
+    ctx = context(tmp_path, data={mid: 123.4}, observations={mid: observation(mid, 123.4, unit=source_unit)})
+    card = next(m for m in builder.build(ctx).metrics if m.id == display)
+    assert (card.value, card.unit) == (123.4, display_unit)
+
+
+@pytest.mark.parametrize("builder,mid,display,source_unit,display_unit", QUOTE_CASES)
+@pytest.mark.parametrize("bad_unit", ["USD thousand/oz", None, "", "unknown"])
+def test_quotes_reject_wrong_scale_or_missing_units(tmp_path, builder, mid, display, source_unit, display_unit, bad_unit):
+    item = observation(mid, 3.31, unit=bad_unit)
+    if bad_unit is None:
+        item.pop("unit")
+    ctx = context(tmp_path, data={mid: 3.31}, observations={mid: item})
+    assert display not in {m.id for m in builder.build(ctx).metrics}
+
+
+@pytest.mark.parametrize("bad_value", [True, float("nan"), float("inf"), -float("inf"), 10**400],
+                         ids=["bool", "nan", "inf", "negative-inf", "overflow-int"])
+@pytest.mark.parametrize("path", ["snapshot", "history", "history-http"])
+def test_bad_gold_number_does_not_erase_valid_fx_cards(tmp_path, bad_value, path):
+    from brief.history import MetricHistoryClient
+    from urllib.parse import parse_qs, urlparse
+    data = {"usd_bdt_mid": 123.4}
+    observations = {"usd_bdt_mid": observation("usd_bdt_mid", 123.4, unit="BDT")}
+    rows = [HistoryRow("gross_reserves_usd_bn", date(2026, 8, 31), 35, "BB")]
+    monthly = [HistoryRow("exports_usd_mn_monthly", date(2026, 8, 1), 4000, "EPB"),
+               HistoryRow("imports_usd_mn_monthly", date(2026, 8, 1), 6000, "BB")]
+    if path == "snapshot":
+        data["gold_usd_oz"] = bad_value
+        observations["gold_usd_oz"] = observation("gold_usd_oz", bad_value, unit="USD/oz")
+    else:
+        rows.append(HistoryRow("gold_usd_oz", TODAY, bad_value, "dated source", date(2026, 9, 23)))
+    ctx = context(tmp_path, data=data, observations=observations, rows=rows, monthly=monthly)
+    if path == "history-http":
+        class Http:
+            def get(self, url, **kwargs):
+                mid = parse_qs(urlparse(url).query)["metric_id"][0][3:]
+                row = next((r for r in rows if r.metric_id == mid), None)
+                return 200, [{"metric_id": mid, "as_of": row.as_of.isoformat(), "value": row.value,
+                              "source": row.source, "source_as_of": row.source_as_of.isoformat()
+                              if row.source_as_of else None}] if row else []
+        ctx = BuilderContext(ctx.snapshot, MetricHistoryClient(url="https://fixture", service_key="test", http=Http()),
+                             TODAY, history_monthly=ctx.history_monthly)
+    cards = {m.id: m.value for m in fx.build(ctx).metrics}
+    assert cards == {"fx_usd_bdt_mid": 123.4, "fx_gross_reserves": 35,
+                     "fx_monthly_exports": 4, "fx_trade_gap": -2}
+
+
+@pytest.mark.parametrize("daily_source_date", [None, date(2026, 6, 30)])
+def test_daily_cpi_restamp_cannot_outrank_august_print(tmp_path, daily_source_date):
+    ctx = context(tmp_path, rows=[HistoryRow("food_inflation", date(2026, 9, 24), 7, "econdelta", daily_source_date)],
+                  monthly=[HistoryRow("cpi_p2p_food_monthly", date(2026, 8, 1), 6, "econdelta_daily_cpi")])
+    card = next(m for m in macro.build(ctx).metrics if m.id == "cpi_p2p_food_monthly")
+    assert (card.value, card.as_of) == (6, date(2026, 8, 31))
+
+
+def test_daily_cpi_without_evidenced_period_is_unavailable(tmp_path):
+    ctx = context(tmp_path, rows=[HistoryRow("food_inflation", date(2026, 9, 24), 7, "econdelta")])
+    assert next(m for m in macro.build(ctx).metrics if m.id == "cpi_p2p_food_monthly").value is None
+
+
+def test_daily_cpi_can_use_matching_snapshot_period(tmp_path):
+    ctx = context(tmp_path, data={"food_inflation": 7},
+                  observations={"food_inflation": observation("food_inflation", 7, "2026-06-30", unit="%")},
+                  rows=[HistoryRow("food_inflation", date(2026, 9, 24), 7, "econdelta")])
+    card = next(m for m in macro.build(ctx).metrics if m.id == "cpi_p2p_food_monthly")
+    assert (card.value, card.as_of) == (7, date(2026, 6, 30))
+
+
+@pytest.mark.parametrize("slug,mid", [("macro", "cpi_12m_avg_monthly"), ("remit", "remittance_usd_mn_monthly"),
+    ("bb", "gross_reserves_usd_bn_monthly"), ("fx", "exports_usd_mn_monthly"), ("fiscal", "nbr_revenue_monthly_cr")])
+def test_historical_issue_cutoff_reaches_chart_and_editor_summary(monkeypatch, slug, mid):
+    from datetime import datetime, timezone
+    from urllib.parse import parse_qs, urlparse
+    import brief.chart_series_fetcher as fetchers
+    # The computer has reached September, but this issue is from mid-August.
+    monkeypatch.setattr(fetchers, "now_bdt", lambda: datetime(2026, 9, 25, tzinfo=timezone.utc))
+    class Http:
+        def get(self, url, **kwargs):
+            query = parse_qs(urlparse(url).query)
+            if "metric_history_monthly" in url and mid in query.get("metric_id", [""])[0]:
+                return 200, [{"metric_id": mid, "as_of": "2026-08-01", "value": 8, "source": "econdelta_daily_cpi"},
+                             {"metric_id": mid, "as_of": "2026-07-01", "value": 7, "source": "econdelta_daily_cpi"}]
+            return 200, []
+    cutoff = date(2026, 8, 15)
+    kwargs = dict(today=cutoff, http=Http(), supabase_url="https://fixture", service_key="test")
+    final = BriefPayloadV6(brief=BriefV6(issue_no=1, volume=1, brief_date=cutoff), sections=[
+        SectionV6(slug=slug, ord=1, title=slug, group_key="banking")])
+    pipeline_v6._stamp_chart_series(final, **kwargs)
+    assert [(p.ts, p.value) for p in final.sections[0].series] == [("2026-07-31", 7)]
+    summary = pipeline_v6._fetch_series_summaries(**kwargs)
+    assert summary[slug][mid]["last_ts"] == "2026-07-31"
+    assert summary[slug][mid]["last_value"] == 7
+
+
+@pytest.mark.parametrize("mid", ["brent_crude_usd_barrel", "wti_crude_usd_barrel"])
+def test_oil_accepts_compatible_bbl_unit_alias(tmp_path, mid):
+    ctx = context(tmp_path, data={mid: 80}, observations={mid: observation(mid, 80, unit="USD/bbl")})
+    card = iranwar.build(ctx).metrics[0]
+    assert (card.value, card.unit) == (80, "USD/bbl")

@@ -942,6 +942,9 @@ def _stamp_remittance_sub(
             continue
         for pub in section.metrics:
             if _normalize_label(pub.label) == _normalize_label(str(raw.get("label") or "")):
+                # The provenance and number are one observation: restore the
+                # builder value with its verified unit before attaching the note.
+                pub.value = _format_metric_value(raw["value"], raw.get("unit") or "")
                 pub.sub = note
                 # Runs after generic catalog/vintage passes: the source period
                 # wins, and no source here verifies a next-release schedule.
@@ -1283,7 +1286,8 @@ def _fetch_series_summaries(
     for slug, fn_name in _SUMMARY_MONTHLY_FETCHERS.items():
         try:
             fn = getattr(chart_series_fetcher, fn_name)
-            series_by_id = fn(history_monthly_client)
+            series_by_id = (fn(history_monthly_client) if slug == "tbond"
+                            else fn(history_monthly_client, today=today))
             flat = [pt for pts in series_by_id.values() for pt in pts]
             out[slug] = summarize_series_points(flat)
         except Exception:  # noqa: BLE001 — graceful degradation
@@ -1380,7 +1384,7 @@ def _stamp_chart_series(
         # v1.4.0 — macro CPI trend chart uses metric_history_monthly
         if section.slug == "macro":
             try:
-                series_by_id = chart_series_fetcher.fetch_macro_cpi_series(history_monthly_client)
+                series_by_id = chart_series_fetcher.fetch_macro_cpi_series(history_monthly_client, today=today)
                 flat_series = [pt for pts in series_by_id.values() for pt in pts]
                 section.series = flat_series
             except Exception:  # noqa: BLE001 — graceful degradation
@@ -1393,7 +1397,7 @@ def _stamp_chart_series(
         # F6 — §08 remittance 12-month chart also reads metric_history_monthly
         if section.slug == "remit":
             try:
-                series_by_id = chart_series_fetcher.fetch_remit_monthly(history_monthly_client)
+                series_by_id = chart_series_fetcher.fetch_remit_monthly(history_monthly_client, today=today)
                 section.series = [pt for pts in series_by_id.values() for pt in pts]
             except Exception:  # noqa: BLE001 — graceful degradation
                 logger.warning(
@@ -1405,7 +1409,7 @@ def _stamp_chart_series(
         # F2 — §02 Policy & Rates reserves two-line (metric_history_monthly)
         if section.slug == "bb":
             try:
-                series_by_id = chart_series_fetcher.fetch_reserves_monthly(history_monthly_client)
+                series_by_id = chart_series_fetcher.fetch_reserves_monthly(history_monthly_client, today=today)
                 section.series = [pt for pts in series_by_id.values() for pt in pts]
             except Exception:  # noqa: BLE001 — graceful degradation
                 logger.warning(
@@ -1444,7 +1448,7 @@ def _stamp_chart_series(
         # Replaces the daily fetch_fx_flows path (fx removed from the HTTP map below).
         if section.slug == "fx":
             try:
-                series_by_id = chart_series_fetcher.fetch_fx_balance_monthly(history_monthly_client)
+                series_by_id = chart_series_fetcher.fetch_fx_balance_monthly(history_monthly_client, today=today)
                 section.series = [pt for pts in series_by_id.values() for pt in pts]
             except Exception:  # noqa: BLE001 — graceful degradation
                 logger.warning(
@@ -1456,7 +1460,7 @@ def _stamp_chart_series(
         # F7b — §fiscal NBR monthly tax-revenue line (metric_history_monthly).
         if section.slug == "fiscal":
             try:
-                series_by_id = chart_series_fetcher.fetch_fiscal_monthly(history_monthly_client)
+                series_by_id = chart_series_fetcher.fetch_fiscal_monthly(history_monthly_client, today=today)
                 section.series = [pt for pts in series_by_id.values() for pt in pts]
             except Exception:  # noqa: BLE001 — graceful degradation
                 logger.warning(
@@ -2244,6 +2248,9 @@ def run_publish(
     # that makes a restamp-lag error visible on the page.
     _stamp_real_policy_rate_sub(final_brief, editor_input["sections_raw"])
 
+    # Restore the remittance observation before comparing published numbers;
+    # the second pass below keeps its period authoritative after generic stamps.
+    _stamp_remittance_sub(final_brief, editor_input["sections_raw"])
     stamp_changed(final_brief, previous)
     mark_held_overs(final_brief, previous, metric_definitions)
     # Vintage stamping runs LAST of the three and never overwrites

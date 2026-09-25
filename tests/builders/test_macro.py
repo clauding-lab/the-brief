@@ -31,7 +31,9 @@ def _snap() -> EconDeltaSnapshot:
 
 
 def _row(metric_id: str, value: float, as_of: date) -> HistoryRow:
-    return HistoryRow(metric_id=metric_id, as_of=as_of, value=value, source="test")
+    # These fixtures explicitly represent evidenced CPI periods, not daily restamps.
+    return HistoryRow(metric_id=metric_id, as_of=as_of, value=value, source="test",
+                      source_as_of=as_of if metric_id in {"food_inflation", "non_food_inflation"} else None)
 
 
 class _FakeHistory:

@@ -6,11 +6,32 @@ returning `(status, json_body_or_none)`. Production passes a urllib wrapper.
 from __future__ import annotations
 
 import json as _json
+import math
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Protocol, Sequence, runtime_checkable
+
+
+def finite_number(value: Any) -> bool:
+    """Whether a numeric scalar is finite and safely representable as a float."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError, TypeError):
+        return False
+
+
+def _history_number(value: Any) -> float | None:
+    """PostgREST may serialize numeric columns as strings; reject bad scalars."""
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except (OverflowError, ValueError):
+            return None
+    return float(value) if finite_number(value) else None
 
 
 @dataclass(frozen=True)
@@ -123,10 +144,13 @@ class MetricHistoryClient:
         if status != 200 or not body:
             return None
         row = body[0]
+        value = _history_number(row.get("value"))
+        if value is None:
+            return None
         return HistoryRow(
             metric_id=row["metric_id"],
             as_of=date.fromisoformat(row["as_of"]),
-            value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
+            value=value,
             source=row["source"],
             source_as_of=_source_as_of(row),
         )
@@ -153,10 +177,13 @@ class MetricHistoryClient:
         if status != 200 or not body:
             return None
         row = body[0]
+        value = _history_number(row.get("value"))
+        if value is None:
+            return None
         return HistoryRow(
             metric_id=row["metric_id"],
             as_of=date.fromisoformat(row["as_of"]),
-            value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
+            value=value,
             source=row["source"],
             source_as_of=_source_as_of(row),
         )

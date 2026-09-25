@@ -6,12 +6,13 @@ tests pass a path to a fixture. No HTTP.
 from __future__ import annotations
 
 import json
-import math
 import os
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+
+from brief.history import finite_number
 
 DEFAULT_PATH = Path(os.environ.get("ECONDELTA_DATA", "/home/adnan/econdelta/data/latest.json"))
 
@@ -40,8 +41,8 @@ class EconDeltaSnapshot:
         if not isinstance(item, dict):
             return None
         value = item.get("value")
-        if (item.get("metric_id") != key or not isinstance(value, (int, float))
-                or isinstance(value, bool) or not math.isfinite(value)
+        if (item.get("metric_id") != key or not finite_number(value)
+                or not finite_number(self.get(key))
                 or value != self.get(key) or item.get("quality") not in ("verified", "held")
                 or item.get("date_basis") != "observation"
                 or not isinstance(item.get("source"), str) or not item["source"].strip()

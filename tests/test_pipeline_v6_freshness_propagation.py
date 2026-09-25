@@ -411,9 +411,11 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
     assert published.sections[0].freshness == "stale"
 
 
-def test_remittance_period_survives_entire_publish_stamp_sequence(monkeypatch):
+@pytest.mark.parametrize("editor_value", ["2970", "$3.5bn"])
+def test_remittance_period_survives_entire_publish_stamp_sequence(monkeypatch, editor_value):
     """A model/catalog month cannot overwrite the builder's dated flash."""
     today = date(2026, 9, 25)
+    monkeypatch.setattr(pipeline_v6, "_alert", lambda message: None)
     raw_remit = Metric(id="remit_monthly_mn", label="Monthly Remittance", value=2970,
         unit="mn USD", as_of=date(2026, 8, 31), cadence="monthly", stale=True,
         source="BB · Aug 2026, provisional")
@@ -425,7 +427,7 @@ def test_remittance_period_survives_entire_publish_stamp_sequence(monkeypatch):
     editor = {"brief": {"issue_no": 1, "volume": 1, "brief_date": today.isoformat()},
         "sections": [{"slug": "bb", "ord": 2, "title": "BB", "group_key": "banking"},
                      {"slug": "remit", "ord": 11, "title": "Remittance", "group_key": "external_real",
-                      "metrics": [{"label": "Monthly Remittance", "value": "2970", "sub": "September final"}]}]}
+                      "metrics": [{"label": "Monthly Remittance", "value": editor_value, "sub": "September final"}]}]}
     # Use the existing map's group to keep this test independent of presentation grouping.
     editor["sections"][1]["group_key"] = pipeline_v6.V5_TO_V6["remit"][2]
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: {
@@ -441,6 +443,8 @@ def test_remittance_period_survives_entire_publish_stamp_sequence(monkeypatch):
     monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload, **kw: captured.append(payload) or "local")
     assert pipeline_v6.run_publish(sections, today, expected_identity=PublishIdentity(1, today)) == "local"
     card = next(s for s in captured[0].sections if s.slug == "remit").metrics[0]
+    assert card.value == "2,970.00 mn USD"
+    assert card.changed is False
     assert card.sub == "BB · Aug 2026, provisional"
     assert card.held_from == date(2026, 8, 31)
     assert card.next_print is None

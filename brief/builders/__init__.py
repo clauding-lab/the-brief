@@ -105,6 +105,15 @@ def official_monthly_bn(ctx: "BuilderContext", metric_id: str, *,
     )
 
 
+# Producer spells oil USD/barrel; USD/bbl is the same unit, not a scale conversion.
+_QUOTE_UNITS = {
+    "brent_crude_usd_barrel": ("USD/barrel", "USD/bbl"),
+    "wti_crude_usd_barrel": ("USD/barrel", "USD/bbl"),
+    "gold_usd_oz": ("USD/oz",),
+    "usd_bdt_mid": ("BDT",),
+}
+
+
 def dated_quote(ctx: BuilderContext, metric_id: str) -> tuple[float, date, str, bool] | None:
     """Return a source-bound (value, date, source, held) quote, or None.
 
@@ -112,11 +121,12 @@ def dated_quote(ctx: BuilderContext, metric_id: str) -> tuple[float, date, str, 
     uses the history record's own value and explicit source_as_of together.
     Daily source_as_of is optional; no query requires that column to exist.
     """
-    from brief.history import observation_date
-    import math
+    from brief.history import finite_number, observation_date
 
     item = ctx.snapshot.observation(metric_id, today=ctx.today)
     if item is not None:
+        if item.get("unit") not in _QUOTE_UNITS.get(metric_id, ()):
+            return None
         return (item["value"], date.fromisoformat(item["as_of"]), item["source"],
                 item["quality"] == "held")
     # An explicit rejected/unknown record must not be resurrected from history.
@@ -127,8 +137,7 @@ def dated_quote(ctx: BuilderContext, metric_id: str) -> tuple[float, date, str, 
     row = ctx.history.get_latest(metric_id)
     if (row is None or getattr(row, "metric_id", None) != metric_id
             or getattr(row, "source_as_of", None) is None
-            or not isinstance(row.value, (int, float)) or isinstance(row.value, bool)
-            or not math.isfinite(row.value) or not row.source):
+            or not finite_number(row.value) or not row.source):
         return None
     observed = observation_date(row, today=ctx.today)
     return (row.value, observed, row.source, True) if observed is not None else None

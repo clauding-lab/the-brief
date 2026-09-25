@@ -6,10 +6,9 @@ aggregate restamp can establish the period of a provisional remittance value.
 from __future__ import annotations
 
 from datetime import date
-import math
 
 from brief.cadence import section_freshness
-from brief.history import observation_date
+from brief.history import finite_number, observation_date
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -29,8 +28,7 @@ def build(ctx: BuilderContext) -> SectionData:
     if ctx.history_monthly is not None:
         row = ctx.history_monthly.get_latest(_OFFICIAL_METRIC_ID, table="metric_history_monthly")
         if (row is not None and row.metric_id == _OFFICIAL_METRIC_ID
-                and isinstance(row.value, (int, float)) and not isinstance(row.value, bool)
-                and math.isfinite(row.value)):
+                and finite_number(row.value)):
             observed = observation_date(row, today=ctx.today, monthly=True)
             if observed is not None:
                 candidates.append((observed, True, row.value, False))
