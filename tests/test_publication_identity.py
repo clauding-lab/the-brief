@@ -49,7 +49,7 @@ def test_lock_refuses_symlink_without_touching_target(tmp_path, monkeypatch):
 
     monkeypatch.setenv("HOME", str(tmp_path))
     directory = tmp_path / ".local/state/the-brief"
-    directory.mkdir(parents=True)
+    directory.mkdir(parents=True, mode=0o700)
     target = tmp_path / "other-file"
     target.write_text("unchanged")
     (directory / "publication.lock").symlink_to(target)
@@ -70,3 +70,94 @@ def test_lock_releases_after_exception_without_unlinking(tmp_path, monkeypatch):
             raise RuntimeError("pipeline failed")
     with publication_lock():
         assert lock.stat().st_ino == inode
+
+
+def test_lock_refuses_symlink_directory_without_creating_lock(tmp_path, monkeypatch):
+    from brief.publication_identity import publication_lock
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    directory = tmp_path / ".local/state/the-brief"
+    directory.parent.mkdir(parents=True)
+    target = tmp_path / "other-directory"
+    target.mkdir(mode=0o700)
+    directory.symlink_to(target, target_is_directory=True)
+    with pytest.raises(OSError):
+        with publication_lock():
+            pytest.fail("a symlink directory must not be accepted")
+    assert list(target.iterdir()) == []
+    assert directory.is_symlink()
+
+
+@pytest.mark.parametrize("mode", [0o777, 0o770, 0o755, 0o710, 0o707])
+def test_lock_refuses_nonprivate_directory_without_repair(tmp_path, monkeypatch, mode):
+    import stat
+    from brief.publication_identity import publication_lock
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    directory = tmp_path / ".local/state/the-brief"
+    directory.mkdir(parents=True)
+    directory.chmod(mode)  # Deliberately misprovisioned; ignore the shell's umask.
+    before = directory.stat()
+    with pytest.raises(RuntimeError, match="Publication lock directory"):
+        with publication_lock():
+            pytest.fail("a nonprivate directory must not be accepted")
+    assert not (directory / "publication.lock").exists()
+    assert stat.S_IMODE(directory.stat().st_mode) == mode
+    assert directory.stat().st_uid == before.st_uid
+
+
+def test_lock_refuses_directory_owned_by_another_effective_user(tmp_path, monkeypatch):
+    from brief.publication_identity import publication_lock
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    directory = tmp_path / ".local/state/the-brief"
+    directory.mkdir(parents=True, mode=0o700)
+    original_owner = directory.stat().st_uid
+    # Exercise the ownership comparison without requiring privileged chown.
+    monkeypatch.setattr("brief.publication_identity.os.geteuid", lambda: original_owner + 1)
+    with pytest.raises(RuntimeError, match="Publication lock directory"):
+        with publication_lock():
+            pytest.fail("a directory owned by another effective user must be refused")
+    assert not (directory / "publication.lock").exists()
+    assert directory.stat().st_uid == original_owner
+
+
+def test_existing_private_directory_keeps_lock_inode(tmp_path, monkeypatch):
+    import stat
+    from brief.publication_identity import publication_lock
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    directory = tmp_path / ".local/state/the-brief"
+    directory.mkdir(parents=True, mode=0o700)
+    lock = directory / "publication.lock"
+    with publication_lock():
+        inode = lock.stat().st_ino
+    with publication_lock():
+        assert lock.stat().st_ino == inode
+    assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+
+
+def test_lock_file_open_stays_in_the_validated_directory(tmp_path, monkeypatch):
+    import os
+    from pathlib import Path
+    from brief.publication_identity import publication_lock
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    directory = tmp_path / ".local/state/the-brief"
+    directory.mkdir(parents=True, mode=0o700)
+    parked = tmp_path / "validated-directory"
+    replacement = tmp_path / "replacement"
+    replacement.mkdir(mode=0o700)
+    real_open = os.open
+
+    def replace_path_before_file_open(path, flags, mode=0o777, *, dir_fd=None):
+        if Path(path).name == "publication.lock":
+            directory.rename(parked)
+            directory.symlink_to(replacement, target_is_directory=True)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr("brief.publication_identity.os.open", replace_path_before_file_open)
+    with publication_lock():
+        assert (parked / "publication.lock").is_file()
+        assert list(replacement.iterdir()) == []
+    assert (parked / "publication.lock").is_file()

@@ -160,7 +160,10 @@ process lock from before database identity/gather reads through subscriber
 delivery. Another invocation exits 4 before reads, models, writes or sends.
 The lock lives at `/home/adnan/.local/state/the-brief/publication.lock` for
 both systemd and manual runs, independent of checkout/current directory and
-`PrivateTmp`. Never delete, replace or symlink the lock file. It remains on
+`PrivateTmp`. The dedicated directory must be a real directory owned by the
+service user with no group/other permissions (provision it as mode 0700).
+An unsafe existing directory is refused; the CLI never silently changes its
+permissions or ownership. Never delete, replace or symlink the lock file. It remains on
 disk after release; the operating system releases ownership when the process
 exits. This protects cooperating same-user processes on one host, not
 external database writers or a distributed database transaction.

@@ -74,16 +74,32 @@ def publication_lock() -> Iterator[None]:
     """
     directory = Path.home() / ".local/state/the-brief"
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path = directory / "publication.lock"
-    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    # mkdir's mode does not validate an existing directory. Open without
+    # following symlinks, inspect that exact inode, then open the lock relative
+    # to it so path replacement cannot redirect us after the safety check.
+    directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
-            raise RuntimeError("Publication lock must be a regular file owned by this user")
+        directory_info = os.fstat(directory_fd)
+        if (not stat.S_ISDIR(directory_info.st_mode)
+                or directory_info.st_uid != os.geteuid()
+                or stat.S_IMODE(directory_info.st_mode) & 0o077):
+            raise RuntimeError(
+                "Publication lock directory must be private and owned by this user"
+            )
+        fd = os.open(
+            "publication.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW,
+            0o600, dir_fd=directory_fd,
+        )
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise PublicationBusyError("Another live publication holds the publication lock") from exc
-        yield
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid():
+                raise RuntimeError("Publication lock must be a regular file owned by this user")
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise PublicationBusyError("Another live publication holds the publication lock") from exc
+            yield
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
+        os.close(directory_fd)
