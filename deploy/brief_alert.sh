@@ -31,19 +31,23 @@ HOST="$(hostname 2>/dev/null || echo unknown-host)"
 WHEN="$(TZ=Asia/Dhaka date '+%Y-%m-%d %H:%M BDT' 2>/dev/null || date -u '+%Y-%m-%d %H:%MZ')"
 
 # Unit names and log sources are fixed; never use arbitrary input as a path or
-# journalctl option. Keep the tail bounded before passing it to Python.
+# journalctl option. Capture one extra byte so Python can discard a partial
+# leading line when the raw log exceeds the bounded window.
 case "$FAILED_UNIT" in
   brief.service)
     LOG_SOURCE="application log"
-    LOG_TAIL="$(tail -c 1500 /home/adnan/the-brief/logs/brief-systemd.log 2>/dev/null || true)"
+    LOG_TAIL="$(tail -c 1501 /home/adnan/the-brief/logs/brief-systemd.log 2>/dev/null; printf '.')"
+    LOG_TAIL="${LOG_TAIL%.}"
     ;;
   brief-export.service)
     LOG_SOURCE="journal"
-    LOG_TAIL="$(journalctl --unit=brief-export.service -n 15 --no-pager -o cat 2>/dev/null | tail -c 1500 || true)"
+    LOG_TAIL="$(journalctl --unit=brief-export.service -n 15 --no-pager -o cat 2>/dev/null | tail -c 1501; printf '.')"
+    LOG_TAIL="${LOG_TAIL%.}"
     ;;
   chess-prodigy-prune.service)
     LOG_SOURCE="journal"
-    LOG_TAIL="$(journalctl --unit=chess-prodigy-prune.service -n 15 --no-pager -o cat 2>/dev/null | tail -c 1500 || true)"
+    LOG_TAIL="$(journalctl --unit=chess-prodigy-prune.service -n 15 --no-pager -o cat 2>/dev/null | tail -c 1501; printf '.')"
+    LOG_TAIL="${LOG_TAIL%.}"
     ;;
   *)
     FAILED_UNIT="unknown-unit"
@@ -59,12 +63,18 @@ import json, os, re
 unit = os.environ.get("FAILED_UNIT", "unknown-unit")
 host = os.environ.get("HOST", "unknown-host")
 when = os.environ.get("WHEN", "")
-tail = (os.environ.get("LOG_TAIL") or "").strip()
+tail = os.environ.get("LOG_TAIL") or ""
 source = os.environ.get("LOG_SOURCE", "none")
+
+# A byte tail can begin inside a credential value, after its label was cut.
+# Discard that first line before applying label-based redaction.
+if len(tail.encode("utf-8")) >= 1501:
+    tail = tail.partition("\n")[2]
+tail = tail.strip()
 
 def redact(value):
     value = re.sub(r"https?://\S*(?:webhooks?|hooks)/\S+", "[webhook redacted]", value, flags=re.I)
-    value = re.sub(r"(?im)^.*(?:authorization|api[-_]?key|password|secret|token|webhook_url)\s*[:=].*$", "[credential redacted]", value)
+    value = re.sub(r"(?im)^.*(?:authorization|[a-z0-9_-]*(?:key|password|secret|token|webhook_url))\s*[:=].*$", "[credential redacted]", value)
     value = re.sub(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "[email redacted]", value)
     return value
 

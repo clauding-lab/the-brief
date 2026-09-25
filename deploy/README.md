@@ -109,22 +109,22 @@ alert undeliverable).
 # 1. This repo is not cloned on ExonVPS — copy the one file:
 scp deploy/heartbeat.py adnan-local@103.187.23.22:/home/adnan-local/brief-heartbeat.py
 
-# 2. Env file (template: deploy/brief-heartbeat.env.example; ANON key only):
-sudo tee /etc/brief-heartbeat.env >/dev/null <<'ENV'
-SUPABASE_URL=https://ssbliukchgibjcjohibi.supabase.co
-SUPABASE_ANON_KEY=<anon key>
-DISCORD_ALERT_WEBHOOK_URL=<same webhook as the Hetzner alert kit>
-ENV
-sudo chmod 640 /etc/brief-heartbeat.env && sudo chown root:adnan-local /etc/brief-heartbeat.env
+# 2. Preserve the installed env file (template: deploy/brief-heartbeat.env.example).
+#    Verify readability without printing its keys or webhook:
+test -r /home/adnan-local/.brief-heartbeat.env
 
 # 3. Read-only syntax check before enabling cron:
 python3 -m py_compile /home/adnan-local/brief-heartbeat.py
 
-# 4. Cron at 09:45 BDT daily. ExonVPS system TZ is Asia/Dhaka; verify with
-#    `timedatectl` at installation, then install the local-time entry below.
+# 4. ExonVPS system TZ is Asia/Dhaka; verify with `timedatectl`. Replace its
+#    existing 07:30 BDT entry, which starts `30 7 * * *` and uses the same
+#    --env-file path, with this 09:45 BDT line. Do not leave both installed.
 crontab -e
-45 9 * * * python3 /home/adnan-local/brief-heartbeat.py >> /home/adnan-local/brief-heartbeat.log 2>&1
+45 9 * * * python3 /home/adnan-local/brief-heartbeat.py --env-file /home/adnan-local/.brief-heartbeat.env >> /home/adnan-local/brief-heartbeat.log 2>&1
+crontab -l
 ```
+
+Confirm `crontab -l` shows exactly one `brief-heartbeat.py` line.
 
 **Install-order caveat:** EconDelta's `freshness_sentinel` (econdelta PR #80) must
 have written its FIRST ok `run_logs` row before this cron goes live (its timer
