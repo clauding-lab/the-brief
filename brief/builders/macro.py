@@ -410,11 +410,15 @@ def _resolve_newest_official_cpi(
     candidates: list[HistoryRow] = []
     if spec.live_id is not None:
         item = ctx.snapshot.observation(spec.live_id, today=ctx.today)
-        if item is not None and item.get("unit") == "%":
+        valid_snapshot = item is not None and item.get("unit") == "%"
+        if valid_snapshot:
             observed = date.fromisoformat(item["as_of"])
             if not is_excluded_cpi_period(spec.id, observed):
                 candidates.append(HistoryRow(spec.live_id, observed, item["value"], item["source"]))
-        elif spec.live_id not in ctx.snapshot.observations and ctx.history is not None:
+        # A valid snapshot is one candidate, not a veto on newer history.
+        # Explicit rejected/unknown metadata still forbids a history revival.
+        if (ctx.history is not None
+                and (valid_snapshot or spec.live_id not in ctx.snapshot.observations)):
             row = _latest(ctx.history, spec.live_id, table="metric_history")
             if (row is not None and row.metric_id == spec.live_id
                     and finite_number(row.value) and row.source_as_of is not None):

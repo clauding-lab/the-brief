@@ -321,3 +321,23 @@ def test_oil_accepts_compatible_bbl_unit_alias(tmp_path, mid):
     ctx = context(tmp_path, data={mid: 80}, observations={mid: observation(mid, 80, unit="USD/bbl")})
     card = iranwar.build(ctx).metrics[0]
     assert (card.value, card.unit) == (80, "USD/bbl")
+
+
+@pytest.mark.parametrize("snapshot_overrides,expected_value,expected_date", [
+    ({}, 6.0, date(2026, 8, 31)),
+    ({"quality": "unavailable"}, 6.5, date(2026, 7, 31)),
+    ({"date_basis": "unknown"}, 6.5, date(2026, 7, 31)),
+    ({"unit": "unknown"}, 6.5, date(2026, 7, 31)),
+])
+def test_cpi_compares_newer_dated_history_without_reviving_rejected_snapshot(
+    tmp_path, snapshot_overrides, expected_value, expected_date,
+):
+    item = observation("food_inflation", 7.0, "2026-06-30", unit="%")
+    item.update(snapshot_overrides)
+    ctx = context(tmp_path, data={"food_inflation": 7.0}, observations={"food_inflation": item},
+                  rows=[HistoryRow("food_inflation", date(2026, 9, 24), 6.0,
+                                   "econdelta", date(2026, 8, 31))],
+                  monthly=[HistoryRow("cpi_p2p_food_monthly", date(2026, 7, 1), 6.5,
+                                      "econdelta_daily_cpi")])
+    card = next(m for m in macro.build(ctx).metrics if m.id == "cpi_p2p_food_monthly")
+    assert (card.value, card.as_of) == (expected_value, expected_date)
