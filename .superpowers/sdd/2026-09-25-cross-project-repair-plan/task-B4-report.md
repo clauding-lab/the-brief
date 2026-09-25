@@ -60,3 +60,52 @@ The required frozen full-check matrix ran once after implementation; it was not 
 - The existing per-instance rate limiter does not coordinate across serverless instances or cold starts.
 - Worker made no release/version edits. Controller handles release-worthy batch versioning and governance.
 - Existing controller-owned unstaged generated Next.js block in `AGENTS.md` was preserved and excluded from both commits.
+
+## Review fix round 1 — 26 September 2026 BDT
+
+Controller bundled the four reviews. Fixed the HIGH signup/notifier Unicode mismatch and MEDIUM incident-wording issue; no additional implementation scope was added. Applied the receiving-code-review skill after reproducing the concrete cases.
+
+- `506ce65` — `fix(signup): align stored email rules with delivery validation`
+- `8ce1479` — `fix(notifier): report unconfirmed provider acceptance honestly`
+
+The shared fixture `tests/fixtures/subscriber_email_contract.json` defines normalization and accepted/rejected boundary cases. Actual signup tests assert the exact stored insert value, while Python's real paginated fetch must accept/deduplicate those same stored/raw cases. Both implementations trim **ASCII outer spaces only**, lowercase before the length check, and reject **C0/C1 controls, DEL, Unicode whitespace and BOM**. U+0084/U+0085/U+0086, additional Unicode spaces, boundary controls and BOM are covered; ordinary Unicode letters, case expansion (U+0130), and plus tags remain supported. Existing incompatible rows still stop every send before delivery; they are not skipped or silently repaired.
+
+CLI logs/alerts now use `accepted` and `acceptance unconfirmed`, including the zero-confirmation and crash paths. They explicitly say timed-out attempts may already have been accepted and warn against resending everyone. A crash no longer falsely claims it occurred before any sends. The underlying compatibility fields `sent_count`/`failed_count` retain their documented accepted/unconfirmed meaning; publication success and no automatic retry remain unchanged.
+
+### Round-1 exact checks
+
+- `npm run test -- lib/ipRateLimitKey.test.ts app/api/subscribe/route.test.ts > /tmp/b4-r1-ts-red.log 2>&1` — RED: **13 failed / 45 passed**, reproducing storage normalization and invalid-character cases.
+- `.venv/bin/python -m pytest -q tests/test_notifier.py tests/test_cli.py > /tmp/b4-r1-python-red.log 2>&1` — RED: **10 incompatible-character/boundary cases failed** before implementation.
+- `.venv/bin/python -m pytest -q tests/test_cli.py > /tmp/b4-r1-cli-red.log 2>&1` — RED: **3 incident wording assertions failed**, including crash-state uncertainty.
+- `npm run test -- lib/ipRateLimitKey.test.ts app/api/subscribe/route.test.ts > /tmp/b4-r1-ts-green.log 2>&1` — exit 0, **58 passed**, **26 September 2026 01:47 BDT**.
+- `.venv/bin/python -m pytest -q tests/test_notifier.py tests/test_cli.py --junitxml=/tmp/b4-r1-python-green.xml > /tmp/b4-r1-python-green.log 2>&1` — exit 0, **141 passed / 0 skipped / 0 failures**, XML time 0.951 seconds.
+- `npm run lint -- --ignore-pattern '.superpowers/**' > /tmp/b4-r1-lint.log 2>&1` — exit 0, source lint clean.
+- `npx tsc --noEmit > /tmp/b4-r1-tsc.log 2>&1` — exit 0.
+- `git diff --check` — exit 0.
+
+Per the controller's scope, no full suite or production build was repeated in this review round. Initial full-check evidence above applies to the original implementation; focused checks cover this correction.
+
+### Blocking deployment prerequisite: existing stored recipients
+
+**Not executed; production rollout remains conditional.** Controller ruling preserves the complete-validated-audience contract. Before activating the stricter notifier, run a privileged **read-only** validation using this candidate's `fetch_subscribers()` and existing server credentials. Output only aggregate counts/fixed error categories, never recipient names, addresses, IDs, response bodies or raw exceptions. If validation fails, block rollout until the owner reviews and resolves the incompatible stored rows; this task does not authorize deleting or skipping them.
+
+The following prepared check calls only the subscriber GET path, never `notify()` or Brevo. It is intentionally shown here rather than executed:
+
+```python
+import json
+import sys
+from brief.notifier import fetch_subscribers, _error_tag
+
+try:
+    recipients = fetch_subscribers()
+except Exception as error:
+    print(json.dumps({"validation_complete": False,
+                      "unique_recipients": None,
+                      "error_category": _error_tag(error)}))
+    sys.exit(1)
+print(json.dumps({"validation_complete": True,
+                  "unique_recipients": len(recipients),
+                  "error_category": None}))
+```
+
+An error count cannot honestly be inferred after the first invalid row; the blocked result therefore reports no invented audience total. Record the candidate commit, BDT time and sanitized outcome. The repaired signup boundary must be active, or signup writes held, before the final check and notifier activation so the old permissive writer cannot reintroduce incompatible rows during rollout. No signup pause, data repair or deployment was performed here. R3's separate durable publication/crash prerequisite still applies.
