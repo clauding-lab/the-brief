@@ -93,8 +93,10 @@ def fetch_table(
     under the documented 529-retry worst case, and the publisher's DELETE/re-INSERT
     (two-phase publish) between paged GETs shifts offsets — offset pagination then
     silently skips rows. Keyset asks each page for ids strictly greater than the last
-    id seen, so concurrent deletes/inserts cannot renumber what remains; every
-    surviving row is visited exactly once.
+    id seen, so concurrent deletes/inserts cannot renumber what remains. This is
+    not a point-in-time snapshot: inserts below the cursor and changes between
+    table reads can be missed. A restore-grade export requires paused writers or
+    a transactionally consistent snapshot, then count/key and parent/child checks.
 
     Raises ExportError on any non-200/non-list page or a row missing `id` — a partial
     table must never be treated as complete.
