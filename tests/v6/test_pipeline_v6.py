@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from brief.publication_identity import PublishIdentity
 
+import socket
 from datetime import date
 from unittest.mock import patch
 
@@ -15,9 +16,47 @@ from brief.v6_schema import BriefPayloadV6, SubeditorReview
 
 
 @pytest.fixture(autouse=True)
+def _refuse_network(monkeypatch: pytest.MonkeyPatch):
+    """Hermetic: any socket connect or DNS lookup fails the test."""
+    attempts: list[str] = []
+
+    def refuse_connect(self: socket.socket, address: object) -> None:
+        attempts.append(f"connect({address!r})")
+        raise OSError(f"test refused outbound connect to {address!r}")
+
+    def refuse_lookup(host: object, *args: object, **kwargs: object) -> None:
+        attempts.append(f"getaddrinfo({host!r})")
+        raise OSError(f"test refused DNS lookup of {host!r}")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse_connect)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse_lookup)
+    yield
+    if attempts:
+        pytest.fail("outbound network attempted: " + ", ".join(sorted(set(attempts))))
+
+
+@pytest.fixture(autouse=True)
 def _supabase_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+
+
+class _NoRowsHttp:
+    """Stands in for `UrllibHttp`: every metric_history read answers 200 with no rows."""
+
+    def get(self, url: str, *, headers: dict[str, str]) -> tuple[int, object]:
+        return 200, []
+
+    def post(self, url: str, *, headers: dict[str, str], json: object) -> tuple[int, object]:
+        raise AssertionError("run_publish's chart reads never POST")
+
+
+@pytest.fixture(autouse=True)
+def _no_live_chart_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    # run_publish builds a real `UrllibHttp()` for the pre-editor series digest and the
+    # post-editor chart stamp; swap the class so both read an empty metric_history instead.
+    import brief.pipeline_v6 as _pv6
+    monkeypatch.setattr(_pv6, "UrllibHttp", _NoRowsHttp)
 
 
 @pytest.fixture(autouse=True)

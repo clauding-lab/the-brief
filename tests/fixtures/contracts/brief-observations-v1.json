@@ -342,6 +342,2237 @@
       "date_semantics": "auction_results.auction_date is the BB Issue date (settlement), not independently verified auction-held date"
     },
     "revision_policy": "Keep accepted existing pairs; source differences are proposals for reviewed R1 repair, never automatic rewrites.",
-    "liveness_policy": "A source-check receipt is not a write receipt. Source period and poll time are separate clocks; legacy future-debt exception remains pending R1."
+    "liveness_policy": "A source-check receipt is not a write receipt. Source period and poll time are separate clocks; legacy future-debt exception remains pending R1.",
+    "quiet_day_legs": {
+      "note": "R2 fix H4. SYNTHETIC quiet day: the 25 Sep 2026 02:55 BDT aggregate run (UTC date 2026-09-24), every chart series already caught up. These are the yield, exports and reserves leg receipts exactly as EconDelta's real writers publish them (WriteReceipt JSON, attempt time normalised to attempted_at below); EconDelta tests/test_quiet_day_leg_receipts.py regenerates them from fakes of the database and EPB edges only. Values are synthetic except the EPB July/August totals, which are epb_evidence above. The Brief reads a day whose macro legs are official lag or a live-polled database vintage, plus these, as ready.",
+      "run_date_utc": "2026-09-24",
+      "attempted_at": "2026-09-24T21:00:00Z",
+      "legs": {
+        "yield": {
+          "status": "skipped",
+          "attempted_at": "2026-09-24T21:00:00Z",
+          "reason": "no new official period: auction_results lists no auction that moves a recorded rung (newest listed auction 2026-09-21)",
+          "confirmed_rows": 0,
+          "failures": [],
+          "skips": [
+            {
+              "category": "no new official period",
+              "detail": "auction_results lists no auction that moves a recorded rung (newest listed auction 2026-09-21)",
+              "newest_recorded": "2026-09-01",
+              "lag_window_days": 45
+            }
+          ]
+        },
+        "exports": {
+          "status": "skipped",
+          "attempted_at": "2026-09-24T21:00:00Z",
+          "reason": "no new official period: EPB goods summary (closed months) lists no month after those recorded (2026-09-01 not listed)",
+          "confirmed_rows": 0,
+          "failures": [],
+          "skips": [
+            {
+              "category": "no new official period",
+              "detail": "EPB goods summary (closed months) lists no month after those recorded (2026-09-01 not listed)",
+              "newest_recorded": "2026-08-01",
+              "lag_window_days": 45
+            }
+          ]
+        },
+        "reserves": {
+          "status": "ok",
+          "attempted_at": "2026-09-24T21:00:00Z",
+          "reason": "2 row(s) written and confirmed by exact readback",
+          "confirmed_rows": 2,
+          "failures": [],
+          "skips": []
+        }
+      }
+    }
+  },
+  "writer_confirmation_contract": {
+    "metric_ids": [
+      "policy_rate_repo",
+      "policy_rate_sdf",
+      "policy_rate_slf"
+    ],
+    "date_semantics": "For these ids only, date_basis writer_confirmation marks as_of as the UTC calendar date of the parse-stage scraped_at on which EconDelta re-read the standing Bangladesh Bank corridor panel. It is liveness evidence, never an observation date and never the MPC decision date.",
+    "capture_note": "Synthetic run: parse at 01:45 BDT and aggregate at 02:56 BDT on 2026-09-25, so the confirmation date is 2026-09-24. Values are the corridor set by the 2026-07-30 MPC decision (The Brief AGENTS.md landmine 24). No artifact hash is included because none was captured for this synthetic run.",
+    "metric_history_note": "metric_history_row is the row EconDelta's daily writer stores for the record (utils/supabase_writer._rows_from_data, as called by aggregate_latest.main with observations), without the run-specific ingested_at. Its as_of is the confirmation date. The Brief reads this row as the corridor card's event-cadence liveness clock (The Brief AGENTS.md landmine 24); it is not an MPC decision date.",
+    "aggregate_captured_at": "2026-09-24T20:56:00+00:00",
+    "records": [
+      {
+        "producer_input": {
+          "value": 9.5,
+          "value_type": "percent",
+          "_provenance": "deterministic",
+          "_parse_strategy": "html_labeled_value",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php"
+        },
+        "expected": {
+          "metric_id": "policy_rate_repo",
+          "value": 9.5,
+          "as_of": "2026-09-24",
+          "unit": "%",
+          "source": "policy_rate_repo",
+          "source_url": "https://www.bb.org.bd/en/index.php",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "verified",
+          "date_basis": "writer_confirmation",
+          "evidence": "html_labeled_value",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "metric_id": "policy_rate_repo",
+          "as_of": "2026-09-24",
+          "value": 9.5,
+          "source": "EconDelta"
+        }
+      },
+      {
+        "producer_input": {
+          "value": 7.5,
+          "value_type": "percent",
+          "_provenance": "deterministic",
+          "_parse_strategy": "html_labeled_value",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php"
+        },
+        "expected": {
+          "metric_id": "policy_rate_sdf",
+          "value": 7.5,
+          "as_of": "2026-09-24",
+          "unit": "%",
+          "source": "policy_rate_sdf",
+          "source_url": "https://www.bb.org.bd/en/index.php",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "verified",
+          "date_basis": "writer_confirmation",
+          "evidence": "html_labeled_value",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "metric_id": "policy_rate_sdf",
+          "as_of": "2026-09-24",
+          "value": 7.5,
+          "source": "EconDelta"
+        }
+      },
+      {
+        "producer_input": {
+          "value": 11.0,
+          "value_type": "percent",
+          "_provenance": "deterministic",
+          "_parse_strategy": "html_labeled_value",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php"
+        },
+        "expected": {
+          "metric_id": "policy_rate_slf",
+          "value": 11.0,
+          "as_of": "2026-09-24",
+          "unit": "%",
+          "source": "policy_rate_slf",
+          "source_url": "https://www.bb.org.bd/en/index.php",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "verified",
+          "date_basis": "writer_confirmation",
+          "evidence": "html_labeled_value",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "metric_id": "policy_rate_slf",
+          "as_of": "2026-09-24",
+          "value": 11.0,
+          "source": "EconDelta"
+        }
+      }
+    ]
+  },
+  "builder_binding_contract": {
+    "capture_note": "One offline run of EconDelta aggregate_latest.main() at 02:56 BDT on 2026-09-25 (clock fixed; database, model and alert calls faked). Monthly inputs are the real deterministic parser output for the WSEI 20 Sep 2026 and MEI July 2026 PDFs in evidence (only the model plausibility check was skipped). Quotes, DSEX, reserves, the FSR ratios and the auction cut-offs are production values and observation dates captured 25 Sep 2026 14:49 BDT; bb_forex keeps production's BDT-dated file (2026-09-25), dated by the Dhaka calendar and captured before UTC midnight; the producer accepts it (fix #12). scraped_at instants are synthetic, inside the real 01:30-02:56 BDT fetch window.",
+    "metric_history_note": "metric_history_row is the row utils/supabase_writer._rows_from_data builds for the record in that run's daily upsert, without the run-specific ingested_at; null means the writer stores no row for it.",
+    "aggregate_captured_at": "2026-09-24T20:56:00+00:00",
+    "producer_inputs": {
+      "tier1": {
+        "bb_forex": {
+          "date": "2026-09-25",
+          "scraped_at": "2026-09-24T19:35:00+00:00",
+          "rates": {
+            "usd_bdt_mid": 123.22,
+            "usd_bdt_buy": 123.15,
+            "usd_bdt_sell": 123.25,
+            "eur_bdt": 140.2201,
+            "gbp_bdt": 163.12914999999998,
+            "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate"
+          },
+          "reserves": {
+            "gross_reserves_usd_bn": 37.3523,
+            "reserves_date": "2026-08-01",
+            "source_url": "https://www.bb.org.bd/en/index.php/econdata/intreserve"
+          }
+        },
+        "dse_market": {
+          "date": "2026-09-22",
+          "scraped_at": "2026-09-24T19:35:00+00:00",
+          "trading_day": true,
+          "indices": {
+            "dsex": 5540.32037,
+            "dsex_change": -10.17525,
+            "dsex_change_pct": -0.18332,
+            "ds30": 2106.17633,
+            "dses": 1108.57168
+          },
+          "market": {
+            "turnover_crore": 791.4875,
+            "total_trades": 201745,
+            "advancing": 103,
+            "declining": 227,
+            "unchanged": 55
+          },
+          "source_url": "https://www.dse.com.bd/api/live/market"
+        },
+        "commodity_prices": {
+          "date": "2026-09-23",
+          "scraped_at": "2026-09-24T19:35:00+00:00",
+          "provider": "yfinance",
+          "prices": {
+            "brent_crude": {
+              "price": 98.31999969482422,
+              "currency": "USD",
+              "unit": "barrel",
+              "quote_date": "2026-09-23"
+            },
+            "wti_crude": {
+              "price": 92.25,
+              "currency": "USD",
+              "unit": "barrel",
+              "quote_date": "2026-09-23"
+            },
+            "gold": {
+              "price": 4328.89990234375,
+              "currency": "USD",
+              "unit": "oz",
+              "quote_date": "2026-09-23"
+            }
+          }
+        }
+      },
+      "v3": {
+        "tax_revenue": {
+          "indicator_id": "tax_revenue",
+          "name": "Tax Revenue",
+          "domain": "government_finance",
+          "cadence": "monthly",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+          "value": 415473.0,
+          "value_type": "amount_bdt_crore",
+          "previous_value": null,
+          "change_pct": null,
+          "_provenance": "deterministic",
+          "_artifact_sha256": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516",
+          "_parse_strategy": "wsei_observation",
+          "sanity_note": null,
+          "source_as_of": "2026-06-30",
+          "unit": "BDT crore",
+          "release_status": "unknown"
+        },
+        "bank_borrowing_for_deficit_financing": {
+          "indicator_id": "bank_borrowing_for_deficit_financing",
+          "name": "Bank Borrowing for Deficit Financing",
+          "domain": "government_finance",
+          "cadence": "monthly",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/3/11",
+          "value": 165538.2,
+          "value_type": "amount_bdt_crore",
+          "previous_value": null,
+          "change_pct": null,
+          "_provenance": "deterministic",
+          "_artifact_sha256": "40d510b44117fc597675a58c142d56c71fdbe9f11fec2f693aecc225dd6f117e",
+          "_parse_strategy": "mei_observation",
+          "sanity_note": null,
+          "source_as_of": "2026-06-30",
+          "unit": "BDT crore cumulative",
+          "release_status": "unknown"
+        },
+        "domestic_borrowing_for_budget_deficit": {
+          "indicator_id": "domestic_borrowing_for_budget_deficit",
+          "name": "Domestic Borrowing for Budget Deficit",
+          "domain": "government_finance",
+          "cadence": "monthly",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/3/11",
+          "value": 164691.03,
+          "value_type": "amount_bdt_crore",
+          "previous_value": null,
+          "change_pct": null,
+          "_provenance": "deterministic",
+          "_artifact_sha256": "40d510b44117fc597675a58c142d56c71fdbe9f11fec2f693aecc225dd6f117e",
+          "_parse_strategy": "mei_observation",
+          "sanity_note": null,
+          "source_as_of": "2026-06-30",
+          "unit": "BDT crore cumulative",
+          "release_status": "unknown"
+        },
+        "gross_npl_ratio": {
+          "indicator_id": "gross_npl_ratio",
+          "name": "Gross NPL Ratio (Banking Sector)",
+          "domain": "money_market",
+          "cadence": "quarterly",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/2/60",
+          "value": 35.73,
+          "value_type": "percent",
+          "_provenance": "deterministic",
+          "_parse_strategy": "pdf_component",
+          "source_as_of": "2025-09-30",
+          "release_status": "unknown"
+        },
+        "banking_sector_crar": {
+          "indicator_id": "banking_sector_crar",
+          "name": "Banking Sector CAR (Capital Adequacy Ratio)",
+          "domain": "money_market",
+          "cadence": "quarterly",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/2/60",
+          "value": 1.56,
+          "value_type": "percent",
+          "_provenance": "deterministic",
+          "_parse_strategy": "pdf_component",
+          "source_as_of": "2025-09-30",
+          "release_status": "unknown"
+        },
+        "monthly_remittance": {
+          "indicator_id": "monthly_remittance",
+          "name": "Monthly Remittance",
+          "domain": "external_sector",
+          "cadence": "monthly",
+          "scraped_at": "2026-09-24T19:45:00+00:00",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+          "value": 2.97,
+          "value_type": "amount_usd_bn",
+          "previous_value": null,
+          "change_pct": null,
+          "_provenance": "deterministic",
+          "_artifact_sha256": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516",
+          "_parse_strategy": "wsei_observation",
+          "sanity_note": null,
+          "source_as_of": "2026-08-31",
+          "unit": "USD billion",
+          "release_status": "unknown"
+        }
+      },
+      "auction_rows": [
+        {
+          "tenor": "91d",
+          "auction_date": "2026-09-21",
+          "cutoff": 8.3198
+        },
+        {
+          "tenor": "182d",
+          "auction_date": "2026-09-21",
+          "cutoff": 8.4498
+        },
+        {
+          "tenor": "364d",
+          "auction_date": "2026-09-21",
+          "cutoff": 8.47
+        },
+        {
+          "tenor": "10y",
+          "auction_date": "2026-09-16",
+          "cutoff": 8.54
+        },
+        {
+          "tenor": "5y",
+          "auction_date": "2026-09-09",
+          "cutoff": 8.645
+        }
+      ]
+    },
+    "sources_status": {
+      "bb_forex": {
+        "status": "ok",
+        "last_success": "2026-09-24T19:35:00Z",
+        "age_hours": 1.35,
+        "url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+        "error": null
+      },
+      "dse_market": {
+        "status": "ok",
+        "last_success": "2026-09-24T19:35:00Z",
+        "age_hours": 1.35,
+        "url": "https://www.dse.com.bd/api/live/market",
+        "error": null
+      },
+      "commodity_prices": {
+        "status": "ok",
+        "last_success": "2026-09-24T19:35:00Z",
+        "age_hours": 1.35,
+        "url": null,
+        "error": null
+      }
+    },
+    "records": {
+      "usd_bdt_mid": {
+        "observation": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-25",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "metric_id": "usd_bdt_mid",
+          "as_of": "2026-09-25",
+          "value": 123.22,
+          "source": "EconDelta"
+        }
+      },
+      "gold_usd_oz": {
+        "observation": {
+          "metric_id": "gold_usd_oz",
+          "value": 4328.89990234375,
+          "as_of": "2026-09-23",
+          "unit": "USD/oz",
+          "source": "commodity_prices",
+          "source_url": null,
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "commodity_prices snapshot field gold_usd_oz",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-23",
+          "metric_id": "gold_usd_oz",
+          "source": "EconDelta",
+          "value": 4328.89990234375
+        }
+      },
+      "brent_crude_usd_barrel": {
+        "observation": {
+          "metric_id": "brent_crude_usd_barrel",
+          "value": 98.31999969482422,
+          "as_of": "2026-09-23",
+          "unit": "USD/barrel",
+          "source": "commodity_prices",
+          "source_url": null,
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "commodity_prices snapshot field brent_crude_usd_barrel",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-23",
+          "metric_id": "brent_crude_usd_barrel",
+          "source": "EconDelta",
+          "value": 98.31999969482422
+        }
+      },
+      "wti_crude_usd_barrel": {
+        "observation": {
+          "metric_id": "wti_crude_usd_barrel",
+          "value": 92.25,
+          "as_of": "2026-09-23",
+          "unit": "USD/barrel",
+          "source": "commodity_prices",
+          "source_url": null,
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "commodity_prices snapshot field wti_crude_usd_barrel",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-23",
+          "metric_id": "wti_crude_usd_barrel",
+          "source": "EconDelta",
+          "value": 92.25
+        }
+      },
+      "dsex": {
+        "observation": {
+          "metric_id": "dsex",
+          "value": 5540.32037,
+          "as_of": "2026-09-22",
+          "unit": "index",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field dsex",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-22",
+          "metric_id": "dsex",
+          "source": "EconDelta",
+          "value": 5540.32037
+        }
+      },
+      "tbond_tbill_91d": {
+        "observation": {
+          "metric_id": "tbond_tbill_91d",
+          "value": 8.3198,
+          "as_of": "2026-09-21",
+          "unit": "%",
+          "source": "auction_results",
+          "source_url": null,
+          "captured_at": "2026-09-24T20:56:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "Latest accepted auction cutoff",
+          "dependencies": [
+            "bill_bond_rates"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-21",
+          "metric_id": "tbond_tbill_91d",
+          "source": "EconDelta",
+          "value": 8.3198
+        }
+      },
+      "tbond_tbill_182d": {
+        "observation": {
+          "metric_id": "tbond_tbill_182d",
+          "value": 8.4498,
+          "as_of": "2026-09-21",
+          "unit": "%",
+          "source": "auction_results",
+          "source_url": null,
+          "captured_at": "2026-09-24T20:56:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "Latest accepted auction cutoff",
+          "dependencies": [
+            "tbill_182d_yield"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-21",
+          "metric_id": "tbond_tbill_182d",
+          "source": "EconDelta",
+          "value": 8.4498
+        }
+      },
+      "tbond_tbill_364d": {
+        "observation": {
+          "metric_id": "tbond_tbill_364d",
+          "value": 8.47,
+          "as_of": "2026-09-21",
+          "unit": "%",
+          "source": "auction_results",
+          "source_url": null,
+          "captured_at": "2026-09-24T20:56:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "Latest accepted auction cutoff",
+          "dependencies": [
+            "tbill_364d_yield"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-21",
+          "metric_id": "tbond_tbill_364d",
+          "source": "EconDelta",
+          "value": 8.47
+        }
+      },
+      "tbond_bond_5y": {
+        "observation": {
+          "metric_id": "tbond_bond_5y",
+          "value": 8.645,
+          "as_of": "2026-09-09",
+          "unit": "%",
+          "source": "auction_results",
+          "source_url": null,
+          "captured_at": "2026-09-24T20:56:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "Latest accepted auction cutoff",
+          "dependencies": [
+            "tbond_5y_yield"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-09",
+          "metric_id": "tbond_bond_5y",
+          "source": "EconDelta",
+          "value": 8.645
+        }
+      },
+      "tbond_bond_10y": {
+        "observation": {
+          "metric_id": "tbond_bond_10y",
+          "value": 8.54,
+          "as_of": "2026-09-16",
+          "unit": "%",
+          "source": "auction_results",
+          "source_url": null,
+          "captured_at": "2026-09-24T20:56:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "Latest accepted auction cutoff",
+          "dependencies": [
+            "tbond_10y_yield"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-09-16",
+          "metric_id": "tbond_bond_10y",
+          "source": "EconDelta",
+          "value": 8.54
+        }
+      },
+      "banking_npl_pct": {
+        "observation": {
+          "metric_id": "banking_npl_pct",
+          "value": 35.73,
+          "as_of": "2025-09-30",
+          "unit": "%",
+          "source": "gross_npl_ratio",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/2/60",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "held",
+          "date_basis": "observation",
+          "evidence": "pdf_component | 2025-09-30",
+          "dependencies": [
+            "gross_npl_ratio"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2025-09-30",
+          "metric_id": "banking_npl_pct",
+          "source": "EconDelta",
+          "value": 35.73
+        }
+      },
+      "banking_car_pct": {
+        "observation": {
+          "metric_id": "banking_car_pct",
+          "value": 1.56,
+          "as_of": "2025-09-30",
+          "unit": "%",
+          "source": "banking_sector_crar",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/2/60",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "held",
+          "date_basis": "observation",
+          "evidence": "pdf_component | 2025-09-30",
+          "dependencies": [
+            "banking_sector_crar"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2025-09-30",
+          "metric_id": "banking_car_pct",
+          "source": "EconDelta",
+          "value": 1.56
+        }
+      },
+      "fiscal_nbr_collected_trn": {
+        "observation": {
+          "metric_id": "fiscal_nbr_collected_trn",
+          "value": 4.15,
+          "as_of": "2026-06-30",
+          "unit": "BDT trillion",
+          "source": "tax_revenue",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "held",
+          "date_basis": "observation",
+          "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-06-30",
+          "dependencies": [
+            "tax_revenue"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-06-30",
+          "metric_id": "fiscal_nbr_collected_trn",
+          "source": "EconDelta",
+          "value": 4.15
+        }
+      },
+      "fiscal_bank_borrow_trn": {
+        "observation": {
+          "metric_id": "fiscal_bank_borrow_trn",
+          "value": 1.66,
+          "as_of": "2026-06-30",
+          "unit": "BDT trillion",
+          "source": "bank_borrowing_for_deficit_financing",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/3/11",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "held",
+          "date_basis": "observation",
+          "evidence": "40d510b44117fc597675a58c142d56c71fdbe9f11fec2f693aecc225dd6f117e | mei_observation | 2026-06-30",
+          "dependencies": [
+            "bank_borrowing_for_deficit_financing"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-06-30",
+          "metric_id": "fiscal_bank_borrow_trn",
+          "source": "EconDelta",
+          "value": 1.66
+        }
+      },
+      "fiscal_govt_borrow_trn": {
+        "observation": {
+          "metric_id": "fiscal_govt_borrow_trn",
+          "value": 1.65,
+          "as_of": "2026-06-30",
+          "unit": "BDT trillion",
+          "source": "domestic_borrowing_for_budget_deficit",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/3/11",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "held",
+          "date_basis": "observation",
+          "evidence": "40d510b44117fc597675a58c142d56c71fdbe9f11fec2f693aecc225dd6f117e | mei_observation | 2026-06-30",
+          "dependencies": [
+            "domestic_borrowing_for_budget_deficit"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-06-30",
+          "metric_id": "fiscal_govt_borrow_trn",
+          "source": "EconDelta",
+          "value": 1.65
+        }
+      },
+      "remit_monthly_mn": {
+        "observation": {
+          "metric_id": "remit_monthly_mn",
+          "value": 2970.0,
+          "as_of": "2026-08-31",
+          "unit": "USD million",
+          "source": "monthly_remittance",
+          "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+          "captured_at": "2026-09-24T19:45:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-08-31",
+          "dependencies": [
+            "monthly_remittance"
+          ],
+          "release_status": "unknown"
+        },
+        "metric_history_row": {
+          "as_of": "2026-08-31",
+          "metric_id": "remit_monthly_mn",
+          "source": "EconDelta",
+          "value": 2970.0
+        }
+      }
+    }
+  },
+  "bangladesh_calendar_contract": {
+    "note": "A record dated by a Bangladesh calendar day is not in the future when its date is on or before the Asia/Dhaka (UTC+6, no DST) calendar date of the instant it was captured. EconDelta's aggregate runs about 02:56 BDT, still the previous UTC day, so comparing such a date with a UTC date wrongly rejects the day's reading. `sources` lists the producer sources whose dates are Bangladesh calendar days: bb_forex (the scraper's date.today() on the Dhaka box; reserves use BB's month end), dse_market (the DSE page's own trading date) and auction_results (BB auction dates). Everything else keeps the UTC comparison: commodity_prices quote dates come from exchange price history (not Bangladesh-local); v3 registry records name only their indicator id as source, so their publisher and date basis are not carried; writer confirmations are dated by the UTC date prefix of the parse capture. Each case gives the producer run instant (`aggregate_now`), The Brief's 08:00 BDT publish date (`brief_today`) and the verdict both repositories must reach. Values are copied from builder_binding_contract; only dates and instants are synthetic boundary inputs. R2 G1 adds the 02:56 BDT run on the first Bangladesh day of a month (1 Oct), of the Bangladesh fiscal year (1 Jul), of a calendar year (1 Jan) and on/after a leap day (29 Feb / 1 Mar 2028): each is still the previous UTC day, so each boundary has the accepted Dhaka day and the refused next day. Dates synthetic; value from the real run.",
+    "sources": [
+      "auction_results",
+      "bb_forex",
+      "dse_market"
+    ],
+    "cases": [
+      {
+        "case_id": "bb-forex-same-bd-day-run-0256",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-25",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-24T20:56:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-next-bd-day-run-0256",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-26",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-24T20:56:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-same-bd-day-0559",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-25",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-24T23:59:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-24T23:59:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-next-bd-day-0559",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-26",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-24T23:59:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-24T23:59:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-same-bd-day-0600",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-25",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-25T00:00:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-25T00:00:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-next-bd-day-0600",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-26",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-25T00:00:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-25T00:00:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-before-bd-midnight-2359",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-25",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-24T17:59:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-24T17:59:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-at-bd-midnight-0000",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-09-25",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-24T18:00:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-24T18:00:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "commodity-quote-next-utc-day-run-0256",
+        "record": {
+          "metric_id": "brent_crude_usd_barrel",
+          "value": 98.31999969482422,
+          "as_of": "2026-09-25",
+          "unit": "USD/barrel",
+          "source": "commodity_prices",
+          "source_url": null,
+          "captured_at": "2026-09-24T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "commodity_prices snapshot field brent_crude_usd_barrel",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-24T20:56:00+00:00",
+        "brief_today": "2026-09-25",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-month-start-accepted",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-10-01",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-30T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-30T20:56:00+00:00",
+        "brief_today": "2026-10-01",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-month-start-next-bd-day",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-10-02",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-09-30T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-09-30T20:56:00+00:00",
+        "brief_today": "2026-10-01",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-fy-start-accepted",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-07-01",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-06-30T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-06-30T20:56:00+00:00",
+        "brief_today": "2026-07-01",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-fy-start-next-bd-day",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2026-07-02",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-06-30T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-06-30T20:56:00+00:00",
+        "brief_today": "2026-07-01",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-year-start-accepted",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2027-01-01",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-12-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-12-31T20:56:00+00:00",
+        "brief_today": "2027-01-01",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-year-start-next-bd-day",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2027-01-02",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2026-12-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2026-12-31T20:56:00+00:00",
+        "brief_today": "2027-01-01",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-leap-day-accepted",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2028-02-29",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2028-02-28T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2028-02-28T20:56:00+00:00",
+        "brief_today": "2028-02-29",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-leap-day-next-bd-day",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2028-03-01",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2028-02-28T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2028-02-28T20:56:00+00:00",
+        "brief_today": "2028-02-29",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      },
+      {
+        "case_id": "bb-forex-after-leap-day-accepted",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2028-03-01",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2028-02-29T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2028-02-29T20:56:00+00:00",
+        "brief_today": "2028-03-01",
+        "producer_eligible": true,
+        "producer_writes_row": true,
+        "consumer_accepted": true
+      },
+      {
+        "case_id": "bb-forex-after-leap-day-next-bd-day",
+        "record": {
+          "metric_id": "usd_bdt_mid",
+          "value": 123.22,
+          "as_of": "2028-03-02",
+          "unit": "BDT",
+          "source": "bb_forex",
+          "source_url": "https://www.bb.org.bd/en/index.php/econdata/exchangerate",
+          "captured_at": "2028-02-29T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "bb_forex snapshot field usd_bdt_mid",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "aggregate_now": "2028-02-29T20:56:00+00:00",
+        "brief_today": "2028-03-01",
+        "producer_eligible": false,
+        "producer_writes_row": false,
+        "consumer_accepted": false
+      }
+    ]
+  },
+  "upstream_liveness_contract": {
+    "note": "R2 fix 5. Upstream CPI/M2 source-poll liveness, from EconDelta's E6 monthly source-poll receipts (utils/monthly_evidence.source_monitor), is published in latest.json sources_status under these keys. The CPI/M2 monthly legs derive from EconDelta's own daily table, so their database reread proves nothing about the upstream Bangladesh Bank jobs: only a typed upstream-source receipt checked within the existing 26-hour job-check window is ok. These entries never raise EconDelta's 'sources not OK' alert (decision j); The Brief reads a non-ok entry as a degraded reason naming the family.",
+    "families": {
+      "cpi_upstream_poll": {
+        "label": "CPI",
+        "monthly_leg": "cpi",
+        "metric_ids": [
+          "cpi_12m_avg_monthly",
+          "cpi_p2p_food_monthly",
+          "cpi_p2p_nonfood_monthly"
+        ]
+      },
+      "m2_upstream_poll": {
+        "label": "M2",
+        "monthly_leg": "m2",
+        "metric_ids": [
+          "m2_growth_yoy_monthly"
+        ]
+      }
+    },
+    "stopped_upstream_jobs": {
+      "scenario": "aggregate_latest.main with the daily write confirmed and the CPI/M2 monthly legs' database reread succeeding (no newer database vintage), while no upstream CPI/M2 source job has polled: the only receipts are the monthly legs' own database rereads.",
+      "sources_status": {
+        "cpi_upstream_poll": {
+          "status": "missing",
+          "last_success": null,
+          "age_hours": null,
+          "url": null,
+          "error": "CPI upstream source-poll liveness not established: database reread only, not an upstream source poll (cpi_12m_avg_monthly, cpi_p2p_food_monthly, cpi_p2p_nonfood_monthly)"
+        },
+        "m2_upstream_poll": {
+          "status": "missing",
+          "last_success": null,
+          "age_hours": null,
+          "url": null,
+          "error": "M2 upstream source-poll liveness not established: database reread only, not an upstream source poll (m2_growth_yoy_monthly)"
+        }
+      }
+    },
+    "polled_upstream_jobs": {
+      "scenario": "every family metric has a typed upstream-source receipt checked within 26 hours.",
+      "sources_status": {
+        "cpi_upstream_poll": {
+          "status": "ok",
+          "last_success": null,
+          "age_hours": null,
+          "url": null,
+          "error": null
+        },
+        "m2_upstream_poll": {
+          "status": "ok",
+          "last_success": null,
+          "age_hours": null,
+          "url": null,
+          "error": null
+        }
+      }
+    },
+    "live_upstream_polls": {
+      "scenario": "R2 fix H3. EconDelta's daily fetch stage (econdelta-fetch.timer, 01:10 BDT) polled every CPI/M2 upstream page at 2026-09-24T19:10:00Z and read each page's own vintage (general_inflation, food_inflation, non_food_inflation, m2_growth_yoy_pct); it wrote one typed upstream-poll receipt per page in data/upstream_polls/, a namespace the monthly legs' database rereads never write. The aggregate read them at 2026-09-24T20:55:00Z (02:55 BDT), inside each family's 26-hour poll cadence. last_success is the family's oldest successful poll; age_hours is measured from it.",
+      "sources_status": {
+        "cpi_upstream_poll": {
+          "status": "ok",
+          "last_success": "2026-09-24T19:10:00Z",
+          "age_hours": 1.75,
+          "url": null,
+          "error": null
+        },
+        "m2_upstream_poll": {
+          "status": "ok",
+          "last_success": "2026-09-24T19:10:00Z",
+          "age_hours": 1.75,
+          "url": null,
+          "error": null
+        }
+      }
+    }
+  },
+  "r2_case_contract": {
+    "note": "R2 task G1. Cases of the R2 list not already carried elsewhere in this contract. Each starts from a raw source input and pins what EconDelta publishes (tests/test_shared_case_contract.py re-derives it with the real code); The Brief replays it through its real builders, readiness and a fake-model publish (tests/test_shared_case_contract.py). run_variants change ONE input of the real 25 Sep 2026 02:56 BDT run (builder_binding_contract); a null record/row means the producer no longer publishes it; every other record and row of that run is unchanged. Case-to-test map: C/r2-claude/fixG1-coverage.md. Concurrent publication is R3 design test 5.",
+    "run_variants": {
+      "provisional-remittance-flash": {
+        "case": "provisional vs final",
+        "note": "SYNTHETIC alteration of the real 20 Sep WSEI August flash (2.97 USD bn): its column carried a P mark, so the parser reports release_status provisional (as for 'July, 2026P' imports/exports in the same PDF). Value and period unchanged.",
+        "input_changes": {
+          "v3": {
+            "monthly_remittance": {
+              "release_status": "provisional"
+            }
+          }
+        },
+        "review_flagged": [],
+        "archived_snapshots": [],
+        "observations": {
+          "monthly_remittance": {
+            "metric_id": "monthly_remittance",
+            "value": 2.97,
+            "as_of": "2026-08-31",
+            "unit": "USD billion",
+            "source": "monthly_remittance",
+            "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+            "captured_at": "2026-09-24T19:45:00+00:00",
+            "quality": "verified",
+            "date_basis": "observation",
+            "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-08-31",
+            "dependencies": [],
+            "release_status": "provisional"
+          },
+          "remit_monthly_mn": {
+            "metric_id": "remit_monthly_mn",
+            "value": 2970.0,
+            "as_of": "2026-08-31",
+            "unit": "USD million",
+            "source": "monthly_remittance",
+            "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+            "captured_at": "2026-09-24T19:45:00+00:00",
+            "quality": "verified",
+            "date_basis": "observation",
+            "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-08-31",
+            "dependencies": [
+              "monthly_remittance"
+            ],
+            "release_status": "provisional"
+          }
+        },
+        "metric_history_rows": {
+          "monthly_remittance": {
+            "metric_id": "monthly_remittance",
+            "as_of": "2026-08-31",
+            "value": 2.97,
+            "source": "EconDelta"
+          },
+          "remit_monthly_mn": {
+            "metric_id": "remit_monthly_mn",
+            "as_of": "2026-08-31",
+            "value": 2970.0,
+            "source": "EconDelta"
+          }
+        }
+      },
+      "missing-period-tax-revenue": {
+        "case": "missing period",
+        "note": "SYNTHETIC alteration: the real WSEI tax-revenue value (415473 BDT crore) with its period header missing, so the parser gives no source_as_of. The value must never acquire a date (not the cover, not the run).",
+        "input_changes": {
+          "v3": {
+            "tax_revenue": {
+              "source_as_of": null
+            }
+          }
+        },
+        "review_flagged": [],
+        "archived_snapshots": [],
+        "observations": {
+          "tax_revenue": {
+            "metric_id": "tax_revenue",
+            "value": 415473.0,
+            "as_of": null,
+            "unit": "BDT crore",
+            "source": "tax_revenue",
+            "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+            "captured_at": "2026-09-24T19:45:00+00:00",
+            "quality": "unavailable",
+            "date_basis": "unknown",
+            "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation",
+            "dependencies": [],
+            "release_status": "unknown"
+          },
+          "fiscal_nbr_collected_trn": {
+            "metric_id": "fiscal_nbr_collected_trn",
+            "value": 4.15,
+            "as_of": null,
+            "unit": "BDT trillion",
+            "source": "tax_revenue",
+            "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+            "captured_at": "2026-09-24T19:45:00+00:00",
+            "quality": "unavailable",
+            "date_basis": "unknown",
+            "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation",
+            "dependencies": [
+              "tax_revenue"
+            ],
+            "release_status": "unknown"
+          },
+          "nbr_fytd_collected_cr": {
+            "metric_id": "nbr_fytd_collected_cr",
+            "value": 415473.0,
+            "as_of": null,
+            "unit": "BDT crore",
+            "source": "tax_revenue",
+            "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+            "captured_at": "2026-09-24T19:45:00+00:00",
+            "quality": "unavailable",
+            "date_basis": "unknown",
+            "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation",
+            "dependencies": [
+              "tax_revenue"
+            ],
+            "release_status": "unknown"
+          }
+        },
+        "metric_history_rows": {
+          "tax_revenue": null,
+          "fiscal_nbr_collected_trn": null,
+          "nbr_fytd_collected_cr": null
+        }
+      },
+      "rejected-brent-with-dated-predecessor": {
+        "case": "rejected family",
+        "note": "The review rejects today's Brent (98.32, 23 Sep); the previous run's archive holds a dated Brent record (SYNTHETIC 97.1 @ 22 Sep), which the quarantine republishes held.",
+        "input_changes": {},
+        "review_flagged": [
+          "brent_crude_usd_barrel"
+        ],
+        "archived_snapshots": [
+          {
+            "updated_at": "2026-09-23T20:56:00+00:00",
+            "observations": {
+              "brent_crude_usd_barrel": {
+                "metric_id": "brent_crude_usd_barrel",
+                "value": 97.1,
+                "as_of": "2026-09-22",
+                "unit": "USD/barrel",
+                "source": "commodity_prices",
+                "source_url": null,
+                "captured_at": "2026-09-23T19:35:00+00:00",
+                "quality": "verified",
+                "date_basis": "observation",
+                "evidence": "commodity_prices snapshot field brent_crude_usd_barrel",
+                "dependencies": [],
+                "release_status": "unknown"
+              }
+            }
+          }
+        ],
+        "observations": {
+          "brent_crude_usd_barrel": {
+            "metric_id": "brent_crude_usd_barrel",
+            "value": 97.1,
+            "as_of": "2026-09-22",
+            "unit": "USD/barrel",
+            "source": "commodity_prices",
+            "source_url": null,
+            "captured_at": "2026-09-23T19:35:00+00:00",
+            "quality": "held",
+            "date_basis": "observation",
+            "evidence": "commodity_prices snapshot field brent_crude_usd_barrel; held after review rejection",
+            "dependencies": [],
+            "release_status": "unknown"
+          }
+        },
+        "metric_history_rows": {
+          "brent_crude_usd_barrel": {
+            "metric_id": "brent_crude_usd_barrel",
+            "as_of": "2026-09-22",
+            "value": 97.1,
+            "source": "EconDelta"
+          }
+        }
+      },
+      "rejected-brent-without-predecessor": {
+        "case": "unavailable predecessor",
+        "note": "The review rejects today's Brent and no archive holds a dated Brent record: the whole family is omitted from latest.json and from metric_history.",
+        "input_changes": {},
+        "review_flagged": [
+          "brent_crude_usd_barrel"
+        ],
+        "archived_snapshots": [],
+        "observations": {
+          "brent_crude_usd_barrel": null
+        },
+        "metric_history_rows": {
+          "brent_crude_usd_barrel": null
+        }
+      }
+    },
+    "holiday_closure": {
+      "case": "holiday closure",
+      "note": "DSE was shut 25-31 May 2026 for Eid-ul-Adha (EconDelta config/holidays_2026.json, announced government dates). The 02:56 BDT run on Mon 1 Jun (31 May UTC) finds the DSE page still on its last session, Sun 24 May. That is the current reading, not a held one. Dates SYNTHETIC boundary inputs; values are the real 22 Sep 2026 DSE scrape.",
+      "closed_days": [
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-27",
+        "2026-05-28",
+        "2026-05-29",
+        "2026-05-30",
+        "2026-05-31"
+      ],
+      "aggregate_now": "2026-05-31T20:56:00+00:00",
+      "brief_today": "2026-06-01",
+      "dse_market": {
+        "date": "2026-05-24",
+        "scraped_at": "2026-05-31T19:35:00+00:00",
+        "trading_day": true,
+        "indices": {
+          "dsex": 5540.32037,
+          "dsex_change": -10.17525,
+          "dsex_change_pct": -0.18332,
+          "ds30": 2106.17633,
+          "dses": 1108.57168
+        },
+        "market": {
+          "turnover_crore": 791.4875,
+          "total_trades": 201745,
+          "advancing": 103,
+          "declining": 227,
+          "unchanged": 55
+        },
+        "source_url": "https://www.dse.com.bd/api/live/market"
+      },
+      "sources_status": {
+        "dse_market": {
+          "status": "ok",
+          "last_success": "2026-05-31T19:35:00Z",
+          "age_hours": 1.35,
+          "url": "https://www.dse.com.bd/api/live/market",
+          "error": null
+        }
+      },
+      "observations": {
+        "dsex": {
+          "metric_id": "dsex",
+          "value": 5540.32037,
+          "as_of": "2026-05-24",
+          "unit": "index",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field dsex",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "dsex_change": {
+          "metric_id": "dsex_change",
+          "value": -10.17525,
+          "as_of": "2026-05-24",
+          "unit": "index",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field dsex_change",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "dsex_change_pct": {
+          "metric_id": "dsex_change_pct",
+          "value": -0.18332,
+          "as_of": "2026-05-24",
+          "unit": "%",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field dsex_change_pct",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "ds30": {
+          "metric_id": "ds30",
+          "value": 2106.17633,
+          "as_of": "2026-05-24",
+          "unit": "index",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field ds30",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "dses": {
+          "metric_id": "dses",
+          "value": 1108.57168,
+          "as_of": "2026-05-24",
+          "unit": "index",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field dses",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "turnover_crore": {
+          "metric_id": "turnover_crore",
+          "value": 791.4875,
+          "as_of": "2026-05-24",
+          "unit": "BDT crore",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field turnover_crore",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "total_trades": {
+          "metric_id": "total_trades",
+          "value": 201745,
+          "as_of": "2026-05-24",
+          "unit": "count",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field total_trades",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "advancing": {
+          "metric_id": "advancing",
+          "value": 103,
+          "as_of": "2026-05-24",
+          "unit": "count",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field advancing",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "declining": {
+          "metric_id": "declining",
+          "value": 227,
+          "as_of": "2026-05-24",
+          "unit": "count",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field declining",
+          "dependencies": [],
+          "release_status": "unknown"
+        },
+        "unchanged": {
+          "metric_id": "unchanged",
+          "value": 55,
+          "as_of": "2026-05-24",
+          "unit": "count",
+          "source": "dse_market",
+          "source_url": "https://www.dse.com.bd/api/live/market",
+          "captured_at": "2026-05-31T19:35:00+00:00",
+          "quality": "verified",
+          "date_basis": "observation",
+          "evidence": "dse_market snapshot field unchanged",
+          "dependencies": [],
+          "release_status": "unknown"
+        }
+      },
+      "metric_history_rows": {
+        "dsex": {
+          "metric_id": "dsex",
+          "as_of": "2026-05-24",
+          "value": 5540.32037,
+          "source": "EconDelta"
+        },
+        "dsex_change": {
+          "metric_id": "dsex_change",
+          "as_of": "2026-05-24",
+          "value": -10.17525,
+          "source": "EconDelta"
+        },
+        "dsex_change_pct": {
+          "metric_id": "dsex_change_pct",
+          "as_of": "2026-05-24",
+          "value": -0.18332,
+          "source": "EconDelta"
+        },
+        "ds30": {
+          "metric_id": "ds30",
+          "as_of": "2026-05-24",
+          "value": 2106.17633,
+          "source": "EconDelta"
+        },
+        "dses": {
+          "metric_id": "dses",
+          "as_of": "2026-05-24",
+          "value": 1108.57168,
+          "source": "EconDelta"
+        },
+        "turnover_crore": {
+          "metric_id": "turnover_crore",
+          "as_of": "2026-05-24",
+          "value": 791.4875,
+          "source": "EconDelta"
+        },
+        "total_trades": {
+          "metric_id": "total_trades",
+          "as_of": "2026-05-24",
+          "value": 201745,
+          "source": "EconDelta"
+        },
+        "advancing": {
+          "metric_id": "advancing",
+          "as_of": "2026-05-24",
+          "value": 103,
+          "source": "EconDelta"
+        },
+        "declining": {
+          "metric_id": "declining",
+          "as_of": "2026-05-24",
+          "value": 227,
+          "source": "EconDelta"
+        },
+        "unchanged": {
+          "metric_id": "unchanged",
+          "as_of": "2026-05-24",
+          "value": 55,
+          "source": "EconDelta"
+        }
+      }
+    },
+    "partial_writer_failure": {
+      "case": "partial writer failure",
+      "note": "EconDelta's real macro appender (tests/test_monthly_leg_receipts.py world, SYNTHETIC values, run date 15 Sep 2026): BB's wage-remittance page is unreachable while the CPI trio is written and confirmed by exact readback. The published macro receipt is failed and still counts the 3 confirmed rows; the confirmed rows stay in the table. Attempt times normalised to attempted_at. Publication-side partial insert failure is R3 design test 2 (C/r3-publication-design.md).",
+      "run_date": "2026-09-15",
+      "attempted_at": "2026-09-24T21:00:00Z",
+      "recorded_before": [
+        [
+          "m2_growth_yoy_monthly",
+          "2026-07-01",
+          8.1
+        ],
+        [
+          "imports_usd_mn_monthly",
+          "2026-08-01",
+          6100.0
+        ]
+      ],
+      "macro": {
+        "status": "failed",
+        "attempted_at": "2026-09-24T21:00:00Z",
+        "reason": "cpi: 3 row(s) written and confirmed by exact readback; remittance: read failed (source fetch failed): BB wage-remittance page (RuntimeError); imports: no new official period: previous month 2026-08-01 already recorded; source not re-fetched; m2: no newer database vintage: m2_growth_yoy_monthly 2026-07-01 already recorded (latest source vintage 2026-07-31)",
+        "confirmed_rows": 3,
+        "legs": {
+          "cpi": {
+            "status": "ok",
+            "attempted_at": "2026-09-24T21:00:00Z",
+            "reason": "3 row(s) written and confirmed by exact readback",
+            "confirmed_rows": 3,
+            "failures": [],
+            "skips": []
+          },
+          "remittance": {
+            "status": "failed",
+            "attempted_at": "2026-09-24T21:00:00Z",
+            "reason": "read failed (source fetch failed): BB wage-remittance page (RuntimeError)",
+            "confirmed_rows": 0,
+            "failures": [
+              {
+                "operation": "read",
+                "category": "source fetch failed",
+                "detail": "BB wage-remittance page (RuntimeError)"
+              }
+            ],
+            "skips": []
+          },
+          "imports": {
+            "status": "skipped",
+            "attempted_at": "2026-09-24T21:00:00Z",
+            "reason": "no new official period: previous month 2026-08-01 already recorded; source not re-fetched",
+            "confirmed_rows": 0,
+            "failures": [],
+            "skips": [
+              {
+                "category": "no new official period",
+                "detail": "previous month 2026-08-01 already recorded; source not re-fetched",
+                "newest_recorded": "2026-08-01",
+                "lag_window_days": 165
+              }
+            ]
+          },
+          "m2": {
+            "status": "skipped",
+            "attempted_at": "2026-09-24T21:00:00Z",
+            "reason": "no newer database vintage: m2_growth_yoy_monthly 2026-07-01 already recorded (latest source vintage 2026-07-31)",
+            "confirmed_rows": 0,
+            "failures": [],
+            "skips": [
+              {
+                "category": "no newer database vintage",
+                "detail": "m2_growth_yoy_monthly 2026-07-01 already recorded (latest source vintage 2026-07-31)"
+              }
+            ]
+          }
+        }
+      },
+      "confirmed_in_table": [
+        [
+          "cpi_12m_avg_monthly",
+          "2026-08-01",
+          8.29
+        ],
+        [
+          "cpi_p2p_food_monthly",
+          "2026-08-01",
+          7.6
+        ],
+        [
+          "cpi_p2p_nonfood_monthly",
+          "2026-08-01",
+          9.1
+        ]
+      ]
+    },
+    "nbr_fytd_period_rows": {
+      "note": "R2 fix H5 (owner decision m, 28 Sep 2026). Five consecutive aggregate runs, each replaying the real 25 Sep 2026 02:56 BDT capture with only tax_revenue's value/period changed as input_changes says (runs 3-5 are synthetic). The NBR fiscal-year-to-date total and the two ids The Brief reads it under are dated by the source's own stated period, and a row is sent ONLY when its (period, value) is not already in metric_history. EconDelta (tests/test_nbr_fytd_period_rows.py) proves its real observation stage makes `observations` and its daily writer sends exactly `rows_sent` and receipt `daily_skips`, starting from an empty table. The Brief (tests/test_nbr_fytd_card.py) replays `brief_checks`: the NBR card after that run, from every row sent so far, and what readiness says about the family.",
+      "family": [
+        "tax_revenue",
+        "fiscal_nbr_collected_trn",
+        "nbr_fytd_collected_cr"
+      ],
+      "runs": [
+        {
+          "run": "first-night",
+          "note": "The real 25 Sep 2026 input: WSEI 'Tax Revenue (NBR)' 415473.00 under FY26 (fiscal year to date through June 2026). Nothing is recorded yet, so each id gets one row dated by the source's period.",
+          "input_changes": {},
+          "observations": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "value": 415473.0,
+              "as_of": "2026-06-30",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-06-30",
+              "dependencies": [],
+              "release_status": "unknown"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "value": 4.15,
+              "as_of": "2026-06-30",
+              "unit": "BDT trillion",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-06-30",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "value": 415473.0,
+              "as_of": "2026-06-30",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-06-30",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            }
+          },
+          "rows_sent": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "as_of": "2026-06-30",
+              "value": 415473.0,
+              "source": "EconDelta"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "as_of": "2026-06-30",
+              "value": 4.15,
+              "source": "EconDelta"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "as_of": "2026-06-30",
+              "value": 415473.0,
+              "source": "EconDelta"
+            }
+          },
+          "daily_skips": []
+        },
+        {
+          "run": "next-night-unchanged",
+          "note": "The next night reads the same figure for the same period. It is already recorded, so nothing is sent and the daily receipt says why.",
+          "input_changes": {},
+          "observations": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "value": 415473.0,
+              "as_of": "2026-06-30",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-06-30",
+              "dependencies": [],
+              "release_status": "unknown"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "value": 4.15,
+              "as_of": "2026-06-30",
+              "unit": "BDT trillion",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-06-30",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "value": 415473.0,
+              "as_of": "2026-06-30",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "c6972f35b5a63668b4a76770b32fa582938e9ceef04ae76147b08a4274cd5516 | wsei_observation | 2026-06-30",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            }
+          },
+          "rows_sent": {},
+          "daily_skips": [
+            {
+              "category": "period already recorded",
+              "detail": "tax_revenue: 415473.0 for 2026-06-30 is already in metric_history; not re-sent"
+            },
+            {
+              "category": "period already recorded",
+              "detail": "fiscal_nbr_collected_trn: 4.15 for 2026-06-30 is already in metric_history; not re-sent"
+            },
+            {
+              "category": "period already recorded",
+              "detail": "nbr_fytd_collected_cr: 415473.0 for 2026-06-30 is already in metric_history; not re-sent"
+            }
+          ]
+        },
+        {
+          "run": "new-month",
+          "note": "SYNTHETIC value and period (no real artifact, so no artifact hash): a July FY27 year-to-date figure. One new row per id, dated by that period.",
+          "input_changes": {
+            "v3": {
+              "tax_revenue": {
+                "value": 30512.4,
+                "source_as_of": "2026-07-31",
+                "_artifact_sha256": null
+              }
+            }
+          },
+          "observations": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "value": 30512.4,
+              "as_of": "2026-07-31",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "wsei_observation | 2026-07-31",
+              "dependencies": [],
+              "release_status": "unknown"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "value": 0.31,
+              "as_of": "2026-07-31",
+              "unit": "BDT trillion",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "wsei_observation | 2026-07-31",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "value": 30512.4,
+              "as_of": "2026-07-31",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "held",
+              "date_basis": "observation",
+              "evidence": "wsei_observation | 2026-07-31",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            }
+          },
+          "rows_sent": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "as_of": "2026-07-31",
+              "value": 30512.4,
+              "source": "EconDelta"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "as_of": "2026-07-31",
+              "value": 0.31,
+              "source": "EconDelta"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "as_of": "2026-07-31",
+              "value": 30512.4,
+              "source": "EconDelta"
+            }
+          },
+          "daily_skips": []
+        },
+        {
+          "run": "unchanged-value-new-period",
+          "note": "SYNTHETIC: the same value published for a NEW period (August). The period is new, so it is written.",
+          "input_changes": {
+            "v3": {
+              "tax_revenue": {
+                "value": 30512.4,
+                "source_as_of": "2026-08-31",
+                "_artifact_sha256": null
+              }
+            }
+          },
+          "observations": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "value": 30512.4,
+              "as_of": "2026-08-31",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "verified",
+              "date_basis": "observation",
+              "evidence": "wsei_observation | 2026-08-31",
+              "dependencies": [],
+              "release_status": "unknown"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "value": 0.31,
+              "as_of": "2026-08-31",
+              "unit": "BDT trillion",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "verified",
+              "date_basis": "observation",
+              "evidence": "wsei_observation | 2026-08-31",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "value": 30512.4,
+              "as_of": "2026-08-31",
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "verified",
+              "date_basis": "observation",
+              "evidence": "wsei_observation | 2026-08-31",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            }
+          },
+          "rows_sent": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "as_of": "2026-08-31",
+              "value": 30512.4,
+              "source": "EconDelta"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "as_of": "2026-08-31",
+              "value": 0.31,
+              "source": "EconDelta"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "as_of": "2026-08-31",
+              "value": 30512.4,
+              "source": "EconDelta"
+            }
+          },
+          "daily_skips": []
+        },
+        {
+          "run": "period-missing",
+          "note": "SYNTHETIC value with no stated period. Nothing is dated or written, and the daily receipt names each id and why.",
+          "input_changes": {
+            "v3": {
+              "tax_revenue": {
+                "value": 61024.8,
+                "source_as_of": null,
+                "_artifact_sha256": null
+              }
+            }
+          },
+          "observations": {
+            "tax_revenue": {
+              "metric_id": "tax_revenue",
+              "value": 61024.8,
+              "as_of": null,
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "unavailable",
+              "date_basis": "unknown",
+              "evidence": "wsei_observation",
+              "dependencies": [],
+              "release_status": "unknown"
+            },
+            "fiscal_nbr_collected_trn": {
+              "metric_id": "fiscal_nbr_collected_trn",
+              "value": 0.61,
+              "as_of": null,
+              "unit": "BDT trillion",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "unavailable",
+              "date_basis": "unknown",
+              "evidence": "wsei_observation",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            },
+            "nbr_fytd_collected_cr": {
+              "metric_id": "nbr_fytd_collected_cr",
+              "value": 61024.8,
+              "as_of": null,
+              "unit": "BDT crore",
+              "source": "tax_revenue",
+              "source_url": "https://www.bb.org.bd/en/index.php/publication/publictn/5/27",
+              "captured_at": "2026-09-24T19:45:00+00:00",
+              "quality": "unavailable",
+              "date_basis": "unknown",
+              "evidence": "wsei_observation",
+              "dependencies": [
+                "tax_revenue"
+              ],
+              "release_status": "unknown"
+            }
+          },
+          "rows_sent": {},
+          "daily_skips": [
+            {
+              "category": "no source period",
+              "detail": "tax_revenue: the source states no period for 61024.8; nothing written"
+            },
+            {
+              "category": "no source period",
+              "detail": "fiscal_nbr_collected_trn: the source states no period for 0.61; nothing written"
+            },
+            {
+              "category": "no source period",
+              "detail": "nbr_fytd_collected_cr: the source states no period for 61024.8; nothing written"
+            }
+          ]
+        }
+      ],
+      "brief_checks": [
+        {
+          "after_run": "next-night-unchanged",
+          "card": {
+            "id": "fiscal_nbr_collected_trn",
+            "value": 4.15,
+            "as_of": "2026-06-30"
+          },
+          "family_reasons": [
+            "tax_revenue: held reading from 2026-06-30",
+            "fiscal_nbr_collected_trn: held reading from 2026-06-30",
+            "nbr_fytd_collected_cr: held reading from 2026-06-30"
+          ],
+          "family_unavailable": [],
+          "note": "The FY26 total is a held reading in September: printed with its June 2026 date, and readiness says held (degraded), never fresh and never a hold."
+        },
+        {
+          "after_run": "unchanged-value-new-period",
+          "card": {
+            "id": "fiscal_nbr_collected_trn",
+            "value": 0.31,
+            "as_of": "2026-08-31"
+          },
+          "family_reasons": [],
+          "family_unavailable": [],
+          "note": "A current August figure: printed with its own period, no held or unavailable reason for the family."
+        },
+        {
+          "after_run": "period-missing",
+          "card": {
+            "id": "fiscal_nbr_collected_trn",
+            "value": 0.31,
+            "as_of": "2026-08-31"
+          },
+          "family_reasons": [],
+          "family_unavailable": [
+            "fiscal_nbr_collected_trn",
+            "nbr_fytd_collected_cr",
+            "tax_revenue"
+          ],
+          "note": "Tonight's figure has no period: the card keeps the last properly dated figure with its real August date, and readiness calls the family's current reading unavailable (degraded), never fresh and never a hold."
+        }
+      ]
+    }
   }
 }

@@ -2,22 +2,26 @@
 from __future__ import annotations
 
 from brief.cadence import section_freshness
+from brief.press_override import press_override
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
 
+def _quarterly_ratio(ctx: BuilderContext, metric_id: str, label: str) -> Metric:
+    """BB FSR ratio, or an owner-approved press figure named by its outlet (decision (c))."""
+    last = ctx.history.get_latest(metric_id) if ctx.history is not None else None
+    press = press_override(last)
+    return Metric(id=metric_id, label=label,
+                  value=(last.value if last else None), unit="%",
+                  as_of=(last.as_of if last else ctx.today),
+                  source=(press.card_source if press else "BB"), cadence="quarterly",
+                  press_override=press)
+
+
 def build(ctx: BuilderContext) -> SectionData:
-    last_npl = ctx.history.get_latest("banking_npl_pct") if ctx.history is not None else None
-    last_car = ctx.history.get_latest("banking_car_pct") if ctx.history is not None else None
     metrics = [
-        Metric(id="banking_npl_pct", label="NPL Ratio",
-               value=(last_npl.value if last_npl else None), unit="%",
-               as_of=(last_npl.as_of if last_npl else ctx.today),
-               source="BB", cadence="quarterly"),
-        Metric(id="banking_car_pct", label="CAR",
-               value=(last_car.value if last_car else None), unit="%",
-               as_of=(last_car.as_of if last_car else ctx.today),
-               source="BB", cadence="quarterly"),
+        _quarterly_ratio(ctx, "banking_npl_pct", "NPL Ratio"),
+        _quarterly_ratio(ctx, "banking_car_pct", "CAR"),
     ]
     return SectionData(
         id="banking", title="Banking", metrics=metrics,

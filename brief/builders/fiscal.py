@@ -21,6 +21,7 @@ day a scraper writes it.
 from __future__ import annotations
 
 from brief.cadence import section_freshness
+from brief.press_override import press_override
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -35,11 +36,13 @@ def build(ctx: BuilderContext) -> SectionData:
     metrics: list[Metric] = []
     for mid, label, unit, source, read_id in _SPEC:
         last = ctx.history.get_latest(read_id) if ctx.history is not None else None
+        press = press_override(last)  # an approved press figure names its outlet (decision (c))
         metrics.append(Metric(
             id=mid, label=label,
             value=(last.value if last else None), unit=unit,
             as_of=(last.as_of if last else ctx.today),
-            source=source, cadence="monthly",
+            source=(press.card_source if press else source), cadence="monthly",
+            press_override=press,
         ))
     return SectionData(
         id="fiscal", title="Fiscal", metrics=metrics,

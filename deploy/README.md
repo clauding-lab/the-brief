@@ -7,9 +7,9 @@
 3. `cd ~/the-brief && git checkout main && git pull`
 4. `sudo cp deploy/brief.env.example /etc/brief.env`
 5. Edit `/etc/brief.env` — fill every `REDACTED`. `sudo chmod 640 /etc/brief.env && sudo chown root:adnan /etc/brief.env`
-6. Provision the stable publication lock directory BEFORE installing the unit:
-   `sudo install -d -o adnan -g adnan -m 700 /home/adnan/.local/state/the-brief`
-   then `sudo deploy/install.sh`
+6. `sudo deploy/install.sh` — it creates the publication lock directory
+   `/home/adnan/.local/state/the-brief` (owner `adnan`, mode 700) BEFORE it installs the
+   units, because `brief.service`'s `ReadWritePaths` needs it to exist at unit start.
 7. `sudo systemctl start brief.service` (first manual run).
 8. `journalctl -u brief.service -f` — watch to completion.
 9. Confirm a new row in Supabase `briefs` (latest `issue_no`, today's `brief_date`).
@@ -62,6 +62,72 @@ That application log contains the actual Python traceback (for example, a
   `OnFailure=brief-alert@%n.service` line. Renaming or moving `brief-alert@.service`,
   `deploy/brief_alert.sh`, the `/home/adnan/the-brief` checkout or `/etc/brief.env`
   silently kills that repo's prune-failure alarm — update its unit in the same change.
+
+## EconDelta snapshot missing, broken or old at the 08:00 BDT fire
+
+**How the file gets here.** EconDelta writes `latest.json` on ExonVPS at 02:55 BDT
+(retry 03:15). A Hetzner user-crontab line, `*/5 * * * * /home/adnan/bin/pull-econdelta-latest.sh`,
+copies it to `/home/adnan/econdelta/data/latest.json` with `rsync -t` every five minutes.
+The copy is atomic (temporary file + rename) but checks nothing: a broken or older file on
+ExonVPS arrives as it is. The Brief's own reader is the only check.
+
+**What you see.** One Discord message beginning `ALERT: The Brief is publishing from …`
+and naming `cause: <category>`. The run is **not** held (owner decision, 26 Sep 2026): the
+issue still publishes at 08:00 BDT, marked degraded, with at most one such alert per run.
+- `missing`, `truncated`, `unparseable`, `unreadable`, `wrong shape`: the snapshot could not
+  be used; the issue is built from saved history.
+- `stale capture` (over 24 h old), `earlier-day capture`, `capture went backwards` (older
+  than the newest capture a live run already read and passed readiness with): the snapshot
+  is read, and its figures carry their own, older dates.
+
+A **hold** (exit 4, the OnFailure alert with the log tail) is a different path: the
+snapshot contradicts itself, for example a capture time later than the run.
+
+**1. Read the cause (on Hetzner; read-only, prints no credentials).**
+```bash
+grep "Publication readiness" /home/adnan/the-brief/logs/brief-systemd.log | tail -n 1
+ls -l --time-style=full-iso /home/adnan/econdelta/data/latest.json
+python3 -c "import json;d=json.load(open(\"/home/adnan/econdelta/data/latest.json\"));print(d[\"updated_at\"])"  # UTC; add 6 h for BDT (jq is not installed on Hetzner)
+sha256sum /home/adnan/econdelta/data/latest.json | cut -c1-16
+crontab -l | grep -n pull-econdelta-latest                      # the */5 line must be there
+tail -n 20 /home/adnan/econdelta/logs/pull-cron.log             # silent on success; no timestamps
+cat /home/adnan/.local/state/the-brief/econdelta-capture-mark.json  # newest capture a live run read (past readiness)
+```
+
+**2. Compare with ExonVPS (needs the owner's SSH approval; read-only).**
+```bash
+ssh adnan-local@103.187.23.22 'ls -l --time-style=full-iso ~/econdelta/data/latest.json;
+  python3 -c "import json;d=json.load(open(\"/home/adnan-local/econdelta/data/latest.json\"));print(d[\"updated_at\"])";
+  sha256sum ~/econdelta/data/latest.json | cut -c1-16;
+  systemctl list-timers "econdelta-aggregate*" --no-pager'
+```
+Never print `~/.ssh/*` or the pull key. To see the pull key's restrictions on ExonVPS, cut
+the key material:
+`grep hetzner-econdelta-pull ~/.ssh/authorized_keys | sed -E 's#ssh-ed25519 [A-Za-z0-9+/=]+#ssh-ed25519 <redacted>#'`.
+
+**3. Decide by cause.**
+- **Load failure on Hetzner, ExonVPS file fine** (valid JSON, newer or different hash): the
+  pull has not delivered it (look for `Connection timed out` in `pull-cron.log`). It retries
+  every five minutes, so tomorrow is safe without action. To refresh the copy now, run the
+  pull once as `adnan`: `/home/adnan/bin/pull-econdelta-latest.sh`.
+- **ExonVPS's own file is missing or broken:** an EconDelta problem. Follow AGENTS.md
+  landmine 38 (Supabase `run_logs`, then the aggregate log on ExonVPS). Never hand-edit or
+  hand-copy a `latest.json` into place.
+- **`stale capture` / `earlier-day capture`:** no new accepted capture was made (a hard
+  review reject keeps the previous file, landmine 38), or the pull is stuck (the two hashes
+  differ).
+- **`capture went backwards`:** the Hetzner `updated_at` is older than the capture mark.
+  Usually an older `latest.json` was restored on ExonVPS. If that was deliberate, do
+  nothing: each live run alerts until the next aggregate writes a newer capture, because
+  the mark is never lowered. If the mark itself is wrong (for example a manual live run read
+  another file through `ECONDELTA_DATA`), move it aside, never delete it:
+  `mv ~/.local/state/the-brief/econdelta-capture-mark.json ~/.local/state/the-brief/econdelta-capture-mark.json.bak-$(date +%Y%m%d)`.
+  The next live run starts a new mark.
+
+**4. Re-publishing today is optional and the owner's call.** Once the Hetzner copy is right,
+`sudo systemctl start brief.service` re-runs today's issue. A same-day run REPLACES the issue
+in place (AGENTS.md landmine 33), and subscriber email is not re-sent. The default is to leave
+the degraded issue up: the next 02:55 BDT aggregate and 08:00 BDT fire recover on their own.
 
 ## Weekly export (brief-export.timer)
 
@@ -149,6 +215,7 @@ logs loudly on its own failures — but something has to be the last turtle.
 | `journalctl`: `Claude CLI exited 1: Session not found` | Max OAuth expired. On the host: `claude` interactively, re-authenticate. |
 | `journalctl`: `V6 publish failed: subeditor verdict=fail` | Editor output failed sub-editor self-review. Check the most recent log for the failure reason; usually fixed by retry on next timer fire. |
 | `journalctl`: Supabase 4xx/5xx in `run_publish` | Check `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` in `/etc/brief.env`; verify the `briefs`/`sections` schema is up to date. |
+| Discord: `ALERT: The Brief is publishing from … — cause: <category>` | The EconDelta snapshot was missing, broken or old; the issue still published, degraded. See "EconDelta snapshot missing, broken or old at the 08:00 BDT fire" above. |
 | Discord webhook silent | `DISCORD_WEBHOOK_URL` unset or wrong. `curl -X POST -H 'Content-Type: application/json' -d '{"content":"test"}' "$DISCORD_WEBHOOK_URL"` should return 204. |
 
 ## Rollback
@@ -183,13 +250,58 @@ disk after release; the operating system releases ownership when the process
 exits. This protects cooperating same-user processes on one host, not
 external database writers or a distributed database transaction.
 
-**Install prerequisite for existing hosts:** create the lock directory using
-the step above BEFORE copying the revised `brief.service`; its
-`ReadWritePaths` requires that directory to exist. Install the unit and run
-`sudo systemctl daemon-reload`. The unit now treats successful intentional
+**Install prerequisite for existing hosts:** `deploy/install.sh` creates the
+lock directory before it copies the revised `brief.service`; its
+`ReadWritePaths` requires that directory to exist, or systemd refuses to start
+the unit and nothing publishes. Install the unit and run
+`sudo systemctl daemon-reload` (install.sh does both). The unit now treats successful intentional
 exit 3 as success (`SuccessExitStatus=3`); exit 1 and hold exit 4 remain failures.
 A git self-pull does not install or reload the systemd unit. Do not rely on
 these service settings until the installed unit has been verified.
+
+**Rolling out a unit change to the box — in one sitting, in this order.** The box
+checkout only moves when `brief.service` fires (its self-pull), so right after a merge
+`/home/adnan/the-brief/deploy/install.sh` is still the OLD copy: it installs the old
+unit and never creates the lock directory. And a fire between the merge and the install
+self-pulls the new code but runs it under the OLD unit, whose read-only home has no
+writable lock directory, so nothing publishes. So:
+
+1. BEFORE the merge: `sudo systemctl stop brief.timer brief-export.timer` (no fire or
+   weekly export can land in the gap; a reboot re-arms them, so do not leave them stopped).
+2. Check nothing is running. `systemctl is-active brief.service brief-export.service`
+   must print `inactive` or `failed` for both: either means not running (`failed` only
+   says the last run held or failed). And `pgrep -af 'brief[.]cli'` must print nothing:
+   a hand-started run (see "Manual fire") is outside systemd, so `is-active` cannot see it.
+   Stopping the timers does not stop a run that is already going (a fire can run from
+   08:00 to about 09:30 BDT), and a pull in the middle of a run makes it publish with old
+   code and send with new code. If either unit says `active`, `activating` or
+   `deactivating`, or pgrep prints a process, wait and check again; never stop a running
+   fire to hurry this.
+3. Merge the PR to `main`.
+4. `sudo -u adnan git -C /home/adnan/the-brief pull --ff-only origin main` (as adnan, so
+   `.git` stays adnan's; a diverged checkout fails here, loudly).
+5. `sudo -u adnan git -C /home/adnan/the-brief log -1 --format='%H %s'` must show the
+   merge commit. If not, stop and fix; do not run install.sh.
+6. `sudo /home/adnan/the-brief/deploy/install.sh` — installs the new unit, creates the
+   lock directory and starts `brief.timer` and `brief-export.timer` again.
+7. Check: `systemctl cat brief.service | grep ReadWritePaths` lists
+   `/home/adnan/.local/state/the-brief`; `stat -c '%U %a' /home/adnan/.local/state/the-brief`
+   prints `adnan 700`; `systemctl list-timers brief.timer brief-export.timer` shows the next
+   02:00 UTC (08:00 BDT) run and the next Saturday export. If install.sh stopped early, the
+   timers are still stopped: fix the cause and re-run install.sh; never start them by hand
+   under the old unit.
+
+**Treat running install.sh as a possible publish.** It re-copies `brief.timer`, reloads
+systemd and runs `systemctl start brief.timer`. Starting a timer that is already running
+does nothing, but `brief.timer` has `Persistent=true`: if systemd counts a missed 08:00
+slot it fires `brief.service` at once. If the stop in step 1 spanned an 08:00 BDT slot,
+that catch-up is the documented `Persistent=true` behaviour (new code, new unit, the
+day's issue). EconDelta's install.sh, which re-installs its
+`Persistent=true` timers the same way, fired four services at once on 11 Jul 2026. This
+has not been checked for `brief.timer`. Run it at a time when a publish is acceptable, or
+set `BRIEF_DRY_RUN=1` first (models still run; no database write, no email) and remove
+it before 08:00 BDT. Then `sudo journalctl -u brief.service --since "-10 min"` shows
+whether it fired.
 
 Set `BRIEF_DRY_RUN=1` in `/etc/brief.env` to pause database writes and all
 subscriber, preview and in-process pipeline warning sends. Accepted true

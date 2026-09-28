@@ -349,6 +349,42 @@ def _resolve_fresh_as_of(ctx: BuilderContext, src_key: str, value: Any) -> date:
     return _last_trading_day_before(ctx.today)
 
 
+def _producer_held_date(ctx: BuilderContext, src_key: str) -> date | None:
+    """The session date of a reading EconDelta publishes as 'held', else None.
+
+    EconDelta marks a DSE record 'held' when it could not confirm a new session
+    (the page did not move on what it counts as a trading day). The card must
+    then say so — held note and held date — like fx/iranwar/remit's
+    `dated_quote`, instead of printing the older session as today's market.
+    """
+    record = ctx.snapshot.observation(src_key, today=ctx.today)
+    if record is None or record["quality"] != "held":
+        return None
+    return date.fromisoformat(record["as_of"])
+
+
+_NON_TRADING_REASON = "Non-trading day — last trading session"
+_MISSING_READING_REASON = "Latest DSE reading not available — last session shown"
+
+
+def _history_fallback_reason(today: date, fallback_sessions: frozenset[date]) -> str:
+    """Why the section shows a last-session reading it fell back to from history.
+
+    Only a day the Brief's calendar calls non-trading may be called one, and only when
+    every card that fell back really shows the last trading session before `today`.
+    On a trading day the fallback means a reading is missing (quarantined or
+    unavailable), so say that instead; likewise on a Friday/Saturday whose fallback
+    row predates Thursday's session (Thursday's reading never arrived).
+    `is_bd_trading_day` is weekday-only (no BD holiday list, AGENTS.md landmine), so
+    on an unlisted public holiday the missing-reading sentence is used; it stays true.
+    """
+    if is_bd_trading_day(today):
+        return _MISSING_READING_REASON
+    if fallback_sessions != {_last_trading_day_before(today)}:
+        return _MISSING_READING_REASON
+    return _NON_TRADING_REASON
+
+
 def build(ctx: BuilderContext) -> SectionData:
     # On non-trading days (Fri/Sat/holidays in BD), today's snapshot is empty.
     # Fall back to the last trading-day reading from Supabase metric_history,
@@ -356,6 +392,8 @@ def build(ctx: BuilderContext) -> SectionData:
     # rather than a wall of None. EconDelta upserts these keys daily.
     metrics: list[Metric] = []
     any_stale = False
+    any_held = False
+    fallback_sessions: set[date] = set()
     for (mid, label, src_key, unit) in _SPEC:
         value: Any = ctx.snapshot.get(src_key)
         is_stale = False
@@ -368,8 +406,12 @@ def build(ctx: BuilderContext) -> SectionData:
                     as_of = last.as_of
                     is_stale = True
                     any_stale = True
+                    fallback_sessions.add(last.as_of)
         else:
-            as_of = _resolve_fresh_as_of(ctx, src_key, value)
+            held_on = _producer_held_date(ctx, src_key)
+            as_of = held_on or _resolve_fresh_as_of(ctx, src_key, value)
+            is_stale = held_on is not None
+            any_held = any_held or is_stale
         metrics.append(Metric(
             id=mid, label=label, value=value, unit=unit,
             as_of=as_of, source="DSE",
@@ -382,9 +424,10 @@ def build(ctx: BuilderContext) -> SectionData:
         id="dse",
         title="DSE Markets",
         metrics=metrics,
-        freshness="stale" if any_stale else section_freshness(metrics, today=ctx.today),
-        freshness_reason=("Non-trading day — last trading session"
-                          if any_stale else None),
+        freshness="stale" if any_stale or any_held else section_freshness(metrics, today=ctx.today),
+        freshness_reason=(
+            _history_fallback_reason(ctx.today, frozenset(fallback_sessions)) if any_stale else None
+        ),
     )
 
     # Breadth: prefer EconDelta's already-scraped advancing/declining/unchanged

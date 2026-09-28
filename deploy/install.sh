@@ -36,6 +36,11 @@ install -m 644 "$REPO/deploy/logrotate.conf" /etc/logrotate.d/brief
 echo "[install] export dir (ReadWritePaths needs it to exist before unit start)"
 sudo -u adnan mkdir -p /home/adnan/brief-exports
 
+echo "[install] publication lock dir (ReadWritePaths needs it before unit start; the lock refuses group/other bits)"
+sudo -u adnan mkdir -p /home/adnan/.local/state/the-brief
+# As adnan, so a directory someone else owns stops the install here instead of every publish.
+sudo -u adnan chmod 700 /home/adnan/.local/state/the-brief
+
 echo "[install] systemd units"
 install -m 644 "$REPO/deploy/brief.service"        "$SYSD/brief.service"
 install -m 644 "$REPO/deploy/brief.timer"          "$SYSD/brief.timer"

@@ -1,8 +1,38 @@
+import socket
+
 import pytest
 
 from brief.builders import ALL_BUILDER_IDS
 from brief.pipeline import gather, PipelineConfig
 from brief.schema import MapCoord, SectionData
+
+
+@pytest.fixture(autouse=True)
+def _refuse_network(monkeypatch: pytest.MonkeyPatch):
+    """Hermetic: any socket connect or DNS lookup fails the test."""
+    attempts: list[str] = []
+
+    def refuse_connect(self: socket.socket, address: object) -> None:
+        attempts.append(f"connect({address!r})")
+        raise OSError(f"test refused outbound connect to {address!r}")
+
+    def refuse_lookup(host: object, *args: object, **kwargs: object) -> None:
+        attempts.append(f"getaddrinfo({host!r})")
+        raise OSError(f"test refused DNS lookup of {host!r}")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse_connect)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse_lookup)
+    yield
+    if attempts:
+        pytest.fail("outbound network attempted: " + ", ".join(sorted(set(attempts))))
+
+
+@pytest.fixture(autouse=True)
+def _no_live_dse_scrape(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The fixture snapshot carries no sector heat, so the DSE builder falls back to a live
+    # dsebd.org scrape; fake it as "scrape unavailable" (None), the path a failed scrape takes.
+    from brief.builders import dse
+    monkeypatch.setattr(dse, "scrape_sector_heat", lambda *a, **k: None)
 
 
 @pytest.mark.integration

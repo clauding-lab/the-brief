@@ -411,7 +411,7 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
     assert published.sections[0].freshness == "stale"
 
 
-@pytest.mark.parametrize("editor_value", ["2970", "$3.5bn"])
+@pytest.mark.parametrize("editor_value", ["2970", "$2.97bn", "$3.5bn"])
 def test_remittance_period_survives_entire_publish_stamp_sequence(monkeypatch, editor_value):
     """A model/catalog month cannot overwrite the builder's dated flash."""
     today = date(2026, 9, 25)
@@ -443,7 +443,7 @@ def test_remittance_period_survives_entire_publish_stamp_sequence(monkeypatch, e
     monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload, **kw: captured.append(payload) or "local")
     assert pipeline_v6.run_publish(sections, today, expected_identity=PublishIdentity(1, today)) == "local"
     card = next(s for s in captured[0].sections if s.slug == "remit").metrics[0]
-    assert card.value == "2,970.00 mn USD"
+    assert card.value == "$2,970mn"  # house format, Master.md (R2 fix 7b round 1)
     assert card.changed is False
     assert card.sub == "BB · Aug 2026, provisional"
     assert card.held_from == date(2026, 8, 31)

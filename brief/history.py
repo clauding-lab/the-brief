@@ -49,6 +49,15 @@ class HistoryRow:
     source_as_of: date | None = None
 
 
+@dataclass(frozen=True)
+class HistoryPoint:
+    """One dated sparkline reading (R2 fix 16): the same row the batched
+    sparkline read already returns, with its `as_of` kept so a card's change
+    can be measured against the previous observation, not a guessed one."""
+    as_of: date
+    value: float
+
+
 def observation_date(row: HistoryRow, *, today: date, monthly: bool = False) -> date | None:
     """Resolve source evidence; only completed monthly buckets gain month-end.
 
@@ -196,12 +205,15 @@ class MetricHistoryClient:
         today: date | None = None,
         limit: int | None = None,
         table: str = "metric_history",
-    ) -> dict[str, list[float]] | dict[str, list[HistoryRow]]:
+        dated: bool = False,
+    ) -> dict[str, list[float]] | dict[str, list[HistoryRow]] | dict[str, list[HistoryPoint]]:
         """Batched fetch for many metric ids, with two calling modes:
 
         **Sparkline mode** (existing): pass `days` + optionally `today`.
         Returns `dict[str, list[float]]` ordered oldest-to-newest. Non-numeric
-        values are filtered out — sparkline-friendly.
+        values are filtered out — sparkline-friendly. With `dated=True` (R2 fix
+        16) the same single query returns `HistoryPoint`s instead, keeping each
+        row's `as_of`; a row whose `as_of` does not parse is skipped.
 
         **Anchor mode** (new): pass `limit` and optionally `table`.
         Returns `dict[str, list[HistoryRow]]` ordered most-recent-first
@@ -256,12 +268,19 @@ class MetricHistoryClient:
         status, body = self.http.get(url, headers=self._headers())
         if status != 200 or not body:
             return {}
-        out: dict[str, list[float]] = {}
+        out: dict[str, list[Any]] = {}
         for row in body:
             v = row.get("value")
             if not isinstance(v, (int, float)) or isinstance(v, bool):
                 continue
-            out.setdefault(row["metric_id"], []).append(float(v))
+            if not dated:
+                out.setdefault(row["metric_id"], []).append(float(v))
+                continue
+            try:
+                as_of = date.fromisoformat(str(row.get("as_of"))[:10])
+            except ValueError:
+                continue  # an undated reading can never anchor a change
+            out.setdefault(row["metric_id"], []).append(HistoryPoint(as_of, float(v)))
         return out
 
     def upsert_many(self, rows: list[HistoryRow]) -> bool:

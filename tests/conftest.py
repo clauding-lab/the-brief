@@ -14,6 +14,15 @@ from brief.builders import BuilderContext
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def _isolated_capture_mark(monkeypatch, tmp_path_factory):
+    """Live-shaped CLI runs record the capture high-water mark (brief.capture_mark): each test
+    gets its own empty state directory, never the real ~/.local/state/the-brief."""
+    from brief import capture_mark
+    mark = tmp_path_factory.mktemp("capture-mark") / "state" / "econdelta-capture-mark.json"
+    monkeypatch.setattr(capture_mark, "mark_path", lambda: mark)
+
+
 @pytest.fixture
 def fixture_snapshot() -> EconDeltaSnapshot:
     payload = json.loads((FIXTURES / "econdelta_latest.json").read_text())

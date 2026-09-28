@@ -22,10 +22,12 @@ from contextlib import nullcontext
 from datetime import date
 
 from brief.cadence import now_bdt
+from brief.capture_mark import read_capture_mark, record_capture_mark
 from brief.pipeline import PipelineConfig, gather
 from brief.publication_identity import (
     PublicationBusyError, environment_paused, publication_lock, resolve_identity,
 )
+from brief.snapshot_alert import alert_snapshot_problem
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
@@ -87,6 +89,23 @@ def _run_v6_publish_unlocked(
                 "(no supported resend workflow)"
             )
         sections = gather(cfg)
+        if hasattr(sections, "snapshot"):
+            from brief.readiness import assess
+            now = now_bdt()
+            last_capture = read_capture_mark(now)
+            readiness = assess(sections.snapshot,
+                persisted_rows=[m for section in sections for m in section.metrics],
+                now=now, last_capture=last_capture)
+            log.info("Publication readiness: %s; %s", readiness.state, "; ".join(readiness.reasons))
+            if readiness.notes:  # healthy official lag (fix 4): informational, never degrading
+                log.info("Readiness notes (healthy, not degrading): %s", "; ".join(readiness.notes))
+            if readiness.state == "hold":
+                raise V6PublishError("readiness hold: " + "; ".join(readiness.reasons))
+            if not dry_run:  # only a live, non-held run's capture becomes the one to beat
+                record_capture_mark(sections.snapshot.updated_at, previous=last_capture)
+            if readiness.snapshot_problem is not None:
+                # Owner decision (e): publish degraded AND tell an operator, once per run.
+                alert_snapshot_problem(readiness.snapshot_problem, dry_run=dry_run)
         scraped = [
             {"title": h.title, "url": h.url, "source": h.source,
              "published": h.published.isoformat() if h.published else None}

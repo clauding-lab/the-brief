@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING, Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
+from brief.history import HistoryPoint
+from brief.press_override import PressOverride
+
 if TYPE_CHECKING:
     from brief.history_anchors import HistoryFact
 
@@ -35,6 +38,13 @@ class Metric(BaseModel):
     hero: bool = False
     stale: bool = False  # True when value is from history fallback, not today
     history_values: list[float] | None = None  # last-N chronological readings; populated post-build for sparklines
+    # The same readings with their dates (R2 fix 16), from the same single batched read;
+    # the pipeline measures a card's change from them. Excluded from dumps: the editor
+    # input is unchanged.
+    history_points: list[HistoryPoint] | None = Field(default=None, exclude=True)
+    # The media-approved history row this card prints (owner decision (c)); readiness binds the
+    # card to it. Excluded from dumps: the editor input carries the press source line instead.
+    press_override: PressOverride | None = Field(default=None, exclude=True)
 
 
 class NewsItem(BaseModel):

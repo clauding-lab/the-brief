@@ -13,18 +13,23 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
+import struct
 import time
 import unicodedata
+from collections.abc import Callable
 from datetime import date as date_t, timedelta
+from decimal import ROUND_DOWN, Decimal, InvalidOperation, localcontext
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from brief import chart_series_fetcher, pipeline as _pipeline
 from brief.claude.max_client import MaxCallError, run_max
 from brief.history import HttpClient, UrllibHttp
-from brief.schema import SectionData
+from brief.press_override import is_press_card_source
+from brief.schema import Metric, SectionData
 from brief.publication_identity import PublishIdentity, assert_identity, environment_paused
 from brief.v6_publisher import (
     PublishError,
@@ -543,22 +548,116 @@ def _stamp_freshness(final_brief: BriefPayloadV6, raw_sections: list[dict[str, A
             section.freshness = fresh
 
 
-def _format_metric_value(value: Any, unit: str) -> str:
-    """Render a raw builder Metric's numeric value as the display string a
-    MetricV6 expects. Mirrors editor output for the units the protected set
-    actually uses (percent, 2dp — e.g. "9.50%", matching the corridor's
-    existing display); falls back to "<value> <unit>" for anything else so a
-    future protected id (a non-percent metric) still reconciles instead of
-    crashing. `None` values (e.g. a metric the builder itself couldn't
-    resolve) render as an em dash rather than the string "None"."""
-    if value is None:
+# The house style of a card number (Master.md "Numbers and currency"): builder
+# unit -> (prefix, suffix). Where Master.md is silent, issue 235's published pills
+# set the convention ("$98.32" a barrel, "$4,328.9/oz", a bare index or count).
+_HOUSE_UNIT_STYLE: dict[str, tuple[str, str]] = {
+    "%": ("", "%"),
+    "bn USD": ("$", "bn"),
+    "mn USD": ("$", "mn"),
+    "USD/oz": ("$", "/oz"),
+    "USD/bbl": ("$", ""),
+    "crore BDT": ("Tk ", " cr"),
+    "BDT trn": ("Tk ", "tn"),
+    "BDT": ("", ""),       # the USD/BDT rate, bare as issue 235 printed it
+    "index": ("", ""),
+    "stocks": ("", ""),
+    "items": ("", ""),
+    "months": ("", " months"),
+    "pp": ("", "pp"),  # a change of a % figure, in percentage points (R2 fix 16)
+}
+_MINUS = "−"  # Master.md: negatives use the minus glyph, not a hyphen
+_FLOAT64_DIGITS = 15  # a double carries 15 faithful significant decimal digits
+# Card ids whose producer feed is float32 (R2 fix 7b3, controller ruling 27 Sep
+# 2026): EconDelta's commodity scraper reads Brent, WTI and gold from yfinance
+# (scrapers/commodity_prices.py COMMODITY_SPEC; aggregate_latest.py names them
+# brent_crude_usd_barrel / wti_crude_usd_barrel / gold_usd_oz), whose prices are
+# float32 — 98.32 arrives widened as 98.31999969482422. Only these cards print
+# float32's shortest decimal; no other feed's digits are ever shortened. A new
+# float32 feed must be added here by name, never detected by its digits.
+_FLOAT32_FEED_CARD_IDS: frozenset[str] = frozenset({
+    "iranwar_brent_spot",  # iranwar.py <- brent_crude_usd_barrel
+    "iranwar_wti_spot",    # iranwar.py <- wti_crude_usd_barrel
+    "fx_gold_usd_oz",      # fx.py <- gold_usd_oz
+})
+
+
+def _float32_decimal(value: float) -> str | None:
+    """The shortest decimal of a float32 reading widened to float64 (a feed's
+    98.31999969482422 is float32's "98.32"), at any magnitude; None when
+    `value` is no float32 (a float64 reading on a float32-feed card keeps its
+    own digits). Callers use it only for `_FLOAT32_FEED_CARD_IDS`."""
+    try:
+        packed = struct.pack("<f", value)
+    except OverflowError:
+        return None
+    if struct.unpack("<f", packed)[0] != value:
+        return None
+    return next(text for digits in range(1, 10)
+                if struct.pack("<f", float(text := f"{value:.{digits}g}")) == packed)
+
+
+def _source_number(value: float, *, float32_feed: bool = False) -> Decimal:
+    """The number exactly as the source gave it: never padded, never rounded
+    (Master.md: "only show what the source provided"). Only representation
+    noise goes — float32 widening on a named float32 feed (`float32_feed`,
+    whose noise can sit in any digit, whole-number ones too above 2**24), or
+    float64 digits past the 15 a double holds faithfully (a derived
+    1.2400000000000002 = 9.5 − 8.26, the Real Policy Rate). Any decimal of 15
+    or fewer significant digits survives that cut unchanged; a whole-number
+    float64 prints its own shortest decimal (never rounded into new digits).
+    Printed by `_decimal_text` (plain notation, comma thousands, the minus glyph)
+    via `_source_decimal`; cutting long tails for the screen is the SPA's job (lib/format.tsx cleanMetricValue, owner decision
+    2026-08-29)."""
+    if isinstance(value, int):
+        text = str(int(value))  # int() also reads a bool as 1/0, as before
+    elif float32_feed and (short := _float32_decimal(value)) is not None:
+        text = short
+    elif value.is_integer():
+        text = repr(value)  # "100000008.0", "1e+20": never rounded into new digits
+    else:
+        text = f"{value:.{_FLOAT64_DIGITS}g}"
+    return Decimal(text)
+
+
+def _source_decimal(value: float, *, float32_feed: bool = False) -> str:
+    """`_source_number` as card text (`_decimal_text`)."""
+    return _decimal_text(_source_number(value, float32_feed=float32_feed))
+
+
+def _decimal_text(number: Decimal) -> str:
+    """Plain notation, comma thousands, no trailing zeros, the minus glyph."""
+    whole, _, fraction = f"{abs(number):f}".partition(".")
+    digits = f"{int(whole):,}" + (f".{fraction.rstrip('0')}" if fraction.rstrip("0") else "")
+    return f"{_MINUS if number < 0 else ''}{digits}"
+
+
+def _styled(number_text: str, unit: str, *, plus: bool = False) -> str:
+    """The one house format around a `_decimal_text` number: the sign first (the
+    minus glyph, or "+" for a non-zero rise when `plus` — a change figure), then
+    the unit's prefix, the digits and the suffix (`_HOUSE_UNIT_STYLE`)."""
+    negative = number_text.startswith(_MINUS)
+    digits = number_text[1:] if negative else number_text
+    sign = _MINUS if negative else ("+" if plus and digits != "0" else "")
+    prefix, suffix = _HOUSE_UNIT_STYLE.get(unit, ("", f" {unit}" if unit else ""))
+    return f"{sign}{prefix}{digits}{suffix}"
+
+
+def _format_metric_value(value: Any, unit: str, metric_id: str | None = None) -> str:
+    """Render a raw builder Metric's value as the card's display string, in the
+    one house format (owner decision (g); R2 fix 7b round 1): the source's own
+    decimal (`_source_decimal`) styled by its unit (`_HOUSE_UNIT_STYLE`) —
+    "9.5%", "$37.3523bn", "−$3.31bn", "Tk 791.4875 cr", "103". An unmapped unit
+    keeps the "<number> <unit>" fallback so a future metric still reconciles.
+    `None` values (e.g. a metric the builder itself couldn't resolve) render as
+    an em dash rather than the string "None" — and so do NaN/inf (R2 fix 7b),
+    which `Metric` accepts and would otherwise print as "nan%": not a number
+    anyone can read is an unknown reading. `metric_id` (the builder card id)
+    selects float32 clean-up for `_FLOAT32_FEED_CARD_IDS` only (R2 fix 7b3)."""
+    if value is None or (isinstance(value, float) and not math.isfinite(value)):
         return "—"
     if isinstance(value, (int, float)):
-        if unit == "%":
-            return f"{value:.2f}%"
-        if unit:
-            return f"{value:,.2f} {unit}"
-        return f"{value:.10g}"
+        return _styled(_source_decimal(value, float32_feed=metric_id in _FLOAT32_FEED_CARD_IDS), unit)
     return str(value)
 
 
@@ -606,7 +705,8 @@ def _metric_v6_from_raw(raw_metric: dict[str, Any]) -> MetricV6:
         raise ValueError(f"v6 reconcile: raw metric missing 'label': {raw_metric!r}")
     return MetricV6(
         label=label,
-        value=_format_metric_value(raw_metric.get("value"), raw_metric.get("unit") or ""),
+        value=_format_metric_value(raw_metric.get("value"), raw_metric.get("unit") or "",
+                                   raw_metric.get("id")),
     )
 
 
@@ -774,6 +874,413 @@ def _verify_protected_presence(
             "pipeline but are absent from the final brief after "
             f"reconciliation — holding the publish: {hard_missing}"
         )
+
+
+def _enforce_observation_contract(
+    final_brief: BriefPayloadV6,
+    raw_sections: list[dict[str, Any]],
+    *,
+    model_output: bool = False,
+    card_changes: dict[tuple[str, str], CardChange] | None = None,
+) -> None:
+    """Print every card's number from its builder observation; restore
+    authoritative dates and held/release notes.
+
+    R2 fix 16, owner decisions (h) and (i): each card's `delta`/`delta_pct` is set
+    from `card_changes` (`_card_changes`, the builder's own dated history) or
+    cleared — the model's change figures never survive a pass, and neither do
+    those of a card with no builder counterpart. Bound summary pills are printed
+    from their card; the banker-box runway survives only when it equals a checked
+    builder figure (`_stamp_section_extras`).
+
+    Owner decision (g), R2 fix 7b: the model chooses the cards, their labels
+    and their commentary; it does not own their numbers. Each card's `value`
+    is overwritten with the house format of the builder metric bound to its
+    label in its OWN section (`_card_display_value`), so no number text the
+    model wrote survives a pass. Replaces fix 7's parse-and-judge guard, whose
+    word lists kept leaking. Unmatched labels are left to `_reconcile_metrics`.
+
+    `model_output=True` marks the passes over model output (after the Editor, and
+    after the Sub-editor + reconciliation). The model owns no `held_from` and no
+    `next_print` there (editor_v6.txt: system-stamped): only a builder-stale card keeps
+    a `held_from`, and every model `next_print` is cleared. Whether a
+    fresh card wears an "As of" footer is left to the deterministic stamps that run
+    next (`stamp_vintages`, `mark_held_overs`, `_stamp_remittance_sub`) — otherwise
+    a model date on a fresh policy-corridor card published the writer-confirmation
+    day as a held-over date. The default final pass runs after those stamps and
+    only re-dates what they set to the builder observation.
+    """
+    raw_by_slug = {section["slug"]: section for section in raw_sections}
+    raw_metrics = [m for section in raw_sections for m in section.get("metrics", []) or []]
+    reprinted = 0
+    for section in final_brief.sections:
+        raw = raw_by_slug.get(section.slug, {})
+        metrics = {_normalize_label(m["label"]): m for m in raw.get("metrics", [])}
+        for metric in section.metrics:
+            original = metrics.get(_normalize_label(metric.label))
+            change = None if original is None else (card_changes or {}).get(
+                (section.slug, original.get("id")))
+            metric.delta, metric.delta_pct = change if change is not None else (None, None)
+            if model_output:
+                # Like `held_from`, the next-print footer is system-stamped (editor_v6.txt;
+                # only `mark_held_overs` sets it, after these passes): a model one could
+                # print a rejected figure or date beside a held card's "As of".
+                metric.next_print = None
+            if original is None:
+                continue  # existing reconciliation rejects invented labels
+            printed = _card_display_value(section, original)
+            reprinted += metric.value != printed
+            _carry_to_duplicate_pills(section, metric.value, printed)
+            metric.value = printed
+            observed = original.get("as_of")
+            if observed:
+                observed = date_t.fromisoformat(str(observed))
+            # Model-supplied dates cannot override the builder's accepted observation,
+            # and on model output they cannot create a held-over footer at all.
+            keep_held = original.get("stale") or (metric.held_from and not model_output)
+            metric.held_from = observed if keep_held else None
+            source = original.get("source", "")
+            if original.get("stale") or "provisional" in source.lower():
+                prefix = "Held reading" if original.get("stale") else "Provisional reading"
+                metric.sub = source if original.get("id") == "remit_monthly_mn" else " · ".join(filter(None, [prefix, original.get("period"), source]))
+            elif is_press_card_source(source):
+                # Owner decision (c): an approved press figure names its outlet; a model sub
+                # crediting it to BB is replaced, never appended to.
+                metric.sub = " · ".join(filter(None, [original.get("period"), source]))
+        _stamp_section_extras(section, raw_by_slug.get(section.slug), raw_metrics)
+    if reprinted:
+        logger.info("v6: %d card value(s) re-printed from builder observations "
+                    "(model number text discarded)", reprinted)
+
+
+# R2 fix 7b, inventory §C: the builder's `headlines_count` is the scraped pool,
+# but the card has always shown the curated list the reader sees beside it.
+_HEADLINES_COUNT_ID = "headlines_count"
+
+
+def _card_display_value(section: SectionV6, raw_metric: dict[str, Any]) -> str:
+    """The number the pipeline prints on one card (owner decision (g)): the
+    builder observation in the house format `_format_metric_value` — the same
+    printer as protected-metric re-injection and the remittance stamp. The
+    Headlines count card counts the headline items published in its own
+    section; the model's count is never printed."""
+    unit = raw_metric.get("unit") or ""
+    if raw_metric.get("id") == _HEADLINES_COUNT_ID:
+        return _format_metric_value(len(section.news), unit)
+    return _format_metric_value(raw_metric.get("value"), unit, raw_metric.get("id"))
+
+
+# Section.tsx hides a summary pill whose display key equals a same-section card
+# value's: cleanMetricValue (lib/format.tsx — collapse "$$", truncate a 3+
+# decimal tail to 2 unless that reads as zero) + trim + lowercase. Mirrored
+# here with ASCII digit classes, as in JavaScript.
+_SPA_LONG_DECIMAL = re.compile(r"^(\D*?)(-?[\d,]+)\.(\d{3,})(\D*)$", re.ASCII)
+
+
+def _spa_display_key(value: str | None) -> str:
+    collapsed = re.sub(r"\${2,}", "$", value or "")
+    match = _SPA_LONG_DECIMAL.match(collapsed)
+    if match:
+        prefix, whole, frac, suffix = match.groups()
+        if float(f"{whole.replace(',', '')}.{frac[:2]}") != 0:
+            collapsed = f"{prefix}{whole}.{frac[:2]}{suffix}"
+    return collapsed.strip().lower()
+
+
+def _carry_to_duplicate_pills(section: SectionV6, model_text: str, printed: str) -> None:
+    """A pill the SPA hid as a duplicate of this card's model text takes the
+    card's printed text, so it stays hidden instead of resurfacing as an extra
+    tile with the model's number. Other pills have no code source and keep
+    their text (inventory §B). Empty text never counts as a duplicate."""
+    key = _spa_display_key(model_text)
+    if not key:
+        return
+    section.summary_pills = [
+        pill.model_copy(update={"value": printed}) if _spa_display_key(pill.value) == key else pill
+        for pill in section.summary_pills
+    ]
+
+
+# ── R2 fix 16, owner decisions (h) and (i): pills, change figures, runway ────
+# (h) A summary pill restating a card of its OWN section prints that card's number.
+# The binding is explicit, per concept: (section slug, pill key after
+# `_normalize_label`) -> the builder card id. Listed: keys seen on real pages (issue
+# 235, issues 199-205) that name exactly one card's measure in that section, plus
+# their tenor siblings. Never bound: a key carrying a period ("NPL · Q1", "REMIT ·
+# JUL" — the period is a claim code does not check), a composite ("BREADTH"), an
+# ambiguous name ("CPI 12M": average or point-to-point?; "REAL RATE"; "PVT CREDIT":
+# level or growth?) and another section's figure. Reasons per key:
+# .superpowers/sdd/.../r2-claude/fix16-pill-bindings.md.
+_PILL_CARD_BINDINGS: dict[tuple[str, str], str] = {
+    ("headlines", "headlines"): "headlines_count",
+    ("bb", "policy rate"): "bb_policy_rate",
+    # BB money-market usage: "call money" is the overnight market; tenors are named.
+    ("bb", "call money"): "bb_call_money",
+    ("bb", "o/n call"): "bb_call_money",
+    ("bb", "7d call"): "bb_call_money_7d",
+    ("bb", "14d call"): "bb_call_money_14d",
+    # The section's one reserves card is BB gross reserves (landmine 24); no net/BPM6 card.
+    ("bb", "reserves"): "bb_gross_reserves",
+    ("banking", "npl ratio"): "banking_npl_pct",
+    ("banking", "car"): "banking_car_pct",
+    ("fx", "usd/bdt"): "fx_usd_bdt_mid",
+    ("fx", "reserves"): "fx_gross_reserves",
+    ("fx", "gold"): "fx_gold_usd_oz",
+    ("fx", "exports"): "fx_monthly_exports",
+    ("fx", "trade gap"): "fx_trade_gap",
+    ("dse", "dsex"): "dsex",
+    ("dse", "turnover"): "dse_turnover_crore",
+    ("tbond", "91d tbill"): "tbond_tbill_91d",
+    ("tbond", "91d bill"): "tbond_tbill_91d",
+    ("tbond", "182d tbill"): "tbond_tbill_182d",
+    ("tbond", "182d bill"): "tbond_tbill_182d",
+    ("tbond", "364d tbill"): "tbond_tbill_364d",
+    ("tbond", "364d bill"): "tbond_tbill_364d",
+    ("tbond", "5y bond"): "tbond_bond_5y",
+    ("tbond", "10y bond"): "tbond_bond_10y",
+    ("fiscal", "nbr ytd"): "fiscal_nbr_collected_trn",
+    ("fiscal", "govt borrow"): "fiscal_govt_borrow_trn",
+    ("macro", "cpi 12m avg"): "cpi_12m_avg_monthly",
+    ("macro", "m2 yoy"): "m2_growth_yoy_monthly",
+    ("macro", "real policy"): "real_policy_rate_monthly",
+    ("iran", "brent"): "iranwar_brent_spot",
+    ("iran", "wti"): "iranwar_wti_spot",
+    ("remit", "remittance"): "remit_monthly_mn",
+}
+
+
+def _stamp_bound_pills(section: SectionV6, raw_by_id: dict[str, dict[str, Any]]) -> None:
+    """Print each bound pill from its card's observation with the card's own
+    printer (`_card_display_value`), so pill and card show one figure and the
+    SPA merges them (spec §7.1). A bound pill whose card was not built today has
+    no checked figure: it is removed, never printed from the model. Unbound
+    pills keep the model's text."""
+    kept: list[Any] = []
+    for pill in section.summary_pills:
+        metric_id = _PILL_CARD_BINDINGS.get((section.slug, _normalize_label(pill.key)))
+        if metric_id is None:
+            kept.append(pill)
+        elif (raw_metric := raw_by_id.get(metric_id)) is not None:
+            kept.append(pill.model_copy(update={"value": _card_display_value(section, raw_metric)}))
+        else:
+            logger.warning("v6: removed pill %s/%r: its card %s was not built today",
+                           section.slug, pill.key, metric_id)
+    section.summary_pills = kept
+
+
+# (i) The banker-box runway: its number must be a plain decimal and, styled with a
+# builder card's unit, show on screen what that card shows.
+_RUNWAY_MAX_DIGITS = 40  # well past the 17 significant digits any source float carries
+_PLAIN_NUMBER = re.compile(r"([−-]?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?", re.ASCII)
+
+
+def _plain_number(text: str) -> Decimal | None:
+    match = _PLAIN_NUMBER.fullmatch(text.strip())
+    if match is None:
+        return None
+    sign, whole, fraction = match.groups()
+    number = Decimal(whole.replace(",", "") + (fraction or ""))
+    return -number if sign else number
+
+
+def _runway_is_checked(runway: Any, raw_metrics: list[dict[str, Any]]) -> bool:
+    """True when the runway's value+unit equal, after the house formatter and the
+    SPA's screen cut, a checked builder figure anywhere in the brief (same unit)."""
+    number = _plain_number(runway.value)
+    if number is None:
+        return False
+    unit = _normalize_label(runway.unit)
+    for raw_metric in raw_metrics:
+        raw_unit = raw_metric.get("unit") or ""
+        if raw_metric.get("id") == _HEADLINES_COUNT_ID or _normalize_label(raw_unit) != unit:
+            continue  # the headlines card does not print its builder value (inventory §C)
+        card = _format_metric_value(raw_metric.get("value"), raw_unit, raw_metric.get("id"))
+        if (_spa_display_key(_styled(_decimal_text(number), raw_unit)) == _spa_display_key(card)
+                and _is_source_truncation(number, raw_metric.get("value"), raw_metric.get("id"))):
+            return True
+    return False
+
+
+def _is_source_truncation(number: Decimal, value: Any, metric_id: Any) -> bool:
+    """True when `number` is the source's own decimal cut toward zero at `number`'s
+    decimal places. BankerRead.tsx prints the runway uncut (`splitBigNum`), so every
+    digit it shows past the screen cut must be the source's too: "4.972" of
+    4.972006730098555 is, a rounded "4.979" is not (fix 16 round 1). The source's
+    digits are the card's stamped decimal (`_source_number`) or, for a float64
+    feed, the float's own shortest decimal (its 16th-17th digits are not noise
+    there); a float32 feed's widened digits are noise, so only its stamp counts."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return False
+    feed = metric_id in _FLOAT32_FEED_CARD_IDS
+    sources = {_source_number(value, float32_feed=feed)}
+    if isinstance(value, float) and not feed:
+        sources.add(Decimal(repr(value)))
+    places = Decimal(1).scaleb(number.as_tuple().exponent)
+    try:
+        with localcontext() as ctx:
+            ctx.prec = _RUNWAY_MAX_DIGITS
+            return any(source.quantize(places, rounding=ROUND_DOWN) == number for source in sources)
+    except InvalidOperation:
+        return False  # more digits than any source decimal carries
+
+
+# (i) A card's change figures, computed from the builder's own dated history.
+class CardChange(NamedTuple):
+    delta: str
+    delta_pct: str | None
+
+
+# Units of a positive level, where a percent change means something. A % figure
+# moves in percentage points (no percent-of-percent); counts and ratios get none.
+_PCT_CHANGE_UNITS = frozenset({"index", "BDT", "USD/oz", "USD/bbl", "bn USD", "mn USD",
+                               "crore BDT", "BDT trn"})
+
+
+def _previous_reading(metric: Metric, source_pct: Decimal | None = None) -> float | None:
+    """The previous observation before the card's `as_of`: the latest earlier
+    history point, only when the history carries this card's own reading at its
+    `as_of` (same series, same unit), only when that previous date holds one
+    reading, and only when that point is proven the immediately previous one (no
+    missing row bridged): by the source's own percent change for the card's
+    session when one is at hand (`source_pct`, `_source_confirms`), otherwise by
+    the card's cadence (`_is_immediately_previous`; for a monthly or quarterly
+    card the preceding period, each period read once, so restamps in either
+    month never count). Otherwise None — never a guess."""
+    value = metric.value
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    points = metric.history_points or []
+    current = [p.value for p in points if p.as_of == metric.as_of]
+    if not current or not all(math.isclose(v, value, rel_tol=1e-9) for v in current):
+        return None
+    earlier = [p for p in points if p.as_of < metric.as_of]
+    if not earlier:
+        return None
+    last = max(p.as_of for p in earlier)
+    readings = {p.value for p in earlier if p.as_of == last}
+    if len(readings) != 1:
+        return None
+    previous = readings.pop()
+    if source_pct is not None:
+        return previous if _source_confirms(metric, previous, source_pct) else None
+    return previous if _is_immediately_previous(metric, last, points) else None
+
+
+# fix 16 round 1: the previous reading must be the one IMMEDIATELY before the card's, so a
+# row missing from history is never bridged (a two-session move is not the day's change).
+# daily: the calendar day before `as_of` (fix 16b: Bangladesh holds Saturday make-up
+# sessions and public holidays, and no trading calendar is kept, so a gap of more than one
+# day — a weekend, a holiday — is not provably one session and the change is hidden unless
+# the source's own change confirms it, `_SOURCE_CHANGE_PCT_CARD`). weekly/event (the T-bill auctions): at
+# most the cadence's 7-day fresh window earlier. monthly/quarterly: the preceding period,
+# and each of the two periods read exactly once — a period-dated release; more than one
+# reading in a period means its dates are restamps (landmine 24), not releases.
+_MAX_GAP_DAYS = {"weekly": 7, "event": 7}
+_MONTHS_PER_PERIOD = {"monthly": 1, "quarterly": 3}
+
+
+# fix 16b: cards whose source publishes its own percent change for the same session. That
+# figure says which close the day's move was measured from, so it is the arbiter of "the
+# previous session" whatever the calendar gap: a computed change is shown only when it
+# agrees within the source's own rounding (half a unit of its last decimal), never looser
+# than the screen's 2-decimal cut. A missing Saturday session, a holiday gap or a
+# restamped copy disagrees with it. card id -> its sibling card in the same section.
+_SOURCE_CHANGE_PCT_CARD: dict[str, str] = {
+    "dsex": "dse_dsex_change_pct",  # DSE's own "DSEX %Δ" for the session (dse.py, `dsex_change_pct`)
+}
+_SOURCE_PCT_MAX_SLACK = Decimal("0.005")  # half of the SPA's 2-decimal on-screen cut
+
+
+def _source_confirms(metric: Metric, previous: float, source_pct: Decimal) -> bool:
+    feed = metric.id in _FLOAT32_FEED_CARD_IDS
+    now = _source_number(metric.value, float32_feed=feed)
+    before = _source_number(previous, float32_feed=feed)
+    if before <= 0:
+        return False
+    slack = min(Decimal(5).scaleb(source_pct.as_tuple().exponent - 1), _SOURCE_PCT_MAX_SLACK)
+    return abs((now - before) / before * 100 - source_pct) <= slack
+
+
+def _source_change_pct(metric: Metric, cards: dict[str, Metric]) -> Decimal | None:
+    """The source's own percent change for the card's session: its bound sibling
+    card, when that card is a finite number dated the card's own `as_of`."""
+    sibling = cards.get(_SOURCE_CHANGE_PCT_CARD.get(metric.id, ""))
+    if sibling is None or sibling.as_of != metric.as_of:
+        return None
+    value = sibling.value
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return _source_number(value, float32_feed=sibling.id in _FLOAT32_FEED_CARD_IDS)
+
+
+def _period_index(day: date_t, months: int) -> int:
+    return (day.year * 12 + day.month - 1) // months
+
+
+def _is_immediately_previous(metric: Metric, previous: date_t, points: list[Any]) -> bool:
+    if metric.cadence == "daily":
+        return previous == metric.as_of - timedelta(days=1)
+    if metric.cadence in _MAX_GAP_DAYS:
+        return (metric.as_of - previous).days <= _MAX_GAP_DAYS[metric.cadence]
+    months = _MONTHS_PER_PERIOD.get(metric.cadence)
+    if months is None:
+        return False
+    now, before = _period_index(metric.as_of, months), _period_index(previous, months)
+    reads = [_period_index(p.as_of, months) for p in points]
+    return before == now - 1 and reads.count(now) == 1 and reads.count(before) == 1
+
+
+def _card_change(metric: Metric, source_pct: Decimal | None = None) -> CardChange | None:
+    """Current minus previous in the card's house unit style (+ or the minus glyph;
+    a % figure in pp), and the percent change for a positive level only. Both
+    readings are the source's own decimals (`_source_number`), so float noise never
+    becomes a digit. The Headlines count card prints a count of the page, not its
+    builder value, so it never has a change."""
+    previous = None if metric.id == _HEADLINES_COUNT_ID else _previous_reading(metric, source_pct)
+    if previous is None:
+        return None
+    feed = metric.id in _FLOAT32_FEED_CARD_IDS
+    now = _source_number(metric.value, float32_feed=feed)
+    before = _source_number(previous, float32_feed=feed)
+    change = now - before
+    delta = _styled(_decimal_text(change), "pp" if metric.unit == "%" else metric.unit, plus=True)
+    if metric.unit not in _PCT_CHANGE_UNITS or before <= 0 or now < 0:
+        return CardChange(delta, None)
+    ratio = change / before * 100
+    with localcontext() as ctx:
+        ctx.prec = _FLOAT64_DIGITS  # a computed ratio: 15 digits, the SPA cuts for the screen
+        ratio = +ratio
+    return CardChange(delta, _styled(_decimal_text(ratio), "%", plus=True))
+
+
+def _card_changes(sections: list[SectionData]) -> dict[tuple[str, str], CardChange]:
+    """(section slug, builder card id) -> the card's change, for every card whose
+    own history supports one. Built once from the gathered sections (their
+    `history_points` come from the single batched history read, landmine 23)."""
+    changes: dict[tuple[str, str], CardChange] = {}
+    for section in sections:
+        if section.id not in V5_TO_V6:
+            continue
+        slug = V5_TO_V6[section.id][0]
+        cards = {m.id: m for m in section.metrics}
+        for metric in section.metrics:
+            if (change := _card_change(metric, _source_change_pct(metric, cards))) is not None:
+                changes[(slug, metric.id)] = change
+    return changes
+
+
+def _stamp_section_extras(section: SectionV6, raw: dict[str, Any] | None,
+                          raw_metrics: list[dict[str, Any]]) -> None:
+    """Bound pills from their cards (removed when no card stands behind them);
+    the runway only when it equals a checked builder figure of the brief."""
+    # A section the builders did not produce has no card behind a bound pill: those are
+    # removed like a missing card (fix 16 round 1); unbound pills keep the model's text.
+    _stamp_bound_pills(section, {m.get("id"): m for m in (raw or {}).get("metrics", []) or []})
+    read = section.banker_read
+    if read is not None and read.runway is not None and not _runway_is_checked(read.runway, raw_metrics):
+        logger.info("v6: cleared runway %r %r in %s: no checked builder figure",
+                    read.runway.value, read.runway.unit, section.slug)
+        read.runway = None
 
 
 def _reconcile_metrics(
@@ -944,7 +1451,7 @@ def _stamp_remittance_sub(
             if _normalize_label(pub.label) == _normalize_label(str(raw.get("label") or "")):
                 # The provenance and number are one observation: restore the
                 # builder value with its verified unit before attaching the note.
-                pub.value = _format_metric_value(raw["value"], raw.get("unit") or "")
+                pub.value = _format_metric_value(raw["value"], raw.get("unit") or "", raw.get("id"))
                 pub.sub = note
                 # Runs after generic catalog/vintage passes: the source period
                 # wins, and no source here verifies a next-release schedule.
@@ -1003,10 +1510,12 @@ def _stamp_real_policy_rate_sub(
             if "repo" in src and _REAL_POLICY_RATE_SUB_MARKER in src:
                 # Strip the leading source prefix and trailing bracket:
                 # "BB+BBS (9.50% repo − 8.32% Jul p2p CPI)" → the inner note.
+                # The closing bracket (when later than the marker) keeps a
+                # press leg's trailing "via <outlet> (approved)" — decision (c).
                 start = src.find("(") + 1
-                end = src.find(_REAL_POLICY_RATE_SUB_MARKER) + len(
+                end = max(src.find(_REAL_POLICY_RATE_SUB_MARKER) + len(
                     _REAL_POLICY_RATE_SUB_MARKER
-                )
+                ), src.rfind(")"))
                 if start > 0 and end > start:
                     note = src[start:end]
         break
@@ -1351,6 +1860,64 @@ _CHART_FETCHERS_BY_SLUG: dict[str, str] = {
     # fetch_yield_curve is retained (unit-tested) but no longer slug-dispatched.
 }
 
+# Every slug `_stamp_chart_series` fetches a chart for: its six
+# metric_history_monthly branches (mirrored by `_SUMMARY_MONTHLY_FETCHERS`)
+# plus the HTTP dispatch map above. Used only to NAME chartless sections in logs.
+_CHARTABLE_SLUGS: frozenset[str] = (
+    frozenset(_SUMMARY_MONTHLY_FETCHERS) | frozenset(_CHART_FETCHERS_BY_SLUG)
+)
+
+
+def _discard_model_chart_data(final_brief: BriefPayloadV6) -> list[str]:
+    """R2 fix 6: the model may not supply chart data.
+
+    `series`, `notes` and `movers` are machine-stamped AFTER the model runs.
+    editor_v6.txt says `series`/`notes` are "ALWAYS empty in your output", and
+    the model is never given the chart points or the DS30 movers at all, so
+    anything the Editor or the Sub-editor put there is invented by
+    construction. Clear it on every section before stamping, so only
+    `_stamp_chart_series` output can publish — including when a fetch raises
+    or credentials are missing. Returns the slugs that carried model data.
+
+    Review round 1: a card's `spark` (the SPA's per-card sparkline) is chart
+    data too. No deterministic code stamps it, so any non-empty `spark` is
+    model-sourced; it is cleared to None (the SPA's "no sparkline" state).
+    """
+    dirty = [
+        s.slug for s in final_brief.sections
+        if s.series or s.notes or s.movers is not None or any(m.spark for m in s.metrics)
+    ]
+    for section in final_brief.sections:
+        section.series = []
+        section.notes = []
+        section.movers = None
+        section.metrics = [_without_spark(m) for m in section.metrics]
+    if dirty:
+        logger.warning(
+            "v6: discarded model-supplied chart data (series/notes/movers/spark) "
+            "for slug(s) %s — only machine-stamped chart data may publish",
+            ", ".join(dirty),
+        )
+    return dirty
+
+
+def _without_spark(metric: MetricV6) -> MetricV6:
+    """The card unchanged except for no sparkline (a copy, never an in-place edit)."""
+    return metric if metric.spark is None else metric.model_copy(update={"spark": None})
+
+
+def _log_chartless_sections(final_brief: BriefPayloadV6, reason: str) -> None:
+    """Name every chartable section that will publish with an empty chart, and
+    why. The chart is dropped, never the brief (see `run_publish`)."""
+    missing = [
+        s.slug for s in final_brief.sections
+        if s.slug in _CHARTABLE_SLUGS and not s.series
+    ]
+    if missing:
+        logger.warning(
+            "v6: slug(s) %s ship with no chart series — %s", ", ".join(missing), reason,
+        )
+
 
 def _stamp_chart_series(
     final_brief: BriefPayloadV6,
@@ -1373,12 +1940,15 @@ def _stamp_chart_series(
 
     Failures on individual fetchers log a warning and leave that section's
     series empty — graceful degradation, one bad scrape does not break the
-    whole publish.
+    whole publish. Any series/notes/movers already on the brief (i.e. written
+    by the model) are discarded first (R2 fix 6), so a failed fetch can never
+    leave model points standing in for the chart.
     """
     from brief.history import MetricHistoryClient as _MetricHistoryClient
     history_monthly_client = _MetricHistoryClient(
         url=supabase_url, service_key=service_key, http=http,
     )
+    _discard_model_chart_data(final_brief)
 
     for section in final_brief.sections:
         # v1.4.0 — macro CPI trend chart uses metric_history_monthly
@@ -1512,6 +2082,10 @@ def _stamp_chart_series(
                 fn_name,
                 exc_info=True,
             )
+
+    _log_chartless_sections(
+        final_brief, "chart fetch failed or returned no points (see warnings above)",
+    )
 
 
 def _resolve_supabase_config() -> tuple[str, str] | None:
@@ -1939,18 +2513,57 @@ def _run_deterministic_gate(final_brief: BriefPayloadV6) -> int:
     return violations
 
 
+# Refused-figure lines listed in the grouped alert: at most 10, and fewer when their length would
+# push the closing "N more" line past Discord's 1990-char cut (`alerts._MAX_CONTENT`); a real
+# refused line runs ~150-190 chars (R2 fix C1, round 1).
+_MAX_REFUSED_ALERT_LINES = 10
+
+
+def _refused_alert_lines(refused: list[_prose_numbers.NumberWarning], head: str) -> list[str]:
+    """The refused group's listed lines plus, when any are left out, ONE line counting them —
+    the longest such run whose every line arrives whole after `head` inside `alerts._MAX_CONTENT`."""
+    from brief.alerts import _MAX_CONTENT
+
+    listed = [f"    {w.describe()}" for w in refused[:_MAX_REFUSED_ALERT_LINES]]
+    while True:
+        not_listed = len(refused) - len(listed)
+        more = ([(f"    … and {not_listed} more refused or undated figure(s) not listed here "
+                  "(each is in the brief log)")] if not_listed > 0 else [])
+        if not listed or len(head) + len("\n".join(["", *listed, *more])) <= _MAX_CONTENT:
+            return [*listed, *more]
+        listed = listed[:-1]
+
+
 def _format_prose_number_alert(warnings: list["_prose_numbers.NumberWarning"]) -> str:
     """One Discord message for ALL of this issue's WARN-mode figures, grouped
     by section (H3, round-2 review item 6) — a publish with N warnings used
     to send N separate Discord messages, which drowns the channel on a bad
     day and reads as N unrelated incidents instead of one. Truncation to
     Discord's 2000-char cap is `alerts.send_discord_alert`'s job; this only
-    shapes the content."""
+    shapes the content.
+
+    R2 fix H6 review r1: the refused-figure lines are listed FIRST, under their own heading and
+    once each (not again in their section), because a real day's grouped alert runs 4k-14k chars
+    and Discord is sent only the first `alerts._MAX_CONTENT`; appended last, the one signal H6
+    adds was cut off. The header count still covers every warning.
+
+    R2 fix C1: the refused group lists at most `_MAX_REFUSED_ALERT_LINES` and closes with ONE
+    line counting the rest; beyond ~12 lines the 1990-char cut dropped the later ones silently.
+    Round 1: the count is by characters too (`_refused_alert_lines`), because the producer's real
+    'unavailable (as of …)' reason makes lines long enough that 10 of them pushed the count line
+    past the cut."""
+    refused = [w for w in warnings if w.kind == _prose_numbers.REFUSED_FIGURE_KIND]
     by_section: dict[str, list["_prose_numbers.NumberWarning"]] = {}
     for w in warnings:
         by_section.setdefault(w.section, []).append(w)
     lines = [f"WARN: The Brief prose-number gate — {len(warnings)} figure(s) across {len(by_section)} section(s):"]
-    for section, section_warnings in by_section.items():
+    if refused:
+        lines.append(f"  [refused or undated today — {len(refused)} figure(s)]")
+        lines.extend(_refused_alert_lines(refused, "\n".join(lines)))
+    for section, all_section_warnings in by_section.items():
+        section_warnings = [w for w in all_section_warnings if w.kind != _prose_numbers.REFUSED_FIGURE_KIND]
+        if not section_warnings:
+            continue
         lines.append(f"  [{section}]")
         for w in section_warnings:
             lines.append(f"    {w.describe()}")
@@ -2017,8 +2630,191 @@ def _check_daily_as_of_vs_series_summary(
     return warnings
 
 
+# R2 fix 6: a card and its OWN section's chart must not print two numbers for
+# the same concept and the same date. Checked against the FINAL stamped
+# series (the tripwire above only sees the pre-editor digest). Only pairs
+# where the card and the chart provably read the same series for the same
+# period are listed; ambiguous pairs (reserves daily-vs-monthly writer, T-bill
+# cut-off vs monthly ladder, NBR FYTD vs single-month revenue) are left to
+# the owner — see the fix-6 report. WARN-mode, like the sibling above:
+# numbers are never rewritten and the publish is never held on a chart.
+class _CardChartPair(NamedTuple):
+    chart_key: str                           # SeriesPointV6.key the fetcher stamps
+    card_unit: str                           # builder unit the scale rule assumes
+    point_to_card: Callable[[float], float]  # chart value -> card value
+
+
+def _same_value(value: float) -> float:
+    return value
+
+
+def _usd_mn_to_bn_2dp(value: float) -> float:
+    """fx.py: official mn USD row -> bn USD card, rounded to 2dp."""
+    return round(value / 1000, 2)
+
+
+_CARD_CHART_PAIRS: dict[tuple[str, str], _CardChartPair] = {
+    ("macro", "cpi_12m_avg_monthly"): _CardChartPair("cpi_12m_avg_monthly", "%", _same_value),
+    ("macro", "cpi_p2p_food_monthly"): _CardChartPair("cpi_p2p_food_monthly", "%", _same_value),
+    ("macro", "cpi_p2p_nonfood_monthly"): _CardChartPair(
+        "cpi_p2p_nonfood_monthly", "%", _same_value),
+    ("fx", "fx_monthly_exports"): _CardChartPair(
+        "exports_usd_mn_monthly", "bn USD", _usd_mn_to_bn_2dp),
+    ("remit", "remit_monthly_mn"): _CardChartPair(
+        "remittance_usd_mn_monthly", "mn USD", _same_value),
+    ("dse", "dsex"): _CardChartPair("dsex", "index", _same_value),
+    ("iran", "iranwar_brent_spot"): _CardChartPair("brent", "USD/bbl", _same_value),
+}
+# Float noise only: both sides are the same stored number, not two estimates.
+_CARD_CHART_REL_TOL = 1e-6
+
+
+def _card_chart_mismatch(
+    section: SectionV6, raw: dict[str, Any], pair: _CardChartPair,
+) -> str | None:
+    """One card against its own chart's point(s) for the card's own date."""
+    where = f"{section.slug}.{raw.get('id')}"
+    value = raw.get("value")
+    as_of = str(raw.get("as_of") or "")[:10]
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not as_of:
+        return None
+    if raw.get("unit") != pair.card_unit:
+        return (f"{where}: card unit {raw.get('unit')!r} is not the {pair.card_unit!r} "
+                f"this check assumes; cannot compare it with chart series {pair.chart_key!r}")
+    points = [p.value for p in section.series
+              if p.key == pair.chart_key and p.ts[:10] == as_of]
+    wrong = [v for v in points if not math.isclose(
+        pair.point_to_card(v), float(value), rel_tol=_CARD_CHART_REL_TOL, abs_tol=1e-9)]
+    if not wrong:
+        return None
+    return (f"{where}: card value {value} for {as_of} disagrees with its own chart "
+            f"series {pair.chart_key!r} point {wrong[0]} for the same date")
+
+
+def _check_cards_against_stamped_series(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]],
+) -> list[str]:
+    """For every PUBLISHED card in `_CARD_CHART_PAIRS`, compare the builder's
+    value (the card's number, already bound by `_enforce_observation_contract`)
+    with its own section's stamped chart point for the card's date. No point
+    for that date is not a contradiction. Returns warnings; never raises."""
+    raw_by_slug = {s.get("slug"): s for s in raw_sections}
+    warnings: list[str] = []
+    for section in final_brief.sections:
+        raw_metrics = {
+            _normalize_label(m.get("label") or ""): m
+            for m in (raw_by_slug.get(section.slug) or {}).get("metrics", [])
+        }
+        for published in section.metrics:
+            raw = raw_metrics.get(_normalize_label(published.label))
+            pair = _CARD_CHART_PAIRS.get((section.slug, raw.get("id"))) if raw else None
+            warning = _card_chart_mismatch(section, raw, pair) if pair else None
+            if warning:
+                warnings.append(warning)
+    return warnings
+
+
+def _run_card_chart_gate(
+    final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]],
+) -> list[str]:
+    """Log + one grouped alert for card/chart contradictions (WARN-mode)."""
+    warnings = _check_cards_against_stamped_series(final_brief, raw_sections)
+    if not warnings:
+        logger.info("v6 card-vs-chart gate: clean")
+        return warnings
+    for w in warnings:
+        logger.warning("v6 card-vs-chart gate (WARN): %s", w)
+    _alert(
+        "WARN: The Brief card-vs-chart gate — "
+        f"{len(warnings)} card(s) disagree with their own chart point for the "
+        "same date (nothing rewritten, publish not held):\n"
+        + "\n".join(f"  {w}" for w in warnings)
+    )
+    return warnings
+
+
+def _refusal_reason(record: dict[str, Any]) -> str:
+    quality = record.get("quality")
+    said = f"marked {quality!r}" if quality not in ("verified", "held") else "published but the reader refused"
+    return f"{said}, undated" if not record.get("as_of") else f"{said} (as of {record['as_of']})"
+
+
+def _refused_figures(snapshot: Any, today: date_t) -> tuple[_prose_numbers.RefusedFigure, ...]:
+    """R2 fix H6, owner decision (n): today's figures the producer refused or left undated —
+    every record in the snapshot the builders were given (`GatheredSections.snapshot`) that the
+    reader does not accept (`observation()` and `writer_confirmation()` both None: quality
+    `unavailable`, no date, a future date, no evidence, or a value that disagrees with its
+    scalar), with a finite value. A review-REJECTED quote is not among them: the producer drops
+    a rejected family from latest.json before writing it (EconDelta aggregate_latest.py,
+    granular-reject path: popped from `data`/`domains`, replaced by a dated held predecessor or
+    omitted), so its value never reaches the Brief. No snapshot (a plain section list) -> ()."""
+    from brief.history import finite_number
+
+    observations = getattr(snapshot, "observations", None)
+    if not isinstance(observations, dict):
+        return ()
+    refused = []
+    for metric_id, record in sorted(observations.items()):
+        if not isinstance(record, dict) or not finite_number(record.get("value")):
+            continue
+        if (snapshot.observation(metric_id, today=today) is not None
+                or snapshot.writer_confirmation(metric_id, today=today) is not None):
+            continue
+        refused.append(_prose_numbers.RefusedFigure(
+            metric_id=metric_id, value=float(record["value"]), reason=_refusal_reason(record)))
+    return tuple(refused)
+
+
+def _cover_card(final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]
+                ) -> tuple[SectionV6, dict[str, Any], MetricV6] | None:
+    """The checked card the cover points to: its `section_slug` (the hero section when it names
+    none), then the card whose label equals the cover's — whole, or before a " · " period tag
+    ("NPL RATIO · Q4 2025") — and that has a builder observation."""
+    cover = final_brief.brief.cover_metric
+    slug = cover.section_slug or next((s.slug for s in final_brief.sections if s.weight == 2), None)
+    section = next((s for s in final_brief.sections if s.slug == slug), None)
+    raw = next((r for r in raw_sections if r.get("slug") == slug), None)
+    if section is None or raw is None:
+        return None
+    wanted = {_normalize_label(cover.label), _normalize_label(cover.label.split(" · ", 1)[0])}
+    card = next((m for m in section.metrics if _normalize_label(m.label) in wanted), None)
+    if card is None:
+        return None
+    original = next((m for m in raw.get("metrics") or []
+                     if _normalize_label(m.get("label", "")) == _normalize_label(card.label)), None)
+    return None if original is None else (section, original, card)
+
+
+def _stamp_cover_metric(final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]]) -> None:
+    """Controller ruling (R2 fix H6): no model-written cover number reaches the public `briefs`
+    row (the cover is not rendered since the Cover component retired). The cover's value is
+    printed from the checked card it points to by fix 7b's printer (`_card_display_value`);
+    `held_from`/`next_print` are that card's own system stamps; `as_of` survives only when it
+    equals the card's builder date or period label. A cover pointing at no checked card keeps
+    its words but none of its numbers: the value is the printer's unknown reading ("—") and
+    the three dates are cleared. (The cover itself stays: dropping it is the stuck-hero rule's
+    job, and that rule deliberately keeps a cover whose hero section has no cards.)"""
+    cover = final_brief.brief.cover_metric
+    if cover is None:
+        return
+    found = _cover_card(final_brief, raw_sections)
+    if found is None:
+        final_brief.brief.cover_metric = cover.model_copy(update={
+            "value": _format_metric_value(None, ""), "as_of": None, "held_from": None, "next_print": None})
+        logger.info("v6: cleared cover_metric %r numbers — it points at no checked card", cover.label)
+        return
+    section, original, card = found
+    dated = {str(original.get("as_of") or "").strip(), _normalize_label(str(original.get("period") or ""))} - {""}
+    as_of = cover.as_of if cover.as_of and (
+        cover.as_of.strip() in dated or _normalize_label(cover.as_of) in dated) else None
+    final_brief.brief.cover_metric = cover.model_copy(update={
+        "value": _card_display_value(section, original), "as_of": as_of,
+        "held_from": card.held_from, "next_print": card.next_print})
+
+
 def _run_prose_number_gate(
     final_brief: BriefPayloadV6, raw_sections: list[dict[str, Any]],
+    refused: tuple[_prose_numbers.RefusedFigure, ...] = (),
 ) -> list["_prose_numbers.NumberWarning"]:
     """Wire `brief.validators.prose_numbers` in (P2 fact-checker, 2026-08-22
     audit #204, round-2 review). `check_count_claims` is the only
@@ -2032,10 +2828,15 @@ def _run_prose_number_gate(
     UNLESS `BRIEF_PROSE_VALIDATOR_STRICT=1`, which upgrades the whole set to
     the same hard-fail (a documented future flip, not yet default; see the
     module docstring in brief/validators/prose_numbers.py for the corpus
-    evidence behind this staging)."""
+    evidence behind this staging).
+
+    R2 fix H6, owner decision (n): every other model text field (frame, titles, pills, news,
+    cover label/sub) and the `refused` figures join the SAME grouped alert, WARN-only even
+    under strict — never a hold."""
     strict = os.environ.get("BRIEF_PROSE_VALIDATOR_STRICT", "").strip() == "1"
     try:
-        warnings = _prose_numbers.run_prose_number_gate(final_brief, raw_sections, strict=strict)
+        warnings = _prose_numbers.run_prose_number_gate(final_brief, raw_sections, strict=strict,
+                                                        refused=refused)
     except _prose_numbers.ProseNumberViolationError as e:
         raise ProseNumberGateError(str(e)) from e
 
@@ -2167,6 +2968,11 @@ def run_publish(
     except ValueError as exc:
         raise V6PublishError(str(exc)) from exc
 
+    # R2 fix 16: change figures from the builders' own dated history, computed once.
+    card_changes = _card_changes(sections)
+    _enforce_observation_contract(editor_brief, editor_input["sections_raw"], model_output=True,
+                                  card_changes=card_changes)
+
     # Force lens onto the brief — the LLM should set it but we guarantee it
     editor_brief.brief.lens = today_lens
 
@@ -2239,6 +3045,8 @@ def run_publish(
     # MetricReconciliationError's docstring for why the two do not share a
     # log-only rationale.
     _reconcile_metrics(final_brief, editor_input["sections_raw"])
+    _enforce_observation_contract(final_brief, editor_input["sections_raw"], model_output=True,
+                                  card_changes=card_changes)
     # M-A, review round 2: deterministically stamps the macro Import Cover
     # metric's `sub` with its dual-period note — MetricV6 has no `source`
     # field, so nothing upstream of this call guarantees the note survives.
@@ -2266,10 +3074,17 @@ def run_publish(
     # Phase E.2 — chart series enricher. Skip silently when supabase env is
     # missing (e.g. dry-run from a workstation without secrets). Charts are
     # render-layer data; degraded charts must not block a publish.
+    # R2 fix 6: whatever chart data the model wrote is discarded first, on
+    # every path, so a skipped or failed stamp leaves an empty chart — never
+    # model points.
+    _discard_model_chart_data(final_brief)
     supabase_cfg: tuple[str, str] | None = _resolve_supabase_config()
     if supabase_cfg is None:
         logger.warning(
             "v6: skipping chart series stamp — SUPABASE_URL or service key missing in env"
+        )
+        _log_chartless_sections(
+            final_brief, "chart not stamped: Supabase credentials missing in env",
         )
     else:
         supabase_url, service_key = supabase_cfg
@@ -2337,7 +3152,12 @@ def run_publish(
     # after every deterministic stamp above has had its say on `sub` text —
     # and before publish. BLOCK-mode violations propagate (ProseNumberGateError
     # is a V6PublishError subclass); WARN-mode figures are logged and returned.
-    _run_prose_number_gate(final_brief, editor_input["sections_raw"])
+    _enforce_observation_contract(final_brief, editor_input["sections_raw"],
+                                  card_changes=card_changes)
+    # R2 fix H6 (controller ruling): the cover's numbers from its checked card, or none at all.
+    _stamp_cover_metric(final_brief, editor_input["sections_raw"])
+    _run_prose_number_gate(final_brief, editor_input["sections_raw"],
+                           refused=_refused_figures(getattr(sections, "snapshot", None), today))
 
     # Issue 206 tripwire (defect a+b net): a daily metric disagreeing with
     # its own chart series' newest point. WARN-mode only — see
@@ -2354,6 +3174,8 @@ def run_publish(
         )
     else:
         logger.info("v6 as_of-vs-series gate: clean")
+
+    _run_card_chart_gate(final_brief, editor_input["sections_raw"])
 
     if dry_run:
         logger.info("v6: dry_run=True, skipping Supabase publish")
