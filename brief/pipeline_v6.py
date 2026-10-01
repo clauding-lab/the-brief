@@ -33,6 +33,7 @@ from brief.schema import Metric, SectionData
 from brief.publication_identity import PublishIdentity, assert_identity, environment_paused
 from brief.v6_publisher import (
     PublishError,
+    PublishReceipt,
     fetch_metric_definitions,
     fetch_previous_brief,
     fetch_recent_news,
@@ -2862,7 +2863,7 @@ def run_publish(
     scraped_headlines: list[dict[str, Any]] | None = None,
     dry_run: bool = False,
     write_fixture_path: str | None = None,
-) -> str | None:
+) -> PublishReceipt | None:
     """Execute the 2-call publish flow with fresh-brief V1 wiring.
 
     Live callers must enter through the CLI publication lock and supply the
@@ -2875,7 +2876,8 @@ def run_publish(
       4. Subeditor LLM reviews
       5. stamp_changed (post-LLM diff)
       6. mark_held_overs (post-LLM honesty)
-      7. Publish to Supabase
+      7. Publish to Supabase in one transaction; return its validated
+         receipt (None on a dry run)
     """
     from brief.builders.diff import stamp_changed, mark_held_overs
 

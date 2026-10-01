@@ -44,8 +44,8 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate, gr
     banker_read,
     metrics = [],
     news = [],
-    series = [],
-    notes = [],
+    series: rawSeries,
+    notes: rawNotes,
     weight = 1,
     tldr,
     summary_pills,
@@ -54,6 +54,11 @@ export function Section({ section, diffMode, displayOrd, chartOrd, issueDate, gr
     chart_read,
     movers,
   } = section;
+  // A chartless section's chart arrays: get_latest_brief sends [] today, but
+  // a reader that sends null must render exactly the same (R3c) — a default
+  // parameter only covers undefined, so normalise null here.
+  const series = rawSeries ?? [];
+  const notes = rawNotes ?? [];
 
   // SPA-side sequential numbering (1, 2, 3, …) — falls back to backend ord
   // when not provided by the parent (defensive; ClientApp always supplies it).

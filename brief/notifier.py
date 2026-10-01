@@ -385,6 +385,10 @@ def fetch_subscribers() -> list[Subscriber]:
 def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
     """GET brief row + lead news (first headlines-section row by ord).
 
+    ONE request rooted at the published `briefs` row (one database snapshot):
+    a same-day correction committing mid-read can never pair this header with
+    another revision's lead story, and a draft is never read (R3c).
+
     `brief_id` is URL-encoded into the PostgREST query string so a malformed
     or unexpected value can't corrupt the filter syntax. In practice the id
     is a Supabase-generated UUID, but encoding costs nothing.
@@ -402,8 +406,11 @@ def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
             return _json_loads(r.read())
 
     brief_rows = _get(
-        f"/briefs?id=eq.{safe_id}"
-        "&select=id,issue_no,volume,brief_date,published_at,todays_call,lens"
+        f"/briefs?id=eq.{safe_id}&status=eq.published"
+        "&select=id,issue_no,volume,brief_date,published_at,todays_call,lens,"
+        "sections(news(headline,source,source_url,published_at))"
+        "&sections.slug=eq.headlines&sections.limit=1"
+        "&sections.news.order=ord.asc,id.asc&sections.news.limit=1"
     )
     if not brief_rows:
         raise RuntimeError(f"brief id={brief_id} not found in Supabase")
@@ -418,17 +425,8 @@ def fetch_brief_data(brief_id: str) -> tuple[BriefRow, NewsRow | None]:
         lens=b.get("lens"),
     )
 
-    section_rows = _get(
-        f"/sections?brief_id=eq.{safe_id}&slug=eq.headlines&select=id&limit=1"
-    )
-    if not section_rows:
-        return brief, None
-    section_id = _urlquote(section_rows[0]["id"], safe="")
-
-    news_rows = _get(
-        f"/news?section_id=eq.{section_id}"
-        "&select=headline,source,source_url,published_at&order=ord.asc&limit=1"
-    )
+    section_rows = b.get("sections") or []
+    news_rows = (section_rows[0].get("news") or []) if section_rows else []
     if not news_rows:
         return brief, None
     n = news_rows[0]

@@ -30,6 +30,7 @@ from unittest.mock import patch
 import pytest
 
 from brief import cli
+from brief.v6_publisher import PublishReceipt
 from brief import pipeline as pipeline_module
 from brief.econdelta import load_snapshot
 from brief.history import HistoryRow
@@ -120,7 +121,9 @@ def _publish(caplog):
          patch("brief.cli.now_bdt", return_value=RUN_AT), \
          patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[]), \
          patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
-         patch("brief.pipeline_v6.run_publish", return_value="brief-236") as run:
+         patch("brief.pipeline_v6.run_publish", return_value=PublishReceipt(  # SYNTHETIC receipt
+             brief_id="3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b", issue_no=236, brief_date=TODAY,
+             published_at=RUN_AT, created_new_identity=True)) as run:
         rc = cli._run_v6_publish_unlocked(_config(), TODAY, dry_run=False, notify_enabled=False)
     (line,) = [r.getMessage() for r in caplog.records if r.getMessage().startswith("Publication readiness:")]
     return rc, run, send, line

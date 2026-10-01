@@ -17,6 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from brief import cli
+from brief.v6_publisher import PublishReceipt
 from brief.pipeline import PipelineConfig, gather
 
 TODAY = date(2026, 9, 25)
@@ -248,7 +249,9 @@ def _publish(cfg: PipelineConfig, caplog, *, dry_run: bool = False, alert=None, 
          patch("brief.cli.now_bdt", return_value=RUN_AT), \
          patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[]), \
          patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
-         patch("brief.pipeline_v6.run_publish", return_value="brief-236") as run:
+         patch("brief.pipeline_v6.run_publish", return_value=PublishReceipt(  # SYNTHETIC receipt
+             brief_id="3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b", issue_no=236, brief_date=TODAY,
+             published_at=RUN_AT, created_new_identity=True)) as run:
         rc = cli._run_v6_publish_unlocked(cfg, TODAY, dry_run=dry_run, notify_enabled=False)
     return rc, run, send
 

@@ -6,12 +6,15 @@
 // by hand, per AGENTS.md landmine 18). Verified against production instead
 // of assuming: `briefs`, `sections`, and their child tables (`metrics`,
 // `news`, `chart_series`, `chart_notes`) are anon-readable via plain
-// PostgREST embedding —
+// PostgREST embedding. The permalink is ONE request rooted at `briefs`
+// (R3c) —
 //
-//   GET /sections?brief_id=eq.<id>&select=*,metrics(*),news(*),chart_series(*),chart_notes(*)
+//   GET /briefs?issue_no=eq.<n>&status=eq.published
+//       &select=<header>,sections(<section>,metrics(..),news(..),chart_series(..),chart_notes(..))
 //
-// — the exact query shape `brief/v6_publisher.py::fetch_previous_brief`
-// already uses server-side. No RPC needed; no schema invented.
+// — one SQL statement, so one database snapshot: a same-day correction
+// committing mid-read can never pair the old header with the new sections.
+// No RPC needed; no schema invented.
 
 import { createClient } from "@supabase/supabase-js";
 import type {
@@ -81,6 +84,23 @@ interface RawSectionRow {
 function byOrd(a: { ord?: number | null }, b: { ord?: number | null }): number {
   return (a.ord ?? 0) - (b.ord ?? 0);
 }
+
+// Server-side order for the nested children (R3c): sections and ordinal
+// children by ord with an id tie-breaker; chart points by time like
+// `get_latest_brief`. The adapters below still sort metrics/news by ord.
+const NESTED_ORDER: ReadonlyArray<readonly [table: string, column: string]> = [
+  ["sections", "ord"],
+  ["sections", "id"],
+  ["sections.metrics", "ord"],
+  ["sections.metrics", "id"],
+  ["sections.news", "ord"],
+  ["sections.news", "id"],
+  ["sections.chart_series", "ts"],
+  ["sections.chart_series", "series_key"],
+  ["sections.chart_notes", "ts"],
+  ["sections.chart_notes", "series_key"],
+  ["sections.chart_notes", "id"],
+];
 
 function sortedWithoutOrd<T extends { ord?: number | null }>(rows: T[]): Omit<T, "ord">[] {
   return [...rows]
@@ -160,30 +180,28 @@ export async function fetchBriefByIssueNo(issueNo: number): Promise<BriefPayload
   const sb = client();
   if (!sb) return null;
 
-  const { data: briefs, error: briefErr } = await sb
+  let query = sb
     .from("briefs")
-    .select(BRIEF_SELECT)
+    .select(`${BRIEF_SELECT},sections(${SECTION_SELECT})`)
     .eq("issue_no", issueNo)
-    .eq("status", "published")
-    .limit(1);
+    .eq("status", "published");
+  for (const [referencedTable, column] of NESTED_ORDER) {
+    query = query.order(column, { referencedTable, ascending: true });
+  }
+  const { data: briefs, error: briefErr } = await query.limit(1);
   if (briefErr || !briefs?.length) return null;
-  const brief = briefs[0] as Brief & { id: string };
+  const { sections: sectionRows, ...brief } = briefs[0] as unknown as Brief & {
+    id: string;
+    sections?: RawSectionRow[] | null;
+  };
 
-  const { data: sectionRows, error: sectionErr } = await sb
-    .from("sections")
-    .select(SECTION_SELECT)
-    .eq("brief_id", brief.id)
-    .order("ord", { ascending: true });
-  if (sectionErr) return null;
-
-  // A same-day republish DELETEs this issue_no's rows and re-INSERTs under
-  // the same number (AGENTS.md landmine 33) — a request landing in that
-  // narrow window would see the `briefs` row but zero sections yet. Treat
-  // that as "not found" rather than rendering a brief with no content; a
-  // retry a moment later sees the completed republish.
+  // Never render an edition with no content: a published header whose
+  // sections are missing or empty is "not found". Since migration 0006 a
+  // publication commits header and sections together, so this is a guard
+  // for legacy/partial rows (AGENTS.md landmine 33), not a race window.
   if (!sectionRows || sectionRows.length === 0) return null;
 
-  const sections = (sectionRows as unknown as RawSectionRow[]).map(toSection);
+  const sections = sectionRows.map(toSection);
   return { brief, sections };
 }
 

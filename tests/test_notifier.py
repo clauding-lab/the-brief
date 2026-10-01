@@ -353,15 +353,13 @@ def test_fetch_brief_data_returns_brief_and_lead_news(monkeypatch):
                 "id": "f54ac95d", "issue_no": 107, "volume": 1,
                 "brief_date": "2026-05-15", "published_at": "2026-05-15T09:33:12+00:00",
                 "todays_call": "Fitch went negative.", "lens": "weekly_wrap",
-            }]).encode()
-        elif "/sections?" in req.full_url:
-            body = _json.dumps([{"id": "sec-uuid"}]).encode()
-        elif "/news?" in req.full_url:
-            body = _json.dumps([{
-                "headline": "Fitch revises Bangladesh outlook to negative",
-                "source": "The Daily Star",
-                "source_url": "https://example.com/x",
-                "published_at": "2026-05-14T00:30:00+00:00",
+                # R3c: header + headlines section + lead news in ONE request.
+                "sections": [{"news": [{
+                    "headline": "Fitch revises Bangladesh outlook to negative",
+                    "source": "The Daily Star",
+                    "source_url": "https://example.com/x",
+                    "published_at": "2026-05-14T00:30:00+00:00",
+                }]}],
             }]).encode()
         else:
             raise AssertionError(f"unexpected URL: {req.full_url}")
@@ -387,9 +385,8 @@ def test_fetch_brief_data_returns_none_lead_when_no_headlines_section(monkeypatc
                 "id": "x", "issue_no": 1, "volume": 1,
                 "brief_date": "2026-05-15", "published_at": "2026-05-15T00:30:00+00:00",
                 "todays_call": "x", "lens": None,
+                "sections": [],  # no headlines section (R3c: one nested request)
             }]).encode()
-        elif "/sections?" in req.full_url:
-            body = b"[]"  # no headlines section
         else:
             raise AssertionError(f"unexpected URL: {req.full_url}")
         return _FakeResp(body)
@@ -410,11 +407,8 @@ def test_fetch_brief_data_returns_none_lead_when_section_has_no_news(monkeypatch
                 "id": "x", "issue_no": 1, "volume": 1,
                 "brief_date": "2026-05-15", "published_at": "2026-05-15T00:30:00+00:00",
                 "todays_call": "x", "lens": None,
+                "sections": [{"news": []}],  # headlines section, no news (R3c)
             }]).encode()
-        elif "/sections?" in req.full_url:
-            body = _json.dumps([{"id": "sec-uuid"}]).encode()
-        elif "/news?" in req.full_url:
-            body = b"[]"
         else:
             raise AssertionError(f"unexpected URL: {req.full_url}")
         return _FakeResp(body)

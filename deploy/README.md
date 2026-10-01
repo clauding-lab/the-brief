@@ -222,6 +222,13 @@ logs loudly on its own failures — but something has to be the last turtle.
 
 TL;DR: `BRIEF_DRY_RUN=1` in `/etc/brief.env` to pause sends, `sudo systemctl disable --now brief.timer` (`brief.timer` carries `Persistent=true`; a plain `stop` survives only until the next boot or re-arm and a missed fire gets caught up). To roll back the code, `git revert` the bad commit and push to `main` — `brief.service`'s `ExecStartPre` self-pull (`deploy/brief.service:37-39`, see AGENTS.md landmine #21) picks it up at the next fire, or SSH in and `git -C ~/the-brief pull --ff-only origin main` to apply it sooner. There is no GitHub Actions cron to re-enable — the V1 GHA workflow was retired in PR #57 and deleted 2026-05-01.
 
+**Not for a rollback across the R3 merge** (migration 0006, `publish_brief_atomic`,
+`the-brief#215`). There a revert brings back the pre-R3 delete-and-insert publisher, and the
+self-pull above would run it at the next fire, which the R3 design forbids. Follow the
+rollback in [Coordinated release order](#coordinated-release-order-data-reliability-repair-r2--r3)
+instead: `disable --now` the timer first and keep it disabled until a corrected atomic
+publisher is merged.
+
 ## Uninstall
 
 `sudo deploy/uninstall.sh` — leaves env + logs + artifacts intact.
@@ -232,7 +239,9 @@ Code allocates the issue number once from the BDT run date and existing rows.
 A unique same-day row (published or draft) keeps its issue number; a new date
 uses the maximum issue number plus one. Conflicting same-day rows or either
 model changing the allocated number/date hold publication with exit 4.
-The publisher checks the target's date again immediately before deletion.
+Publication is ONE database call, `publish_brief_atomic` (migration 0006, R3):
+under its own lock the database checks the target date and issue again, then
+replaces the edition in one transaction (AGENTS.md landmine 41).
 Live `--today` must equal today's BDT date. Historical replay requires
 `--dry-run`; historical correction is a separate reviewed operation.
 
@@ -318,15 +327,165 @@ The separate systemd hard-failure alert remains active for genuine failures.
 Same-day replacement runs automatically suppress subscriber delivery,
 including draft retries: without a delivery ledger a draft could be the
 remains of a failed replacement of an already emailed issue. There is **no
-supported resend command** yet. Missing/partial delivery must wait for the
-separate controlled retry workflow with a delivery-ledger check (R3); do not
-invoke the notifier directly or add an unchecked resend flag. First-ever
-publication for a date retains normal delivery (one Brevo POST per recipient).
+supported resend command**. R3 did not build one: an unattended retry needs a
+separately designed and approved per-recipient delivery ledger. Before any
+manual resend, check the Brevo provider records; do not invoke the notifier
+directly or add an unchecked resend flag. First-ever publication for a date
+retains normal delivery (one Brevo POST per recipient).
 
-**Remaining replacement failure window — release blocker for R3:** the
-existing publisher deletes the old row before inserting the replacement
-as a draft. If it crashes in that interval, there is no same-day row left
-to prove the intended identity or earlier delivery. B1's local lock and
-row-based suppression do not close that gap or provide end-to-end duplicate
-send protection. The controlled retry/delivery guard must account for it
-before live rollout; do not recover that state with an unattended re-fire.
+**The replacement window is closed (R3, migration 0006).** The old publisher
+deleted the day's row before inserting the replacement; a crash in between left
+no edition and no identity. `publish_brief_atomic` never deletes the `briefs`
+row: it keeps the same id, issue number and date, replaces the children and
+flips `status='published'` last, all in one transaction. A failure at any point
+leaves the previous complete edition exactly as it was (rehearsed on the R3 test
+database: cancel, kill and timeout mid-write; see
+`docs/reviews/2026-09-25-repair-release-evidence.md`). Only
+a fresh receipt from this run with `created_new_identity=true` may start the
+email. An error, a timeout or a lost answer exits 4 and sends nothing; the
+edition may still have committed ("published but possibly unemailed"), so check
+the issue and Brevo before any manual send, and never re-fire to "retry".
+If migration 0006 is missing on the database, the publisher exits 4 and names
+it; there is no fallback to the old delete-and-insert path.
+
+## Coordinated release order (data-reliability repair, R2 + R3)
+
+**TLDR.** EconDelta goes first, then the history repair, then the database function, then
+this Brief. Roll back in the opposite direction: the Brief first. Measured, not guessed
+(controller ruling 28 Sep 2026, step 2 amended 29 Sep 2026; AGENTS.md landmine 44): the
+deployed Brief `a810fcb` ignores the new producer's extra snapshot fields and does not break,
+though it does not stay identical either (see "Transition window" below), while the new Brief
+on the OLD producer drops the USD/BDT, gold, Brent and WTI cards on every fire, and the new
+pair on unrepaired NBR history HOLDs every publish. The older "Brief consumer first" order is
+superseded.
+
+**Transition window: what the deployed Brief `a810fcb` shows on the new producer** (measured,
+`fixG2-compat.md` §8; the controller ruling of 28 Sep 2026 carries these into this plan). They
+apply to every `a810fcb` fire after the producer merge (step 1) and before the new Brief
+replaces it (step 5): when the steps span more than one night, or when the old Brief is
+resumed because a later step slipped (see "If step 3 or 4 slips" below):
+- From the first night, the new EPB exports rows move its exports card to August and **hide
+  its Trade Gap card** while exports lead imports (BB imports are still at June); the External
+  Flow Balance chart shows exports months with no imports. The new Brief does the same, so this
+  is the new data, not a reader mismatch.
+- On an Opus-quarantine night before the first new-format 02:55 BDT archive exists, the new
+  producer drops the rejected family instead of carrying yesterday's number. `a810fcb` then
+  shows **no value** on the USD/BDT, gold, Brent and WTI cards; the DSE cards show their last
+  history row marked stale under a **false "Non-trading day — last trading session"** reason,
+  even on a trading day; the §02 gross-reserves card shows its history row, stale. If
+  `advancing` or `declining` is dropped, `a810fcb` also tries a live dsebd.org scrape from
+  Hetzner (code reading only, not measured; expect degraded breadth). The window for this
+  closes after the first successful new-format 02:55 BDT archive, so the first night after the
+  producer merge is the one to watch.
+- A reading the new producer marks unavailable is still printed by `a810fcb`, as today.
+No number is invented and nothing crashes or holds; record what the first issue shows in the
+release evidence.
+
+**Before step 1: pause and check (one agreed window, nothing merged yet).**
+- Pick a night that avoids EconDelta's chain (01:00–03:35 BDT) for the checks and the
+  Brief's fire plus watchdog (07:50–09:45 BDT) for the Brief steps.
+- Read-only checks first: the installed timers on both boxes, the Hetzner five-minute
+  snapshot pull (see "EconDelta snapshot missing, broken or old" above), `CLAUDE_BINARY`,
+  free disk, and that the Supabase project is `ssbliukchgibjcjohibi`.
+- Pause the Brief with a real stop, not only the environment flag: steps 1–2 of
+  "Rolling out a unit change" in
+  [Publication identity, concurrency and maintenance pause](#publication-identity-concurrency-and-maintenance-pause).
+  `BRIEF_DRY_RUN=1` is extra protection only. Also make sure no other copy of the OLD
+  publisher can run (a manual checkout, another host with the service key): it would
+  still delete and re-insert around the new function's lock.
+
+**The order.**
+
+1. **EconDelta producer first, including the H5 NBR dating fix.** Merge `econdelta#137` so
+   the 01:00 BDT `econdelta-gitpull` pulls it (it pulls `main` only; this branch changes no
+   EconDelta unit, so no EconDelta `install.sh`). Merge it on the release night before
+   01:00 BDT, or earlier.
+2. **History repair R1 with exclusions (d) + (l), owner-applied.** After the new producer is
+   merged (optional) but BEFORE its first `metric_history` write: the 02:55 BDT aggregate,
+   the 03:15 BDT retry, a catch-up fire on an install, or any manual run. H5 writes the NBR
+   2026-06-30 period row that the reviewed list would otherwise refuse. If R1 cannot finish
+   before 02:55 BDT, keep the EconDelta aggregate timers stopped until it has (starting a
+   `Persistent=true` timer after a missed slot fires it at once: EconDelta landmine 5).
+3. **Round 4 NBR exclusion, owner-reviewed, before the new Brief's first fire.** Exclude the
+   NBR capture-date restamps dated after 2026-09-24: exact keys from a recapture taken with
+   the writers paused, each bound to its value, the producer's 2026-06-30 period row kept,
+   rehearsed on its own isolated copy. Until round 4 is applied the new Brief must not go
+   live. At release prep, compare the 2026-06-30 and 2026-07-31 rows of `tax_revenue`,
+   `nbr_fytd_collected_cr` and `fiscal_nbr_collected_trn` with the reviewed before-images.
+4. **Migration 0006, owner-applied through the Supabase SQL editor**, before the Brief merge
+   (AGENTS.md landmines 18 and 41). Paste `migrations/0006_publish_brief_atomic.sql` as a
+   whole; it checks the schema first and changes nothing if anything drifted. Afterwards
+   capture the function definition and its grants (EXECUTE for `service_role` only).
+5. **The new Brief, before its 08:00 BDT fire.** First confirm the new producer's first daily
+   write has landed: after the 02:55 BDT run, the Hetzner `latest.json` must come from the new
+   producer (it carries a `write_status` block) with a capture newer than the merge. On bare
+   R1 history the new Brief holds until that write exists. Then deploy with steps 1–5 of
+   "Rolling out a unit change" in
+   [Publication identity, concurrency and maintenance pause](#publication-identity-concurrency-and-maintenance-pause):
+   stop both timers, check nothing runs, merge `the-brief#215`, pull as `adnan`, check HEAD.
+   **Recipient-contract check (task B4; blocking).** The new notifier refuses to email anyone
+   if a single stored subscriber row breaks the signup contract, so check the stored rows
+   before it can run. The merge also ships the repaired signup form: first wait until Vercel
+   production serves the merge commit, so the old, looser signup cannot add a bad row after
+   the check. Then run this read-only check. It calls only the new `fetch_subscribers()` (no
+   email, no Brevo) and prints counts and an error category, never names, addresses or ids:
+
+   ```bash
+   sudo -u adnan bash -c 'cd /home/adnan/the-brief && set -a && . /etc/brief.env && set +a && .venv/bin/python -c "
+   import json, sys
+   from brief.notifier import fetch_subscribers, _error_tag
+   try:
+       count = len(fetch_subscribers())
+   except Exception as error:
+       print(json.dumps({\"validation_complete\": False, \"unique_recipients\": None, \"error_category\": _error_tag(error)}))
+       sys.exit(1)
+   print(json.dumps({\"validation_complete\": True, \"unique_recipients\": count, \"error_category\": None}))
+   "'
+   ```
+
+   Record the commit, the BDT time and the printed line in the release evidence. If it fails
+   (exit 1, `"validation_complete": false`), do not run steps 6–7: run
+   `sudo systemctl disable --now brief.timer` so nothing fires, and stop. The owner reviews the
+   incompatible stored rows; never delete or skip them to get past this check. Only after it
+   passes, steps 6–7 of "Rolling out a unit change": run `deploy/install.sh` (the self-pull
+   alone never installs the unit or creates `/home/adnan/.local/state/the-brief`; without it
+   no fire can publish), then check. Preview with
+   `python -m brief.cli run --publish --dry-run --no-notify --write-fixture <path>` before the
+   first live fire.
+6. **The 09:45 BDT watchdog heartbeat, the same morning, before 09:45 BDT** (task B5). On
+   ExonVPS replace the old 07:30 BDT heartbeat line (`30 7 * * *`) with the 09:45 BDT one,
+   as "ExonVPS install" in
+   [Off-box heartbeat (ExonVPS, 09:45 BDT cron)](#off-box-heartbeat-exonvps-0945-bdt-cron)
+   describes: copy the new `deploy/heartbeat.py`, keep the real `--env-file`, and confirm
+   `crontab -l` shows exactly one heartbeat line. The 09:45 BDT time is the 08:00 BDT start plus
+   the 90-minute run limit plus 15 minutes; B5 found that a 07:30 BDT check demands an issue that
+   cannot exist yet. The alert log routing (`deploy/brief_alert.sh` reading the application
+   log) arrives with the merge: prove it with the one approved-channel `TEST ALERT` in
+   "Failure alerts" above, and record both in the release evidence.
+
+**If step 3 or 4 slips** (round 4 or migration 0006 is not done by 07:50 BDT on the morning
+the new Brief was due): do not merge `the-brief#215`. The new Brief must not go live without
+both. The deployed Brief `a810fcb` is still paused from "Before step 1". The owner decides
+before 07:50 BDT, and the release evidence records which:
+- (a) keep it paused: no issue that day; the site keeps the last complete edition and the
+  watchdog reports the missing issue. This is what happens when no decision is recorded. If
+  the pause may outlast a reboot, use `sudo systemctl disable --now brief.timer brief-export.timer`
+  instead of a plain stop (a reboot re-arms a stopped timer).
+- (b) resume it for its 08:00 BDT fire with `sudo systemctl start brief.timer brief-export.timer`
+  (started after 08:00 BDT, `Persistent=true` is expected to fire it at once; not yet
+  checked for `brief.timer`, see above). This is the measured, compatible pair (`a810fcb` on the new producer), with the transition-window effects listed
+  above; its behaviour on R1-repaired history before round 4 was not separately measured. It
+  still publishes with today's delete-and-insert publisher, as production does now.
+Then repeat the pause (steps 1–2 of "Rolling out a unit change") before step 5 on a later night.
+
+**Rollback: roll back the Brief first**, then (only if needed) EconDelta. The new Brief on the
+old producer drops four cards, so never leave that pair running. First
+`sudo systemctl disable --now brief.timer` (a plain `stop` is not enough: `brief.timer` has
+`Persistent=true`, so a reboot re-arms it and the missed fire runs at once), then check that
+nothing runs (step 2 of "Rolling out a unit change"), then restore the previous Brief code on
+`main` through a reviewed revert PR. A pre-R3 Brief still contains the delete-and-insert
+publisher; per the R3 design, do not let it publish again: keep `brief.timer` disabled, and run
+no `brief.cli run --publish` from a pre-R3 checkout, until a corrected atomic publisher is
+merged. The site keeps serving the last complete edition meanwhile. Leave migration 0006 in
+place; it is additive and the old reader code ignores it. Never restore a whole-table backup as
+a code rollback.

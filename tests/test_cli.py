@@ -16,6 +16,19 @@ def _isolated_publication_home(monkeypatch, tmp_path):
     monkeypatch.delenv("BRIEF_DRY_RUN", raising=False)
 
 
+def _receipt(issue_no=236, brief_date=None, *, created=True, brief_id="3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b"):
+    """A validated publication receipt as publish_brief returns it (SYNTHETIC values)."""
+    from datetime import date as _date, datetime as _datetime, timezone as _timezone
+    from brief.v6_publisher import PublishReceipt
+
+    return PublishReceipt(
+        brief_id=brief_id, issue_no=issue_no,
+        brief_date=brief_date or _date(2026, 7, 9),
+        published_at=_datetime(2026, 7, 9, 2, 0, tzinfo=_timezone.utc),
+        created_new_identity=created,
+    )
+
+
 def test_cli_rejects_unknown_subcommand():
     with pytest.raises(SystemExit) as ei:
         cli.main(["sneeze"])
@@ -159,6 +172,9 @@ def test_write_fixture_creates_valid_json_on_dry_run(tmp_path: Path):
 # ── Item 5d — notifier fail-loud ─────────────────────────────────────────────
 
 
+_BRIEF_ID = "11111111-2222-4333-8444-555555555555"
+
+
 def _run_publish_with_notify(notify_result=None, notify_raises=None):
     """Drive cli._run_v6_publish through a successful publish with a mocked
     notifier, returning (exit_code, mock_alert)."""
@@ -171,7 +187,8 @@ def _run_publish_with_notify(notify_result=None, notify_raises=None):
     with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[]), \
          patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
          patch("brief.cli.gather", return_value=[]), \
-         patch("brief.pipeline_v6.run_publish", return_value="brief-id-1"), \
+         patch("brief.pipeline_v6.run_publish",
+               return_value=_receipt(236, _date(2026, 7, 9), brief_id=_BRIEF_ID)), \
          patch("brief.notifier.notify") as mock_notify, \
          patch("brief.alerts.send_discord_alert") as mock_alert:
         if notify_raises is not None:
@@ -305,9 +322,14 @@ def same_day(*args):
 def gather(cfg):
     mark('gather')
     return []
-def publish(*args, **kwargs):
+def publish(*args, expected_identity, **kwargs):
+    from datetime import datetime, timezone
+    from brief.v6_publisher import PublishReceipt
     mark('model'); mark('write')
-    return 'id'
+    return PublishReceipt(brief_id='3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b',
+                          issue_no=expected_identity.issue_no,
+                          brief_date=expected_identity.brief_date,
+                          published_at=datetime.now(timezone.utc), created_new_identity=True)
 def notify(*args):
     mark('send')
     if role == 'owner':
@@ -382,7 +404,8 @@ def test_same_day_replacement_reuses_identity_and_never_automatically_resends(st
     ]) as read, \
          patch("brief.v6_publisher.fetch_max_issue_no", return_value=235) as maximum, \
          patch("brief.cli.gather", return_value=[]), \
-         patch("brief.pipeline_v6.run_publish", return_value="id") as run, \
+         patch("brief.pipeline_v6.run_publish",
+               return_value=_receipt(235, today, created=True)) as run, \
          patch("brief.notifier.notify", return_value=NotifyResult(
              sent_count=1, skipped_count=0, message_id="m", error=None, attempted_count=1,
          )) as notify:
@@ -464,8 +487,10 @@ def test_explicit_dry_run_preview_still_sends_when_not_paused(tmp_path):
     assert run.call_args.kwargs["preview_notify_enabled"] is True
 
 
-def test_failed_published_replacement_leaves_draft_and_retry_still_never_sends():
-    """A draft retry is ambiguous: the original published version may be emailed."""
+def test_failed_published_replacement_keeps_complete_old_edition_and_retry_never_sends():
+    """R3: a failed replacement rolls back inside the database, so the complete,
+    already-published (maybe emailed) edition remains; a retry reuses its
+    identity and still never sends."""
     from datetime import date
     from brief.pipeline import PipelineConfig
     from brief.pipeline_v6 import V6PublishError
@@ -479,10 +504,8 @@ def test_failed_published_replacement_leaves_draft_and_retry_still_never_sends()
         attempts += 1
         identities.append(expected_identity)
         if attempts == 1:
-            row["status"] = "draft"  # draft inserted, then a child POST failed
-            raise V6PublishError("child insert failed")
-        row["status"] = "published"
-        return "replacement-id"
+            raise V6PublishError("child insert failed; transaction rolled back")
+        return _receipt(235, today, created=False)
 
     cfg = PipelineConfig(today=today, enable_headlines=False)
     with patch("brief.v6_publisher.fetch_same_day_briefs", side_effect=lambda _: [dict(row)]), \
@@ -491,11 +514,63 @@ def test_failed_published_replacement_leaves_draft_and_retry_still_never_sends()
          patch("brief.pipeline_v6.run_publish", side_effect=publish), \
          patch("brief.notifier.notify") as notify:
         assert cli._run_v6_publish(cfg, today, False, True) == 4
-        assert row["status"] == "draft"
+        assert row["status"] == "published"  # the complete old edition remains
         assert cli._run_v6_publish(cfg, today, False, True) == 0
     assert identities[0] == identities[1]
     assert identities[1].issue_no == 235
     notify.assert_not_called()
+
+
+def _live_run_returning(result, today):
+    from brief.notifier import NotifyResult
+    from brief.pipeline import PipelineConfig
+
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[]), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish", return_value=result), \
+         patch("brief.notifier.notify", return_value=NotifyResult(
+             sent_count=1, skipped_count=0, message_id="m", error=None, attempted_count=1,
+         )) as notify, \
+         patch("brief.alerts.send_discord_alert") as alert:
+        rc = cli._run_v6_publish(PipelineConfig(today=today, enable_headlines=False), today,
+                                 dry_run=False, notify_enabled=True)
+    return rc, notify, alert
+
+
+@pytest.mark.parametrize("label,make", [
+    ("bare legacy uuid", lambda d: "3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b"),
+    ("no receipt", lambda d: None),
+    ("raw dict", lambda d: {"brief_id": "3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b", "issue_no": 236,
+                            "brief_date": d.isoformat(), "created_new_identity": True}),
+    ("receipt for another issue", lambda d: _receipt(237, d)),
+    ("receipt for another date", lambda d: _receipt(236, d.replace(day=d.day - 1))),
+])
+def test_live_publish_without_a_valid_receipt_for_this_identity_holds_and_never_notifies(label, make):
+    from datetime import date
+
+    today = date(2026, 9, 25)
+    rc, notify, _alert = _live_run_returning(make(today), today)
+    assert rc == 4
+    notify.assert_not_called()
+
+
+def test_receipt_for_an_existing_identity_never_notifies():
+    from datetime import date
+
+    today = date(2026, 9, 25)
+    rc, notify, _alert = _live_run_returning(_receipt(236, today, created=False), today)
+    assert rc == 0
+    notify.assert_not_called()
+
+
+def test_fresh_receipt_that_created_the_identity_notifies_that_edition():
+    from datetime import date
+
+    today = date(2026, 9, 25)
+    rc, notify, _alert = _live_run_returning(_receipt(236, today, brief_id=_BRIEF_ID), today)
+    assert rc == 0
+    notify.assert_called_once_with(_BRIEF_ID)
 
 
 def test_notifier_partial_delivery_alerts_without_republishing(caplog):

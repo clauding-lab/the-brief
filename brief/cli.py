@@ -67,7 +67,9 @@ def _run_v6_publish_unlocked(
     from brief.headlines import scrape_all
     from brief.pipeline_v6 import V6PublishError, run_publish
 
-    from brief.v6_publisher import PublishError, fetch_max_issue_no, fetch_same_day_briefs
+    from brief.v6_publisher import (
+        PublishError, PublishReceipt, fetch_max_issue_no, fetch_same_day_briefs,
+    )
 
     log = logging.getLogger("brief.cli")
 
@@ -111,7 +113,7 @@ def _run_v6_publish_unlocked(
              "published": h.published.isoformat() if h.published else None}
             for h in scrape_all()
         ] if cfg.enable_headlines else []
-        brief_id = run_publish(
+        receipt = run_publish(
             sections, today,
             expected_identity=identity,
             scraped_headlines=scraped,
@@ -139,9 +141,21 @@ def _run_v6_publish_unlocked(
             except Exception:
                 log.exception("preview_notify: unexpected exception (dry-run remains successful)")
         return 3
-    log.info("V6 publish ok: brief_id=%s", brief_id)
+    # Fail closed: only a fresh receipt validated for THIS identity counts as
+    # published, and only one that CREATED today's identity may notify.
+    if not (isinstance(receipt, PublishReceipt)
+            and (receipt.issue_no, receipt.brief_date) == (identity.issue_no, identity.brief_date)):
+        log.error("V6 publish returned no valid receipt for issue %d (%s): held, no notification",
+                  identity.issue_no, identity.brief_date.isoformat())
+        return 4
+    brief_id = receipt.brief_id
+    log.info("V6 publish ok: brief_id=%s issue_no=%d created_new_identity=%s",
+             brief_id, receipt.issue_no, receipt.created_new_identity)
+    if notify_enabled and not receipt.created_new_identity:
+        notify_enabled = False
+        log.info("Publication reused an existing identity: subscriber send suppressed")
 
-    if notify_enabled and brief_id:
+    if notify_enabled:
         try:
             from brief.notifier import notify as _notify
             result = _notify(brief_id)
