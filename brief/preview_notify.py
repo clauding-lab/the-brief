@@ -28,6 +28,7 @@ from urllib.request import Request, urlopen
 
 _BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 _PRODUCTION_BASE = "https://thebrief.clauding-lab.com"
+_DISCORD_USER_AGENT = "the-brief-alerts/1.0 (+https://thebrief.clauding-lab.com)"
 
 
 logger = logging.getLogger(__name__)
@@ -113,19 +114,19 @@ def send_discord_ping(*, webhook_url: str, meta: PreviewMeta) -> str | None:
     )
 
     payload = {"content": "\n".join(lines)}
-    req = Request(
-        webhook_url,
-        data=_stdjson.dumps(payload).encode("utf-8"),
-        headers={"content-type": "application/json"},
-    )
     try:
+        req = Request(
+            webhook_url,
+            data=_stdjson.dumps(payload).encode("utf-8"),
+            headers={"content-type": "application/json", "User-Agent": _DISCORD_USER_AGENT},
+        )
         with urlopen(req, timeout=15) as r:
             r.read()
-            return None
+            return None if 200 <= r.status < 300 else f"HTTP {r.status}"
     except urllib.error.HTTPError as e:
-        return f"HTTP {e.code}: {e.reason}"
+        return f"HTTP {e.code}"
     except Exception as e:
-        return f"{type(e).__name__}: {e}"
+        return type(e).__name__
 
 
 # ── Brevo email ──────────────────────────────────────────────────────────────
@@ -225,23 +226,23 @@ def send_email_ping(
         "htmlContent": html_body,
         "textContent": text_body,
     }
-    req = Request(
-        _BREVO_URL,
-        data=_stdjson.dumps(payload).encode("utf-8"),
-        headers={
-            "api-key": api_key,
-            "content-type": "application/json",
-            "accept": "application/json",
-        },
-    )
     try:
+        req = Request(
+            _BREVO_URL,
+            data=_stdjson.dumps(payload).encode("utf-8"),
+            headers={
+                "api-key": api_key,
+                "content-type": "application/json",
+                "accept": "application/json",
+            },
+        )
         with urlopen(req, timeout=30) as r:
             r.read()
-            return None
+            return None if 200 <= r.status < 300 else f"HTTP {r.status}"
     except urllib.error.HTTPError as e:
-        return f"HTTP {e.code}: {e.reason}"
+        return f"HTTP {e.code}"
     except Exception as e:
-        return f"{type(e).__name__}: {e}"
+        return type(e).__name__
 
 
 # ── Orchestration ────────────────────────────────────────────────────────────
@@ -296,7 +297,7 @@ def notify_preview(fixture_path: str | os.PathLike[str]) -> PreviewNotifyResult:
     if email_error:
         logger.warning("preview_notify: email ping failed: %s", email_error)
     else:
-        logger.info("preview_notify: email ping sent to %s", recipient)
+        logger.info("preview_notify: email ping sent")
 
     return PreviewNotifyResult(
         discord_ok=discord_error is None,

@@ -1,0 +1,37 @@
+{
+  "policy": "R2 fix 7b3. Python stamps every card number from its builder observation (brief/pipeline_v6.py _format_metric_value: the source's own decimal in the house style, float32 clean-up only for the named float32 feeds). The SPA then cuts a 3+ decimal tail to 2 by TRUNCATION on the digit string (lib/format.tsx cleanMetricValue, owner decision 2026-08-29). Python asserts value+unit+card_id -> stamped; Vitest asserts stamped -> screen.",
+  "rows": [
+    {"card_id": "fx_gold_usd_oz", "value": 8193.4296875, "unit": "USD/oz", "stamped": "$8,193.43/oz", "screen": "$8,193.43/oz", "note": "float32 gold 8,193.43 (review case; round 2 screen was $8,193.42/oz)"},
+    {"card_id": "fx_gold_usd_oz", "value": 4328.89990234375, "unit": "USD/oz", "stamped": "$4,328.9/oz", "screen": "$4,328.9/oz", "note": "live gold, 23 Sep 2026"},
+    {"card_id": "iranwar_brent_spot", "value": 98.31999969482422, "unit": "USD/bbl", "stamped": "$98.32", "screen": "$98.32", "note": "live Brent, 23 Sep 2026"},
+    {"card_id": "iranwar_wti_spot", "value": 61.279998779296875, "unit": "USD/bbl", "stamped": "$61.28", "screen": "$61.28", "note": "float32 WTI 61.28"},
+    {"card_id": "card", "value": 8.645, "unit": "%", "stamped": "8.645%", "screen": "8.64%", "note": "never rounded to 8.65"},
+    {"card_id": "card", "value": 8.3198, "unit": "%", "stamped": "8.3198%", "screen": "8.31%", "note": "91d T-bill (controller ruling 27 Sep)"},
+    {"card_id": "card", "value": 8.4498, "unit": "%", "stamped": "8.4498%", "screen": "8.44%", "note": "182d T-bill (controller ruling 27 Sep)"},
+    {"card_id": "card", "value": 122.9959, "unit": "index", "stamped": "122.9959", "screen": "122.99", "note": "the owner-named truncation case"},
+    {"card_id": "fx_usd_bdt_mid", "value": 123.22, "unit": "BDT", "stamped": "123.22", "screen": "123.22", "note": "USD/BDT stays bare (controller ruling)"},
+    {"card_id": "card", "value": -3.31, "unit": "", "stamped": "−3.31", "screen": "−3.31", "note": "minus glyph U+2212"},
+    {"card_id": "card", "value": -3.31, "unit": "bn USD", "stamped": "−$3.31bn", "screen": "−$3.31bn", "note": "minus before the currency"},
+    {"card_id": "card", "value": -0.18332, "unit": "%", "stamped": "−0.18332%", "screen": "−0.18%", "note": "minus glyph with a long tail"},
+    {"card_id": "dse_turnover_crore", "value": 791.4875, "unit": "crore BDT", "stamped": "Tk 791.4875 cr", "screen": "Tk 791.48 cr", "note": "DSE turnover"},
+    {"card_id": "card", "value": 1.2400000000000002, "unit": "%", "stamped": "1.24%", "screen": "1.24%", "note": "Real Policy Rate 9.5 - 8.26 (float64 arithmetic noise)"},
+    {"card_id": "dse_ds30", "value": 5540.31982421875, "unit": "index", "stamped": "5,540.31982421875", "screen": "5,540.31", "note": "not a float32 feed: every digit kept"},
+    {"card_id": "card", "value": 4.972006730098555, "unit": "months", "stamped": "4.97200673009856 months", "screen": "4.97 months", "note": "import cover"},
+    {"card_id": "card", "value": 36.4222, "unit": "bn USD", "stamped": "$36.4222bn", "screen": "$36.42bn", "note": "gross reserves"},
+    {"card_id": "card", "value": 2500000.25, "unit": "crore BDT", "stamped": "Tk 2,500,000.25 cr", "screen": "Tk 2,500,000.25 cr", "note": "comma thousands, exact"},
+    {"card_id": "card", "value": 1234567.0, "unit": "mn USD", "stamped": "$1,234,567mn", "screen": "$1,234,567mn", "note": "whole number"},
+    {"card_id": "card", "value": 103, "unit": "stocks", "stamped": "103", "screen": "103", "note": "a count"},
+    {"card_id": "card", "value": 0.00001, "unit": "%", "stamped": "0.00001%", "screen": "0.00001%", "note": "never cut to 0.00"}
+  ],
+  "change_policy": "R2 fix 16 (owner decision (i)). A card's change figures are computed by the pipeline from the builder's own dated history (brief/pipeline_v6.py _card_change: current minus the previous observation of a different period, in the card's house unit style with + or the minus glyph; a % metric moves in pp and has no percent change; percent change only for positive levels). The SPA cuts the stamped text like a card value (SnapshotStrip passes delta and delta_pct through cleanMetricValue). Python asserts previous+current -> delta/delta_pct; Vitest asserts delta -> delta_screen and delta_pct -> delta_pct_screen.",
+  "change_rows": [
+    {"slug": "dse", "card_id": "dsex", "label": "DSEX close", "unit": "index", "cadence": "daily", "previous": {"as_of": "2026-09-21", "value": 5550.49562}, "current": {"as_of": "2026-09-22", "value": 5540.32037}, "delta": "−10.17525", "delta_screen": "−10.17", "delta_pct": "−0.183321467065674%", "delta_pct_screen": "−0.18%", "note": "index level: points and percent, minus glyph"},
+    {"slug": "tbond", "card_id": "tbond_tbill_91d", "label": "91d T-Bill cut-off", "unit": "%", "cadence": "event", "previous": {"as_of": "2026-09-14", "value": 8.3374}, "current": {"as_of": "2026-09-21", "value": 8.3198}, "delta": "−0.0176pp", "delta_screen": "−0.01pp", "delta_pct": null, "delta_pct_screen": null, "note": "a % metric moves in percentage points; no percent-of-percent"},
+    {"slug": "fx", "card_id": "fx_gold_usd_oz", "label": "Gold", "unit": "USD/oz", "cadence": "daily", "previous": {"as_of": "2026-09-22", "value": 4300.10009765625}, "current": {"as_of": "2026-09-23", "value": 4328.89990234375}, "delta": "+$28.8/oz", "delta_screen": "+$28.8/oz", "delta_pct": "+0.669751866235669%", "delta_pct_screen": "+0.66%", "note": "float32 feed: the feed's own decimals"},
+    {"slug": "fx", "card_id": "fx_usd_bdt_mid", "label": "USD/BDT mid", "unit": "BDT", "cadence": "daily", "previous": {"as_of": "2026-09-24", "value": 123.1}, "current": {"as_of": "2026-09-25", "value": 123.22}, "delta": "+0.12", "delta_screen": "+0.12", "delta_pct": "+0.0974817221770918%", "delta_pct_screen": "+0.09%", "note": "USD/BDT stays bare; plus sign on a rise"},
+    {"slug": "fx", "card_id": "fx_gross_reserves", "label": "Gross Reserves", "unit": "bn USD", "cadence": "monthly", "previous": {"as_of": "2026-07-31", "value": 36.42}, "current": {"as_of": "2026-08-31", "value": 37.3523}, "delta": "+$0.9323bn", "delta_screen": "+$0.93bn", "delta_pct": "+2.55985722130697%", "delta_pct_screen": "+2.55%", "note": "monthly: previous month's reading"},
+    {"slug": "bb", "card_id": "bb_call_money", "label": "Overnight Call Money", "unit": "%", "cadence": "daily", "previous": {"as_of": "2026-09-21", "value": 8.79}, "current": {"as_of": "2026-09-22", "value": 8.79}, "delta": "0pp", "delta_screen": "0pp", "delta_pct": null, "delta_pct_screen": null, "note": "unchanged: no sign, neutral tone"},
+    {"slug": "dse", "card_id": "dse_advancing", "label": "Advancing", "unit": "stocks", "cadence": "daily", "previous": {"as_of": "2026-09-21", "value": 140}, "current": {"as_of": "2026-09-22", "value": 103}, "delta": "−37", "delta_screen": "−37", "delta_pct": null, "delta_pct_screen": null, "note": "a count: no percent change"},
+    {"slug": "dse", "card_id": "dse_dses", "label": "DSES", "unit": "index", "cadence": "daily", "previous": {"as_of": "2026-09-21", "value": 1108.57168}, "current": {"as_of": "2026-09-22", "value": 1108.57169}, "delta": "+0.00001", "delta_screen": "+0.00001", "delta_pct": "+0.000000902061651078801%", "delta_pct_screen": "+0.000000902061651078801%", "note": "never cut to zero"}
+  ]
+}

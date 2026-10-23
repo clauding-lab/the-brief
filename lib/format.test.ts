@@ -111,3 +111,46 @@ describe("cleanMetricValue — decorated numbers", () => {
     expect(cleanMetricValue("5,655.68313")).toBe("5,655.68");
   });
 });
+
+// R2 fix 7b3: the Python pipeline prints every card number from its builder
+// observation (brief/pipeline_v6.py _format_metric_value). Both runtimes read
+// this contract: tests/test_card_value_stamp.py pins value -> "stamped", this
+// block pins "stamped" -> what the reader sees on screen.
+import displayContract from "../tests/fixtures/card_display_contract.json";
+
+describe("cleanMetricValue — the code-stamped card strings", () => {
+  it.each(displayContract.rows)("shows $stamped as $screen ($note)", ({ stamped, screen }) => {
+    expect(cleanMetricValue(stamped)).toBe(screen);
+  });
+
+  it("shows float32 gold 8,193.43 as stamped, never 8,193.42", () => {
+    expect(cleanMetricValue("$8,193.43/oz")).toBe("$8,193.43/oz");
+  });
+
+  it("truncates the long stamped tails the owner named, never rounds", () => {
+    expect(cleanMetricValue("8.645%")).toBe("8.64%");
+    expect(cleanMetricValue("122.9959")).toBe("122.99");
+    expect(cleanMetricValue("Tk 791.4875 cr")).toBe("Tk 791.48 cr");
+  });
+
+  it("keeps the minus glyph and leaves short stamped values alone", () => {
+    expect(cleanMetricValue("−3.31")).toBe("−3.31");
+    expect(cleanMetricValue("−0.18332%")).toBe("−0.18%");
+    expect(cleanMetricValue("$4,328.9/oz")).toBe("$4,328.9/oz");
+    expect(cleanMetricValue("123.22")).toBe("123.22");
+  });
+});
+
+// R2 fix 16: the snapshot strip's change figures are computed by the pipeline
+// (brief/pipeline_v6.py _card_change) and cut for the screen like a card value.
+// tests/test_pills_changes_runway_from_checked_data.py pins history -> "delta";
+// this block pins "delta" -> what the reader sees.
+describe("cleanMetricValue — the code-computed change strings", () => {
+  it.each(displayContract.change_rows)(
+    "shows $delta as $delta_screen ($note)",
+    ({ delta, delta_screen, delta_pct, delta_pct_screen }) => {
+      expect(cleanMetricValue(delta)).toBe(delta_screen);
+      expect(cleanMetricValue(delta_pct)).toBe(delta_pct_screen ?? "");
+    },
+  );
+});

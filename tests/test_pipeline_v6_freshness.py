@@ -6,6 +6,7 @@ Mocks Claude + Supabase; verifies the pipeline:
   - Forces lens onto editor_brief
   - Calls stamp_changed and mark_held_overs post-LLM
 """
+from brief.publication_identity import PublishIdentity
 import json
 from datetime import date
 from pathlib import Path
@@ -35,7 +36,6 @@ def test_monday_pipeline_wires_lens_and_stamps(previous_brief, metric_definition
     monday = date(2026, 5, 4)
 
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: previous_brief)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 91)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [
         {"headline": "Will cenbank's Tk40,000cr refinance scheme fuel inflation?",
          "source_url": "https://example.com/refinance"}
@@ -44,7 +44,7 @@ def test_monday_pipeline_wires_lens_and_stamps(previous_brief, metric_definition
 
     captured: list = []
     monkeypatch.setattr(pipeline_v6, "publish_brief",
-                        lambda payload: captured.append(payload) or "fake-uuid-123")
+                        lambda payload, *, expected_identity: captured.append(payload) or "fake-uuid-123")
 
     # Metrics mirror the editor_output labels below ("Brent Spot", "NPL Ratio")
     # so _reconcile_metrics' invented-label reject step doesn't strip them —
@@ -106,7 +106,7 @@ def test_monday_pipeline_wires_lens_and_stamps(previous_brief, metric_definition
             {"verdict": "pass", "issues": []},          # subeditor
         ]
         result = pipeline_v6.run_publish(
-            fake_sections, today=monday, scraped_headlines=scraped, dry_run=False,
+            fake_sections, expected_identity=PublishIdentity(92, monday), today=monday, scraped_headlines=scraped, dry_run=False,
         )
 
     assert result == "fake-uuid-123"

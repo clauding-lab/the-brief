@@ -51,7 +51,7 @@ def _history_monthly_with_values(value_map: dict[str, float]) -> MagicMock:
 
     def _get_latest(mid: str, *, table: str = "metric_history_monthly") -> HistoryRow | None:
         if mid in value_map:
-            return _make_row(mid, "2026-04-01", value_map[mid])
+            return _make_row(mid, "2026-04-01", value_map[mid], source="macro_observer_seed")
         return None
 
     mock.get_latest.side_effect = _get_latest

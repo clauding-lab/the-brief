@@ -16,6 +16,8 @@ keep reading the real, unscrubbed object — neither layer may disturb that.
 """
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 from datetime import date
 
 from brief import pipeline_v6
@@ -161,14 +163,13 @@ def _section(metrics: list) -> SectionData:
 
 def test_editor_input_previous_brief_carries_no_prose_and_no_figures(monkeypatch):
     """The editor's copy drops `todays_call` outright — prose AND figure."""
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 190)
     previous = {
         "brief": {"volume": 1, "todays_call": "Remittances hit $2.82bn in July."},
         "sections": [],
     }
     editor_input, _ = _build_editor_input(
         [], date(2026, 8, 22), [],
-        previous_brief=previous, previous_lens=None,
+        expected_identity=PublishIdentity(191, date(2026, 8, 22)), previous_brief=previous, previous_lens=None,
         recent_news=[], metric_definitions=[],
     )
     assert "todays_call" not in editor_input["previous_brief"]["brief"]
@@ -179,11 +180,10 @@ def test_editor_input_previous_brief_carries_no_prose_and_no_figures(monkeypatch
 def test_editor_input_meta_volume_still_reads_the_real_unscrubbed_number(monkeypatch):
     """The scrub applies to the copy the editor reads as prose; `meta.volume`
     is structural bookkeeping and must stay a real, usable int."""
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 190)
     previous = {"brief": {"volume": 3}, "sections": []}
     editor_input, _ = _build_editor_input(
         [], date(2026, 8, 22), [],
-        previous_brief=previous, previous_lens=None,
+        expected_identity=PublishIdentity(191, date(2026, 8, 22)), previous_brief=previous, previous_lens=None,
         recent_news=[], metric_definitions=[],
     )
     assert editor_input["meta"]["volume"] == 3
@@ -197,7 +197,6 @@ def test_build_editor_input_does_not_mutate_the_caller_supplied_previous_brief(m
     the scrubbed copy is built for the editor prompt."""
     import copy
 
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 190)
     previous = {
         "brief": {"volume": 1, "todays_call": "Remittances hit $2.82bn in July."},
         "sections": [{"slug": "remit", "metrics": [{"label": "Monthly Remittance", "value": "2820.0"}]}],
@@ -205,17 +204,16 @@ def test_build_editor_input_does_not_mutate_the_caller_supplied_previous_brief(m
     before = copy.deepcopy(previous)
     _build_editor_input(
         [], date(2026, 8, 22), [],
-        previous_brief=previous, previous_lens=None,
+        expected_identity=PublishIdentity(191, date(2026, 8, 22)), previous_brief=previous, previous_lens=None,
         recent_news=[], metric_definitions=[],
     )
     assert previous == before
 
 
 def test_none_previous_brief_does_not_crash_the_scrub(monkeypatch):
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
     editor_input, _ = _build_editor_input(
         [], date(2026, 8, 22), [],
-        previous_brief=None, previous_lens=None,
+        expected_identity=PublishIdentity(191, date(2026, 8, 22)), previous_brief=None, previous_lens=None,
         recent_news=[], metric_definitions=[],
     )
     assert editor_input["previous_brief"] is None

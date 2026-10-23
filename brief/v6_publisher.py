@@ -1,7 +1,9 @@
 """Supabase REST publisher for V6 briefs.
 
-Service-role auth, idempotent same-day re-publish (DELETE by issue_no relies on
-ON DELETE CASCADE — verified for sections/metrics/news/chart_series/chart_notes).
+Service-role auth. Publication is ONE call to the database function
+`publish_brief_atomic` (migration 0006): the whole edition commits in a single
+transaction or nothing changes, and a same-day replacement keeps the issue's
+identity. The function's validated receipt is the only notification authority.
 
 Pure urllib — no new dependencies vs the V5 history client. Reads
 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY from env (Hetzner: /etc/brief.env
@@ -9,15 +11,19 @@ loads them via systemd EnvironmentFile).
 """
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import os
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+import uuid
+from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 from brief.v6_schema import BriefPayloadV6
+from brief.publication_identity import PublishIdentity, assert_identity
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +48,6 @@ def _request(
     path: str,
     body: Any | None = None,
     *,
-    prefer_return: str | None = None,
     timeout_s: int = 30,
 ) -> Any:
     url, key = _config()
@@ -52,9 +57,6 @@ def _request(
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
-    if prefer_return:
-        headers["Prefer"] = f"return={prefer_return}"
-
     data = None if body is None else json.dumps(body, default=str).encode("utf-8")
     req = urllib.request.Request(full_url, data=data, headers=headers, method=method)
 
@@ -78,23 +80,37 @@ def _request(
 # ───────────────────────────────────────────────────────────────────────
 
 
+# Every header-plus-content read below is ONE PostgREST request rooted at
+# `briefs` (one SQL statement, so one database snapshot). A same-day correction
+# that commits between two separate requests would otherwise pair the old
+# header with the new children (R3c; design test 7). Newest-first uses the same rule
+# as `get_latest_brief` (a historical duplicate date resolves to its highest
+# issue); ordinal children get an `id` tie-breaker so the order is deterministic.
+_BRIEF_HEADER_COLUMNS = (
+    "id,issue_no,volume,brief_date,published_at,status,read_minutes,cover_metric,"
+    "created_at,todays_call,lens,frame"
+)
+_NEWEST_PUBLISHED_FIRST = "status=eq.published&order=brief_date.desc,issue_no.desc"
+_BY_ORD = "ord.asc,id.asc"
+
+
 def fetch_previous_brief() -> dict[str, Any] | None:
     """Return the most recent published brief as a dict, or None.
 
     Used by the editor prompt to compute changed flags + rotate the hero.
+    Header and sections come from one request (one snapshot).
     """
     rows = _request(
         "GET",
-        "/briefs?status=eq.published&order=brief_date.desc&limit=1",
+        f"/briefs?select={_BRIEF_HEADER_COLUMNS},sections(*,metrics(*),news(*))"
+        f"&{_NEWEST_PUBLISHED_FIRST}&limit=1"
+        f"&sections.order={_BY_ORD}&sections.metrics.order={_BY_ORD}"
+        f"&sections.news.order={_BY_ORD}",
     )
     if not rows:
         return None
-    brief = rows[0]
-    sections = _request(
-        "GET",
-        f"/sections?brief_id=eq.{brief['id']}&order=ord.asc&select=*,metrics(*),news(*)",
-    ) or []
-    return {"brief": brief, "sections": sections}
+    brief = {key: value for key, value in rows[0].items() if key != "sections"}
+    return {"brief": brief, "sections": rows[0].get("sections") or []}
 
 
 def fetch_max_issue_no() -> int:
@@ -105,31 +121,31 @@ def fetch_max_issue_no() -> int:
     return int(rows[0]["issue_no"])
 
 
+def fetch_same_day_briefs(today: date) -> list[dict[str, Any]]:
+    """Read published AND draft identities so retries never mint another issue."""
+    return _request(
+        "GET", f"/briefs?brief_date=eq.{today.isoformat()}&select=issue_no,brief_date,status",
+    ) or []
+
+
 def fetch_recent_news(n_issues: int = 5) -> list[dict[str, Any]]:
     """Return the flat list of news items from the most recent N published briefs.
 
     Used by filter_headlines() to dedupe today's candidate pool against the
-    last work-week of news.
+    last work-week of news. One request (one snapshot) for all N issues.
     """
     briefs = _request(
         "GET",
-        f"/briefs?status=eq.published&order=brief_date.desc&limit={n_issues}&select=id",
+        f"/briefs?select=id,sections(news(headline,source_url))"
+        f"&{_NEWEST_PUBLISHED_FIRST}&limit={n_issues}"
+        f"&sections.order={_BY_ORD}&sections.news.order={_BY_ORD}",
     ) or []
-    if not briefs:
-        return []
-    brief_ids = ",".join(b["id"] for b in briefs)
-    sections = _request(
-        "GET",
-        f"/sections?brief_id=in.({brief_ids})&select=id",
-    ) or []
-    if not sections:
-        return []
-    section_ids = ",".join(s["id"] for s in sections)
-    news = _request(
-        "GET",
-        f"/news?section_id=in.({section_ids})&select=headline,source_url",
-    ) or []
-    return news
+    return [
+        item
+        for brief in briefs
+        for section in brief.get("sections") or []
+        for item in section.get("news") or []
+    ]
 
 
 def fetch_metric_definitions() -> list[dict[str, Any]]:
@@ -160,121 +176,115 @@ def fetch_metric_history(metric_id: str, days: int = 90) -> list[dict[str, Any]]
 
 
 # ───────────────────────────────────────────────────────────────────────
-# Write — atomic publish
+# Write — atomic publish (R3, migration 0006)
 # ───────────────────────────────────────────────────────────────────────
 
+_RPC_PATH = "/rpc/publish_brief_atomic"
+_RECEIPT_KEYS = frozenset(
+    {"brief_id", "issue_no", "brief_date", "published_at", "created_new_identity"}
+)
+_UNKNOWN_OUTCOME = (
+    "the database may have committed this edition; do NOT resend — a restart "
+    "reuses today's identity and suppresses email"
+)
 
-def publish_brief(payload: BriefPayloadV6) -> str:
-    """Idempotently publish a validated V6 brief. Returns the new brief.id (UUID).
 
-    Two-phase, near-atomic (landmine 22):
-      1. DELETE FROM briefs WHERE issue_no = N  (cascades to sections/metrics/news/charts)
-      2. INSERT brief row as status='draft', get uuid
-      3. For each section: INSERT, get uuid, INSERT children
-      4. PATCH status='published' as the LAST call — the ONLY write that makes the
-         brief visible to the SPA (get_latest_brief filters WHERE status='published').
+@dataclass(frozen=True)
+class PublishReceipt:
+    """The database's answer for one committed publication.
 
-    A failure anywhere in steps 2-3 raises before the step-4 flip, so the
-    half-written brief stays a draft (invisible) and the next publish's DELETE
-    clears it. This closes the #118 served-half-brief hole. It is not a true DB
-    transaction — PostgREST can't span one — but the SPA never sees a partial
-    brief because visibility is gated on the single final status flip.
+    `created_new_identity` means THIS transaction created today's issue. It is
+    the only notification authority; it says nothing about delivery.
     """
-    issue_no = payload.brief.issue_no
-    logger.info("v6_publisher: deleting existing rows for issue_no=%d", issue_no)
-    _request("DELETE", f"/briefs?issue_no=eq.{issue_no}")
 
-    # Sweep stale drafts left by FAILED publishes of OTHER issues (review follow-up
-    # on the two-phase fix): the issue-scoped DELETE above only clears THIS issue_no,
-    # so a draft of issue N abandoned by a crashed run would linger forever once the
-    # next fire is N+1. Publishes are daily, so any draft older than 2 days is
-    # garbage by definition. Best-effort — a sweep failure must never block today's
-    # publish. Z-suffixed UTC stamp (isoformat's "+00:00" would decode as a space in
-    # the query string).
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    brief_id: str
+    issue_no: int
+    brief_date: date
+    published_at: datetime
+    created_new_identity: bool
+
+
+def _receipt_error(reason: str) -> PublishError:
+    return PublishError(f"Publication receipt {reason}; {_UNKNOWN_OUTCOME}")
+
+
+def _canonical_uuid(value: Any) -> str:
     try:
-        _request("DELETE", f"/briefs?status=eq.draft&created_at=lt.{cutoff}")
-    except PublishError as e:
-        logger.warning("v6_publisher: stale-draft sweep failed (non-fatal): %s", e)
+        if isinstance(value, str) and str(uuid.UUID(value)) == value:
+            return value
+    except ValueError:
+        pass
+    raise _receipt_error("has an invalid brief_id")
 
-    brief_row = payload.brief.model_dump(mode="json")
-    # Insert as `draft` so get_latest_brief (WHERE status='published') can't serve a
-    # half-written brief while its children land over separate non-transactional POSTs.
-    # Override the schema default ('published'); published_at is db-defaulted at insert.
-    brief_row["status"] = "draft"
-    inserted_briefs = _request(
-        "POST",
-        "/briefs",
-        body=brief_row,
-        prefer_return="representation",
+
+def _aware_timestamp(value: Any) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        parsed = None
+    if parsed is None or parsed.tzinfo is None:
+        raise _receipt_error("has an invalid published_at")
+    return parsed
+
+
+def _validated_receipt(raw: Any, expected: PublishIdentity) -> PublishReceipt:
+    """Every field typed, and the identity exactly the trusted one — or raise."""
+    if not isinstance(raw, dict) or set(raw) != _RECEIPT_KEYS:
+        raise _receipt_error("is missing, empty or has unexpected fields")
+    issue_no, brief_date = raw["issue_no"], raw["brief_date"]
+    if type(issue_no) is not int or issue_no != expected.issue_no:
+        raise _receipt_error("names a different issue")
+    if not isinstance(brief_date, str) or brief_date != expected.brief_date.isoformat():
+        raise _receipt_error("names a different date")
+    if type(raw["created_new_identity"]) is not bool:
+        raise _receipt_error("has an invalid created_new_identity")
+    return PublishReceipt(
+        brief_id=_canonical_uuid(raw["brief_id"]),
+        issue_no=issue_no,
+        brief_date=expected.brief_date,
+        published_at=_aware_timestamp(raw["published_at"]),
+        created_new_identity=raw["created_new_identity"],
     )
-    if not inserted_briefs:
-        raise PublishError("INSERT briefs returned empty response")
-    brief_id = inserted_briefs[0]["id"]
-    logger.info("v6_publisher: brief inserted (draft) id=%s issue_no=%d", brief_id, issue_no)
 
-    for section in payload.sections:
-        section_row = section.model_dump(
-            mode="json",
-            exclude={"metrics", "news", "series", "notes"},
-        )
-        section_row["brief_id"] = brief_id
-        inserted_sections = _request(
-            "POST",
-            "/sections",
-            body=section_row,
-            prefer_return="representation",
-        )
-        section_id = inserted_sections[0]["id"]
 
-        if section.metrics:
-            metrics_rows = [
-                {**m.model_dump(mode="json"), "section_id": section_id, "ord": i}
-                for i, m in enumerate(section.metrics)
-            ]
-            _request("POST", "/metrics", body=metrics_rows)
+def publish_brief(payload: BriefPayloadV6, *, expected_identity: PublishIdentity) -> PublishReceipt:
+    """Publish a validated V6 brief in ONE database transaction; return its receipt.
 
-        if section.news:
-            news_rows = [
-                {**n.model_dump(mode="json"), "section_id": section_id, "ord": i}
-                for i, n in enumerate(section.news)
-            ]
-            _request("POST", "/news", body=news_rows)
+    `publish_brief_atomic` takes an advisory lock, re-checks the trusted
+    identity against today's rows, replaces the edition's children under the
+    SAME brief UUID and flips `published` last — all or nothing. A failure
+    leaves the previous complete edition untouched (landmine 22's rule that
+    visibility is granted last now holds inside one transaction).
 
-        if section.series:
-            series_rows = [
-                {
-                    "section_id": section_id,
-                    "series_key": p.key or section.slug,
-                    "ts": p.ts,
-                    "value": p.value,
-                }
-                for p in section.series
-            ]
-            _request("POST", "/chart_series", body=series_rows)
-
-        if section.notes:
-            note_rows = [
-                {
-                    "section_id": section_id,
-                    "series_key": n.series_key,
-                    "ts": n.ts,
-                    "label": n.label,
-                    "detail": n.detail,
-                }
-                for n in section.notes
-            ]
-            _request("POST", "/chart_notes", body=note_rows)
-
-    # ── Phase 2: atomic flip ───────────────────────────────────────────
-    # Every section + child row is now committed. This single PATCH is the ONLY
-    # write that makes the brief visible to get_latest_brief. Any failure above
-    # raised before reaching here, leaving the row a draft the next DELETE clears.
-    _request("PATCH", f"/briefs?id=eq.{brief_id}", body={"status": "published"})
-
+    Fails closed: any HTTP error, a missing function (PGRST202), a timeout or
+    a lost/malformed/mismatched receipt raises PublishError. There is no
+    legacy DELETE+POST fallback and no automatic replay — a replay's success
+    must never be read as permission to notify.
+    """
+    try:
+        assert_identity(payload, expected_identity)
+    except ValueError as exc:
+        raise PublishError(str(exc)) from exc
+    body = {
+        "p_expected_issue_no": expected_identity.issue_no,
+        "p_expected_brief_date": expected_identity.brief_date.isoformat(),
+        "p_payload": payload.model_dump(mode="json"),
+    }
+    try:
+        raw = _request("POST", _RPC_PATH, body=body)
+    except PublishError as exc:
+        if "PGRST202" in str(exc):
+            raise PublishError(
+                "publish_brief_atomic is missing (PGRST202): apply migration "
+                "0006_publish_brief_atomic.sql; there is no legacy fallback"
+            ) from exc
+        raise
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        # The request may have reached the database: the answer, not the write, was lost.
+        raise PublishError(f"Supabase POST {_RPC_PATH} answer lost ({exc!r}); {_UNKNOWN_OUTCOME}") from exc
+    receipt = _validated_receipt(raw, expected_identity)
     logger.info(
-        "v6_publisher: published issue %d with %d sections (draft→published flip complete)",
-        issue_no,
-        len(payload.sections),
+        "v6_publisher: issue %d committed atomically (brief_id=%s, created_new_identity=%s, %d sections)",
+        receipt.issue_no, receipt.brief_id, receipt.created_new_identity, len(payload.sections),
     )
-    return brief_id
+    return receipt

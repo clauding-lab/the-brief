@@ -13,6 +13,8 @@ Coverage:
 """
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 from datetime import date
 from typing import Any
 
@@ -332,7 +334,6 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
 
     # No previous brief
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: None)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
 
@@ -398,13 +399,52 @@ def test_run_publish_stamps_freshness_on_final_brief(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(
         pipeline_v6,
         "publish_brief",
-        lambda payload: captured.append(payload) or "fake-uuid",
+        lambda payload, *, expected_identity: captured.append(payload) or "fake-uuid",
     )
 
-    result: str | None = pipeline_v6.run_publish(v5_sections, monday)
+    result: str | None = pipeline_v6.run_publish(v5_sections, monday, expected_identity=PublishIdentity(1, monday))
 
     assert result == "fake-uuid"
     assert len(captured) == 1
     published: BriefPayloadV6 = captured[0]
     assert published.sections[0].slug == "bb"
     assert published.sections[0].freshness == "stale"
+
+
+@pytest.mark.parametrize("editor_value", ["2970", "$2.97bn", "$3.5bn"])
+def test_remittance_period_survives_entire_publish_stamp_sequence(monkeypatch, editor_value):
+    """A model/catalog month cannot overwrite the builder's dated flash."""
+    today = date(2026, 9, 25)
+    monkeypatch.setattr(pipeline_v6, "_alert", lambda message: None)
+    raw_remit = Metric(id="remit_monthly_mn", label="Monthly Remittance", value=2970,
+        unit="mn USD", as_of=date(2026, 8, 31), cadence="monthly", stale=True,
+        source="BB · Aug 2026, provisional")
+    sections = [SectionData(id="bb", title="BB", freshness="fresh", metrics=[
+        Metric(id=mid, label=label, value=value, unit="%", as_of=today, source="BB", cadence="event")
+        for mid, label, value in [("bb_policy_rate", "Policy Rate", 9.5),
+                                  ("bb_sdf", "SDF", 7.5), ("bb_slf", "SLF", 11.0)]]),
+        SectionData(id="remit", title="Remittance", freshness="warning", metrics=[raw_remit])]
+    editor = {"brief": {"issue_no": 1, "volume": 1, "brief_date": today.isoformat()},
+        "sections": [{"slug": "bb", "ord": 2, "title": "BB", "group_key": "banking"},
+                     {"slug": "remit", "ord": 11, "title": "Remittance", "group_key": "external_real",
+                      "metrics": [{"label": "Monthly Remittance", "value": editor_value, "sub": "September final"}]}]}
+    # Use the existing map's group to keep this test independent of presentation grouping.
+    editor["sections"][1]["group_key"] = pipeline_v6.V5_TO_V6["remit"][2]
+    monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: {
+        "sections": [{"slug": "remit", "metrics": [{"label": "Monthly Remittance", "value": "2970"}]}]})
+    monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda **kw: [])
+    monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [{
+        "section_slug": "remit", "label": "Monthly Remittance", "cadence": "monthly", "last_print_date": "2026-07-31"}])
+    monkeypatch.setattr(pipeline_v6, "_fetch_series_summaries", lambda *a, **kw: {})
+    monkeypatch.setattr(pipeline_v6, "_stamp_chart_series", lambda *a, **kw: None)
+    monkeypatch.setattr(pipeline_v6, "_call_with_retries", lambda *, label, **kw:
+                        editor if label == "editor_v6" else {"verdict": "pass", "issues": []})
+    captured = []
+    monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload, **kw: captured.append(payload) or "local")
+    assert pipeline_v6.run_publish(sections, today, expected_identity=PublishIdentity(1, today)) == "local"
+    card = next(s for s in captured[0].sections if s.slug == "remit").metrics[0]
+    assert card.value == "$2,970mn"  # house format, Master.md (R2 fix 7b round 1)
+    assert card.changed is False
+    assert card.sub == "BB · Aug 2026, provisional"
+    assert card.held_from == date(2026, 8, 31)
+    assert card.next_print is None

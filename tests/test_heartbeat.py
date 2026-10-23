@@ -5,6 +5,7 @@ deploy/ is not a package; the module is loaded from its file path.
 from __future__ import annotations
 
 import importlib.util
+import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -44,6 +45,33 @@ def test_today_bdt_at_0730_bdt_run_time() -> None:
     """The scheduled 07:30 BDT run is 01:30 UTC of the SAME calendar day."""
     now = datetime(2026, 7, 10, 1, 30, tzinfo=timezone.utc)
     assert hb.today_bdt(now) == date(2026, 7, 10)
+
+
+def test_deadline_is_0945_bdt_even_across_utc_midnight() -> None:
+    assert hb.brief_deadline_passed(datetime(2026, 7, 9, 23, 30, tzinfo=timezone.utc)) is False
+    assert hb.brief_deadline_passed(datetime(2026, 7, 10, 3, 44, tzinfo=timezone.utc)) is False
+    assert hb.brief_deadline_passed(datetime(2026, 7, 10, 3, 45, tzinfo=timezone.utc)) is True
+
+
+def test_before_deadline_checks_sentinel_without_false_brief_alert() -> None:
+    now = datetime(2026, 7, 10, 1, 30, tzinfo=timezone.utc)
+    fetch = _fetch_for({
+        "/briefs": (200, []),
+        "/run_logs": (200, [{"finished_at": now.isoformat()}]),
+    })
+    assert hb.run_checks(supabase_url="https://x", anon_key="k", now_utc=now,
+                         max_age_hours=26, fetch=fetch) == []
+
+
+def test_after_deadline_missing_issue_alerts_then_delayed_success_clears() -> None:
+    now = datetime(2026, 7, 10, 3, 45, tzinfo=timezone.utc)
+    sentinel = {"/run_logs": (200, [{"finished_at": now.isoformat()}])}
+    missing = hb.run_checks(supabase_url="https://x", anon_key="k", now_utc=now,
+                            max_age_hours=26, fetch=_fetch_for({"/briefs": (200, []), **sentinel}))
+    published = hb.run_checks(supabase_url="https://x", anon_key="k", now_utc=now,
+                              max_age_hours=26, fetch=_fetch_for({"/briefs": (200, [{"brief_date": "2026-07-10"}]), **sentinel}))
+    assert len(missing) == 1 and "NO published briefs" in missing[0]
+    assert published == []
 
 
 # ── check 1: The Brief published today ───────────────────────────────────────
@@ -166,7 +194,16 @@ def test_main_exit_0_when_healthy(_env) -> None:
     mock_alert.assert_not_called()
 
 
-def test_main_exit_1_on_breach_with_alert(_env) -> None:
+def test_main_exit_1_on_breach_with_alert(_env, monkeypatch) -> None:
+    # Pin after the 09:45 BDT deadline: running the suite before breakfast
+    # must not turn the deliberately stale Brief fixture into a no-op check.
+    class AfterDeadline(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 9, 26, 10, 0, tzinfo=hb.BDT)
+            return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(hb, "datetime", AfterDeadline)
     breached = _fetch_for({
         "/briefs": (200, [{"brief_date": "2020-01-01"}]),
         "/run_logs": (200, []),
@@ -224,3 +261,90 @@ def test_load_env_file_does_not_override_existing(tmp_path: Path) -> None:
 
 def test_load_env_file_missing_is_fine() -> None:
     hb.load_env_file("/definitely/not/a/file", environ={})
+
+
+def test_discord_transport_has_same_user_agent_and_handles_http_failure(monkeypatch) -> None:
+    captured = {}
+
+    class Response:
+        status = 403
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+
+    def fake_open(req, timeout):
+        captured["ua"] = req.get_header("User-agent")
+        captured["payload"] = json.loads(req.data)
+        return Response()
+
+    monkeypatch.setattr(hb.urllib.request, "urlopen", fake_open)
+    assert hb.send_discord_alert("https://discord.test/hook", "message") is False
+    assert captured["ua"] == "the-brief-alerts/1.0 (+https://thebrief.clauding-lab.com)"
+    assert captured["payload"] == {"content": "message"}
+
+
+def test_discord_transport_malformed_url_and_timeout_hide_secret(capsys, monkeypatch) -> None:
+    secret = "secret-webhook-token"
+    assert hb.send_discord_alert(f"https://[{secret}", "message") is False
+    with patch.object(hb.urllib.request, "urlopen", side_effect=TimeoutError(secret)):
+        assert hb.send_discord_alert("https://discord.test/hook", "message") is False
+    assert secret not in capsys.readouterr().err
+
+
+def test_live_path_schedule_and_transport_are_gated_together(monkeypatch, _env) -> None:
+    seen = {"urls": [], "alerts": []}
+
+    class Clock(datetime):
+        instant = datetime(2026, 7, 10, 1, 30, tzinfo=timezone.utc)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.instant.astimezone(tz) if tz else cls.instant
+
+    class Response:
+        def __init__(self, status, body=b""):
+            self.status, self.body = status, body
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return self.body
+
+    def fake_open(req, timeout):
+        seen["urls"].append(req.full_url)
+        if "/run_logs" in req.full_url:
+            return Response(200, b'[{"finished_at":"2026-07-10T00:00:00Z"}]')
+        if "/briefs" in req.full_url:
+            return Response(200, b"[]")
+        seen["alerts"].append(req.get_header("User-agent"))
+        return Response(204)
+
+    monkeypatch.setattr(hb, "datetime", Clock)
+    monkeypatch.setattr(hb.urllib.request, "urlopen", fake_open)
+    assert hb.main(["--env-file", "/nonexistent"]) == 0
+    assert not any("/briefs" in url for url in seen["urls"])
+    assert seen["alerts"] == []
+
+    Clock.instant = datetime(2026, 7, 10, 3, 45, tzinfo=timezone.utc)
+    assert hb.main(["--env-file", "/nonexistent"]) == 1
+    assert seen["alerts"] == ["the-brief-alerts/1.0 (+https://thebrief.clauding-lab.com)"]
+
+
+def test_supabase_request_failure_hides_url_and_response_body() -> None:
+    secret = "secret-url-token"
+    with pytest.raises(hb.HeartbeatError) as exc:
+        hb._fetch_json(f"https://[{secret}", hb._anon_headers("anon-key"))
+    assert secret not in str(exc.value)
+
+    import io
+    import urllib.error
+    error = urllib.error.HTTPError(
+        "https://example.test", 403, "Forbidden", None,
+        io.BytesIO(b"secret-response-body"),
+    )
+    with patch.object(hb.urllib.request, "urlopen", side_effect=error):
+        with pytest.raises(hb.HeartbeatError) as exc:
+            hb._fetch_json("https://example.test", hb._anon_headers("anon-key"))
+    assert "secret-response-body" not in str(exc.value)

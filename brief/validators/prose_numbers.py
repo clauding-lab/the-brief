@@ -68,11 +68,16 @@ CHECKED — an integer-printed "733" tolerates ±0.5, "9.50" tolerates
 """
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Any
+
+from brief.press_override import is_press_card_source
 
 
 class ProseNumberViolationError(RuntimeError):
@@ -104,8 +109,17 @@ class NumberWarning:
     category: str
     nearest_value: float | None
     nearest_delta: float | None
+    # R2 fix H6: set on the warn-only kinds, which say what they found in their own words.
+    note: str | None = None
 
     def describe(self) -> str:
+        if self.kind == REFUSED_FIGURE_KIND:
+            return f"[{self.kind}] {self.field_path}: {self.matched_text!r} {self.note}"
+        if self.note:
+            return f"{self._unmatched()} · {self.note}"
+        return self._unmatched()
+
+    def _unmatched(self) -> str:
         if self.nearest_value is None:
             near = "no builder value exists in this category anywhere in scope"
         else:
@@ -698,7 +712,9 @@ def _machine_stamped_note(raw_metric: dict[str, Any]) -> str | None:
         start = src.find("(") + 1
         end = src.find(_REAL_POLICY_RATE_SLICE_MARKER)
         if start > 0 and end > start:
-            return src[start:end + len(_REAL_POLICY_RATE_SLICE_MARKER)]
+            # Mirrors the stamper: a press leg's "via <outlet> (approved)" can
+            # follow the marker, inside the note's closing bracket.
+            return src[start:max(end + len(_REAL_POLICY_RATE_SLICE_MARKER), src.rfind(")"))]
     return None
 
 
@@ -1508,11 +1524,296 @@ def check_lede_numbers_against_builder_values(
     return warnings
 
 
-# ─── orchestrator ──────────────────────────────────────────────────────────
+# Owner decision (c), 26 Sep 2026 BDT: an owner-approved press override is the outlet's
+# figure. Its card names the outlet (pipeline_v6 stamps the sub); prose that credits the same
+# figure to BB in one clause re-attributes it. WARN-mode, like every other prose figure check.
+_BB_ATTRIBUTION_RE = re.compile(r"\b(?:BB|Bangladesh Bank)\b")
+
+
+def _press_figure_entries(raw_sections_by_slug: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalized values of every raw metric whose source is an approved press line."""
+    entries: list[dict[str, Any]] = []
+    for raw_section in raw_sections_by_slug.values():
+        for metric in (raw_section or {}).get("metrics") or []:
+            if not is_press_card_source(metric.get("source")):
+                continue
+            entry = _normalize_metric_value(str(metric.get("unit") or ""), metric.get("value"))
+            if entry is not None:
+                entries.append({**entry, "press_source": metric["source"]})
+    return entries
+
+
+def _press_attribution_fields(final_brief: Any) -> list[tuple[str, str]]:
+    brief = final_brief.brief
+    fields = [("brief.todays_call", brief.todays_call or "")]
+    if brief.cover_metric is not None:
+        fields.append(("brief.cover_metric.sub", brief.cover_metric.sub or ""))
+    for section in final_brief.sections:
+        fields.extend(_section_prose_fields(section))
+    return [(path, text) for path, text in fields if text]
+
+
+def _matching_press_entry(token: dict[str, Any], press: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return next((e for e in press if _same_bucket(token, e) and abs(
+        token["normalized_value"] - e["normalized_value"]) <= _effective_tolerance(token, e)), None)
+
+
+def check_press_figure_attribution(
+    final_brief: Any, raw_sections_by_slug: dict[str, dict[str, Any]]
+) -> list[NumberWarning]:
+    """WARN when one clause names BB / Bangladesh Bank and cites an approved press figure."""
+    press = _press_figure_entries(raw_sections_by_slug)
+    if not press:
+        return []
+    warnings: list[NumberWarning] = []
+    for field_path, text in _press_attribution_fields(final_brief):
+        clauses = {_clause_bounds(text, m.start()): m.group(0) for m in _BB_ATTRIBUTION_RE.finditer(text)}
+        for (start, end), named in clauses.items():
+            for token in _extract_money_percent_tokens(text[start:end]):
+                entry = _matching_press_entry(token, press)
+                if entry is None:
+                    continue
+                delta = abs(token["normalized_value"] - entry["normalized_value"])
+                warnings.append(NumberWarning(
+                    kind="press_figure_credited_to_bb",
+                    section=field_path.split(".", 1)[0], field_path=field_path,
+                    matched_text=(f"{token['matched_text']} is an approved press figure "
+                                  f"({entry['press_source']}) credited to {named}"),
+                    normalized_value=token["normalized_value"], category=token["category"],
+                    nearest_value=entry["normalized_value"], nearest_delta=delta,
+                ))
+    return warnings
+
+
+# ─── R2 fix H6, owner decision (n) (28 Sep 2026 BDT): every model text field, WARN only ───
+# Every text field of the published object sits in exactly one of the three sets below, by
+# schema path ("sections[].news[].headline"); tests/test_model_text_number_alerts.py pins the
+# partition against BriefPayloadV6, so a new model-written field cannot stay unscanned silently.
+
+# Model prose the money/percent checks above already read. Their STRICT hold is unchanged.
+SCANNED_TEXT_PATHS: tuple[str, ...] = (
+    "brief.todays_call",
+    "sections[].tldr", "sections[].verdict", "sections[].analysis",
+    "sections[].metrics[].sub",
+    "sections[].banker_read.verdict", "sections[].banker_read.watch[]", "sections[].banker_read.risk[]",
+    "sections[].chart_read.signal", "sections[].chart_read.context", "sections[].chart_read.implication",
+)
+
+# Model text first scanned by H6. WARN-ONLY, even under BRIEF_PROSE_VALIDATOR_STRICT=1: owner
+# decision (n) is alert-and-publish, never a hold, until real warning counts are reviewed.
+# Pills: a pill bound to a card (pipeline_v6 `_PILL_CARD_BINDINGS`, fix 16) is already printed
+# from that card, so it matches its builder value; scanning it too costs no alert.
+WARN_ONLY_TEXT_PATHS: tuple[str, ...] = (
+    "brief.frame", "brief.cover_metric.label", "brief.cover_metric.sub",
+    "sections[].title",
+    "sections[].summary_pills[].key", "sections[].summary_pills[].value",
+    "sections[].news[].headline", "sections[].news[].detail", "sections[].news[].source",
+)
+
+# Text fields no model-written figure can publish through, and why.
+NOT_SCANNED_TEXT_PATHS: dict[str, str] = {
+    "brief.lens": "forced to today's lens by run_publish",
+    "brief.cover_metric.value": "printed from the checked card the cover points to, else the "
+                                "unknown mark '—' (pipeline_v6._stamp_cover_metric)",
+    "brief.cover_metric.as_of": "kept only when equal to that card's observation date or period",
+    "brief.cover_metric.next_print": "copied from that card (system-stamped), else cleared",
+    "brief.cover_metric.section_slug": "names the section whose card the cover must match",
+    "sections[].slug": "copied from the pre-supplied input; sections are matched on it",
+    "sections[].metrics[].label": "must equal a builder label (casefold); others are dropped",
+    "sections[].metrics[].value": "printed from the builder observation (fix 7b)",
+    "sections[].metrics[].delta": "from the builder's dated history, or cleared (fix 16)",
+    "sections[].metrics[].delta_pct": "from the builder's dated history, or cleared (fix 16)",
+    "sections[].metrics[].next_print": "the model's is cleared; only mark_held_overs sets one",
+    "sections[].banker_read.runway.value": "kept only when equal to a checked builder figure (fix 16)",
+    "sections[].banker_read.runway.unit": "kept only with a checked runway value (fix 16)",
+    "sections[].news[].source_url": "a link, rendered only as an href: article ids and '%' "
+                                    "escapes are not figures",
+    "sections[].news[].published_at": "a timestamp the SPA formats as a date (landmine 10)",
+    "sections[].series[].key": "chart data: model points discarded, then machine-stamped (fix 6)",
+    "sections[].series[].ts": "chart data: model points discarded, then machine-stamped (fix 6)",
+    "sections[].notes[].series_key": "chart notes: discarded, then machine-stamped (fix 6)",
+    "sections[].notes[].ts": "chart notes: discarded, then machine-stamped (fix 6)",
+    "sections[].notes[].label": "chart notes: discarded, then machine-stamped (fix 6)",
+    "sections[].notes[].detail": "chart notes: discarded, then machine-stamped (fix 6)",
+    "sections[].movers[].ticker": "DS30 movers: discarded, then machine-stamped (fix 6)",
+}
+
+WARN_ONLY_FIELD_KIND = "warn_only_field_number"
+REFUSED_FIGURE_KIND = "refused_figure"
+
+
+def _texts_at(node: Any, parts: Sequence[str], where: str) -> list[tuple[str, str]]:
+    """(field path, text) for every non-empty string at a schema path below `node`."""
+    if not parts:
+        return [(where, node)] if isinstance(node, str) and node else []
+    head, rest = parts[0], parts[1:]
+    name = head.removesuffix("[]")
+    child = getattr(node, name, None)
+    if child is None:
+        return []
+    if not head.endswith("[]"):
+        return _texts_at(child, rest, f"{where}.{name}")
+    return [found for i, item in enumerate(child) for found in _texts_at(item, rest, f"{where}.{name}[{i}]")]
+
+
+def model_text_fields(final_brief: Any, paths: Iterable[str]) -> list[tuple[str, str, str]]:
+    """(section, field path, text) at each schema path, named as the other checks name them:
+    `brief.<field>` for brief-level text (section "brief"), `<slug>.<field>` inside a section."""
+    out: list[tuple[str, str, str]] = []
+    for path in paths:
+        root, _, rest = path.partition(".")
+        if root == "brief":
+            out.extend(("brief", p, t) for p, t in _texts_at(final_brief.brief, rest.split("."), "brief"))
+            continue
+        for section in final_brief.sections:
+            out.extend((section.slug, p, t) for p, t in _texts_at(section, rest.split("."), section.slug))
+    return out
+
+
+def _issue_allowed_values(raw_sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The lede check's scope: every builder value in the issue (with pairwise derivations) plus
+    every section's chart digest and history facts."""
+    allowed = _build_allowed_values([m for s in raw_sections for m in (s.get("metrics") or [])])
+    for raw_section in raw_sections:
+        allowed = allowed + _grounding_entries(raw_section)
+    return allowed
+
+
+def check_warn_only_field_numbers(
+    final_brief: Any, raw_sections: list[dict[str, Any]]
+) -> list[NumberWarning]:
+    """Owner decision (n): the lede rule — every currency/percent/bp figure matches a builder
+    value somewhere in the issue — applied to WARN_ONLY_TEXT_PATHS. Warn-only by construction:
+    `run_prose_number_gate` adds these after its STRICT escalation."""
+    allowed = _issue_allowed_values(raw_sections)
+    warnings: list[NumberWarning] = []
+    for section, field_path, text in model_text_fields(final_brief, WARN_ONLY_TEXT_PATHS):
+        for token in _extract_money_percent_tokens(text):
+            matched, nearest_value, nearest_delta = _best_match(token, allowed)
+            if not matched:
+                warnings.append(NumberWarning(
+                    kind=WARN_ONLY_FIELD_KIND, section=section, field_path=field_path,
+                    matched_text=token["matched_text"], normalized_value=token["normalized_value"],
+                    category=token["category"], nearest_value=nearest_value,
+                    nearest_delta=nearest_delta, note="warn-only field",
+                ))
+    return warnings
+
+
+@dataclass(frozen=True)
+class RefusedFigure:
+    """A value the producer refused or left undated today: a snapshot record the reader did
+    not accept (built by `pipeline_v6._refused_figures`). `reason` is said in the alert."""
+
+    metric_id: str
+    value: float
+    reason: str
+
+
+# Matching rule for refused figures (owner decision (n)), documented in fixH6-report.md:
+#   * A token is ANY number in the text, bare or not ("98.32", "$98.32/bbl", "4,15,473");
+#     commas are dropped and the sign is ignored (a refused −1.62 printed "1.62 deficit" is
+#     still that figure).
+#   * It matches a refused value when it is numerically EQUAL to one of the value's display
+#     forms: its exact decimal (15 significant digits — a double's faithful digits, as the card
+#     printer uses), and, for a value with more than two decimals, that value rounded half-up
+#     and cut to two decimals (lib/format.tsx cleanMetricValue shows a 3+ decimal tail cut to
+#     two; a writer rounds). So float32's widened 98.31999969482422 matches "98.32", 8.3198
+#     matches "8.3198", "8.32" and "8.31" — never "8.3", "98" or "98.3".
+#   * A display form is used only with at least 3 significant digits, and a whole-number form
+#     only from 1,000 up and never inside 1900-2100: years, counts and ordinals never match.
+#   * A form equal to one of today's checked builder figures (card values, chart digests) is
+#     dropped: prose quoting a checked figure is explained by it.
+_ANY_NUMBER_RE = re.compile(r"(?<![\d.,])\d[\d,]*(?:\.\d+)?(?!\d)")
+_DISPLAY_DECIMALS = Decimal("0.01")
+_MIN_SIGNIFICANT_DIGITS = 3
+_MIN_WHOLE_NUMBER = 1000
+_YEAR_SHAPED = range(1900, 2101)
+
+
+def _display_forms(value: float) -> set[Decimal]:
+    exact = Decimal(f"{abs(value):.15g}")
+    forms = {exact}
+    if exact.as_tuple().exponent < -2:  # more than two decimals
+        forms |= {exact.quantize(_DISPLAY_DECIMALS, rounding=ROUND_HALF_UP),
+                  exact.quantize(_DISPLAY_DECIMALS, rounding=ROUND_DOWN)}
+    return forms
+
+
+def _matchable(form: Decimal) -> bool:
+    if len(form.normalize().as_tuple().digits) < _MIN_SIGNIFICANT_DIGITS:
+        return False
+    if form == form.to_integral_value():
+        return form >= _MIN_WHOLE_NUMBER and int(form) not in _YEAR_SHAPED
+    return True
+
+
+def _refused_forms(
+    refused: Iterable[RefusedFigure], checked: set[Decimal]
+) -> list[tuple[RefusedFigure, set[Decimal]]]:
+    targets = []
+    for figure in refused:
+        forms = {f for f in _display_forms(figure.value) if _matchable(f) and f not in checked}
+        if forms:
+            targets.append((figure, forms))
+    return targets
+
+
+def refused_figure_tokens(
+    text: str, refused: Iterable[RefusedFigure], *, checked: set[Decimal] | None = None
+) -> list[tuple[str, RefusedFigure]]:
+    """(token as written, figure) for every number in `text` equal to a refused figure."""
+    targets = _refused_forms(refused, checked or set())
+    found: list[tuple[str, RefusedFigure]] = []
+    for match in _ANY_NUMBER_RE.finditer(text):
+        number = Decimal(match.group(0).replace(",", ""))
+        figure = next((f for f, forms in targets if number in forms), None)
+        if figure is not None:
+            found.append((match.group(0), figure))
+    return found
+
+
+def _checked_numbers(raw_sections: list[dict[str, Any]]) -> set[Decimal]:
+    """Display forms of today's checked builder figures: card values and chart digests."""
+    values = [m.get("value") for s in raw_sections for m in (s.get("metrics") or [])]
+    for raw_section in raw_sections:
+        digest = raw_section.get("series_summary")
+        for entry in (digest.values() if isinstance(digest, dict) else []):
+            if isinstance(entry, dict):
+                values.extend(entry.get(name) for name in _SERIES_DIGEST_VALUE_FIELDS)
+    checked: set[Decimal] = set()
+    for value in values:
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+            checked |= _display_forms(float(value))
+    return checked
+
+
+def check_refused_figures(
+    final_brief: Any, raw_sections: list[dict[str, Any]], refused: Sequence[RefusedFigure],
+) -> list[NumberWarning]:
+    """Owner decision (n): a number in ANY model text field equal to a figure the producer
+    refused or left undated today (matching rule above). WARN-only in every field, even
+    under STRICT: `run_prose_number_gate` adds these after its escalation."""
+    if not refused:
+        return []
+    checked = _checked_numbers(raw_sections)
+    warnings: list[NumberWarning] = []
+    fields = model_text_fields(final_brief, SCANNED_TEXT_PATHS + WARN_ONLY_TEXT_PATHS)
+    for section, field_path, text in fields:
+        for written, figure in refused_figure_tokens(text, refused, checked=checked):
+            warnings.append(NumberWarning(
+                kind=REFUSED_FIGURE_KIND, section=section, field_path=field_path,
+                matched_text=written, normalized_value=float(written.replace(",", "")),
+                category="refused", nearest_value=figure.value, nearest_delta=0.0,
+                note=f"equals {figure.metric_id} = {figure.value:g}, a figure the producer "
+                     f"{figure.reason} (refused today; warn-only)",
+            ))
+    return warnings
 
 
 def run_prose_number_gate(
     final_brief: Any, raw_sections: list[dict[str, Any]], *, strict: bool = False,
+    refused: Sequence[RefusedFigure] = (),
 ) -> list[NumberWarning]:
     """The two BLOCK-capable checks run FIRST, adjacent, so a hold never
     depends on what some WARN-mode check did before it:
@@ -1525,7 +1826,12 @@ def run_prose_number_gate(
     Then every remaining WARN-mode check runs and its findings are collected
     into one list. When `strict` (BRIEF_PROSE_VALIDATOR_STRICT=1), the first
     collected warning is escalated to a raise instead of being returned — a
-    documented future flip, not this PR's default (see module docstring)."""
+    documented future flip, not this PR's default (see module docstring).
+
+    R2 fix H6, owner decision (n): the fields first scanned by H6
+    (`check_warn_only_field_numbers`) and the refused-figure check (`check_refused_figures`,
+    every model text field, against `refused`) are added AFTER that escalation, so they WARN
+    even under strict and never hold a publish."""
     check_count_claims(final_brief)
 
     raw_by_slug = {s["slug"]: s for s in raw_sections if "slug" in s}
@@ -1537,10 +1843,13 @@ def run_prose_number_gate(
     warnings.extend(check_lede_numbers_against_builder_values(final_brief, raw_sections))
     warnings.extend(check_card_period_vs_chart_series(final_brief, raw_by_slug))
     warnings.extend(check_year_ago_claims(final_brief, raw_by_slug))
+    warnings.extend(check_press_figure_attribution(final_brief, raw_by_slug))
 
     if warnings and strict:
         raise ProseNumberViolationError(
             f"prose-number gate (STRICT — BRIEF_PROSE_VALIDATOR_STRICT=1): "
             f"{warnings[0].describe()}. Publish held."
         )
+    warnings.extend(check_warn_only_field_numbers(final_brief, raw_sections))
+    warnings.extend(check_refused_figures(final_brief, raw_sections, refused))
     return warnings

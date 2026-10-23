@@ -17,7 +17,7 @@ from brief.builders import ALL_BUILDER_IDS, BuilderContext
 from brief.cadence import now_bdt
 from brief.econdelta import EconDeltaSnapshot, load_snapshot, EconDeltaUnavailable
 from brief.headlines import scrape_all
-from brief.history import MetricHistoryClient
+from brief.history import HistoryPoint, MetricHistoryClient
 from brief.schema import SectionData
 
 _RISK_MAP_EXCLUDED: frozenset[str] = frozenset({"exec", "headlines"})
@@ -53,6 +53,12 @@ def _build_history(cfg: PipelineConfig) -> Optional[MetricHistoryClient]:
     return MetricHistoryClient(url=url, service_key=key)
 
 
+class GatheredSections(list[SectionData]):
+    """List-compatible handoff retaining the snapshot used by every builder."""
+
+    snapshot: EconDeltaSnapshot
+
+
 def gather(
     cfg: PipelineConfig,
     *,
@@ -63,10 +69,11 @@ def gather(
         try:
             path = cfg.econdelta_path or os.environ.get("ECONDELTA_DATA") or "/home/adnan/econdelta/data/latest.json"
             snapshot = load_snapshot(path)
-        except EconDeltaUnavailable:
-            snapshot = EconDeltaSnapshot(
-                updated_at=now_bdt(), sources_status={}, data={},
-            )
+        except EconDeltaUnavailable as exc:
+            # Builders still read history, but the snapshot claims no capture time:
+            # readiness reports it unavailable instead of judging an invented "now".
+            _log.warning("%s", exc)
+            snapshot = EconDeltaSnapshot.unavailable(str(exc), cause=exc.cause)
 
     history = _build_history(cfg)
     headlines = scrape_all() if cfg.enable_headlines else []
@@ -81,7 +88,8 @@ def gather(
         history_monthly=history,
     )
 
-    sections: list[SectionData] = []
+    sections = GatheredSections()
+    sections.snapshot = snapshot
     for bid in ALL_BUILDER_IDS:
         try:
             mod = importlib.import_module(f"brief.builders.{bid}")
@@ -114,19 +122,26 @@ def _enrich_metric_history(
     """
     if history is None:
         return
-    all_ids = list({m.id for s in sections for m in s.metrics})
+    # Public IDs stay stable while the underlying economic concept is corrected.
+    read_ids = {"fiscal_govt_borrow_trn": "fiscal_bank_borrow_trn"}
+    all_ids = list({read_ids.get(m.id, m.id) for s in sections for m in s.metrics})
     if not all_ids:
         return
     try:
-        history_map = history.get_history_window(all_ids, days=days, today=today)
+        # dated=True (R2 fix 16): the same single query, each reading keeping its as_of.
+        history_map = history.get_history_window(all_ids, days=days, today=today, dated=True)
     except Exception as e:  # network / parse — render must not fail
         _log.warning("history window fetch failed: %s: %s", type(e).__name__, e)
         return
     for s in sections:
         for m in s.metrics:
-            vals = history_map.get(m.id)
+            vals = history_map.get(read_ids.get(m.id, m.id))
             if vals:
-                m.history_values = vals
+                m.history_values = [v.value if isinstance(v, HistoryPoint) else v for v in vals]
+                # Only a fully dated history can anchor a change; a bare number
+                # (an undated reader) keeps its sparkline value and nothing else.
+                if all(isinstance(v, HistoryPoint) for v in vals):
+                    m.history_points = list(vals)
 
 
 from dataclasses import dataclass as _dc

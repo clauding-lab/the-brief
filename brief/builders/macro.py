@@ -39,8 +39,9 @@ from datetime import date
 from typing import Callable
 
 from brief.cadence import months_apart, section_freshness
-from brief.history import HistoryRow
+from brief.history import HistoryRow, finite_number, observation_date
 from brief.history_anchors import HistoryFact, fetch_and_compute
+from brief.press_override import PressOverride, outlet_name, press_override
 from brief.schema import Metric, SectionData
 from . import BuilderContext, official_monthly_bn
 
@@ -215,15 +216,33 @@ def _real_policy_rate(ctx: "BuilderContext") -> tuple[float | None, date | None,
         # name and nothing the undated form could mislead about.
         repo_leg = f"{repo.value:.2f}% repo"
 
-    # "repo" + "p2p CPI" is the marker pair `pipeline_v6._stamp_real_policy_
-    # rate_sub` and `validators.prose_numbers._is_machine_stamped_real_policy_
-    # rate` both key on — change the wording here and both must move with it.
-    # Minus is Master.md's GLYPH (−, U+2212), never the ASCII hyphen.
-    note = (
-        f"BB+BBS ({repo_leg} − {inflation.value:.2f}% "
-        f"{inflation.as_of:%b} p2p CPI)"
-    )
-    return (repo.value - inflation.value, inflation.as_of, note)
+    return (repo.value - inflation.value, inflation.as_of,
+            _real_policy_note(repo, repo_leg, inflation))
+
+
+def _real_policy_note(repo: HistoryRow, repo_leg: str, inflation: HistoryRow) -> str:
+    """The provenance note "BB+BBS (<repo leg> − <CPI leg>)".
+
+    "repo" + "p2p CPI" is the marker pair `pipeline_v6._stamp_real_policy_
+    rate_sub` and `validators.prose_numbers._is_machine_stamped_real_policy_
+    rate` both key on — change the wording here and both must move with it.
+    Minus is Master.md's GLYPH (−, U+2212), never the ASCII hyphen.
+
+    Owner decision (c): either leg can be an owner-approved press override
+    (EconDelta `_apply_media_overrides` writes both ids). That leg is credited
+    to its outlet — in the prefix instead of BB/BBS, and on the leg itself as
+    "via <outlet> (approved)", which the stamper publishes in the card's `sub`.
+    """
+    repo_press, cpi_press = press_override(repo), press_override(inflation)
+    cpi_leg = f"{inflation.value:.2f}% {inflation.as_of:%b} p2p CPI"
+    if repo_press is not None:
+        repo_leg = f"{repo_leg} {repo_press.card_source}"
+    if cpi_press is not None:
+        cpi_leg = f"{cpi_leg} {cpi_press.card_source}"
+    credits = (outlet_name(repo_press.outlet) if repo_press else "BB",
+               outlet_name(cpi_press.outlet) if cpi_press else "BBS")
+    prefix = "+".join(dict.fromkeys(credits))  # one outlet on both legs is named once
+    return f"{prefix} ({repo_leg} − {cpi_leg})"
 
 
 # ORCHESTRATOR DECISION (2026-08-22 audit #204, review round 1, H1): import
@@ -395,30 +414,37 @@ def _latest(client, metric_id: str, *, table: str) -> HistoryRow | None:
 
 def _resolve_newest_official_cpi(
     ctx: "BuilderContext", spec: "_MacroSpec",
-) -> tuple[float | None, date | None]:
+) -> tuple[float | None, date | None, PressOverride | None]:
     """Newest OFFICIAL row across BOTH `metric_history` (`spec.live_id`,
     daily) and `metric_history_monthly` (`spec.archive_id`, monthly) for ONE
     CPI concept (issue 206, item 4). SCOPED to specs that opt in via
     `dual_source_official=True` — today, only the CPI food/non-food pair.
 
-    The live daily leg is trusted as-is (EconDelta's own scrape, unfiltered
-    — the same contract every other `live_id` spec already has). The
-    monthly archive leg is filtered through `chart_series_fetcher`'s CPI
-    honesty gate (`is_official_cpi_point`) — the SAME predicate the chart
-    uses, so a card and its own chart can never independently disagree on
-    what counts as official for this pair.
-
-    With production's real 2026-08-24 shape (June daily official, July
-    archive unofficial for both legs of this pair) this resolves to the
-    JUNE daily row for both cards — the card values do not move to July.
+    The daily table may contain collection restamps. Its leg needs a matching
+    snapshot observation or explicit source_as_of; a bare daily as_of cannot
+    establish a CPI period. Monthly rows retain the shared chart honesty gate.
+    The third item is the approved press figure the winner carries, if any.
     """
-    from brief.chart_series_fetcher import is_official_cpi_point
+    from brief.chart_series_fetcher import is_excluded_cpi_period, is_official_cpi_point
 
     candidates: list[HistoryRow] = []
-    if spec.live_id is not None and ctx.history is not None:
-        row = _latest(ctx.history, spec.live_id, table="metric_history")
-        if row is not None and isinstance(row.value, (int, float)):
-            candidates.append(row)
+    if spec.live_id is not None:
+        item = ctx.snapshot.observation(spec.live_id, today=ctx.today)
+        valid_snapshot = item is not None and item.get("unit") == "%"
+        if valid_snapshot:
+            observed = date.fromisoformat(item["as_of"])
+            if not is_excluded_cpi_period(spec.id, observed):
+                candidates.append(HistoryRow(spec.live_id, observed, item["value"], item["source"]))
+        # A valid snapshot is one candidate, not a veto on newer history.
+        # Explicit rejected/unknown metadata still forbids a history revival.
+        if (ctx.history is not None
+                and (valid_snapshot or spec.live_id not in ctx.snapshot.observations)):
+            row = _latest(ctx.history, spec.live_id, table="metric_history")
+            if (row is not None and row.metric_id == spec.live_id
+                    and finite_number(row.value) and row.source_as_of is not None):
+                observed = observation_date(row, today=ctx.today)
+                if observed is not None and not is_excluded_cpi_period(spec.id, observed):
+                    candidates.append(HistoryRow(row.metric_id, observed, row.value, row.source))
     if spec.archive_id is not None and ctx.history_monthly is not None:
         row = _latest(ctx.history_monthly, spec.archive_id, table="metric_history_monthly")
         if (
@@ -426,11 +452,13 @@ def _resolve_newest_official_cpi(
             and isinstance(row.value, (int, float))
             and is_official_cpi_point(spec.archive_id, row.as_of.isoformat(), row.source)
         ):
-            candidates.append(row)
+            observed = observation_date(row, today=ctx.today, monthly=True)
+            if observed is not None:
+                candidates.append(HistoryRow(row.metric_id, observed, row.value, row.source))
     if not candidates:
-        return (None, None)
+        return (None, None, None)
     newest = max(candidates, key=lambda r: r.as_of)
-    return (newest.value, newest.as_of)
+    return (newest.value, newest.as_of, press_override(newest))
 
 
 def build(ctx: BuilderContext) -> SectionData:
@@ -441,22 +469,28 @@ def build(ctx: BuilderContext) -> SectionData:
         value: float | None = None
         as_of: date | None = None
         source: str = spec.source
+        press: PressOverride | None = None  # an approved press figure names its outlet (decision (c))
 
         if spec.derive is not None:
             value, as_of, source_override = spec.derive(ctx)
             if source_override is not None:
                 source = source_override
         elif spec.dual_source_official:
-            value, as_of = _resolve_newest_official_cpi(ctx, spec)
+            value, as_of, press = _resolve_newest_official_cpi(ctx, spec)
         elif spec.live_id is not None and ctx.history is not None:
             row = _latest(ctx.history, spec.live_id, table="metric_history")
             if row is not None:
-                value, as_of = row.value, row.as_of
+                value, as_of, press = row.value, row.as_of, press_override(row)
         elif spec.archive_id is not None and ctx.history_monthly is not None:
             row = _latest(ctx.history_monthly, spec.archive_id,
                           table="metric_history_monthly")
             if row is not None:
-                value, as_of = row.value, row.as_of
+                from brief.chart_series_fetcher import is_official_cpi_point
+                observed = observation_date(row, today=ctx.today, monthly=True)
+                official = not spec.archive_id.startswith("cpi_") or is_official_cpi_point(
+                    spec.archive_id, row.as_of.isoformat(), row.source)
+                if observed is not None and official:
+                    value, as_of = row.value, observed
 
         metrics.append(Metric(
             id=spec.id,
@@ -464,8 +498,9 @@ def build(ctx: BuilderContext) -> SectionData:
             value=value,
             unit=spec.unit,
             as_of=as_of if as_of is not None else ctx.today,
-            source=source,
+            source=press.card_source if press else source,
             cadence="monthly",  # type: ignore[arg-type]
+            press_override=press,
         ))
 
         # History facts stay on the archive metrics only, for two reasons.

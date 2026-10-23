@@ -37,6 +37,34 @@ When something ships broken, when a methodology gap is exposed, or when a smoke 
 
 ## Entries (most recent first)
 
+## 2026-09-29 — unreleased (repair branch) | A unit change shipped without an install step, for a directory that did not exist on the box
+
+**Trigger:** C1 open question OQ-8b, then a read-only controller check on Hetzner (29 Sep 2026 ~03:20 BDT, task C2).
+
+**What went wrong:** branch commit `37494e9` made `deploy/brief.service` list `/home/adnan/.local/state/the-brief` in `ReadWritePaths` (for the publication lock), but nothing created that directory and the runbook had no install step. On the box the directory did not exist, the installed unit was still the old one, and HEAD was `a810fcb`. Two failure modes followed: a new unit with a missing path makes systemd refuse to start `brief.service`; a merge without `install.sh` lets the 08:00 BDT self-pull run the new code under the OLD unit, whose read-only home cannot hold the lock. Either way nothing publishes.
+
+**Lesson:** a unit or path change is not deployed by a merge; check the DEPLOYED box state (installed unit, the path itself, HEAD) instead of assuming a path exists.
+
+**Prevention:** `deploy/install.sh` creates the directory (mode 0700, owner `adnan`) before it installs the units; `tests/test_deploy_writable_paths_provisioned.py` pins that every non-optional `ReadWritePaths` path is in the repo or created by `install.sh`; `deploy/README.md` "Rolling out a unit change" (stop timers, merge, pull as `adnan`, HEAD check, `install.sh`, verify) is pinned by `tests/test_deploy_runbook_rollout_order.py`.
+
+**Hotfix:** none needed; caught before any merge (branch not deployed).
+
+**Cross-references:** AGENTS.md landmines 21 and 44; evidence `fixC2-report.md`, `fixC2-round1-report.md`, `fixC2-round2-report.md` (repair evidence folder).
+
+## 2026-09-28 — unreleased (repair branch) | A release-order rule built on a never-deployed hypothetical was reversed once measured on the deployed commit
+
+**Trigger:** task G2 (compatibility both ways) during the data-reliability repair.
+
+**What went wrong:** R2 fix 12 had set "deploy the Brief consumer before or with the EconDelta producer". It reasoned about a Brief version that was never deployed. G2 ran the actual deployed Brief `a810fcb` against the new producer and the new Brief against the old producer: the deployed Brief ignores the new producer's additive snapshot fields and does not break (though not identical: G2 §8 measured a hidden Trade Gap card and first-night quarantine blanks, now listed in the runbook), while the NEW Brief on the OLD producer drops the USD/BDT, gold, Brent and WTI cards and the new pair on unrepaired NBR history holds every publish. The rule was backwards.
+
+**Lesson:** derive a cross-repo release order from runs against the commit that is actually deployed, both ways round, not from reasoning about versions.
+
+**Prevention:** compatibility tests against the deployed commit's fixtures (`tests/test_legacy_producer_compat.py`, EconDelta `tests/test_legacy_brief_reader_compat.py`); the measured order lives in `deploy/README.md` "Coordinated release order", pinned by `tests/test_release_order_runbook.py`.
+
+**Hotfix:** controller ruling 28 Sep 2026 (step 2 amended 29 Sep 2026): EconDelta first, the Brief last, roll back the Brief first.
+
+**Cross-references:** AGENTS.md landmine 44; EconDelta AGENTS.md landmine 60; evidence `fixG2-compat.md` (repair evidence folder).
+
 ## 2026-09-16 — v2.5.0 | Four issues missed (13–16 Sep): a Claude Code self-update ran out of disk mid-install and left a non-executable stub where `claude` should be
 
 **Trigger:** `/resume-session` orientation on 16 Sep: the latest `briefs` row was issue 225 (12 Sep). Four OnFailure Discord alerts (13–16 Sep, 08:00 BDT, HTTP 204 each) had gone unread. Copotron had been dead since its Saturday rotation (13 Sep 04:00 BDT) with 1,079 silent "restart FAILED" watchdog ticks.

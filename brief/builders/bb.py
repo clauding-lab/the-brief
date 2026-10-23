@@ -15,6 +15,7 @@ from __future__ import annotations
 from datetime import date
 
 from brief.cadence import metric_freshness, month_end, section_freshness
+from brief.press_override import press_override
 from brief.schema import Metric, SectionData
 from . import BuilderContext
 
@@ -64,15 +65,17 @@ def _rate_metric(
     """
     row = ctx.history.get_latest(history_id) if ctx.history is not None else None
     if row is not None and isinstance(row.value, (int, float)):
+        press = press_override(row)  # an approved press figure names its outlet (decision (c))
         return Metric(
             id=metric_id,
             label=label,
             value=float(row.value),
             unit="%",
             as_of=row.as_of,  # internal only — Section.tsx does not render per-metric as_of
-            source="BB",
-            source_url=_BB_URL,
+            source=press.card_source if press else "BB",
+            source_url=None if press else _BB_URL,
             cadence="event",
+            press_override=press,
         )
     return Metric(
         id=metric_id,
@@ -111,15 +114,17 @@ def _money_market_metric(
     row = ctx.history.get_latest(history_id)
     if row is None or not isinstance(row.value, (int, float)):
         return None
+    press = press_override(row)  # an approved press figure names its outlet (decision (c))
     return Metric(
         id=metric_id,
         label=label,
         value=float(row.value),
         unit="%",
         as_of=row.as_of,
-        source="BB",
-        source_url=_BB_URL,
+        source=press.card_source if press else "BB",
+        source_url=None if press else _BB_URL,
         cadence="daily",
+        press_override=press,
     )
 
 

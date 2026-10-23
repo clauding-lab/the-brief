@@ -68,12 +68,22 @@ LIVE = {
 }
 
 
+def _observations(data: dict) -> dict:
+    return {mid: {"metric_id": mid, "value": value, "as_of": "2026-08-03",
+                  "unit": "BDT" if mid == "usd_bdt_mid" else "USD/oz",
+                  "source": "EconDelta", "quality": "verified", "date_basis": "observation",
+                  "evidence": "Dated quote fixture", "captured_at": "2026-08-04T01:00:00+06:00"}
+            for mid, value in data.items()}
+
+
 def _ctx(*, data: dict | None = None, today: date = AUG4) -> BuilderContext:
     history = _FakeHistory(LIVE)
     return BuilderContext(
         snapshot=EconDeltaSnapshot(
             updated_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
             sources_status={},
+            observations=_observations({"usd_bdt_mid": USD_BDT_MID, "gold_usd_oz": GOLD_USD_OZ}
+                                       if data is None else data),
             data={"usd_bdt_mid": USD_BDT_MID, "gold_usd_oz": GOLD_USD_OZ}
             if data is None
             else data,
@@ -152,14 +162,10 @@ def test_fx_no_longer_duplicates_the_remittance_tile() -> None:
 # ── 3. losing Gold is still visible ──────────────────────────────────────────
 
 def test_a_snapshot_without_gold_degrades_the_fx_badge() -> None:
-    """This is the signal `comm`'s badge used to carry. Gold's as_of is stamped
-    with today every run, so it can never age into "stale" — but a snapshot that
-    stops carrying `gold_usd_oz` gives value=None, which scores "unavailable".
-    Without this, Gold could vanish for months under a green badge, which is
-    exactly how LNG survived 105 days."""
+    """An unavailable undated Gold tile is omitted, but the section still
+    signals its loss rather than continuing under a fresh badge."""
     s = build_fx(_ctx(data={"usd_bdt_mid": USD_BDT_MID}))
-    gold = next(m for m in s.metrics if m.id == "fx_gold_usd_oz")
-    assert gold.value is None
+    assert "fx_gold_usd_oz" not in {m.id for m in s.metrics}
     assert s.freshness != "fresh"
 
 
@@ -184,6 +190,7 @@ def test_a_stale_reserves_row_now_correctly_drags_the_fx_badge() -> None:
             snapshot=EconDeltaSnapshot(
                 updated_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
                 sources_status={},
+                observations=_observations({"usd_bdt_mid": USD_BDT_MID, "gold_usd_oz": GOLD_USD_OZ}),
                 data={"usd_bdt_mid": USD_BDT_MID, "gold_usd_oz": GOLD_USD_OZ},
             ),
             history=history, today=AUG4, history_monthly=history,

@@ -10,6 +10,25 @@ import pytest
 from brief import cli
 
 
+@pytest.fixture(autouse=True)
+def _isolated_publication_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("BRIEF_DRY_RUN", raising=False)
+
+
+def _receipt(issue_no=236, brief_date=None, *, created=True, brief_id="3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b"):
+    """A validated publication receipt as publish_brief returns it (SYNTHETIC values)."""
+    from datetime import date as _date, datetime as _datetime, timezone as _timezone
+    from brief.v6_publisher import PublishReceipt
+
+    return PublishReceipt(
+        brief_id=brief_id, issue_no=issue_no,
+        brief_date=brief_date or _date(2026, 7, 9),
+        published_at=_datetime(2026, 7, 9, 2, 0, tzinfo=_timezone.utc),
+        created_new_identity=created,
+    )
+
+
 def test_cli_rejects_unknown_subcommand():
     with pytest.raises(SystemExit) as ei:
         cli.main(["sneeze"])
@@ -153,6 +172,9 @@ def test_write_fixture_creates_valid_json_on_dry_run(tmp_path: Path):
 # ── Item 5d — notifier fail-loud ─────────────────────────────────────────────
 
 
+_BRIEF_ID = "11111111-2222-4333-8444-555555555555"
+
+
 def _run_publish_with_notify(notify_result=None, notify_raises=None):
     """Drive cli._run_v6_publish through a successful publish with a mocked
     notifier, returning (exit_code, mock_alert)."""
@@ -162,8 +184,11 @@ def _run_publish_with_notify(notify_result=None, notify_raises=None):
 
     cfg = PipelineConfig(today=_date(2026, 7, 9), enable_headlines=False)
 
-    with patch("brief.cli.gather", return_value=[]), \
-         patch("brief.pipeline_v6.run_publish", return_value="brief-id-1"), \
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[]), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish",
+               return_value=_receipt(236, _date(2026, 7, 9), brief_id=_BRIEF_ID)), \
          patch("brief.notifier.notify") as mock_notify, \
          patch("brief.alerts.send_discord_alert") as mock_alert:
         if notify_raises is not None:
@@ -189,9 +214,14 @@ def test_notifier_zero_sent_with_audience_alerts_but_exit_0(caplog):
     assert rc == 0
     mock_alert.assert_called_once()
     msg = mock_alert.call_args.args[0]
-    assert "delivered to NOBODY" in msg
+    assert "no confirmed provider acceptance" in msg
+    assert "accepted=0" in msg
+    assert "acceptance unconfirmed=8" in msg
+    assert "may already have been accepted" in msg
+    assert "do not resend everyone" in msg
+    assert "subscribers got no email" not in msg
     assert "attempted=8" in msg
-    assert any("DELIVERED TO NOBODY" in r.message for r in caplog.records)
+    assert any("NO CONFIRMED ACCEPTANCE" in r.message for r in caplog.records)
 
 
 def test_notifier_success_does_not_alert():
@@ -233,3 +263,328 @@ def test_notifier_crash_alerts_and_exit_0():
     assert rc == 0
     mock_alert.assert_called_once()
     assert "CRASHED" in mock_alert.call_args.args[0]
+    assert "acceptance may be unknown" in mock_alert.call_args.args[0]
+    assert "before sending" not in mock_alert.call_args.args[0]
+    assert "subscribers got no email" not in mock_alert.call_args.args[0]
+
+
+@pytest.mark.parametrize("raw", ["1", "true", "yes", "on", " TRUE "])
+def test_environment_pause_applies_to_service_arguments(raw, monkeypatch):
+    monkeypatch.setenv("BRIEF_DRY_RUN", raw)
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish"]) == 3
+    assert run.call_args.kwargs["dry_run"] is True
+    assert run.call_args.kwargs["notify_enabled"] is False
+
+
+def test_pause_precedes_fixture_validation_and_disables_preview(monkeypatch):
+    monkeypatch.setenv("BRIEF_DRY_RUN", "1")
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish", "--write-fixture=x.json", "--preview-notify"]) == 3
+    assert run.call_args.kwargs["preview_notify_enabled"] is False
+
+
+@pytest.mark.parametrize("raw", ["tru", "2", "disabled"])
+def test_invalid_pause_fails_before_any_work(raw, monkeypatch, capsys):
+    monkeypatch.setenv("BRIEF_DRY_RUN", raw)
+    with patch("brief.cli._run_v6_publish") as run:
+        assert cli.main(["run", "--publish", "--write-fixture=x.json"]) == 1
+    run.assert_not_called()
+    assert "Invalid BRIEF_DRY_RUN" in capsys.readouterr().err
+
+
+def test_live_today_override_cannot_backdate():
+    with patch("brief.cli._run_v6_publish") as run:
+        assert cli.main(["run", "--publish", "--today=2026-01-01"]) == 1
+    run.assert_not_called()
+
+
+def test_live_cli_two_processes_lock_through_delivery(tmp_path):
+    """A competing CLI must stop before identity/gather/model/write/send work."""
+    import os
+    import subprocess
+    import sys
+    import time
+
+    script = r'''
+import sys, time
+from pathlib import Path
+from unittest.mock import patch
+from brief import cli
+from brief.notifier import NotifyResult
+root, role = Path(sys.argv[1]), sys.argv[2]
+def mark(stage):
+    with (root / (role + '.events')).open('a') as f:
+        f.write(stage + '\n')
+def same_day(*args):
+    mark('identity')
+    return []
+def gather(cfg):
+    mark('gather')
+    return []
+def publish(*args, expected_identity, **kwargs):
+    from datetime import datetime, timezone
+    from brief.v6_publisher import PublishReceipt
+    mark('model'); mark('write')
+    return PublishReceipt(brief_id='3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b',
+                          issue_no=expected_identity.issue_no,
+                          brief_date=expected_identity.brief_date,
+                          published_at=datetime.now(timezone.utc), created_new_identity=True)
+def notify(*args):
+    mark('send')
+    if role == 'owner':
+        (root / 'ready').touch()
+        deadline = time.monotonic() + 10
+        while not (root / 'release').exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError('test synchronization timed out')
+            time.sleep(.02)
+    return NotifyResult(sent_count=1, skipped_count=0, message_id='m', error=None, attempted_count=1)
+with patch('brief.cli.gather', side_effect=gather), \
+     patch('brief.headlines.scrape_all', return_value=[]), \
+     patch('brief.v6_publisher.fetch_same_day_briefs', side_effect=same_day, create=True), \
+     patch('brief.v6_publisher.fetch_max_issue_no', return_value=235), \
+     patch('brief.pipeline_v6.run_publish', side_effect=publish), \
+     patch('brief.notifier.notify', side_effect=notify):
+    sys.exit(cli.main(['run', '--publish']))
+'''
+    env = {**os.environ, "HOME": str(tmp_path), "BRIEF_DRY_RUN": "0",
+           "PYTHONPATH": str(Path.cwd())}
+    owner = subprocess.Popen([sys.executable, "-c", script, str(tmp_path), "owner"],
+                             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        deadline = time.monotonic() + 5
+        while not (tmp_path / "ready").exists():
+            assert owner.poll() is None, owner.communicate()
+            assert time.monotonic() < deadline, "owner did not reach delivery"
+            time.sleep(.02)
+        loser = subprocess.run([sys.executable, "-c", script, str(tmp_path), "loser"],
+                               env=env, cwd=tmp_path, capture_output=True, timeout=5)
+        assert loser.returncode == 4, loser.stderr.decode()
+        assert not (tmp_path / "loser.events").exists()
+        (tmp_path / "release").touch()
+        assert owner.wait(timeout=5) == 0
+        assert (tmp_path / "owner.events").read_text().splitlines() == [
+            "identity", "gather", "model", "write", "send",
+        ]
+        lock = tmp_path / ".local/state/the-brief/publication.lock"
+        assert lock.is_file(), "release must never unlink the shared lock inode"
+        inode = lock.stat().st_ino
+        retry = subprocess.run([sys.executable, "-c", script, str(tmp_path), "retry"],
+                               env=env, cwd=tmp_path, capture_output=True, timeout=5)
+        assert retry.returncode == 0, retry.stderr.decode()
+        assert lock.stat().st_ino == inode
+    finally:
+        (tmp_path / "release").touch()
+        if owner.poll() is None:
+            owner.kill()
+        owner.communicate(timeout=5)
+
+
+@pytest.mark.parametrize("raw", [None, "", "0", "false", "no", "off", " OFF "])
+def test_false_environment_switch_cannot_override_explicit_dry_run(raw, monkeypatch):
+    if raw is not None:
+        monkeypatch.setenv("BRIEF_DRY_RUN", raw)
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish", "--dry-run"]) == 3
+    assert run.call_args.kwargs["dry_run"] is True
+    assert run.call_args.kwargs["notify_enabled"] is False
+
+
+@pytest.mark.parametrize("status,should_send", [("published", False), ("draft", False)])
+def test_same_day_replacement_reuses_identity_and_never_automatically_resends(status, should_send):
+    from datetime import date
+    from brief.notifier import NotifyResult
+    from brief.pipeline import PipelineConfig
+    from brief.publication_identity import PublishIdentity
+
+    today = date(2026, 9, 25)
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[
+        {"issue_no": 235, "brief_date": today.isoformat(), "status": status},
+    ]) as read, \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235) as maximum, \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish",
+               return_value=_receipt(235, today, created=True)) as run, \
+         patch("brief.notifier.notify", return_value=NotifyResult(
+             sent_count=1, skipped_count=0, message_id="m", error=None, attempted_count=1,
+         )) as notify:
+        assert cli._run_v6_publish(PipelineConfig(today=today, enable_headlines=False), today,
+                                   dry_run=False, notify_enabled=True) == 0
+    read.assert_called_once_with(today)
+    maximum.assert_called_once()
+    assert run.call_args.kwargs["expected_identity"] == PublishIdentity(235, today)
+    assert notify.called is should_send
+
+
+def test_same_day_conflict_holds_before_gather_or_model():
+    from datetime import date
+    from brief.pipeline import PipelineConfig
+
+    today = date(2026, 9, 25)
+    rows = [{"issue_no": n, "brief_date": today.isoformat()} for n in [234, 235]]
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=rows), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather") as gather, \
+         patch("brief.pipeline_v6.run_publish") as run, \
+         patch("brief.notifier.notify") as notify:
+        assert cli._run_v6_publish(PipelineConfig(today=today), today, False, True) == 4
+    gather.assert_not_called()
+    run.assert_not_called()
+    notify.assert_not_called()
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_paused_real_service_flow_has_zero_writes_or_notifications(monkeypatch, tmp_path, preview):
+    import shlex
+    from datetime import datetime
+    from brief import pipeline_v6
+
+    monkeypatch.setenv("BRIEF_DRY_RUN", "1")
+    fixture = tmp_path / "paused.json"
+    service = Path("deploy/brief.service").read_text()
+    command = next(line.split("=", 1)[1] for line in service.splitlines() if line.startswith("ExecStart="))
+    args = shlex.split(command)[3:]  # actual python -m brief.cli service arguments
+    if preview:
+        args += [f"--write-fixture={fixture}", "--preview-notify"]
+    payload = {
+        "brief": {"issue_no": 236, "volume": 1, "brief_date": "2026-09-24",
+                  "todays_call": "Inflation reached 99.99%.", "status": "published"},
+        "sections": [{"slug": "bb", "ord": 3, "title": "Bangladesh Bank",
+                      "group_key": "banking", "weight": 1}],
+    }
+    methods = []
+    def request(method, path, *args, **kwargs):
+        methods.append(method)
+        assert method == "GET", "pause must never write to Supabase"
+        return [{"issue_no": 235}] if "order=issue_no.desc" in path else []
+
+    with patch("brief.cli.now_bdt", return_value=datetime(2026, 9, 24, 8)), \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.headlines.scrape_all", return_value=[]), \
+         patch("brief.v6_publisher._request", side_effect=request), \
+         patch("brief.pipeline_v6._resolve_supabase_config", return_value=None), \
+         patch("brief.pipeline_v6._call_with_retries", side_effect=[
+             payload, {"verdict": "pass", "issues": [], "revised_brief": None},
+         ]), \
+         patch("brief.pipeline_v6._alert", wraps=pipeline_v6._alert) as warning, \
+         patch("brief.alerts.send_discord_alert") as alert, \
+         patch("brief.notifier.notify") as notify, \
+         patch("brief.preview_notify.notify_preview") as notify_preview:
+        assert cli.main(args) == 3
+    assert methods and set(methods) == {"GET"}
+    warning.assert_called()  # real degraded-data/prose warning traversed the pause guard
+    alert.assert_not_called()
+    notify.assert_not_called()
+    notify_preview.assert_not_called()
+    assert fixture.exists() is preview
+
+
+def test_explicit_dry_run_preview_still_sends_when_not_paused(tmp_path):
+    with patch("brief.cli._run_v6_publish", return_value=3) as run:
+        assert cli.main(["run", "--publish", "--dry-run", "--preview-notify",
+                         f"--write-fixture={tmp_path / 'preview.json'}"]) == 3
+    assert run.call_args.kwargs["preview_notify_enabled"] is True
+
+
+def test_failed_published_replacement_keeps_complete_old_edition_and_retry_never_sends():
+    """R3: a failed replacement rolls back inside the database, so the complete,
+    already-published (maybe emailed) edition remains; a retry reuses its
+    identity and still never sends."""
+    from datetime import date
+    from brief.pipeline import PipelineConfig
+    from brief.pipeline_v6 import V6PublishError
+
+    today = date(2026, 9, 25)
+    row = {"issue_no": 235, "brief_date": today.isoformat(), "status": "published"}
+    attempts = 0
+    identities = []
+    def publish(*args, expected_identity, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        identities.append(expected_identity)
+        if attempts == 1:
+            raise V6PublishError("child insert failed; transaction rolled back")
+        return _receipt(235, today, created=False)
+
+    cfg = PipelineConfig(today=today, enable_headlines=False)
+    with patch("brief.v6_publisher.fetch_same_day_briefs", side_effect=lambda _: [dict(row)]), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish", side_effect=publish), \
+         patch("brief.notifier.notify") as notify:
+        assert cli._run_v6_publish(cfg, today, False, True) == 4
+        assert row["status"] == "published"  # the complete old edition remains
+        assert cli._run_v6_publish(cfg, today, False, True) == 0
+    assert identities[0] == identities[1]
+    assert identities[1].issue_no == 235
+    notify.assert_not_called()
+
+
+def _live_run_returning(result, today):
+    from brief.notifier import NotifyResult
+    from brief.pipeline import PipelineConfig
+
+    with patch("brief.v6_publisher.fetch_same_day_briefs", return_value=[]), \
+         patch("brief.v6_publisher.fetch_max_issue_no", return_value=235), \
+         patch("brief.cli.gather", return_value=[]), \
+         patch("brief.pipeline_v6.run_publish", return_value=result), \
+         patch("brief.notifier.notify", return_value=NotifyResult(
+             sent_count=1, skipped_count=0, message_id="m", error=None, attempted_count=1,
+         )) as notify, \
+         patch("brief.alerts.send_discord_alert") as alert:
+        rc = cli._run_v6_publish(PipelineConfig(today=today, enable_headlines=False), today,
+                                 dry_run=False, notify_enabled=True)
+    return rc, notify, alert
+
+
+@pytest.mark.parametrize("label,make", [
+    ("bare legacy uuid", lambda d: "3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b"),
+    ("no receipt", lambda d: None),
+    ("raw dict", lambda d: {"brief_id": "3f2b8c1e-4d5a-4e6f-9a7b-8c9d0e1f2a3b", "issue_no": 236,
+                            "brief_date": d.isoformat(), "created_new_identity": True}),
+    ("receipt for another issue", lambda d: _receipt(237, d)),
+    ("receipt for another date", lambda d: _receipt(236, d.replace(day=d.day - 1))),
+])
+def test_live_publish_without_a_valid_receipt_for_this_identity_holds_and_never_notifies(label, make):
+    from datetime import date
+
+    today = date(2026, 9, 25)
+    rc, notify, _alert = _live_run_returning(make(today), today)
+    assert rc == 4
+    notify.assert_not_called()
+
+
+def test_receipt_for_an_existing_identity_never_notifies():
+    from datetime import date
+
+    today = date(2026, 9, 25)
+    rc, notify, _alert = _live_run_returning(_receipt(236, today, created=False), today)
+    assert rc == 0
+    notify.assert_not_called()
+
+
+def test_fresh_receipt_that_created_the_identity_notifies_that_edition():
+    from datetime import date
+
+    today = date(2026, 9, 25)
+    rc, notify, _alert = _live_run_returning(_receipt(236, today, brief_id=_BRIEF_ID), today)
+    assert rc == 0
+    notify.assert_called_once_with(_BRIEF_ID)
+
+
+def test_notifier_partial_delivery_alerts_without_republishing(caplog):
+    from brief.notifier import NotifyResult
+
+    result = NotifyResult(sent_count=2, skipped_count=0, message_id="accepted",
+                          error="HTTP 503", attempted_count=3)
+    with caplog.at_level("ERROR", logger="brief.cli"):
+        rc, alert = _run_publish_with_notify(notify_result=result)
+    assert rc == 0
+    alert.assert_called_once()
+    assert "PARTIAL ACCEPTANCE" in alert.call_args.args[0]
+    assert "accepted=2" in alert.call_args.args[0]
+    assert "attempted=3" in alert.call_args.args[0]
+    assert "acceptance unconfirmed=1" in alert.call_args.args[0]
+    assert "do not resend everyone" in alert.call_args.args[0]
+    assert any("PARTIAL ACCEPTANCE" in record.message for record in caplog.records)

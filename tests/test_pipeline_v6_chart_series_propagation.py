@@ -25,7 +25,10 @@ Coverage:
 """
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 import logging
+import socket
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -40,6 +43,26 @@ from brief.v6_schema import (
     SeriesNoteV6,
     SeriesPointV6,
 )
+
+
+@pytest.fixture(autouse=True)
+def _refuse_network(monkeypatch: pytest.MonkeyPatch):
+    """Hermetic: any socket connect or DNS lookup fails the test."""
+    attempts: list[str] = []
+
+    def refuse_connect(self: socket.socket, address: object) -> None:
+        attempts.append(f"connect({address!r})")
+        raise OSError(f"test refused outbound connect to {address!r}")
+
+    def refuse_lookup(host: object, *args: object, **kwargs: object) -> None:
+        attempts.append(f"getaddrinfo({host!r})")
+        raise OSError(f"test refused DNS lookup of {host!r}")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse_connect)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse_lookup)
+    yield
+    if attempts:
+        pytest.fail("outbound network attempted: " + ", ".join(sorted(set(attempts))))
 
 
 # ─── HTTP stub ─────────────────────────────────────────────────────────
@@ -742,7 +765,6 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     monkeypatch.setenv("SUPABASE_URL", SUPABASE_URL)
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", SERVICE_KEY)
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: None)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
 
@@ -758,6 +780,9 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     )
     monkeypatch.setattr(chart_series_fetcher, "fetch_brent", lambda **_: [])
     monkeypatch.setattr(chart_series_fetcher, "fetch_yield_ladder_monthly", lambda *_a, **_k: {})
+    # The fetchers not stubbed above read metric_history through run_publish's own
+    # `UrllibHttp()`; point that at an empty fake so they never leave the process.
+    monkeypatch.setattr(pipeline_v6, "UrllibHttp", lambda: _http([]))
 
     editor_output: dict[str, Any] = {
         "brief": {
@@ -793,7 +818,7 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     monkeypatch.setattr(
         pipeline_v6,
         "publish_brief",
-        lambda payload: captured.append(payload) or "fake-uuid",
+        lambda payload, *, expected_identity: captured.append(payload) or "fake-uuid",
     )
 
     # V5 input must include an fx section so editor_input["sections_raw"]
@@ -803,7 +828,7 @@ def test_run_publish_stamps_chart_series_on_final_brief(
     v5_sections: list[SectionData] = [
         SectionData(id="fx", title="FX Markets", metrics=[], freshness="fresh"),
     ]
-    result: str | None = pipeline_v6.run_publish(v5_sections, monday)
+    result: str | None = pipeline_v6.run_publish(v5_sections, monday, expected_identity=PublishIdentity(1, monday))
     assert result == "fake-uuid"
     assert len(captured) == 1
     published: BriefPayloadV6 = captured[0]
@@ -828,7 +853,6 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
     monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
 
     monkeypatch.setattr(pipeline_v6, "fetch_previous_brief", lambda: None)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
     monkeypatch.setattr(pipeline_v6, "fetch_recent_news", lambda n_issues=5: [])
     monkeypatch.setattr(pipeline_v6, "fetch_metric_definitions", lambda: [])
 
@@ -865,7 +889,7 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
         raise AssertionError(f"unexpected label: {label}")
 
     monkeypatch.setattr(pipeline_v6, "_call_with_retries", fake_call)
-    monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload: "fake-uuid")
+    monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload, *, expected_identity: "fake-uuid")
 
     from brief.schema import SectionData
 
@@ -874,7 +898,7 @@ def test_run_publish_skips_chart_stamping_when_supabase_env_missing(
     ]
 
     with caplog.at_level(logging.WARNING, logger="brief.pipeline_v6"):
-        result: str | None = pipeline_v6.run_publish(v5_sections, monday)
+        result: str | None = pipeline_v6.run_publish(v5_sections, monday, expected_identity=PublishIdentity(1, monday))
 
     assert result == "fake-uuid"
     # Some warning mentioning chart series / supabase env should have been logged
@@ -1143,15 +1167,15 @@ def test_fetch_macro_cpi_series_keeps_the_official_12m_avg_july_point() -> None:
     _seed_cpi_fixture()
     out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
     ts_values = {p.ts: p.value for p in out["cpi_12m_avg_monthly"]}
-    assert ts_values.get("2026-07-01") == 8.66
+    assert ts_values.get("2026-07-31") == 8.66
 
 
 def test_fetch_macro_cpi_series_drops_the_derived_july_food_point() -> None:
     _seed_cpi_fixture()
     out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
     ts_values = {p.ts for p in out["cpi_p2p_food_monthly"]}
-    assert "2026-07-01" not in ts_values
-    assert "2026-06-01" in ts_values
+    assert "2026-07-31" not in ts_values
+    assert "2026-06-30" in ts_values
 
 
 def test_fetch_macro_cpi_series_drops_the_owner_pending_july_nonfood_point() -> None:
@@ -1161,8 +1185,8 @@ def test_fetch_macro_cpi_series_drops_the_owner_pending_july_nonfood_point() -> 
     _seed_cpi_fixture()
     out = chart_series_fetcher.fetch_macro_cpi_series(_CpiMonthlyHistoryStub())
     ts_values = {p.ts for p in out["cpi_p2p_nonfood_monthly"]}
-    assert "2026-07-01" not in ts_values
-    assert "2026-06-01" in ts_values
+    assert "2026-07-31" not in ts_values
+    assert "2026-06-30" in ts_values
 
 
 # ─── CPI archive honesty gate must not truncate the whole history ────────
@@ -1243,7 +1267,7 @@ def test_fetch_macro_cpi_series_keeps_the_seeded_history_not_just_the_live_tail(
 
     # The seeded history itself must still be present, not just the live tail.
     food_ts = {p.ts for p in out["cpi_p2p_food_monthly"]}
-    assert "2024-08-01" in food_ts, (
+    assert "2024-08-31" in food_ts, (
         "seeded history (source=macro_observer_seed) was dropped — the chart "
         "would show only the last few months instead of a real 24-month trend"
     )

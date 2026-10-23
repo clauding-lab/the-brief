@@ -1,8 +1,38 @@
+import socket
+
 import pytest
 
 from brief.builders import ALL_BUILDER_IDS
 from brief.pipeline import gather, PipelineConfig
 from brief.schema import MapCoord, SectionData
+
+
+@pytest.fixture(autouse=True)
+def _refuse_network(monkeypatch: pytest.MonkeyPatch):
+    """Hermetic: any socket connect or DNS lookup fails the test."""
+    attempts: list[str] = []
+
+    def refuse_connect(self: socket.socket, address: object) -> None:
+        attempts.append(f"connect({address!r})")
+        raise OSError(f"test refused outbound connect to {address!r}")
+
+    def refuse_lookup(host: object, *args: object, **kwargs: object) -> None:
+        attempts.append(f"getaddrinfo({host!r})")
+        raise OSError(f"test refused DNS lookup of {host!r}")
+
+    monkeypatch.setattr(socket.socket, "connect", refuse_connect)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse_lookup)
+    yield
+    if attempts:
+        pytest.fail("outbound network attempted: " + ", ".join(sorted(set(attempts))))
+
+
+@pytest.fixture(autouse=True)
+def _no_live_dse_scrape(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The fixture snapshot carries no sector heat, so the DSE builder falls back to a live
+    # dsebd.org scrape; fake it as "scrape unavailable" (None), the path a failed scrape takes.
+    from brief.builders import dse
+    monkeypatch.setattr(dse, "scrape_sector_heat", lambda *a, **k: None)
 
 
 @pytest.mark.integration
@@ -70,3 +100,27 @@ def test_gather_no_history_no_enrichment_no_failure(fixture_snapshot, today):
         for m in s.metrics:
             assert m.history_values is None
 
+
+
+def test_bank_borrowing_history_uses_bank_only_read_id_in_one_batch():
+    from datetime import date
+    from brief.pipeline import _enrich_metric_history
+    from brief.schema import Metric
+
+    class History:
+        def __init__(self):
+            self.calls = []
+
+        def get_history_window(self, ids, **kwargs):
+            self.calls.append(ids)
+            rows = {"fiscal_govt_borrow_trn": [1.7, 1.8],
+                    "fiscal_bank_borrow_trn": [-1.1, -1.2]}
+            return {mid: rows[mid] for mid in ids if mid in rows}
+
+    history = History()
+    card = Metric(id="fiscal_govt_borrow_trn", label="Govt bank borrow YTD", value=-1.2,
+                  unit="BDT trn", as_of=date(2026, 6, 30), source="BB", cadence="monthly")
+    sections = [SectionData(id="fiscal", title="Fiscal", metrics=[card], freshness="stale")]
+    _enrich_metric_history(sections, history, today=date(2026, 9, 25))
+    assert card.history_values == [-1.1, -1.2]
+    assert history.calls == [["fiscal_bank_borrow_trn"]]

@@ -141,6 +141,28 @@ function toPoints(
   return series.map(([d, v]) => ({ x: d, y: v }));
 }
 
+/** Align only the series a chart uses, so index-mode hover always means one date.
+ * Identical duplicates coalesce; conflicting values (including null vs a number)
+ * make that date unavailable. Array order is not evidence for choosing a value.
+ * Dates are source keys: do not restamp or merge distinct observation dates here.
+ */
+function alignSeriesByDate(series: SeriesByKey): SeriesByKey {
+  const dates = [...new Set(Object.values(series).flatMap(points => points.map(([date]) => date)))].sort();
+  return Object.fromEntries(Object.entries(series).map(([key, points]) => {
+    const values = new Map<string, number | null>();
+    const conflicts = new Set<string>();
+    for (const [date, value] of points) {
+      if (values.has(date) && values.get(date) !== value) conflicts.add(date);
+      values.set(date, value);
+    }
+    return [key, dates.map(date => [date, conflicts.has(date) ? null : values.get(date) ?? null])];
+  }));
+}
+
+function alignChartSeries(series: SeriesByKey, keys: string[]): SeriesByKey {
+  return alignSeriesByDate(Object.fromEntries(keys.map(key => [key, series[key] ?? []])));
+}
+
 // Round to max 2 decimals so axis ticks don't show floating-point artifacts
 // like 5.6000000000000005%.
 function r2(v: number | null | undefined): number | null | undefined {
@@ -429,10 +451,11 @@ function fxFlowsConfig(ctx: BuildContext): ChartConfiguration<"bar"> {
   const keys = ["monthly_export", "monthly_remittance", "monthly_import"];
   if (!hasAnyData(ctx.series, keys)) return emptyBarConfig();
 
+  const series = alignChartSeries(ctx.series, keys);
   const palette = buildPalette();
-  const exp = toPoints(ctx.series["monthly_export"]);
-  const rem = toPoints(ctx.series["monthly_remittance"]);
-  const imp = (ctx.series["monthly_import"] || []).map(([d, v]) => ({
+  const exp = toPoints(series["monthly_export"]);
+  const rem = toPoints(series["monthly_remittance"]);
+  const imp = (series["monthly_import"] || []).map(([d, v]) => ({
     x: d,
     y: v == null ? null : -Math.abs(v),
   }));
@@ -507,6 +530,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   const REM = "remittance_usd_mn_monthly";
   if (!hasAnyData(ctx.series, [EXP, IMP, REM])) return emptyLineConfig();
 
+  const series = alignChartSeries(ctx.series, [EXP, IMP, REM]);
   const palette = buildPalette();
   // Low-alpha tint of a solid ink, reusing the same hue (mirrors accentSoft).
   const AREA_ALPHA = 18; // mirrors accentSoft (~12%), nudged up for diverging-area legibility
@@ -514,7 +538,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
 
   // mn → bn, aligned by ts.
   const toBn = (key: string): XYPoint[] =>
-    toPoints(ctx.series[key]).map((p) => ({ x: p.x, y: p.y == null ? null : p.y / 1000 }));
+    toPoints(series[key]).map((p) => ({ x: p.x, y: p.y == null ? null : p.y / 1000 }));
   const exp = toBn(EXP);
   const imp = toBn(IMP);
   const rem = toBn(REM);
@@ -551,10 +575,15 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
   // Only the border dims (soft ink -> dimColor's lower-contrast tint), which
   // is the correct direction: a stale line reads as fainter, not as a
   // bolder-filled area.
+  // Tooltip values belong to the selected source date, not the plotted boundary.
+  const withRawValue = (geometry: XYPoint[], raw: XYPoint[]) => {
+    const byDate = new Map(raw.map(p => [p.x, p.y]));
+    return geometry.map(p => ({ ...p, rawValue: byDate.get(p.x) ?? null }));
+  };
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "Exports",
-      data: exp,
+      data: withRawValue(exp, exp),
       backgroundColor: soft(palette.bull),
       borderColor: isStale(EXP) ? dimColor(palette.bull) : palette.bull,
       borderWidth: 0.8,
@@ -564,7 +593,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     {
       label: "Remittance",
-      data: inflowTop,
+      data: withRawValue(inflowTop, rem),
       backgroundColor: soft(palette.ink2),
       borderColor: isStale(REM) ? dimColor(palette.ink2) : palette.ink2,
       borderWidth: 0.8,
@@ -574,7 +603,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     {
       label: "Imports",
-      data: impNeg,
+      data: withRawValue(impNeg, imp),
       backgroundColor: soft(palette.bear),
       borderColor: isStale(IMP) ? dimColor(palette.bear) : palette.bear,
       borderWidth: 0.8,
@@ -584,7 +613,7 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     {
       label: "Net basic balance",
-      data: net,
+      data: withRawValue(net, net),
       borderColor: netStale ? dimColor(palette.ink) : palette.ink,
       borderWidth: 2.6,
       fill: false,
@@ -604,6 +633,22 @@ function fxBalanceConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     data: { datasets },
     options: {
       ...baseOpts,
+      plugins: {
+        ...baseOpts.plugins,
+        tooltip: {
+          ...baseOpts.plugins.tooltip,
+          callbacks: {
+            label: (item: { raw: unknown; dataset: { label?: string } }) => {
+              const value = (item.raw as XYPoint & { rawValue: number | null }).rawValue;
+              const label = item.dataset.label ?? "";
+              if (value == null) return `${label}: —`;
+              // Five bn decimals retain the source's two mn decimals.
+              const amount = Math.abs(value).toLocaleString("en-GB", { maximumFractionDigits: 5 });
+              return `${label}: ${value < 0 ? "−" : ""}$${amount}bn`;
+            },
+          },
+        },
+      },
       scales: {
         ...baseOpts.scales,
         x: {
@@ -1029,13 +1074,14 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     return emptyLineConfig();
   }
 
+  const series = alignChartSeries(ctx.series, [HEADLINE_KEY, FOOD_KEY, NONFOOD_KEY]);
   const palette = buildPalette();
   const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
 
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "Headline (12m avg)",
-      data: toPoints(ctx.series[HEADLINE_KEY]),
+      data: toPoints(series[HEADLINE_KEY]),
       borderColor: isStale(HEADLINE_KEY) ? dimColor(palette.ink) : palette.ink,
       borderWidth: 1.8,
       pointRadius: 0,
@@ -1044,7 +1090,7 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     {
       label: "Food (P-to-P)",
-      data: toPoints(ctx.series[FOOD_KEY]),
+      data: toPoints(series[FOOD_KEY]),
       borderColor: isStale(FOOD_KEY) ? dimColor(palette.warn) : palette.warn,
       borderWidth: 1.2,
       pointRadius: 0,
@@ -1053,7 +1099,7 @@ function cpiTrendConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     {
       label: "Non-Food (P-to-P)",
-      data: toPoints(ctx.series[NONFOOD_KEY]),
+      data: toPoints(series[NONFOOD_KEY]),
       borderColor: isStale(NONFOOD_KEY) ? dimColor(palette.ink3) : palette.ink3,
       borderWidth: 1.2,
       pointRadius: 0,
@@ -1213,13 +1259,14 @@ function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     return emptyLineConfig();
   }
 
+  const series = alignChartSeries(ctx.series, [GROSS_KEY, BPM6_KEY]);
   const palette = buildPalette();
   const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
 
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "Gross",
-      data: toPoints(ctx.series[GROSS_KEY]),
+      data: toPoints(series[GROSS_KEY]),
       borderColor: isStale(GROSS_KEY) ? dimColor(palette.ink) : palette.ink,
       borderWidth: 1.8,
       pointRadius: 0,
@@ -1228,7 +1275,7 @@ function reservesConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     {
       label: "Net (BPM6)",
-      data: toPoints(ctx.series[BPM6_KEY]),
+      data: toPoints(series[BPM6_KEY]),
       borderColor: isStale(BPM6_KEY) ? dimColor(palette.accent) : palette.accent,
       borderWidth: 1.4,
       pointRadius: 0,
@@ -1286,13 +1333,14 @@ function moneyMarketConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     return emptyLineConfig();
   }
 
+  const series = alignChartSeries(ctx.series, [DOMMR_KEY, BOFR_KEY]);
   const palette = buildPalette();
   const isStale = (key: string) => ctx.staleKeys?.has(key) ?? false;
 
   const datasets: ChartDataset<"line", XYPoint[]>[] = [
     {
       label: "DOMMR",
-      data: toPoints(ctx.series[DOMMR_KEY]),
+      data: toPoints(series[DOMMR_KEY]),
       borderColor: isStale(DOMMR_KEY) ? dimColor(palette.ink) : palette.ink,
       borderWidth: 1.8,
       pointRadius: 0,
@@ -1301,7 +1349,7 @@ function moneyMarketConfig(ctx: BuildContext): ChartConfiguration<"line"> {
     },
     {
       label: "BOFR",
-      data: toPoints(ctx.series[BOFR_KEY]),
+      data: toPoints(series[BOFR_KEY]),
       borderColor: isStale(BOFR_KEY) ? dimColor(palette.accent) : palette.accent,
       borderWidth: 1.4,
       pointRadius: 0,
@@ -1516,6 +1564,7 @@ export const CHART_CARD_HEADS: Partial<Record<string, ChartCardHead>> = {
 // Internal exports — used by tests & BriefChart wrapper. Not part of the
 // public API surface for Section.tsx.
 export const __internals = {
+  alignSeriesByDate,
   buildPalette,
   cssVar,
   toPoints,

@@ -59,7 +59,7 @@ class _FakeHistory:
 # the flash-fallback's stale=True, M-B review round 2).
 LIVE = {
     "fiscal_nbr_collected_trn": _row("fiscal_nbr_collected_trn", 3.61, AUG3),
-    "fiscal_govt_borrow_trn": _row("fiscal_govt_borrow_trn", 0.94, JUN30),
+    "fiscal_bank_borrow_trn": _row("fiscal_bank_borrow_trn", 0.94, JUN30),
     "remit_monthly_mn": _row("remit_monthly_mn", 2820.0, AUG3),
     "remittance_usd_mn_monthly": _row("remittance_usd_mn_monthly", 2858.68, date(2026, 7, 31)),
 }
@@ -119,5 +119,5 @@ def test_a_genuinely_missing_row_still_degrades_the_section() -> None:
     """The removal must not have bought a green badge by disabling the signal.
     Drop the live row and the section must go back to reporting trouble."""
     s = build_remit(_ctx(live={}))
-    assert s.metrics[0].value is None
-    assert s.freshness == "warming_up"
+    assert s.metrics == []
+    assert s.freshness == "unavailable"

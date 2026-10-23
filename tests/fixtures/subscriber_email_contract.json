@@ -1,0 +1,19 @@
+{
+  "policy": "Trim ASCII spaces only, then lowercase before the 254-character limit. Reject C0/C1 controls, DEL, Unicode whitespace and BOM inside the normalized address. Preserve other Unicode letters and plus tags.",
+  "accepted": [
+    {"raw": " Reader+Tag@Example.TEST ", "stored": "reader+tag@example.test"},
+    {"raw": "Jos\u00e9@Example.TEST", "stored": "jos\u00e9@example.test"},
+    {"raw": "\u0130@Example.TEST", "stored": "i\u0307@example.test"}
+  ],
+  "rejected": [
+    "reader\u0084@example.test", "reader\u0085@example.test", "reader\u0086@example.test",
+    "reader\u009f@example.test", "reader\u00a0@example.test", "reader\u001c@example.test",
+    "reader\u0000@example.test", "reader\u007f@example.test", "reader\ufeff@example.test",
+    "reader\u1680@example.test", "reader\u2000@example.test", "reader\u200a@example.test",
+    "reader\u2028@example.test", "reader\u2029@example.test", "reader\u202f@example.test",
+    "reader\u205f@example.test", "reader\u3000@example.test",
+    "\u0085reader@example.test", "reader@example.test\u0085",
+    "\treader@example.test", "reader@example.test\n", "\ufeffreader@example.test",
+    "reader@example.test\u00a0"
+  ]
+}

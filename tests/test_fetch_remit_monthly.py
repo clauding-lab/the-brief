@@ -20,7 +20,7 @@ def test_fetch_remit_monthly_returns_chronological_series_from_monthly_table():
     def _get_history_window(metric_ids, *, limit=None, days=None, today=None, table="metric_history"):
         # PostgREST anchor mode returns most-recent-first; mock 12 months desc.
         return {
-            m: [_row(m, f"2026-{x:02d}-01", 2400.0 + x * 50) for x in range(12, 0, -1)]
+            m: [_row(m, f"2025-{x:02d}-01", 2400.0 + x * 50) for x in range(12, 0, -1)]
             for m in metric_ids
         }
 

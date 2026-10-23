@@ -12,8 +12,8 @@ Tick the checkbox once the expected output is confirmed. Do not start `install.s
 
 ## 2. EconDelta data source
 
-- [ ] `ls -la /home/adnan/econdelta/data/latest.json` → file exists, mtime is within the last 24h.
-- [ ] `jq '.generated_at' /home/adnan/econdelta/data/latest.json` → prints an ISO-8601 timestamp from today (or yesterday on weekends).
+- [ ] `ls -la /home/adnan/econdelta/data/latest.json` → file exists, mtime is within the last 24h. This file is a copy: a Hetzner cron pulls it from ExonVPS every five minutes (`crontab -l | grep pull-econdelta-latest`); `rsync -t` keeps ExonVPS's mtime.
+- [ ] `python3 -c "import json;print(json.load(open('/home/adnan/econdelta/data/latest.json'))['updated_at'])"` (jq is not installed on Hetzner) → prints the ISO-8601 UTC capture time of the most recent aggregate: 20:55–21:20 UTC on the previous UTC day for the 02:55 / 03:15 BDT fires (add 6 h for BDT). The aggregate runs every day, weekends included.
 - [ ] `sudo -u adnan cat /home/adnan/econdelta/data/latest.json | head -c 200` → JSON is readable by the `adnan` user (the service runs as `adnan`).
 
 ## 3. Credentials

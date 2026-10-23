@@ -10,6 +10,7 @@ Fix: when `Metric.delta` is missing, fall back to diffing the metric's value
 text against the previous brief's same (slug, label). This makes the lens
 rotate based on actual movement.
 """
+from brief.publication_identity import PublishIdentity
 from datetime import date
 
 import pytest
@@ -151,7 +152,6 @@ def test_lens_rotates_off_banking_when_npl_stuck_and_brent_moves(monkeypatch):
 
     # Mock all the supabase calls that _build_editor_input doesn't directly use
     # but pipeline_v6.run_publish would. We only call _build_editor_input here.
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 91)
 
     from brief.schema import Metric, SectionData
 
@@ -179,7 +179,7 @@ def test_lens_rotates_off_banking_when_npl_stuck_and_brent_moves(monkeypatch):
     editor_input, today_lens = pipeline_v6._build_editor_input(
         fake_sections,
         monday,
-        scraped_headlines=[],
+        expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=previous,
         previous_lens="banking",
         recent_news=[],
@@ -200,7 +200,6 @@ def test_lens_picks_banking_when_npl_actually_moved(monkeypatch):
 
     # NPL moved 30% → 35.73% (~19% relative move); Brent unchanged
     previous = _make_previous_brief(banking_npl="30.0%", iran_brent="$113.95")
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 91)
 
     from brief.schema import Metric, SectionData
 
@@ -226,7 +225,7 @@ def test_lens_picks_banking_when_npl_actually_moved(monkeypatch):
     ]
 
     _, today_lens = pipeline_v6._build_editor_input(
-        fake_sections, monday, scraped_headlines=[],
+        fake_sections, monday, expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=previous, previous_lens="banking",
         recent_news=[], metric_definitions=[],
     )
@@ -239,7 +238,6 @@ def test_lens_falls_back_when_no_previous_brief(monkeypatch):
     """Cold start (previous_brief=None): no movement signal at all → fallback
     to alphabetical. Same as today's behavior; we don't regress this path."""
     monday = date(2026, 5, 4)
-    monkeypatch.setattr(pipeline_v6, "fetch_max_issue_no", lambda: 0)
 
     from brief.schema import Metric, SectionData
 
@@ -265,7 +263,7 @@ def test_lens_falls_back_when_no_previous_brief(monkeypatch):
     ]
 
     _, today_lens = pipeline_v6._build_editor_input(
-        fake_sections, monday, scraped_headlines=[],
+        fake_sections, monday, expected_identity=PublishIdentity(92, monday), scraped_headlines=[],
         previous_brief=None, previous_lens=None,
         recent_news=[], metric_definitions=[],
     )

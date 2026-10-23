@@ -35,6 +35,12 @@ def test_no_webhook_env_returns_false_without_network() -> None:
     mock_open.assert_not_called()
 
 
+def test_missing_webhook_does_not_log_alert_body(caplog) -> None:
+    assert send_discord_alert("subscriber@example.com secret-token") is False
+    assert "subscriber@example.com" not in caplog.text
+    assert "secret-token" not in caplog.text
+
+
 def test_posts_to_alert_webhook_with_content(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DISCORD_ALERT_WEBHOOK_URL", "https://discord.test/hook-alerts")
     captured = {}
@@ -109,3 +115,18 @@ def test_sends_explicit_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert captured["ua"], "no User-Agent header set — Discord will 403"
     assert "python-urllib" not in captured["ua"].lower()
+
+
+def test_malformed_webhook_never_raises_or_logs_secret(monkeypatch, caplog) -> None:
+    secret = "bad-webhook-token"
+    monkeypatch.setenv("DISCORD_ALERT_WEBHOOK_URL", f"https://[{secret}")
+    assert send_discord_alert("failure") is False
+    assert secret not in caplog.text
+
+
+def test_http_error_does_not_log_webhook_url(monkeypatch, caplog) -> None:
+    secret = "secret-webhook-token"
+    monkeypatch.setenv("DISCORD_ALERT_WEBHOOK_URL", f"https://discord.test/{secret}")
+    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError(secret)):
+        assert send_discord_alert("failure") is False
+    assert secret not in caplog.text

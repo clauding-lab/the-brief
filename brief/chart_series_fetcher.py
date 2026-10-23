@@ -28,7 +28,8 @@ from datetime import date as date_t
 from datetime import timedelta
 from typing import Any
 
-from brief.history import HttpClient, MetricHistoryClient
+from brief.history import HttpClient, MetricHistoryClient, observation_date
+from brief.cadence import now_bdt
 from brief.v6_schema import MoverRowV6, SeriesNoteV6, SeriesPointV6
 
 logger = logging.getLogger(__name__)
@@ -474,6 +475,7 @@ def fetch_brent(
 # stay excluded; the seeded archive does not.
 _OFFICIAL_CPI_SOURCES: frozenset[str] = frozenset({
     "bb_inflation_page",
+    "econdelta_daily_cpi",
     "macro_observer_seed",
 })
 
@@ -494,6 +496,12 @@ _PENDING_UNOFFICIAL_CPI_POINTS: frozenset[tuple[str, str]] = frozenset({
 })
 
 
+def is_excluded_cpi_period(metric_id: str, observed: date_t) -> bool:
+    """Owner-pending source month exclusions, independent of storage day."""
+    bucket = observed.replace(day=1).isoformat()
+    return (metric_id, bucket) in _PENDING_UNOFFICIAL_CPI_POINTS
+
+
 def is_official_cpi_point(metric_id: str, ts: str, source: str | None) -> bool:
     """True iff one `metric_history_monthly` CPI-trio row counts as an
     OFFICIAL print — never a derived/arithmetic figure, and never a point
@@ -503,14 +511,18 @@ def is_official_cpi_point(metric_id: str, ts: str, source: str | None) -> bool:
     chart can never independently drift on what counts as official."""
     if source not in _OFFICIAL_CPI_SOURCES:
         return False
-    if (metric_id, ts) in _PENDING_UNOFFICIAL_CPI_POINTS:
+    # Denied points name a source month, regardless of start/end stamping.
+    try:
+        observed = date_t.fromisoformat(ts)
+    except (TypeError, ValueError):
         return False
-    return True
+    return not is_excluded_cpi_period(metric_id, observed)
 
 
 def fetch_macro_cpi_series(
     history_monthly: MetricHistoryClient,
     *,
+    today: date_t | None = None,
     months: int = 24,
 ) -> dict[str, list[SeriesPointV6]]:
     """Pull `months` rows of the three CPI series from `metric_history_monthly`.
@@ -526,6 +538,7 @@ def fetch_macro_cpi_series(
     AGENTS.md landmine #1: reads from metric_history_monthly, NOT tb_* tables.
     AGENTS.md landmine #6: uses _monthly-suffixed metric IDs.
     """
+    cutoff = today if today is not None else now_bdt().date()
     grouped = history_monthly.get_history_window(
         _CPI_METRIC_IDS,
         limit=months * len(_CPI_METRIC_IDS),
@@ -536,8 +549,9 @@ def fetch_macro_cpi_series(
         rows = grouped.get(mid, [])
         # rows are most-recent-first from PostgREST anchor mode; flip to chronological
         points: list[SeriesPointV6] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=cutoff, monthly=True)) is not None
             if is_official_cpi_point(mid, r.as_of.isoformat(), r.source)
         ]
         out[mid] = points
@@ -547,6 +561,7 @@ def fetch_macro_cpi_series(
 def fetch_remit_monthly(
     history_monthly: MetricHistoryClient,
     *,
+    today: date_t | None = None,
     months: int = 12,
 ) -> dict[str, list[SeriesPointV6]]:
     """Pull `months` rows of monthly remittance from `metric_history_monthly`.
@@ -558,6 +573,7 @@ def fetch_remit_monthly(
     AGENTS.md landmine #6: uses the _monthly-suffixed metric ID.
     AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
     """
+    cutoff = today if today is not None else now_bdt().date()
     grouped = history_monthly.get_history_window(
         _REMIT_MONTHLY_METRIC_IDS,
         limit=months * len(_REMIT_MONTHLY_METRIC_IDS),
@@ -567,8 +583,9 @@ def fetch_remit_monthly(
     for mid in _REMIT_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=cutoff, monthly=True)) is not None
         ]
     return out
 
@@ -576,6 +593,7 @@ def fetch_remit_monthly(
 def fetch_fiscal_monthly(
     history_monthly: MetricHistoryClient,
     *,
+    today: date_t | None = None,
     months: int = 30,
 ) -> dict[str, list[SeriesPointV6]]:
     """Pull `months` rows of monthly NBR tax revenue from `metric_history_monthly`
@@ -589,6 +607,7 @@ def fetch_fiscal_monthly(
     AGENTS.md landmine #6: uses the _monthly/_cr-suffixed EconDelta metric ID.
     AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
     """
+    cutoff = today if today is not None else now_bdt().date()
     grouped = history_monthly.get_history_window(
         _FISCAL_MONTHLY_METRIC_IDS,
         limit=months * len(_FISCAL_MONTHLY_METRIC_IDS),
@@ -598,8 +617,9 @@ def fetch_fiscal_monthly(
     for mid in _FISCAL_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=cutoff, monthly=True)) is not None
         ]
     return out
 
@@ -607,6 +627,7 @@ def fetch_fiscal_monthly(
 def fetch_fx_balance_monthly(
     history_monthly: MetricHistoryClient,
     *,
+    today: date_t | None = None,
     months: int = 24,
 ) -> dict[str, list[SeriesPointV6]]:
     """Pull `months` of exports / imports / remittance from `metric_history_monthly`
@@ -620,6 +641,7 @@ def fetch_fx_balance_monthly(
     AGENTS.md landmine #6: uses the _monthly-suffixed metric IDs.
     AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
     """
+    cutoff = today if today is not None else now_bdt().date()
     grouped = history_monthly.get_history_window(
         _FX_BALANCE_MONTHLY_METRIC_IDS,
         limit=months * len(_FX_BALANCE_MONTHLY_METRIC_IDS),
@@ -629,8 +651,9 @@ def fetch_fx_balance_monthly(
     for mid in _FX_BALANCE_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=cutoff, monthly=True)) is not None
         ]
     return out
 
@@ -638,6 +661,7 @@ def fetch_fx_balance_monthly(
 def fetch_reserves_monthly(
     history_monthly: MetricHistoryClient,
     *,
+    today: date_t | None = None,
     months: int = 13,
 ) -> dict[str, list[SeriesPointV6]]:
     """Pull `months` rows of gross + net (BPM6) reserves from
@@ -650,6 +674,7 @@ def fetch_reserves_monthly(
     AGENTS.md landmine #6: uses the _monthly-suffixed metric IDs.
     AGENTS.md landmine #14: limit is months * len(ids) (per-id, not global).
     """
+    cutoff = today if today is not None else now_bdt().date()
     grouped = history_monthly.get_history_window(
         _RESERVES_MONTHLY_METRIC_IDS,
         limit=months * len(_RESERVES_MONTHLY_METRIC_IDS),
@@ -659,8 +684,9 @@ def fetch_reserves_monthly(
     for mid in _RESERVES_MONTHLY_METRIC_IDS:
         rows = grouped.get(mid, [])
         out[mid] = [
-            SeriesPointV6(key=mid, ts=r.as_of.isoformat(), value=r.value)
+            SeriesPointV6(key=mid, ts=observed.isoformat(), value=r.value)
             for r in reversed(rows)
+            if (observed := observation_date(r, today=cutoff, monthly=True)) is not None
         ]
     return out
 

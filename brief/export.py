@@ -93,13 +93,18 @@ def fetch_table(
     under the documented 529-retry worst case, and the publisher's DELETE/re-INSERT
     (two-phase publish) between paged GETs shifts offsets — offset pagination then
     silently skips rows. Keyset asks each page for ids strictly greater than the last
-    id seen, so concurrent deletes/inserts cannot renumber what remains; every
-    surviving row is visited exactly once.
+    id seen, so concurrent deletes/inserts cannot renumber what remains. This is
+    not a point-in-time snapshot: inserts below the cursor and changes between
+    table reads can be missed. A restore-grade export requires paused writers or
+    a transactionally consistent snapshot, then count/key and parent/child checks.
 
     Raises ExportError on any non-200/non-list page or a row missing `id` — a partial
     table must never be treated as complete.
     """
+    if page_size < 1:
+        raise ExportError("page_size must be positive")
     rows: list[dict] = []
+    seen: set[str] = set()
     last_id: str | None = None
     while True:
         params: list[tuple[str, str]] = [
@@ -124,15 +129,21 @@ def fetch_table(
                 f"fetch {table} page after id={last_id!r} failed: HTTP {status} "
                 f"(body type {type(body).__name__})"
             )
-        rows.extend(body)
-        if len(body) < page_size:
+        if not body:
             return rows
-        last = body[-1].get("id")
-        if last is None:
-            raise ExportError(
-                f"{table} row missing 'id' — keyset pagination impossible"
-            )
-        last_id = str(last)
+        previous = None
+        for row in body:
+            if not isinstance(row, dict) or row.get("id") is None:
+                raise ExportError(f"{table} row missing 'id' — keyset pagination impossible")
+            value = row["id"]
+            identity = str(value)
+            if identity in seen or (previous is not None and value <= previous):
+                raise ExportError(f"{table} duplicate or unordered key — no pagination progress")
+            previous = value
+            seen.add(identity)
+        rows.extend(body)
+        # A short page may be a server row cap, not the end of the table.
+        last_id = str(body[-1]["id"])
 
 
 def _prune_old_exports(out_root: Path, keep: int) -> list[str]:

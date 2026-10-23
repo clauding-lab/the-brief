@@ -42,24 +42,23 @@ def send_discord_alert(message: str) -> bool:
     if not url:
         logger.warning(
             "alerts: no DISCORD_ALERT_WEBHOOK_URL / DISCORD_PREVIEW_WEBHOOK_URL set — "
-            "alert not sent: %s",
-            message[:200],
+            "alert not sent",
         )
         return False
 
     payload = json.dumps({"content": message[:_MAX_CONTENT]}).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        headers={"Content-Type": "application/json", "User-Agent": _USER_AGENT},
-        method="POST",
-    )
     try:
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": _USER_AGENT},
+            method="POST",
+        )
         with urllib.request.urlopen(req, timeout=_TIMEOUT_S) as resp:
             ok = 200 <= resp.status < 300
             if not ok:
                 logger.warning("alerts: Discord webhook returned HTTP %s", resp.status)
             return ok
     except Exception as exc:  # noqa: BLE001 — alert path must never raise
-        logger.warning("alerts: Discord alert failed: %s", exc)
+        logger.warning("alerts: Discord alert failed (%s)", type(exc).__name__)
         return False

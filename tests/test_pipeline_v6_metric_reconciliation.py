@@ -149,7 +149,7 @@ def test_reconcile_reinjects_editor_dropped_protected_metric() -> None:
     labels = [m.label for m in final_brief.sections[0].metrics]
     assert "SDF" in labels
     sdf = next(m for m in final_brief.sections[0].metrics if m.label == "SDF")
-    assert sdf.value == "7.50%"
+    assert sdf.value == "7.5%"  # house format: the source's 7.5, not padded (R2 fix 7b r1)
     # M1: inserted at its builder index (1), not appended to the tail.
     assert labels[1] == "SDF"
     # Gross Reserves is NOT protected — the memo's protected set is the
@@ -309,7 +309,7 @@ def test_reconcile_relabelled_protected_metric_rejected_then_reinjected_once() -
     bb_section = final_brief.sections[0]
     sdf_entries = [m for m in bb_section.metrics if m.label == "SDF"]
     assert len(sdf_entries) == 1
-    assert sdf_entries[0].value == "7.50%"
+    assert sdf_entries[0].value == "7.5%"  # house format (R2 fix 7b r1)
     assert not any(m.label == "Standing Deposit Facility (renamed)" for m in bb_section.metrics)
 
 
@@ -533,7 +533,7 @@ def test_reconcile_against_real_bb_builder_output() -> None:
     labels = {m.label for m in bb_section.metrics}
     assert "SDF" in labels
     sdf = next(m for m in bb_section.metrics if m.label == "SDF")
-    assert sdf.value == "7.50%"
+    assert sdf.value == "7.5%"  # house format (R2 fix 7b r1)
     # Policy Rate and SLF were never dropped by this simulated editor —
     # confirms reconciliation didn't disturb metrics that already survived.
     assert "Policy Rate" in labels

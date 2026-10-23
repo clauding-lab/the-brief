@@ -1,11 +1,34 @@
+import socket
 from datetime import date, datetime, timezone
 from unittest.mock import MagicMock
+
+import pytest
 
 from brief.builders import BuilderContext
 from brief.builders.dse import build
 from brief.econdelta import EconDeltaSnapshot
 from brief.history import HistoryRow
 from brief.vintage import period_label
+
+
+@pytest.fixture(autouse=True)
+def _no_outbound_network(monkeypatch):
+    """DSE builder tests are offline: they once made live GETs to dsebd.org (sector heat /
+    breadth fallbacks). Any DNS lookup or socket connect here is refused and fails the test."""
+    attempts: list[str] = []
+
+    def _refuse(kind: str):
+        def _blocked(*args, **kwargs):
+            attempts.append(kind)
+            raise OSError(f"outbound network blocked in tests ({kind})")
+        return _blocked
+
+    monkeypatch.setattr(socket, "getaddrinfo", _refuse("getaddrinfo"))
+    monkeypatch.setattr(socket, "create_connection", _refuse("create_connection"))
+    monkeypatch.setattr(socket.socket, "connect", _refuse("connect"))
+    monkeypatch.setattr(socket.socket, "connect_ex", _refuse("connect_ex"))
+    yield
+    assert attempts == [], f"test tried to reach the network: {attempts}"
 
 
 def _snap():
@@ -209,3 +232,130 @@ def test_dse_unavailable_when_dsex_missing():
     ctx = BuilderContext(snapshot=snap, history=None, today=date(2026, 4, 21))
     s = build(ctx)
     assert s.freshness == "unavailable"
+
+
+def _held_or_verified_dsex(monkeypatch, quality: str):
+    """SYNTHETIC dsex record in the shape EconDelta publishes for dse_market (see the shared
+    contract's holiday_closure records): the Monday 20 Apr session, read on Tuesday 21 Apr."""
+    from brief.builders import dse
+
+    monkeypatch.setattr(dse, "scrape_breadth", lambda *a, **k: None)
+    monkeypatch.setattr(dse, "scrape_sector_heat", lambda *a, **k: None)
+    base = _snap()
+    record = {"metric_id": "dsex", "value": base.data["dsex"], "as_of": "2026-04-20", "unit": "index",
+              "source": "dse_market", "source_url": "https://www.dse.com.bd/api/live/market",
+              "captured_at": "2026-04-20T20:56:00+00:00", "quality": quality,
+              "date_basis": "observation", "evidence": "dse_market snapshot field dsex",
+              "dependencies": [], "release_status": "unknown"}
+    snap = EconDeltaSnapshot(updated_at=base.updated_at, sources_status=base.sources_status,
+                             data=base.data, observations={"dsex": record})
+    return build(BuilderContext(snapshot=snap, history=None, today=date(2026, 4, 21)))
+
+
+def test_a_reading_the_producer_holds_is_stale_even_when_only_one_session_old(monkeypatch):
+    """A one-session-old date alone reads fresh; only EconDelta's 'held' quality (no confirmed
+    new session) can tell the card and the section badge that the reading is held over."""
+    held = _held_or_verified_dsex(monkeypatch, "held")
+    dsex = next(m for m in held.metrics if m.id == "dsex")
+    assert (dsex.as_of, dsex.stale) == (date(2026, 4, 20), True)
+    assert (held.freshness, held.freshness_reason) == ("stale", None)
+    verified = _held_or_verified_dsex(monkeypatch, "verified")
+    dsex = next(m for m in verified.metrics if m.id == "dsex")
+    assert (dsex.as_of, dsex.stale) == (date(2026, 4, 20), False)
+    assert verified.freshness != "stale"
+
+
+# ── G2b: the fallback reason must not claim a non-trading day on a trading day ──
+_NON_TRADING_REASON = "Non-trading day — last trading session"
+_MISSING_READING_REASON = "Latest DSE reading not available — last session shown"
+_DSE_SNAPSHOT_KEYS = ("dsex", "dsex_change_pct", "ds30", "dses", "turnover_crore",
+                      "advancing", "declining")
+
+
+def _dse_with_readings_missing(monkeypatch, today: date, missing: tuple[str, ...], *,
+                               how: str, last_session: date,
+                               sessions: dict[str, date] | None = None):
+    """SYNTHETIC day: the snapshot lacks `missing` DSE ids (`how` = 'quarantined': the key is
+    dropped from data, as the new producer does for a rejected field; 'unavailable': the key is
+    present with no value) and history holds each id's reading from `last_session` (or from
+    `sessions[id]` for the ids listed there)."""
+    from brief.builders import dse
+
+    monkeypatch.setattr(dse, "scrape_breadth", lambda *a, **k: None)
+    monkeypatch.setattr(dse, "scrape_sector_heat", lambda *a, **k: None)
+    base = _snap().data
+    if how == "quarantined":
+        data = {k: v for k, v in base.items() if k not in missing}
+    else:
+        data = {k: (None if k in missing else v) for k, v in base.items()}
+    snap = EconDeltaSnapshot(updated_at=datetime(2026, 9, 23, 21, 0, tzinfo=timezone.utc),
+                             sources_status={"dse_market": {"status": "ok"}}, data=data)
+
+    def _get_latest(metric_id, **kwargs):
+        if metric_id in _DSE_SNAPSHOT_KEYS:
+            return HistoryRow(metric_id=metric_id,
+                              as_of=(sessions or {}).get(metric_id, last_session),
+                              value=base[metric_id], source="EconDelta")
+        return None  # sector-heat lookups outside this test's scope
+
+    history = MagicMock()
+    history.get_latest.side_effect = _get_latest
+    return build(BuilderContext(snapshot=snap, history=history, today=today))
+
+
+@pytest.mark.parametrize("how", ["quarantined", "unavailable"])
+@pytest.mark.parametrize("missing", [("dsex",), _DSE_SNAPSHOT_KEYS], ids=["one-id", "all-ids"])
+def test_a_dse_reading_missing_on_a_trading_day_never_calls_it_a_non_trading_day(
+        monkeypatch, how, missing):
+    """Thursday 24 Sep 2026 is a trading day by the Brief's own rule. A DSE id the snapshot
+    lacks falls back to its last history session: the card keeps that session's real date and
+    is stale, the section is stale, and the reason says the latest reading is missing, never
+    that the market was shut (G2 review: one quarantined id labelled the whole section)."""
+    section = _dse_with_readings_missing(monkeypatch, date(2026, 9, 24), missing, how=how,
+                                         last_session=date(2026, 9, 23))
+    by_id = {m.id: m for m in section.metrics}
+    assert (by_id["dsex"].value, by_id["dsex"].as_of, by_id["dsex"].stale) == (
+        5232.49, date(2026, 9, 23), True)
+    assert (section.freshness, section.freshness_reason) == ("stale", _MISSING_READING_REASON)
+    assert "Non-trading" not in section.freshness_reason
+
+
+@pytest.mark.parametrize("today", [date(2026, 9, 25), date(2026, 9, 26)], ids=["friday", "saturday"])
+def test_a_weekend_fallback_keeps_the_non_trading_day_reason(monkeypatch, today):
+    """On Friday and Saturday (no BD session) the empty snapshot falls back to Thursday's
+    session, and the section still says so: non-trading day, last trading session."""
+    section = _dse_with_readings_missing(monkeypatch, today, _DSE_SNAPSHOT_KEYS, how="unavailable",
+                                         last_session=date(2026, 9, 24))
+    dsex = next(m for m in section.metrics if m.id == "dsex")
+    assert (dsex.as_of, dsex.stale) == (date(2026, 9, 24), True)
+    assert (section.freshness, section.freshness_reason) == ("stale", _NON_TRADING_REASON)
+
+
+@pytest.mark.parametrize(("today", "missing"), [
+    (date(2026, 9, 25), ("dsex",)),
+    (date(2026, 9, 26), _DSE_SNAPSHOT_KEYS),
+], ids=["friday-one-id", "saturday-all-ids"])
+def test_a_weekend_fallback_older_than_the_last_session_is_not_called_the_last_trading_session(
+        monkeypatch, today, missing):
+    """Friday 25 / Saturday 26 Sep 2026: the last BD session was Thursday 24 Sep, but history's
+    newest row is Wednesday 23 Sep (Thursday's reading never arrived). The card keeps its real
+    Wednesday date and is stale, and the section must not claim it shows the last trading
+    session; it says the latest reading is missing (G2b review round 0, SYNTHETIC data)."""
+    section = _dse_with_readings_missing(monkeypatch, today, missing, how="quarantined",
+                                         last_session=date(2026, 9, 23))
+    dsex = next(m for m in section.metrics if m.id == "dsex")
+    assert (dsex.as_of, dsex.stale) == (date(2026, 9, 23), True)
+    assert (section.freshness, section.freshness_reason) == ("stale", _MISSING_READING_REASON)
+
+
+def test_a_weekend_fallback_is_the_last_trading_session_only_if_every_fallback_card_is(
+        monkeypatch):
+    """Friday 25 Sep 2026, whole snapshot empty: six ids fall back to Thursday 24 Sep (the last
+    session) but DS30's newest history row is Wednesday 23 Sep. One card older than the last
+    session is enough to make 'last trading session' false for the section (SYNTHETIC data)."""
+    section = _dse_with_readings_missing(monkeypatch, date(2026, 9, 25), _DSE_SNAPSHOT_KEYS,
+                                         how="unavailable", last_session=date(2026, 9, 24),
+                                         sessions={"ds30": date(2026, 9, 23)})
+    ds30 = next(m for m in section.metrics if m.id == "dse_ds30")
+    assert (ds30.as_of, ds30.stale) == (date(2026, 9, 23), True)
+    assert (section.freshness, section.freshness_reason) == ("stale", _MISSING_READING_REASON)

@@ -6,10 +6,15 @@ from brief.econdelta import EconDeltaSnapshot
 from brief.history import HistoryRow
 
 
-def _snap():
+def _snap(observed=date(2026, 8, 22)):
     return EconDeltaSnapshot(
         updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
         sources_status={"bb_forex": {"status": "ok", "age_hours": 0.08}},
+        observations={mid: {"metric_id": mid, "value": value, "as_of": observed.isoformat(),
+            "source": "dated test source", "unit": unit, "quality": "verified",
+            "date_basis": "observation", "evidence": "dated quote fixture",
+            "captured_at": observed.isoformat() + "T01:00:00+06:00"}
+            for mid, value, unit in [("usd_bdt_mid", 122.7, "BDT"), ("gold_usd_oz", 3310.5, "USD/oz")]},
         data={
             "usd_bdt_mid": 122.70,
             "gold_usd_oz": 3310.5,
@@ -163,7 +168,7 @@ def test_fx_reserves_month_end_stamp_reads_fresh_inside_the_monthly_window():
     history = _FakeHistory({
         "gross_reserves_usd_bn": _Row(36.4222, date(2026, 7, 31)),
     })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 25),
+    ctx = BuilderContext(snapshot=_snap(date(2026, 8, 25)), history=history, today=date(2026, 8, 25),
                          history_monthly=_FakeHistory({}))
     s = build(ctx)
     by_id = {m.id: m for m in s.metrics}
@@ -183,7 +188,7 @@ def test_fx_stays_stale_on_a_late_exports_final_even_when_reserves_is_fresh():
     history_monthly = _FakeHistory({
         "exports_usd_mn_monthly": _archive_row("exports_usd_mn_monthly", 4202.69, date(2026, 6, 1)),
     })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 25),
+    ctx = BuilderContext(snapshot=_snap(date(2026, 8, 25)), history=history, today=date(2026, 8, 25),
                          history_monthly=history_monthly)
     s = build(ctx)
     by_id = {m.id: m for m in s.metrics}
@@ -199,7 +204,7 @@ def test_fx_reserves_older_than_the_monthly_warning_window_still_drags_the_badge
     history = _FakeHistory({
         "gross_reserves_usd_bn": _Row(36.4222, date(2026, 6, 30)),
     })
-    ctx = BuilderContext(snapshot=_snap(), history=history, today=date(2026, 8, 25),
+    ctx = BuilderContext(snapshot=_snap(date(2026, 8, 25)), history=history, today=date(2026, 8, 25),
                          history_monthly=_FakeHistory({}))
     s = build(ctx)
     assert s.freshness == "stale"

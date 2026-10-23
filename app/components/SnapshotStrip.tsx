@@ -84,8 +84,10 @@ export function SnapshotStrip({ sections }: SnapshotStripProps) {
               sub={it.sub}
               tone={it.tone}
               spark={it.spark}
-              delta={it.delta}
-              deltaPct={it.delta_pct}
+              // Code-computed change figures carry the source's full decimals
+              // (R2 fix 16); cut them for the screen exactly like the value.
+              delta={cleanMetricValue(it.delta)}
+              deltaPct={cleanMetricValue(it.delta_pct)}
               changed={it.changed}
               sparkColor={`var(--${
                 it.tone === "bull"

@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from brief.publication_identity import PublishIdentity
+
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -249,11 +251,10 @@ def test_fetch_series_summaries_degrades_gracefully_when_money_market_fails():
 
 def test_build_editor_input_stamps_empty_series_summary_by_default():
     sections = [SectionData(id="macro", title="Macro", freshness="fresh", metrics=[])]
-    with patch("brief.pipeline_v6.fetch_max_issue_no", return_value=1):
-        editor_input, _lens = _build_editor_input(
-            sections, date(2026, 8, 22), [],
-            previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
-        )
+    editor_input, _lens = _build_editor_input(
+        sections, date(2026, 8, 22), [],
+        expected_identity=PublishIdentity(2, date(2026, 8, 22)), previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
+    )
     assert editor_input["sections_raw"][0]["series_summary"] == {}
 
 
@@ -486,12 +487,11 @@ def test_build_editor_input_passes_derived_history_facts_to_the_raw_section():
 
     fact = _dsex_session_low_fact(_dsex_points_for_a_42_session_low())
     sections = [SectionData(id="dse", title="DSE Markets", freshness="fresh", metrics=[])]
-    with patch("brief.pipeline_v6.fetch_max_issue_no", return_value=1):
-        editor_input, _lens = _build_editor_input(
-            sections, date(2026, 8, 25), [],
-            previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
-            derived_history_facts={"dse": [fact]},
-        )
+    editor_input, _lens = _build_editor_input(
+        sections, date(2026, 8, 25), [],
+        expected_identity=PublishIdentity(2, date(2026, 8, 25)), previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
+        derived_history_facts={"dse": [fact]},
+    )
     dse_raw = next(s for s in editor_input["sections_raw"] if s["slug"] == "dse")
     assert [f["phrase"] for f in dse_raw["history_facts"]] == [
         "a 42-session low (5,601.44 on 22 Jun the last lower close)"
@@ -503,10 +503,9 @@ def test_build_editor_input_stamps_provided_series_summary_per_slug():
     digest = {"macro": {"cpi_12m_avg_monthly": {"n": 24, "first_ts": "2024-08-01",
                                                  "first_value": 6.0, "last_ts": "2026-07-31",
                                                  "last_value": 5.2, "min": 4.8, "max": 6.5}}}
-    with patch("brief.pipeline_v6.fetch_max_issue_no", return_value=1):
-        editor_input, _lens = _build_editor_input(
-            sections, date(2026, 8, 22), [],
-            previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
-            series_summaries=digest,
-        )
+    editor_input, _lens = _build_editor_input(
+        sections, date(2026, 8, 22), [],
+        expected_identity=PublishIdentity(2, date(2026, 8, 22)), previous_brief=None, previous_lens=None, recent_news=[], metric_definitions=[],
+        series_summaries=digest,
+    )
     assert editor_input["sections_raw"][0]["series_summary"] == digest["macro"]

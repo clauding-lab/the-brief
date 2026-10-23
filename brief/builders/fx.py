@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from brief.cadence import months_apart, section_freshness
 from brief.schema import Metric, SectionData
-from . import BuilderContext, official_monthly_bn
+from . import BuilderContext, dated_quote, official_monthly_bn
 
 
 _SPOT_SPEC = (
@@ -61,21 +61,17 @@ def _last_known(ctx: BuilderContext, metric_id: str):
 def build(ctx: BuilderContext) -> SectionData:
     # ── USD/BDT spot from EconDelta daily snapshot ─────────────────────────
     metrics: list[Metric] = []
-    for mid, label, src_key, unit in _SPOT_SPEC:
+    for mid, label, src_key, unit in (*_SPOT_SPEC,
+            ("fx_gold_usd_oz", "Gold", "gold_usd_oz", "USD/oz")):
+        quote = dated_quote(ctx, src_key)
+        if quote is None:
+            continue
+        value, observed, source, held = quote
         metrics.append(Metric(
-            id=mid, label=label, value=ctx.snapshot.get(src_key), unit=unit,
-            as_of=ctx.today, source="BB",
-            source_url="https://www.bb.org.bd/en/index.php/econdata/exchangerate",
-            cadence="daily",
+            id=mid, label=label, value=value, unit=unit,
+            as_of=observed, source=source, cadence="daily", stale=held,
         ))
-
-    # ── Gold, from the EconDelta daily snapshot (ex-`comm`) ────────────────
-    # Same snapshot path the retired Commodities section used, so the printed
-    # number does not change — only where it sits.
-    metrics.append(Metric(
-        id="fx_gold_usd_oz", label="Gold", value=ctx.snapshot.get("gold_usd_oz"),
-        unit="USD/oz", as_of=ctx.today, source="EconDelta", cadence="daily",
-    ))
+    quotes_unavailable = len(metrics) < 2
 
     # ── Gross reserves — month-END-stamped live series ─────────────────────
     # Monthly cadence, in lockstep with bb.py (landmine 24, corrected
@@ -135,5 +131,5 @@ def build(ctx: BuilderContext) -> SectionData:
         id="fx",
         title="FX & External",
         metrics=metrics,
-        freshness=section_freshness(metrics, today=ctx.today),
+        freshness="unavailable" if quotes_unavailable else section_freshness(metrics, today=ctx.today),
     )

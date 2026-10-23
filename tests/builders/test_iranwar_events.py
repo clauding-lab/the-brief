@@ -16,6 +16,11 @@ def _make_ctx() -> BuilderContext:
     snap = EconDeltaSnapshot(
         updated_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
         sources_status={},
+        observations={mid: {"metric_id": mid, "value": value, "as_of": "2026-04-20",
+            "source": "dated fixture", "unit": "USD/bbl", "quality": "verified",
+            "date_basis": "observation", "evidence": "dated quote fixture",
+            "captured_at": "2026-04-21T01:00:00+06:00"}
+            for mid, value in [("brent_crude_usd_barrel", 88.5), ("wti_crude_usd_barrel", 84.2)]},
         data={"brent_crude_usd_barrel": 88.5, "wti_crude_usd_barrel": 84.2},
     )
     return BuilderContext(snapshot=snap, history=None, today=date(2026, 4, 21))

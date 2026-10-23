@@ -6,11 +6,32 @@ returning `(status, json_body_or_none)`. Production passes a urllib wrapper.
 from __future__ import annotations
 
 import json as _json
+import math
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Protocol, Sequence, runtime_checkable
+
+
+def finite_number(value: Any) -> bool:
+    """Whether a numeric scalar is finite and safely representable as a float."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError, TypeError):
+        return False
+
+
+def _history_number(value: Any) -> float | None:
+    """PostgREST may serialize numeric columns as strings; reject bad scalars."""
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except (OverflowError, ValueError):
+            return None
+    return float(value) if finite_number(value) else None
 
 
 @dataclass(frozen=True)
@@ -26,6 +47,39 @@ class HistoryRow:
     # derived from an auction that cleared on 27 Aug, and the chart footnote
     # says so. Optional and last so positional construction stays valid.
     source_as_of: date | None = None
+
+
+@dataclass(frozen=True)
+class HistoryPoint:
+    """One dated sparkline reading (R2 fix 16): the same row the batched
+    sparkline read already returns, with its `as_of` kept so a card's change
+    can be measured against the previous observation, not a guessed one."""
+    as_of: date
+    value: float
+
+
+def observation_date(row: HistoryRow, *, today: date, monthly: bool = False) -> date | None:
+    """Resolve source evidence; only completed monthly buckets gain month-end.
+
+    A monthly source date must belong to its bucket. Daily/event dates retain
+    their writer convention. Quote callers separately require explicit evidence
+    because legacy aggregate daily rows may have been collection restamps.
+    """
+    from brief.cadence import month_end
+
+    if not isinstance(row.as_of, date) or row.as_of > today:
+        return None
+    source_date = row.source_as_of
+    if source_date is not None:
+        if not isinstance(source_date, date) or source_date > today:
+            return None
+        if monthly and (source_date.year, source_date.month) != (row.as_of.year, row.as_of.month):
+            return None
+        return source_date
+    if monthly:
+        end = month_end(row.as_of)
+        return end if end <= today else None
+    return row.as_of
 
 
 def _source_as_of(row: dict) -> date | None:
@@ -99,10 +153,13 @@ class MetricHistoryClient:
         if status != 200 or not body:
             return None
         row = body[0]
+        value = _history_number(row.get("value"))
+        if value is None:
+            return None
         return HistoryRow(
             metric_id=row["metric_id"],
             as_of=date.fromisoformat(row["as_of"]),
-            value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
+            value=value,
             source=row["source"],
             source_as_of=_source_as_of(row),
         )
@@ -129,10 +186,13 @@ class MetricHistoryClient:
         if status != 200 or not body:
             return None
         row = body[0]
+        value = _history_number(row.get("value"))
+        if value is None:
+            return None
         return HistoryRow(
             metric_id=row["metric_id"],
             as_of=date.fromisoformat(row["as_of"]),
-            value=float(row["value"]) if isinstance(row["value"], (int, float, str)) else row["value"],
+            value=value,
             source=row["source"],
             source_as_of=_source_as_of(row),
         )
@@ -145,12 +205,15 @@ class MetricHistoryClient:
         today: date | None = None,
         limit: int | None = None,
         table: str = "metric_history",
-    ) -> dict[str, list[float]] | dict[str, list[HistoryRow]]:
+        dated: bool = False,
+    ) -> dict[str, list[float]] | dict[str, list[HistoryRow]] | dict[str, list[HistoryPoint]]:
         """Batched fetch for many metric ids, with two calling modes:
 
         **Sparkline mode** (existing): pass `days` + optionally `today`.
         Returns `dict[str, list[float]]` ordered oldest-to-newest. Non-numeric
-        values are filtered out — sparkline-friendly.
+        values are filtered out — sparkline-friendly. With `dated=True` (R2 fix
+        16) the same single query returns `HistoryPoint`s instead, keeping each
+        row's `as_of`; a row whose `as_of` does not parse is skipped.
 
         **Anchor mode** (new): pass `limit` and optionally `table`.
         Returns `dict[str, list[HistoryRow]]` ordered most-recent-first
@@ -205,12 +268,19 @@ class MetricHistoryClient:
         status, body = self.http.get(url, headers=self._headers())
         if status != 200 or not body:
             return {}
-        out: dict[str, list[float]] = {}
+        out: dict[str, list[Any]] = {}
         for row in body:
             v = row.get("value")
             if not isinstance(v, (int, float)) or isinstance(v, bool):
                 continue
-            out.setdefault(row["metric_id"], []).append(float(v))
+            if not dated:
+                out.setdefault(row["metric_id"], []).append(float(v))
+                continue
+            try:
+                as_of = date.fromisoformat(str(row.get("as_of"))[:10])
+            except ValueError:
+                continue  # an undated reading can never anchor a change
+            out.setdefault(row["metric_id"], []).append(HistoryPoint(as_of, float(v)))
         return out
 
     def upsert_many(self, rows: list[HistoryRow]) -> bool:
