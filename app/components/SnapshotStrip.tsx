@@ -15,7 +15,9 @@ interface SnapshotStripProps {
 // present, six canonical cells derive by case-insensitive substring label
 // lookup against the measured real labels below. Order = display order.
 const FALLBACK_CELLS: ReadonlyArray<{ label: string; slugs: readonly string[] }> = [
-  { label: "usd/bdt mid", slugs: ["fx"] },
+  // "usd/bdt" not "usd/bdt mid": the card was relabelled "USD/BDT interbank
+  // wtd avg" (BB's WAR, not a mid) from #288; the prefix matches old and new.
+  { label: "usd/bdt", slugs: ["fx"] },
   { label: "dsex", slugs: ["dse"] },
   { label: "91d t-bill cut-off", slugs: ["tbond"] },
   { label: "brent", slugs: ["iran"] },

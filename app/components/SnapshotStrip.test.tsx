@@ -31,3 +31,16 @@ describe("SnapshotStrip — change figures", () => {
     expect(html).not.toContain("tb-delta");
   });
 });
+
+function fxSection(label: string): Section {
+  return { slug: "fx", metrics: [{ label, value: "124.75" }] } as unknown as Section;
+}
+
+describe("SnapshotStrip — FX cell label", () => {
+  // #288 relabelled the card from "USD/BDT mid" to "USD/BDT interbank wtd avg"
+  // (BB publishes a weighted average, not a mid); archived issues keep the old label.
+  it.each(["USD/BDT interbank wtd avg", "USD/BDT mid"])("finds the FX cell labelled %s", (label) => {
+    const html = renderToStaticMarkup(<SnapshotStrip sections={[fxSection(label)]} />);
+    expect(html).toContain("124.75");
+  });
+});
