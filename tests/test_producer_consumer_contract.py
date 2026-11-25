@@ -595,7 +595,7 @@ def test_the_days_usd_bdt_card_survives_every_model_pass_and_publishes_its_stamp
     slug, ord_v6, group = pipeline_v6.V5_TO_V6["fx"]
     model_brief = {"brief": {"issue_no": 1, "volume": 1, "brief_date": TODAY.isoformat()},
                    "sections": [{"slug": slug, "ord": ord_v6, "title": "FX", "group_key": group,
-                                 "metrics": [{"label": "USD/BDT mid", "value": "Tk 999 ▲"},
+                                 "metrics": [{"label": "USD/BDT interbank wtd avg", "value": "Tk 999 ▲"},
                                              {"label": "Gold", "value": "$4,329/oz"}]}]}
     fakes = {"_alert": lambda message: None, "fetch_previous_brief": lambda: None,
              "fetch_recent_news": lambda **kw: [], "fetch_metric_definitions": list,
@@ -608,7 +608,7 @@ def test_the_days_usd_bdt_card_survives_every_model_pass_and_publishes_its_stamp
     monkeypatch.setattr(pipeline_v6, "publish_brief", lambda payload, **kw: published.append(payload) or "local")
     assert pipeline_v6.run_publish([fx_section], TODAY, expected_identity=PublishIdentity(1, TODAY)) == "local"
     cards = {m.label: m for s in published[0].sections if s.slug == slug for m in s.metrics}
-    assert (cards["USD/BDT mid"].value, cards["USD/BDT mid"].held_from) == ("123.22", None)
+    assert (cards["USD/BDT interbank wtd avg"].value, cards["USD/BDT interbank wtd avg"].held_from) == ("123.22", None)
     assert cards["Gold"].value == "$4,328.9/oz"  # the float32 feed's own decimal, no noise
 
 

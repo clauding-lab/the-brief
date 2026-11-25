@@ -41,7 +41,9 @@ from . import BuilderContext, dated_quote, official_monthly_bn
 
 
 _SPOT_SPEC = (
-    ("fx_usd_bdt_mid", "USD/BDT mid", "usd_bdt_mid", "BDT"),
+    # BB publishes this as the inter-bank weighted average rate (WAR), not a
+    # mid; labelled as such since #288 (2026-11-24 owner review).
+    ("fx_usd_bdt_mid", "USD/BDT interbank wtd avg", "usd_bdt_mid", "BDT"),
 )
 
 _EXPORTS_OFFICIAL_ID = "exports_usd_mn_monthly"

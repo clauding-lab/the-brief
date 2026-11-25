@@ -199,7 +199,7 @@ Every regular brief section follows the same internal grid (top-to-bottom):
 
 A sticky `SecNav` rail tracks the active section via IntersectionObserver; the lead (weight ≥ 2) section's item carries the accent.
 
-The **snapshot strip** above the SecNav derives six canonical cells (USD/BDT mid, DSEX, 91d T-Bill cut-off, Brent, Gold, Monthly Remittance) from section metrics whenever no dedicated snapshot section exists — which is every real issue today.
+The **snapshot strip** above the SecNav derives six canonical cells (USD/BDT interbank wtd avg — matched on the `usd/bdt` prefix, so pre-#288 "USD/BDT mid" issues still resolve — DSEX, 91d T-Bill cut-off, Brent, Gold, Monthly Remittance) from section metrics whenever no dedicated snapshot section exists — which is every real issue today.
 
 ---
 
